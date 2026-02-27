@@ -1,3 +1,19 @@
-node_modules/
-build/
+# Flutter
 .dart_tool/
+build/
+
+# iOS
+ios/Flutter/
+ios/Pods/
+ios/.symlinks/
+ios/Runner.app/
+
+# Logs
+*.log
+
+# Environment files
+.env
+functions/.env
+
+.dart_tool/
+.flutter-plugins-dependencies
