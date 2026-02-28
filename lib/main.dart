@@ -50,7 +50,7 @@ class MyApp extends StatelessWidget {
       builder: (context, _) {
         return MaterialApp(
           debugShowCheckedModeBanner: false,
-          title: 'Flutter App',
+          title: 'ServNex',
           theme: ThemeService.instance.themeData,
           home: const SplashScreen(),
         );

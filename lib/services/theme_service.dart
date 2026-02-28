@@ -11,9 +11,11 @@ class ThemeService extends ChangeNotifier {
   Color _backgroundColor = Colors.white;
   bool _isDarkMode = false;
   String _fontFamily = 'Roboto';
-  String _appName = 'ServicePro';
+  String _appName = 'ServNex';
   String _databaseName = 'default_db';
   String? _logoUrl;
+
+  String get brandingFontFamily => 'Lufga';
 
   Color get primaryColor => _primaryColor;
   Color get secondaryColor => _secondaryColor;
@@ -35,7 +37,9 @@ class ThemeService extends ChangeNotifier {
         surface:
             _backgroundColor, // Use background color for surface/background
       ),
-      textTheme: GoogleFonts.getTextTheme(_fontFamily, base.textTheme),
+      textTheme: _fontFamily == 'Lufga'
+          ? base.textTheme.apply(fontFamily: 'Lufga')
+          : GoogleFonts.getTextTheme(_fontFamily, base.textTheme),
       scaffoldBackgroundColor: _backgroundColor,
       canvasColor: _backgroundColor,
       appBarTheme: AppBarTheme(
@@ -65,7 +69,9 @@ class ThemeService extends ChangeNotifier {
         brightness: Brightness.light,
         surface: background,
       ),
-      textTheme: GoogleFonts.getTextTheme(fontFamily, base.textTheme),
+      textTheme: fontFamily == 'Lufga'
+          ? base.textTheme.apply(fontFamily: 'Lufga')
+          : GoogleFonts.getTextTheme(fontFamily, base.textTheme),
       scaffoldBackgroundColor: background,
       canvasColor: background,
       appBarTheme: const AppBarTheme(
@@ -95,7 +101,7 @@ class ThemeService extends ChangeNotifier {
 
     _isDarkMode = prefs.getBool('isDarkMode') ?? false;
     _fontFamily = prefs.getString('fontFamily') ?? 'Roboto';
-    _appName = prefs.getString('appName') ?? 'ServicePro';
+    _appName = prefs.getString('appName') ?? 'ServNex';
 
     // Support both 'tenantId' and 'databaseName' keys for backward compatibility and consistency
     final storedTenantId = prefs.getString('tenantId');
@@ -184,7 +190,7 @@ class ThemeService extends ChangeNotifier {
     _backgroundColor = Colors.white;
     _isDarkMode = false;
     _fontFamily = 'Roboto';
-    _appName = 'ServicePro';
+    _appName = 'ServNex';
     _logoUrl = null;
     notifyListeners();
     saveToLocal();

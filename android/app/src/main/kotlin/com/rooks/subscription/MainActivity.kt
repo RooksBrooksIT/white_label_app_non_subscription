@@ -1,4 +1,4 @@
-package com.example.subscription_rooks_app
+package com.rooks.subscription
 
 import io.flutter.embedding.android.FlutterFragmentActivity
 

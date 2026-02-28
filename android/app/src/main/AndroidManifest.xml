@@ -13,7 +13,7 @@
     <uses-permission android:name="android.permission.VIBRATE"/>
     
     <application
-        android:label="subscription_rooks_app"
+        android:label="ServNex"
         android:name="${applicationName}"
         android:enableOnBackInvokedCallback="true"
         android:usesCleartextTraffic="true"

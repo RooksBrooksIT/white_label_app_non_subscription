@@ -1,4 +1,3 @@
-
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
@@ -53,7 +52,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '416851266920',
     projectId: 'white-label-app-33300',
     storageBucket: 'white-label-app-33300.firebasestorage.app',
-    iosBundleId: 'com.example.subscriptionRooksApp',
+    iosBundleId: 'com.rooks.subscription',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
@@ -62,7 +61,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '416851266920',
     projectId: 'white-label-app-33300',
     storageBucket: 'white-label-app-33300.firebasestorage.app',
-    iosBundleId: 'com.example.subscriptionRooksApp',
+    iosBundleId: 'com.rooks.subscription',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(

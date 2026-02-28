@@ -3,7 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 
 class AdminDeviceConfigurationPage extends StatefulWidget {
-  const AdminDeviceConfigurationPage({super.key});
+  final bool isEmbedded;
+  const AdminDeviceConfigurationPage({super.key, this.isEmbedded = false});
 
   @override
   State<AdminDeviceConfigurationPage> createState() =>
@@ -446,6 +447,40 @@ class _AdminDeviceConfigurationPageState
 
   @override
   Widget build(BuildContext context) {
+    Widget bodyContent = CustomScrollView(
+      slivers: [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildHeader(),
+                const SizedBox(height: 24),
+                _buildAddDeviceCard(),
+                const SizedBox(height: 32),
+                const Text(
+                  'Configured Devices',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+            ),
+          ),
+        ),
+        _buildDeviceGrid(),
+        const SliverToBoxAdapter(child: SizedBox(height: 40)),
+      ],
+    );
+
+    if (widget.isEmbedded) {
+      return bodyContent;
+    }
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
@@ -458,35 +493,7 @@ class _AdminDeviceConfigurationPageState
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.black),
       ),
-      body: CustomScrollView(
-        slivers: [
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildHeader(),
-                  const SizedBox(height: 24),
-                  _buildAddDeviceCard(),
-                  const SizedBox(height: 32),
-                  const Text(
-                    'Configured Devices',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                ],
-              ),
-            ),
-          ),
-          _buildDeviceGrid(),
-          const SliverToBoxAdapter(child: SizedBox(height: 40)),
-        ],
-      ),
+      body: bodyContent,
     );
   }
 

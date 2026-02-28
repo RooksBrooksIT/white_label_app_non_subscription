@@ -134,6 +134,7 @@ class _SplashScreenState extends State<SplashScreen>
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                     letterSpacing: 2,
+                    fontFamily: 'Lufga',
                   ),
                 ),
               ),

@@ -149,8 +149,8 @@ class FirestoreService {
     DateTime nextBilling;
 
     if (planName.toLowerCase().contains('trial')) {
-      // Free Trial is exactly 7 days
-      nextBilling = now.add(const Duration(days: 7));
+      // Free Trial is exactly 30 days
+      nextBilling = now.add(const Duration(days: 30));
     } else if (isYearly) {
       nextBilling = DateTime(now.year + 1, now.month, now.day);
     } else if (isSixMonths) {
@@ -198,73 +198,15 @@ class FirestoreService {
     required String tenantId,
     String? appId,
   }) async {
-    try {
-      final doc = await subscriptionsRef(
-        tenantId: tenantId,
-        appId: appId,
-      ).doc(uid).get();
-      if (doc.exists && doc.data() != null) {
-        final data = doc.data()!;
-        if (data['status'] != 'active') return false;
-
-        // Check if subscription has expired
-        final nextBillingStr = data['nextBillingAt'] as String?;
-        if (nextBillingStr != null) {
-          final nextBilling = DateTime.tryParse(nextBillingStr);
-          if (nextBilling != null && DateTime.now().isAfter(nextBilling)) {
-            // Subscription has expired — mark as expired and deactivate user
-            await subscriptionsRef(
-              tenantId: tenantId,
-              appId: appId,
-            ).doc(uid).update({'status': 'expired'});
-            await setUserActiveStatus(
-              uid: uid,
-              tenantId: tenantId,
-              active: false,
-            );
-            return false;
-          }
-        }
-        return true;
-      }
-    } catch (_) {}
-    return false;
+    // Subscription restrictions removed as per user request
+    return true;
   }
 
   /// Check if an organization (tenant) has any active subscription.
   /// Useful for gating access for non-admin users (Engineers, Customers).
   Future<bool> isTenantActive({required String tenantId, String? appId}) async {
-    try {
-      // 1. Check in the specific app-specific bucket (Alen Cho, etc.)
-      var querySnapshot = await subscriptionsRef(
-        tenantId: tenantId,
-        appId: appId,
-      ).where('status', isEqualTo: 'active').limit(1).get();
-
-      // 2. FALLBACK: Check in the default 'data' bucket if not found or if appId was 'data'
-      if (querySnapshot.docs.isEmpty && appId != 'data' && appId != null) {
-        querySnapshot = await subscriptionsRef(
-          tenantId: tenantId,
-          appId: 'data',
-        ).where('status', isEqualTo: 'active').limit(1).get();
-      }
-
-      if (querySnapshot.docs.isEmpty) return false;
-
-      final data = querySnapshot.docs.first.data();
-      final nextBillingStr = data['nextBillingAt'] as String?;
-      if (nextBillingStr != null) {
-        final nextBilling = DateTime.tryParse(nextBillingStr);
-        if (nextBilling != null && DateTime.now().isAfter(nextBilling)) {
-          // Found an active doc but it's expired
-          return false;
-        }
-      }
-      return true;
-    } catch (e) {
-      debugPrint('Error checking tenant active status: $e');
-      return false;
-    }
+    // Subscription restrictions removed as per user request
+    return true;
   }
 
   /// Set the active status flag on a user document

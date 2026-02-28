@@ -9,6 +9,7 @@ import 'package:cloud_firestore/cloud_firestore.dart' as firestore;
 import 'package:intl/intl.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class AdminGeoLocationScreen extends StatefulWidget {
   final String engineerId;
@@ -51,9 +52,19 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
   String? _currentTrackingId;
   String? _currentTrackingName;
 
-  // New variable to store engineers list
+  // Store engineers list with their details
   List<Map<String, dynamic>> _engineersList = [];
   bool _isLoadingEngineers = false;
+
+  // Store the selected engineer's document ID for better queries
+  String? _selectedEngineerDocId;
+
+  // Flag to track if index is missing
+  bool _indexMissing = false;
+
+  // Corrected Firestore index URL
+  final String _firestoreIndexUrl =
+      'https://console.firebase.google.com/v1/r/project/white-label-app-33300/firestore/indexes?create_composite=Cl5wcm9qZWN0cy93aGl0ZS1sYWJlbC1hcHAtMzM2MDavZGF0YWJhc2VzLylhkZWZhWXk3VwMv5kZGV4ZXNY9fEAAeDQoJDXBKVXRlZEJ5AEAdQoJdXBKVXRlZEJ5AEAdQoJdXBKVXRlZEJ4';
 
   String _sanitizePath(String path) {
     return path.replaceAll(RegExp(r'[.#$\[\]]'), '_');
@@ -68,7 +79,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
     _loadEngineersList();
   }
 
-  // Function to load engineers from Firestore
+  // Function to load engineers from Firestore with their document IDs
   Future<void> _loadEngineersList() async {
     if (mounted) {
       setState(() {
@@ -77,10 +88,8 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
     }
 
     try {
-      // Get engineers list under the current tenant
-      final query = FirestoreService.instance
-          .collection('EngineerLogin')
-          .where('Username', isNotEqualTo: null);
+      // Get all engineers from EngineerLogin collection
+      final query = FirestoreService.instance.collection('EngineerLogin');
 
       final snapshot = await query.get();
 
@@ -89,21 +98,21 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
       for (final doc in snapshot.docs) {
         final data = doc.data();
         final username = data['Username']?.toString();
+        final email = data['Email']?.toString();
+        final phone = data['Phone']?.toString();
 
         if (username != null && username.isNotEmpty) {
-          // Extract the parent document ID (Abishek_20260203, etc.)
-          final parentDocId = doc.reference.parent.parent?.id ?? 'unknown';
-
           engineers.add({
-            'id': username, // Using username as ID for tracking
+            'docId': doc.id, // Store the actual document ID
             'username': username,
-            'parentDocId': parentDocId,
+            'email': email,
+            'phone': phone,
             'fullPath': doc.reference.path,
           });
         }
       }
 
-      // Remove duplicates based on username
+      // Remove duplicates based on username (keep the first occurrence)
       final uniqueEngineers = <Map<String, dynamic>>[];
       final seenUsernames = <String>{};
 
@@ -119,6 +128,17 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
         setState(() {
           _engineersList = uniqueEngineers;
           _isLoadingEngineers = false;
+
+          // If we have a current tracking ID, find its document ID
+          if (_currentTrackingId != null) {
+            final matchedEngineer = _engineersList.firstWhere(
+              (e) => e['username'] == _currentTrackingId,
+              orElse: () => {},
+            );
+            if (matchedEngineer.isNotEmpty) {
+              _selectedEngineerDocId = matchedEngineer['docId'];
+            }
+          }
         });
       }
 
@@ -161,19 +181,21 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
   void _listenForUpdates() {
     _engineerSubscription?.cancel();
     _adminSubscription?.cancel();
+    _updatesSubscription?.cancel();
 
     if (_currentTrackingId != null && _currentTrackingId!.isNotEmpty) {
       _listenToEngineerLocation();
+      _listenToEngineerUpdates(); // This will track from Engineer_updates collection
     }
     _listenToAdminDetails();
-    _listenToBookingUpdates();
   }
 
-  void _switchEngineer(String id, String name) {
+  void _switchEngineer(String id, String name, {String? docId}) {
     if (mounted) {
       setState(() {
         _currentTrackingId = id;
         _currentTrackingName = name;
+        _selectedEngineerDocId = docId;
         _lastLocation = null;
         _pathHistory.clear();
         _jobUpdatePoints.clear();
@@ -186,7 +208,14 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
         _assignedEmployeeName = null;
         _currentTicketStatus = null;
         _autoFollow = true;
+        _indexMissing = false;
       });
+
+      // Cancel existing subscriptions
+      _engineerSubscription?.cancel();
+      _updatesSubscription?.cancel();
+
+      // Start new listeners
       _listenForUpdates();
 
       // Show snackbar feedback
@@ -247,27 +276,19 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
             debugPrint(
               'AdminGeoLocationScreen: assignedEmployee changed from $_currentTrackingId to $assignedEmployee',
             );
-            setState(() {
-              _currentTrackingId = assignedEmployee;
-              _currentTrackingName = assignedEmployee;
-              _lastLocation = null;
-              _pathHistory.clear();
-              _updateCount = 0;
-              _isOnline = false;
-              _lastUpdateTime = null;
-              _lastRTDBUpdateTime = null;
-            });
 
-            // Restart the engineer location listener
-            _listenToEngineerLocation();
+            // Find the document ID for the new engineer
+            final matchedEngineer = _engineersList.firstWhere(
+              (e) => e['username'] == assignedEmployee,
+              orElse: () => {},
+            );
 
-            // Notify user of the change
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Auto-switched tracking to: $assignedEmployee'),
-                duration: const Duration(seconds: 3),
-                behavior: SnackBarBehavior.floating,
-              ),
+            _switchEngineer(
+              assignedEmployee,
+              assignedEmployee,
+              docId: matchedEngineer.isNotEmpty
+                  ? matchedEngineer['docId']
+                  : null,
             );
           }
 
@@ -313,6 +334,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
   void _listenToEngineerLocation() {
     _engineerSubscription?.cancel();
     if (_currentTrackingId == null || _currentTrackingId!.isEmpty) return;
+
     final sanitizedId = _sanitizePath(_currentTrackingId!);
     final tenantId = ThemeService.instance.databaseName;
     final dbRef = rtdb.FirebaseDatabase.instance.ref(
@@ -372,97 +394,208 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
     );
   }
 
-  void _listenToBookingUpdates() {
+  // Listen to Engineer_updates collection for tracking
+  void _listenToEngineerUpdates() {
     _updatesSubscription?.cancel();
-    if (_currentTrackingId == null || _currentTrackingId!.isEmpty) return;
 
-    // Build the query:
-    // If we have a booking ID, we might want updates specifically for that booking.
-    // However, the user wants to "track my engineer", so we'll look for all updates by this engineer
-    // to build a better path history.
+    if (_currentTrackingId == null || _currentTrackingId!.isEmpty) {
+      debugPrint('No engineer selected for tracking');
+      return;
+    }
+
+    debugPrint('Listening to Engineer_updates for: $_currentTrackingId');
+
+    // Try with orderBy first (requires index)
+    try {
+      firestore.Query<Map<String, dynamic>> query = FirestoreService.instance
+          .collection('Engineer_updates')
+          .where('updatedBy', isEqualTo: _currentTrackingId)
+          .orderBy('updatedAt', descending: true)
+          .limit(50); // Get last 50 updates for better history
+
+      _updatesSubscription = query.snapshots().listen(
+        (snapshot) {
+          _processEngineerUpdates(snapshot);
+        },
+        onError: (error) {
+          debugPrint('Error with ordered query: $error');
+
+          // Check if it's an index error
+          if (error.toString().contains('index') ||
+              error.toString().contains('failed-precondition')) {
+            setState(() {
+              _indexMissing = true;
+            });
+
+            // Fall back to query without orderBy
+            _fallbackEngineerUpdates();
+          } else {
+            // Show other errors
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Error tracking engineer: $error'),
+                  duration: const Duration(seconds: 3),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          }
+        },
+      );
+    } catch (e) {
+      debugPrint('Exception setting up query: $e');
+      _fallbackEngineerUpdates();
+    }
+  }
+
+  // Fallback method without orderBy (works without index)
+  void _fallbackEngineerUpdates() {
+    debugPrint('Using fallback query without orderBy');
+
     firestore.Query<Map<String, dynamic>> query = FirestoreService.instance
         .collection('Engineer_updates')
         .where('updatedBy', isEqualTo: _currentTrackingId)
-        .orderBy('updatedAt', descending: true)
-        .limit(20); // Get last 20 captured points for history
+        .limit(50);
 
     _updatesSubscription = query.snapshots().listen(
       (snapshot) {
-        if (snapshot.docs.isEmpty) return;
+        _processEngineerUpdates(snapshot);
+      },
+      onError: (error) {
+        debugPrint('Error in fallback query: $error');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error tracking engineer: $error'),
+              duration: const Duration(seconds: 3),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      },
+    );
+  }
 
-        // Collect all valid points from the history
-        final List<latlong.LatLng> historicalCoords = [];
-        final List<Map<String, dynamic>> updateDetails = [];
-        firestore.Timestamp? latestTimestamp;
-        latlong.LatLng? latestPos;
+  // Process engineer updates (common method for both queries)
+  void _processEngineerUpdates(
+    firestore.QuerySnapshot<Map<String, dynamic>> snapshot,
+  ) {
+    if (snapshot.docs.isEmpty) {
+      debugPrint('No Engineer_updates found for $_currentTrackingId');
+      return;
+    }
 
-        for (final doc in snapshot.docs.reversed) {
-          final data = doc.data();
-          final dynamic latVal = data['lat'];
-          final dynamic lngVal = data['lng'];
-          final dynamic timestamp = data['updatedAt'];
-          final String? status = data['engineerStatus']?.toString();
+    debugPrint('Received ${snapshot.docs.length} Engineer_updates');
 
-          if (latVal != null && lngVal != null) {
-            final double lat = (latVal as num).toDouble();
-            final double lng = (lngVal as num).toDouble();
-            final pos = latlong.LatLng(lat, lng);
-            historicalCoords.add(pos);
-            updateDetails.add({
-              'pos': pos,
-              'status': status ?? 'Update',
-              'time': timestamp is firestore.Timestamp
-                  ? timestamp.toDate()
-                  : null,
-            });
+    // Sort client-side if needed (for fallback query)
+    final sortedDocs = snapshot.docs.toList()
+      ..sort((a, b) {
+        final aTime =
+            (a.data()['updatedAt'] as firestore.Timestamp?)?.toDate() ??
+            DateTime.now();
+        final bTime =
+            (b.data()['updatedAt'] as firestore.Timestamp?)?.toDate() ??
+            DateTime.now();
+        return bTime.compareTo(aTime); // Descending
+      });
 
-            if (timestamp is firestore.Timestamp) {
-              if (latestTimestamp == null ||
-                  timestamp.toDate().isAfter(latestTimestamp.toDate())) {
-                latestTimestamp = timestamp;
-                latestPos = pos;
-              }
+    // Process all updates
+    final List<latlong.LatLng> newPoints = [];
+    final List<Map<String, dynamic>> newUpdateDetails = [];
+    firestore.Timestamp? latestTimestamp;
+    latlong.LatLng? latestPos;
+    String? latestStatus;
+
+    // Process in chronological order to maintain sequence
+    for (final doc in sortedDocs.reversed) {
+      final data = doc.data();
+      final dynamic latVal = data['lat'];
+      final dynamic lngVal = data['lng'];
+      final dynamic timestamp = data['updatedAt'];
+      final String? status = data['engineerStatus']?.toString();
+      final String? docId = doc.id;
+
+      if (latVal != null && lngVal != null) {
+        try {
+          final double lat = (latVal as num).toDouble();
+          final double lng = (lngVal as num).toDouble();
+          final pos = latlong.LatLng(lat, lng);
+
+          newPoints.add(pos);
+
+          // Store update details
+          newUpdateDetails.add({
+            'pos': pos,
+            'status': status ?? 'Update',
+            'time': timestamp is firestore.Timestamp
+                ? timestamp.toDate()
+                : null,
+            'docId': docId,
+            'rawData': data,
+          });
+
+          // Track the latest update
+          if (timestamp is firestore.Timestamp) {
+            if (latestTimestamp == null ||
+                timestamp.toDate().isAfter(latestTimestamp.toDate())) {
+              latestTimestamp = timestamp;
+              latestPos = pos;
+              latestStatus = status;
             }
+          }
+        } catch (e) {
+          debugPrint('Error parsing location data: $e');
+        }
+      }
+    }
+
+    if (mounted && newPoints.isNotEmpty) {
+      setState(() {
+        // Add new points to path history (avoid duplicates)
+        for (final point in newPoints) {
+          if (!_pathHistory.contains(point)) {
+            _pathHistory.add(point);
           }
         }
 
-        if (mounted && historicalCoords.isNotEmpty) {
-          setState(() {
-            // Merge historical Firestore points into path history
-            for (final point in historicalCoords) {
-              if (!_pathHistory.contains(point)) {
-                _pathHistory.add(point);
-              }
-            }
-            if (_pathHistory.length > 300)
-              _pathHistory.removeRange(0, _pathHistory.length - 300);
-
-            // Update specific job update points
-            _jobUpdatePoints.clear();
-            _jobUpdatePoints.addAll(updateDetails);
-
-            // If the latest Firestore update is newer than what we Have from RTDB, update position
-            final bool isNewer =
-                _lastRTDBUpdateTime == null ||
-                (latestTimestamp != null &&
-                    latestTimestamp.toDate().isAfter(_lastRTDBUpdateTime!));
-
-            if (isNewer && latestPos != null) {
-              _lastLocation = latestPos;
-              _updateCount++;
-
-              if (_autoFollow) {
-                _mapController.move(latestPos!, _mapController.camera.zoom);
-              }
-              _lastUpdateTime = latestTimestamp?.toDate() ?? DateTime.now();
-            }
-          });
+        // Limit path history size
+        if (_pathHistory.length > 500) {
+          _pathHistory.removeRange(0, _pathHistory.length - 500);
         }
-      },
-      onError: (error) {
-        debugPrint('Error listening to Engineer_updates: $error');
-      },
-    );
+
+        // Update job update points
+        _jobUpdatePoints.clear();
+        _jobUpdatePoints.addAll(newUpdateDetails.reversed.take(20).toList());
+
+        // If we have a latest position from Engineer_updates and no recent RTDB update,
+        // use this as the current location
+        final bool useEngineerUpdates =
+            _lastRTDBUpdateTime == null ||
+            (latestTimestamp != null &&
+                latestTimestamp.toDate().isAfter(
+                  _lastRTDBUpdateTime!.subtract(const Duration(minutes: 5)),
+                ));
+
+        if (useEngineerUpdates && latestPos != null) {
+          debugPrint(
+            'Using Engineer_updates location from ${latestTimestamp?.toDate()}',
+          );
+          _lastLocation = latestPos;
+          _updateCount++;
+
+          // Update status if available
+          if (latestStatus != null) {
+            _currentTicketStatus = latestStatus;
+          }
+
+          if (_autoFollow) {
+            _mapController.move(latestPos!, _mapController.camera.zoom);
+          }
+          _lastUpdateTime = latestTimestamp?.toDate() ?? DateTime.now();
+        }
+      });
+    }
   }
 
   void _centerOnEngineer() {
@@ -476,10 +609,92 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
     _mapController.camera.center,
     _mapController.camera.zoom + 1,
   );
+
   void _zoomOut() => _mapController.move(
     _mapController.camera.center,
     _mapController.camera.zoom - 1,
   );
+
+  // Improved URL launcher with better error handling
+  Future<void> _launchURL(String url) async {
+    debugPrint('Attempting to launch URL: $url');
+
+    final Uri uri = Uri.parse(url);
+    try {
+      // Check if we can launch the URL
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(
+          uri,
+          mode: LaunchMode.externalApplication,
+          webViewConfiguration: const WebViewConfiguration(
+            enableJavaScript: true,
+            enableDomStorage: true,
+          ),
+        );
+        debugPrint('URL launched successfully');
+      } else {
+        debugPrint('Cannot launch URL: $url');
+
+        // Show error with alternative options
+        if (mounted) {
+          _showUrlErrorDialog(url);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error launching URL: $e');
+      if (mounted) {
+        _showUrlErrorDialog(url);
+      }
+    }
+  }
+
+  // Show dialog with alternative ways to access the URL
+  void _showUrlErrorDialog(String url) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cannot Open Link'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Unable to open the browser automatically.'),
+            const SizedBox(height: 16),
+            const Text('Please copy this link manually:'),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: SelectableText(url, style: const TextStyle(fontSize: 12)),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              // Copy to clipboard
+              // Note: You'll need to add clipboard service if you want this
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Link copied to clipboard'),
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            },
+            child: const Text('Copy Link'),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   void dispose() {
@@ -507,7 +722,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
               ),
             ),
             Text(
-              _isOnline ? "Online" : "Offline",
+              _isOnline ? "Online (RTDB)" : "Offline",
               style: TextStyle(
                 fontSize: 12,
                 color: _isOnline ? Colors.greenAccent : Colors.white70,
@@ -573,10 +788,130 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
           _buildMap(),
           _buildFloatingControls(),
           _buildEngineerOverlay(),
+          // if (_indexMissing) _buildIndexWarning(),
         ],
       ),
     );
   }
+
+  // Widget _buildIndexWarning() {
+  //   return Positioned(
+  //     top: 16,
+  //     left: 16,
+  //     right: 16,
+  //     child: Material(
+  //       elevation: 8,
+  //       borderRadius: BorderRadius.circular(12),
+  //       child: Container(
+  //         padding: const EdgeInsets.all(16),
+  //         decoration: BoxDecoration(
+  //           color: Colors.orange.shade50,
+  //           borderRadius: BorderRadius.circular(12),
+  //           border: Border.all(color: Colors.orange.shade300),
+  //         ),
+  //         child: Column(
+  //           crossAxisAlignment: CrossAxisAlignment.start,
+  //           children: [
+  //             Row(
+  //               children: [
+  //                 Icon(
+  //                   Icons.warning_amber_rounded,
+  //                   color: Colors.orange.shade700,
+  //                 ),
+  //                 const SizedBox(width: 8),
+  //                 Expanded(
+  //                   child: Text(
+  //                     'Firestore Index Required',
+  //                     style: GoogleFonts.inter(
+  //                       fontWeight: FontWeight.bold,
+  //                       fontSize: 16,
+  //                       color: Colors.orange.shade800,
+  //                     ),
+  //                   ),
+  //                 ),
+  //               ],
+  //             ),
+  //             const SizedBox(height: 8),
+  //             Text(
+  //               'For optimal performance, please create the required Firestore index.',
+  //               style: GoogleFonts.inter(
+  //                 fontSize: 12,
+  //                 color: Colors.orange.shade800,
+  //               ),
+  //             ),
+  //             const SizedBox(height: 12),
+  //             Row(
+  //               mainAxisAlignment: MainAxisAlignment.end,
+  //               children: [
+  //                 TextButton(
+  //                   onPressed: () {
+  //                     setState(() {
+  //                       _indexMissing = false;
+  //                     });
+  //                   },
+  //                   child: const Text('DISMISS'),
+  //                 ),
+  //                 const SizedBox(width: 8),
+  //                 ElevatedButton(
+  //                   onPressed: () {
+  //                     _launchURL(_firestoreIndexUrl);
+  //                   },
+  //                   style: ElevatedButton.styleFrom(
+  //                     backgroundColor: Colors.orange.shade700,
+  //                     foregroundColor: Colors.white,
+  //                   ),
+  //                   child: const Text('CREATE INDEX'),
+  //                 ),
+  //               ],
+  //             ),
+  //             const SizedBox(height: 8),
+  //             Container(
+  //               padding: const EdgeInsets.all(8),
+  //               decoration: BoxDecoration(
+  //                 color: Colors.white,
+  //                 borderRadius: BorderRadius.circular(4),
+  //               ),
+  //               child: Column(
+  //                 crossAxisAlignment: CrossAxisAlignment.start,
+  //                 children: [
+  //                   Text(
+  //                     'Or create manually:',
+  //                     style: GoogleFonts.inter(
+  //                       fontSize: 10,
+  //                       fontWeight: FontWeight.bold,
+  //                       color: Colors.grey.shade700,
+  //                     ),
+  //                   ),
+  //                   const SizedBox(height: 4),
+  //                   Text(
+  //                     '1. Go to Firebase Console',
+  //                     style: GoogleFonts.inter(fontSize: 10),
+  //                   ),
+  //                   Text(
+  //                     '2. Firestore Database → Indexes',
+  //                     style: GoogleFonts.inter(fontSize: 10),
+  //                   ),
+  //                   Text(
+  //                     '3. Create composite index:',
+  //                     style: GoogleFonts.inter(fontSize: 10),
+  //                   ),
+  //                   Text(
+  //                     '   • Collection: Engineer_updates',
+  //                     style: GoogleFonts.inter(fontSize: 10),
+  //                   ),
+  //                   Text(
+  //                     '   • Fields: updatedBy (Ascending), updatedAt (Descending)',
+  //                     style: GoogleFonts.inter(fontSize: 10),
+  //                   ),
+  //                 ],
+  //               ),
+  //             ),
+  //           ],
+  //         ),
+  //       ),
+  //     ),
+  //   );
+  // }
 
   Widget _buildMap() {
     final center = _lastLocation ?? const latlong.LatLng(12.9716, 77.5946);
@@ -596,6 +931,24 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
         TileLayer(
           urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
           userAgentPackageName: 'com.rooks.charity_app',
+          additionalOptions: const {
+            'attribution': '© OpenStreetMap contributors',
+            'minZoom': '1',
+            'maxZoom': '19',
+          },
+          tileProvider: _CachedTileProvider(),
+          fallbackUrl: 'https://tile.openstreetmap.de/{z}/{x}/{y}.png',
+          maxZoom: 19,
+          retinaMode: true,
+        ),
+        RichAttributionWidget(
+          attributions: [
+            TextSourceAttribution(
+              'OpenStreetMap contributors',
+              onTap: () =>
+                  _launchURL('https://www.openstreetmap.org/copyright'),
+            ),
+          ],
         ),
         if (_pathHistory.isNotEmpty)
           PolylineLayer(
@@ -603,7 +956,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
               Polyline(
                 points: _pathHistory,
                 strokeWidth: 4,
-                color: Colors.blue.withValues(alpha: 0.6),
+                color: Colors.blue.withOpacity(0.6),
               ),
             ],
           ),
@@ -612,28 +965,32 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
             markers: _jobUpdatePoints.map((item) {
               final pos = item['pos'] as latlong.LatLng;
               final status = item['status'] as String;
+              final time = item['time'] as DateTime?;
+
               return Marker(
                 point: pos,
-                width: 30,
-                height: 30,
+                width: 40,
+                height: 40,
                 child: Tooltip(
-                  message: 'Job Update: $status',
+                  message:
+                      'Status: $status\nTime: ${time != null ? DateFormat('HH:mm:ss').format(time) : 'Unknown'}',
                   child: Container(
                     decoration: BoxDecoration(
-                      color: Colors.green.withValues(alpha: 0.8),
+                      color: _getStatusColor(status).withOpacity(0.9),
                       shape: BoxShape.circle,
                       border: Border.all(color: Colors.white, width: 2),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.2),
+                          color: Colors.black.withOpacity(0.3),
                           blurRadius: 4,
+                          spreadRadius: 1,
                         ),
                       ],
                     ),
                     child: const Icon(
-                      Icons.assignment_turned_in_rounded,
+                      Icons.location_on,
                       color: Colors.white,
-                      size: 16,
+                      size: 20,
                     ),
                   ),
                 ),
@@ -659,7 +1016,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                         borderRadius: BorderRadius.circular(12),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.15),
+                            color: Colors.black.withOpacity(0.15),
                             blurRadius: 8,
                             offset: const Offset(0, 2),
                           ),
@@ -686,7 +1043,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                           height: 40,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: Colors.blue.withValues(alpha: 0.2),
+                            color: Colors.blue.withOpacity(0.2),
                           ),
                         ),
                         Transform.rotate(
@@ -697,7 +1054,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                               color: Colors.white,
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.2),
+                                  color: Colors.black.withOpacity(0.2),
                                   blurRadius: 4,
                                 ),
                               ],
@@ -724,14 +1081,30 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                 point: _lastLocation!,
                 radius: _currentAccuracy,
                 useRadiusInMeter: true,
-                color: Colors.blue.withValues(alpha: 0.1),
-                borderColor: Colors.blue.withValues(alpha: 0.3),
+                color: Colors.blue.withOpacity(0.1),
+                borderColor: Colors.blue.withOpacity(0.3),
                 borderStrokeWidth: 1,
               ),
             ],
           ),
       ],
     );
+  }
+
+  // Helper method to get color based on status
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'completed':
+        return Colors.green;
+      case 'in progress':
+        return Colors.orange;
+      case 'pending':
+        return Colors.red;
+      case 'started':
+        return Colors.blue;
+      default:
+        return Colors.purple;
+    }
   }
 
   Widget _buildFloatingControls() {
@@ -837,7 +1210,9 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                     itemBuilder: (context, index) {
                       final engineer = _engineersList[index];
                       final username = engineer['username'] as String;
-                      final parentDocId = engineer['parentDocId'] as String;
+                      final docId = engineer['docId'] as String;
+                      final email = engineer['email'] as String?;
+                      final phone = engineer['phone'] as String?;
 
                       return Container(
                         margin: const EdgeInsets.only(bottom: 12),
@@ -854,7 +1229,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                           boxShadow: [
                             if (_currentTrackingId == username)
                               BoxShadow(
-                                color: Colors.blue.withValues(alpha: 0.05),
+                                color: Colors.blue.withOpacity(0.05),
                                 blurRadius: 10,
                                 offset: const Offset(0, 4),
                               ),
@@ -898,12 +1273,33 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                               color: const Color(0xFF1E3A8A),
                             ),
                           ),
-                          subtitle: Text(
-                            "ID: $parentDocId",
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              color: Colors.grey.shade500,
-                            ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (email != null && email.isNotEmpty)
+                                Text(
+                                  email,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 11,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                ),
+                              if (phone != null && phone.isNotEmpty)
+                                Text(
+                                  phone,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 11,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                ),
+                              Text(
+                                "Doc ID: $docId",
+                                style: GoogleFonts.inter(
+                                  fontSize: 9,
+                                  color: Colors.grey.shade400,
+                                ),
+                              ),
+                            ],
                           ),
                           trailing: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
@@ -920,7 +1316,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                                     borderRadius: BorderRadius.circular(10),
                                   ),
                                   child: const Text(
-                                    "ACTIVE",
+                                    "TRACKING",
                                     style: TextStyle(
                                       fontSize: 10,
                                       color: Colors.white,
@@ -929,17 +1325,27 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                                   ),
                                 )
                               else
-                                Icon(
-                                  Icons.arrow_forward_ios_rounded,
-                                  size: 14,
-                                  color: Colors.grey.shade400,
+                                ElevatedButton(
+                                  onPressed: () {
+                                    _switchEngineer(
+                                      username,
+                                      username,
+                                      docId: docId,
+                                    );
+                                    Navigator.pop(context);
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.blue,
+                                    foregroundColor: Colors.white,
+                                    minimumSize: const Size(80, 30),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                  child: const Text("Track"),
                                 ),
                             ],
                           ),
-                          onTap: () {
-                            _switchEngineer(username, username);
-                            Navigator.pop(context);
-                          },
                         ),
                       );
                     },
@@ -989,16 +1395,16 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
       right: 16,
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.95),
+          color: Colors.white.withOpacity(0.95),
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.1),
+              color: Colors.black.withOpacity(0.1),
               blurRadius: 20,
               offset: const Offset(0, 4),
             ),
           ],
-          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+          border: Border.all(color: Colors.white.withOpacity(0.2)),
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(24),
@@ -1069,6 +1475,14 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                                   ),
                                 ],
                               ),
+                              if (_selectedEngineerDocId != null)
+                                Text(
+                                  "Doc: ${_selectedEngineerDocId!.substring(0, 8)}...",
+                                  style: TextStyle(
+                                    fontSize: 8,
+                                    color: Colors.grey.shade400,
+                                  ),
+                                ),
                             ],
                           ),
                         ),
@@ -1116,7 +1530,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                       Row(
                         children: [
                           Text(
-                            "Recent Actions",
+                            "Recent Status Updates",
                             style: GoogleFonts.inter(
                               fontWeight: FontWeight.w700,
                               fontSize: 13,
@@ -1125,7 +1539,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                           ),
                           const Spacer(),
                           Text(
-                            "${_jobUpdatePoints.length} updates found",
+                            "${_jobUpdatePoints.length} updates",
                             style: GoogleFonts.inter(
                               fontSize: 11,
                               color: Colors.grey.shade500,
@@ -1146,16 +1560,23 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                             final pos = update['pos'] as latlong.LatLng;
 
                             return GestureDetector(
-                              onTap: () => _mapController.move(pos, 15),
+                              onTap: () {
+                                _mapController.move(pos, 15);
+                                setState(() => _autoFollow = false);
+                              },
                               child: Container(
                                 width: 140,
                                 margin: const EdgeInsets.only(right: 12),
                                 padding: const EdgeInsets.all(10),
                                 decoration: BoxDecoration(
-                                  color: Colors.white,
+                                  color: _getStatusColor(
+                                    status,
+                                  ).withOpacity(0.1),
                                   borderRadius: BorderRadius.circular(14),
                                   border: Border.all(
-                                    color: Colors.grey.shade200,
+                                    color: _getStatusColor(
+                                      status,
+                                    ).withOpacity(0.3),
                                   ),
                                 ),
                                 child: Column(
@@ -1167,7 +1588,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                                       style: GoogleFonts.inter(
                                         fontWeight: FontWeight.w700,
                                         fontSize: 12,
-                                        color: Colors.green.shade700,
+                                        color: _getStatusColor(status),
                                       ),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
@@ -1176,10 +1597,10 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                                     Text(
                                       time != null
                                           ? DateFormat('HH:mm').format(time)
-                                          : 'Unknown time',
+                                          : 'Unknown',
                                       style: GoogleFonts.inter(
                                         fontSize: 10,
-                                        color: Colors.grey.shade500,
+                                        color: Colors.grey.shade600,
                                       ),
                                     ),
                                   ],
@@ -1201,19 +1622,32 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
   }
 
   Widget _buildStatusIndicator() {
+    String statusText =
+        _currentTicketStatus?.toUpperCase() ??
+        (_isOnline ? "LIVE (RTDB)" : "OFFLINE");
+
+    Color bgColor = _isOnline ? Colors.green.shade50 : Colors.red.shade50;
+    Color textColor = _isOnline ? Colors.green.shade700 : Colors.red.shade700;
+    Color borderColor = _isOnline ? Colors.green.shade200 : Colors.red.shade200;
+
+    if (_currentTicketStatus != null) {
+      bgColor = _getStatusColor(_currentTicketStatus!).withOpacity(0.1);
+      textColor = _getStatusColor(_currentTicketStatus!);
+      borderColor = _getStatusColor(_currentTicketStatus!).withOpacity(0.3);
+      statusText = _currentTicketStatus!.toUpperCase();
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: _isOnline ? Colors.green.shade50 : Colors.red.shade50,
+        color: bgColor,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: _isOnline ? Colors.green.shade200 : Colors.red.shade200,
-        ),
+        border: Border.all(color: borderColor),
       ),
       child: Text(
-        _currentTicketStatus?.toUpperCase() ?? (_isOnline ? "LIVE" : "OFFLINE"),
+        statusText,
         style: TextStyle(
-          color: _isOnline ? Colors.green.shade700 : Colors.red.shade700,
+          color: textColor,
           fontSize: 10,
           fontWeight: FontWeight.bold,
         ),
@@ -1268,6 +1702,20 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
           ),
         ),
       ],
+    );
+  }
+}
+
+// Custom tile provider for caching
+class _CachedTileProvider extends TileProvider {
+  @override
+  ImageProvider getImage(TileCoordinates coordinates, TileLayer options) {
+    return NetworkImage(
+      getTileUrl(coordinates, options),
+      headers: const {
+        'User-Agent': 'SubscriptionRooksApp/1.0 (contact@yourcompany.com)',
+        'Accept-Encoding': 'gzip',
+      },
     );
   }
 }

@@ -139,21 +139,13 @@ class _EngineerloginState extends State<Engineerlogin> {
                       ? Image.network(
                           ThemeService.instance.logoUrl!,
                           height: 100,
+                          width:
+                              250, // Added width constraint to prevent horizontal overflow
                           fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) =>
+                              _buildDefaultLogo(), // Added error handling
                         )
-                      : Container(
-                          height: 100,
-                          width: 100,
-                          decoration: BoxDecoration(
-                            color: Colors.grey[100],
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.engineering_rounded,
-                            size: 50,
-                            color: Colors.black54,
-                          ),
-                        ),
+                      : _buildDefaultLogo(),
                 ),
                 const SizedBox(height: 48),
                 Text(
@@ -253,6 +245,22 @@ class _EngineerloginState extends State<Engineerlogin> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildDefaultLogo() {
+    return Container(
+      height: 100,
+      width: 100,
+      decoration: BoxDecoration(
+        color: Colors.grey[100],
+        shape: BoxShape.circle,
+      ),
+      child: const Icon(
+        Icons.engineering_rounded,
+        size: 50,
+        color: Colors.black54,
       ),
     );
   }

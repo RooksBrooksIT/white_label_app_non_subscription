@@ -6,14 +6,13 @@ import 'package:image_picker/image_picker.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_Engineer_reports.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_assign_tickets.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_barcode_scanner.dart';
-import 'package:subscription_rooks_app/frontend/screens/admin_brandandmodel_page.dart';
+import 'package:subscription_rooks_app/frontend/screens/admin_device_assets_page.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_attendance_page.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_attendance_reports.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_create_amc_customer.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_create_engineer.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_customer_report_page.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_deliverytickets_screen.dart';
-import 'package:subscription_rooks_app/frontend/screens/admin_device_config_page.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_geo_location_screen.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_view_barcode_details.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_view_engineer_updates.dart';
@@ -29,7 +28,7 @@ import 'package:subscription_rooks_app/backend/screens/admin_dashboard.dart';
 import 'package:subscription_rooks_app/services/notification_service.dart';
 import 'package:subscription_rooks_app/subscription/branding_customization_screen.dart';
 import 'package:subscription_rooks_app/subscription/subscription_plans_screen.dart';
-import 'package:subscription_rooks_app/frontend/screens/admin_transactions_screen.dart';
+// import 'package:subscription_rooks_app/frontend/screens/admin_transactions_screen.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 
 class admindashboard extends StatefulWidget {
@@ -157,7 +156,7 @@ class _admindashboardState extends State<admindashboard> {
               final isSixMonths = data['isSixMonths'] as bool? ?? false;
 
               if (currentPlanName?.toLowerCase().contains('trial') ?? false) {
-                billingCycle = '7 Days';
+                billingCycle = '30 Days';
               } else if (isYearly) {
                 billingCycle = 'Yearly';
               } else if (isSixMonths) {
@@ -356,30 +355,16 @@ class _admindashboardState extends State<admindashboard> {
                     const SizedBox(height: 24),
                     _buildManagementSection('Device & Assets', [
                       _buildMenuCard(
-                        title: 'Brand & Model',
-                        subtitle: 'Catalog management',
-                        icon: Icons.branding_watermark_rounded,
+                        title: 'Device & Assets',
+                        subtitle: 'Brand, model & configuration',
+                        icon: Icons.devices_rounded,
                         color: const Color(0xFFD63031),
                         onTap: () {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => BrandModelPage(),
-                            ),
-                          );
-                        },
-                      ),
-                      _buildMenuCard(
-                        title: 'Configuration',
-                        subtitle: 'Device parameters',
-                        icon: Icons.settings_input_component_rounded,
-                        color: const Color(0xFF2D3436),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
                               builder: (context) =>
-                                  AdminDeviceConfigurationPage(),
+                                  const AdminDeviceAssetsPage(),
                             ),
                           );
                         },
@@ -458,23 +443,23 @@ class _admindashboardState extends State<admindashboard> {
                       // ),
                     ]),
                     const SizedBox(height: 24),
-                    _buildManagementSection('Financials', [
-                      _buildMenuCard(
-                        title: 'Transactions',
-                        subtitle: 'Payments & Refunds',
-                        icon: Icons.receipt_long_rounded,
-                        color: const Color(0xFF00B894),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  const AdminTransactionsScreen(),
-                            ),
-                          );
-                        },
-                      ),
-                    ]),
+                    //                     _buildManagementSection('Financials', [
+                    //                       _buildMenuCard(
+                    //                         title: 'Transactions',
+                    //                         subtitle: 'Payments & Refunds',
+                    //                         icon: Icons.receipt_long_rounded,
+                    //                         color: const Color(0xFF00B894),
+                    //                         onTap: () {
+                    //                           Navigator.push(
+                    //                             context,
+                    //                             MaterialPageRoute(
+                    //                               builder: (context) =>
+                    //                                   const AdminTransactionsScreen(),
+                    //                             ),
+                    //                           );
+                    //                         },
+                    //                       ),
+                    //                     ]),
                     const SizedBox(height: 48),
                   ],
                 ),

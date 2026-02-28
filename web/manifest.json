@@ -1,6 +1,6 @@
 {
-    "name": "subscription_rooks_app",
-    "short_name": "subscription_rooks_app",
+    "name": "ServNex",
+    "short_name": "ServNex",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

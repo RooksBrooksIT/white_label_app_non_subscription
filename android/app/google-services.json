@@ -8,18 +8,18 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:416851266920:android:b6a0eb5de156185f981add",
+        "mobilesdk_app_id": "1:416851266920:android:69c5e3578db66c43981add",
         "android_client_info": {
-          "package_name": "com.example.subscription_rooks_app"
+          "package_name": "com.rooks.subscription"
         }
       },
       "oauth_client": [
         {
-          "client_id": "416851266920-se05p3tb7ahnuhdhsouuvvb08ep9r0el.apps.googleusercontent.com",
+          "client_id": "416851266920-ena6354rn46bu5kp36fpd61ej0brfie4.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.example.subscription_rooks_app",
-            "certificate_hash": "58f80b357a41d232a9afa2e3e8d919f7e902297f"
+            "package_name": "com.rooks.subscription",
+            "certificate_hash": "e12789752be3dd27fb91a07bd2a1243e40be5bc2"
           }
         },
         {
@@ -43,7 +43,7 @@
               "client_id": "416851266920-i7v56ug6t76c81du9mnqtocq269fgf36.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "com.example.subscriptionRooksApp"
+                "bundle_id": "com.rooks.subscription"
               }
             }
           ]

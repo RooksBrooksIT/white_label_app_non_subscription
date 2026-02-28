@@ -62,7 +62,7 @@ class _BrandingCustomizationScreenState
 
   String _selectedFont = 'Roboto';
   final TextEditingController _appNameController = TextEditingController(
-    text: 'My Awesome App',
+    text: 'ServNex',
   );
 
   // Preset Themes - Modern color combinations
@@ -989,6 +989,7 @@ class _BrandingCustomizationScreenState
                       icon: Icon(Icons.arrow_drop_down, color: _primaryColor),
                       items:
                           [
+                                'Lufga',
                                 'Roboto',
                                 'Lato',
                                 'Montserrat',
@@ -1003,7 +1004,12 @@ class _BrandingCustomizationScreenState
                                   value: f,
                                   child: Text(
                                     f,
-                                    style: GoogleFonts.getFont(f, fontSize: 14),
+                                    style: f == 'Lufga'
+                                        ? const TextStyle(
+                                            fontFamily: 'Lufga',
+                                            fontSize: 14,
+                                          )
+                                        : GoogleFonts.getFont(f, fontSize: 14),
                                   ),
                                 ),
                               )
@@ -1182,14 +1188,27 @@ class _BrandingCustomizationScreenState
                             _appNameController.text.isEmpty
                                 ? 'App Name'
                                 : _appNameController.text,
-                            style: GoogleFonts.getFont(
-                              _selectedFont,
-                              color: _backgroundColor.computeLuminance() < 0.5
-                                  ? Colors.white
-                                  : Colors.black87,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 16,
-                            ),
+                            style: _selectedFont == 'Lufga'
+                                ? TextStyle(
+                                    fontFamily: 'Lufga',
+                                    color:
+                                        _backgroundColor.computeLuminance() <
+                                            0.5
+                                        ? Colors.white
+                                        : Colors.black87,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 16,
+                                  )
+                                : GoogleFonts.getFont(
+                                    _selectedFont,
+                                    color:
+                                        _backgroundColor.computeLuminance() <
+                                            0.5
+                                        ? Colors.white
+                                        : Colors.black87,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 16,
+                                  ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -1276,16 +1295,27 @@ class _BrandingCustomizationScreenState
                                     const SizedBox(height: 2),
                                     Text(
                                       'Premium Member',
-                                      style: GoogleFonts.getFont(
-                                        _selectedFont,
-                                        fontSize: 12,
-                                        color:
-                                            _backgroundColor
-                                                    .computeLuminance() <
-                                                0.5
-                                            ? Colors.grey.shade400
-                                            : Colors.grey.shade600,
-                                      ),
+                                      style: _selectedFont == 'Lufga'
+                                          ? TextStyle(
+                                              fontFamily: 'Lufga',
+                                              fontSize: 12,
+                                              color:
+                                                  _backgroundColor
+                                                          .computeLuminance() <
+                                                      0.5
+                                                  ? Colors.grey.shade400
+                                                  : Colors.grey.shade600,
+                                            )
+                                          : GoogleFonts.getFont(
+                                              _selectedFont,
+                                              fontSize: 12,
+                                              color:
+                                                  _backgroundColor
+                                                          .computeLuminance() <
+                                                      0.5
+                                                  ? Colors.grey.shade400
+                                                  : Colors.grey.shade600,
+                                            ),
                                     ),
                                   ],
                                 ),

@@ -95,21 +95,13 @@ class _AMCLoginPageState extends State<AMCLoginPage>
                     ? Image.network(
                         ThemeService.instance.logoUrl!,
                         height: 100,
+                        width:
+                            250, // Added width constraint to prevent horizontal overflow
                         fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) =>
+                            _buildDefaultLogo(), // Added error handling to prevent broken layout
                       )
-                    : Container(
-                        height: 100,
-                        width: 100,
-                        decoration: BoxDecoration(
-                          color: Colors.grey[100],
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.business_rounded,
-                          size: 50,
-                          color: Colors.black54,
-                        ),
-                      ),
+                    : _buildDefaultLogo(),
               ),
               const SizedBox(height: 48),
               Text(
@@ -247,6 +239,22 @@ class _AMCLoginPageState extends State<AMCLoginPage>
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildDefaultLogo() {
+    return Container(
+      height: 100,
+      width: 100,
+      decoration: BoxDecoration(
+        color: Colors.grey[100],
+        shape: BoxShape.circle,
+      ),
+      child: const Icon(
+        Icons.business_rounded,
+        size: 50,
+        color: Colors.black54,
       ),
     );
   }

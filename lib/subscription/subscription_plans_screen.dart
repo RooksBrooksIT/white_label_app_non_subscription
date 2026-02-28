@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
-import 'payment_screen.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'branding_customization_screen.dart';
 
 class SubscriptionPlansScreen extends StatefulWidget {
@@ -21,134 +21,56 @@ class SubscriptionPlansScreen extends StatefulWidget {
       _SubscriptionPlansScreenState();
 }
 
-enum PlanType { freeTrial, monthly, sixMonths, yearly }
+enum PlanType { freeTrial, enterprise }
 
 class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
-  PlanType selectedPlanType = PlanType.monthly;
-  int selectedPlanIndex = 1; // Default: Gold (Index 1) for Paid plans
-
-  // Plan data for Paid tiers
-  final List<Map<String, dynamic>> plans = [
-    {
-      'name': 'Silver Plan',
-      'monthlyPrice': 199,
-      'monthlyOriginalPrice': 299,
-      'sixMonthPrice': 999,
-      'sixMonthOriginalPrice': 1794,
-      'yearlyPrice': 1990,
-      'yearlyOriginalPrice': 3588,
-      'subtitle': 'Best for small teams & basic usage',
-      'limits': {
-        'maxCustomers': 20,
-        'maxEngineers': 5,
-        'maxPhotosPerCustomer': 10,
-        'maxPdfUploadsPerCustomer': 5,
-        'maxStorageGB': 1,
-      },
-      'features': [
-        '0-20 Customers',
-        '0-5 Engineers',
-        '1GB Storage',
-        'Web Support',
-        'Basic Dashboard',
-        'Standard Email Support',
-      ],
-      'geoLocation': false,
-      'attendance': false,
-      'barcode': false,
-      'reportExport': false,
-      'color': const Color(0xFFE0E0E0),
-    },
-    {
-      'name': 'Gold Plan',
-      'monthlyPrice': 399,
-      'monthlyOriginalPrice': 499,
-      'sixMonthPrice': 1990,
-      'sixMonthOriginalPrice': 2994,
-      'yearlyPrice': 3990,
-      'yearlyOriginalPrice': 5988,
-      'subtitle': 'Ideal for growing businesses',
-      'limits': {
-        'maxCustomers': 50,
-        'maxEngineers': 10,
-        'maxPhotosPerCustomer': 30,
-        'maxPdfUploadsPerCustomer': 15,
-        'maxStorageGB': 5,
-      },
-      'features': [
-        '0-50 Customers',
-        '0-10 Engineers',
-        '5GB Storage',
-        'Web Support',
-        'Geo Location Enabled',
-        'Priority Support',
-      ],
-      'geoLocation': true,
-      'attendance': false,
-      'barcode': false,
-      'reportExport': true,
-      'color': const Color(0xFFFFD700),
-    },
-    {
-      'name': 'Platinum Plan',
-      'monthlyPrice': 999,
-      'monthlyOriginalPrice': 1499,
-      'sixMonthPrice': 4990,
-      'sixMonthOriginalPrice': 8994,
-      'yearlyPrice': 9990,
-      'yearlyOriginalPrice': 17988,
-      'subtitle': 'Best for enterprises & unlimited usage',
-      'limits': {
-        'maxCustomers': -1, // -1 means Unlimited
-        'maxEngineers': -1,
-        'maxPhotosPerCustomer': -1,
-        'maxPdfUploadsPerCustomer': -1,
-        'maxStorageGB': 100, // Increased for Platinum
-      },
-      'features': [
-        'Unlimited Customers',
-        'Unlimited Engineers',
-        'Unlimited Photos & PDF Uploads',
-        'Geo Location Enabled',
-        'Attendance System',
-        'Barcode System',
-        '100GB Storage',
-        'Report Export Available',
-        'Premium Priority Support',
-      ],
-      'geoLocation': true,
-      'attendance': true,
-      'barcode': true,
-      'reportExport': true,
-      'color': const Color(0xFFB0BEC5),
-    },
-  ];
+  PlanType selectedPlanType = PlanType.freeTrial;
+  int selectedPlanIndex = 0;
 
   // Data for Trial tier
   final Map<String, dynamic> trialPlan = {
-    'name': '7-Day Free Trial',
+    'name': '30-Day Free Trial',
     'price': 0,
     'originalPrice': 0,
-    'subtitle': 'Full access to premium features for 7 days',
+    'subtitle': 'Full access to premium features for 30 days',
     'limits': {
-      'maxCustomers': 50,
-      'maxEngineers': 10,
-      'maxPhotosPerCustomer': 30,
-      'maxPdfUploadsPerCustomer': 15,
-      'maxStorageGB': 5,
+      'maxCustomers': -1,
+      'maxEngineers': -1,
+      'maxPhotosPerCustomer': -1,
+      'maxPdfUploadsPerCustomer': -1,
+      'maxStorageGB': 100,
     },
     'features': [
-      'Access to all Gold Plan features',
-      'Experience Geo Location & Barcode',
-      'No credit card required for trial',
-      'Automatic expiration after 7 days',
-      'Web support included',
+      'Unlimited Customers',
+      'Unlimited Engineers',
+      '100GB Storage',
+      'Web Support',
+      'Geo Location Enabled',
+      'Priority Support',
     ],
     'geoLocation': true,
-    'attendance': false,
-    'barcode': false,
+    'attendance': true,
+    'barcode': true,
     'reportExport': true,
     'color': const Color(0xFFE3F2FD),
+  };
+
+  final Map<String, dynamic> enterprisePlan = {
+    'name': 'Enterprise Mode',
+    'subtitle': 'Custom solutions for your large-scale business',
+    'contact': {
+      'email': 'info@rookstechnologies.com',
+      'whatsapp': '+91 8925633099',
+      'phone': '+91 8925633099',
+    },
+    'features': [
+      'Dedicated Account Manager',
+      'Custom Feature Development',
+      'On-premise Deployment Options',
+      '24/7 Premium Support',
+      'SLA Guarantees',
+    ],
+    'color': const Color(0xFFF3E5F5),
   };
 
   @override
@@ -254,9 +176,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
                       children: [
                         if (!widget.hideTrial)
                           _buildTab(PlanType.freeTrial, 'Free Trial'),
-                        _buildTab(PlanType.monthly, 'Monthly'),
-                        _buildTab(PlanType.sixMonths, '6 Months'),
-                        _buildTab(PlanType.yearly, 'Yearly'),
+                        _buildTab(PlanType.enterprise, 'Enterprise'),
                       ],
                     ),
                   ),
@@ -268,76 +188,65 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 24),
                     child: selectedPlanType == PlanType.freeTrial
                         ? _buildMainCard(trialPlan, isTrial: true)
-                        : _buildMainCard(
-                            plans[selectedPlanIndex],
-                            isYearly: selectedPlanType == PlanType.yearly,
-                            isSixMonths: selectedPlanType == PlanType.sixMonths,
-                          ),
+                        : _buildEnterpriseCard(enterprisePlan),
                   ),
                 ),
 
                 const SizedBox(height: 20),
 
-                // Bottom Selectors (Hidden for Trial)
-                if (selectedPlanType != PlanType.freeTrial)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: List.generate(plans.length, (index) {
-                        return _buildBottomSelector(index);
-                      }),
-                    ),
-                  ),
+                const SizedBox(height: 20),
 
                 const SizedBox(height: 20),
 
                 // Subscribe Button
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 20,
-                  ),
-                  child: SizedBox(
-                    width: double.infinity,
-                    height: 56,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        if (selectedPlanType == PlanType.freeTrial) {
+                if (selectedPlanType == PlanType.freeTrial)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 20,
+                    ),
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: ElevatedButton(
+                        onPressed: () {
                           _handlePlanSelection(
                             context,
                             trialPlan,
                             isTrial: true,
                           );
-                        } else {
-                          _handlePlanSelection(
-                            context,
-                            plans[selectedPlanIndex],
-                            isYearly: selectedPlanType == PlanType.yearly,
-                            isSixMonths: selectedPlanType == PlanType.sixMonths,
-                          );
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 4,
                         ),
-                        elevation: 4,
-                      ),
-                      child: Text(
-                        selectedPlanType == PlanType.freeTrial
-                            ? 'Start 7-Day Free Trial'
-                            : 'Subscribe now',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Color.fromARGB(255, 0, 0, 0),
+                        child: const Text(
+                          'Start One-Month Free Trial',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Color.fromARGB(255, 0, 0, 0),
+                          ),
                         ),
                       ),
                     ),
+                  )
+                else
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                    child: Text(
+                      'Contact us to enable Enterprise Mode',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.black54,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
                   ),
-                ),
               ],
             ),
           ),
@@ -399,9 +308,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
               : (isSixMonths
                     ? plan['sixMonthOriginalPrice']
                     : plan['monthlyOriginalPrice']));
-    final durationLabel = isTrial
-        ? '/7 Days'
-        : (isYearly ? '/Year' : (isSixMonths ? '/6 Months' : '/Month'));
+    final durationLabel = '/30 Days';
     final isCurrentPlan =
         widget.currentPlanName != null &&
         plan['name'] == widget.currentPlanName;
@@ -541,93 +448,156 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
     );
   }
 
-  Widget _buildBottomSelector(int index) {
-    final plan = plans[index];
-    final isSelected = selectedPlanIndex == index;
-    final isYearly = selectedPlanType == PlanType.yearly;
-    final isSixMonths = selectedPlanType == PlanType.sixMonths;
-
-    final price = isYearly
-        ? plan['yearlyPrice']
-        : (isSixMonths ? plan['sixMonthPrice'] : plan['monthlyPrice']);
-    final isCurrentPlan =
-        widget.currentPlanName != null &&
-        plan['name'] == widget.currentPlanName;
-
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          selectedPlanIndex = index;
-        });
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        width: MediaQuery.of(context).size.width * 0.26,
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? Colors.white : Colors.grey[50],
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected
-                ? Colors.black
-                : isCurrentPlan
-                ? Colors.blue.shade300
-                : Colors.transparent,
-            width: 1.5,
+  Widget _buildEnterpriseCard(Map<String, dynamic> plan) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey.withValues(alpha: 0.2), width: 1),
+        boxShadow: const [
+          BoxShadow(
+            color: Color.fromARGB(255, 235, 235, 235),
+            blurRadius: 20,
+            offset: Offset(0, 10),
           ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: Colors.black,
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : [],
-        ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
           children: [
-            if (isCurrentPlan)
-              Container(
-                margin: const EdgeInsets.only(bottom: 3),
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade600,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: const Text(
-                  'Current',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 7,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
             Text(
               plan['name'],
               style: TextStyle(
-                fontSize: 10,
-                color: isCurrentPlan
-                    ? Colors.blue.shade700
-                    : Colors.grey.shade700,
-                fontWeight: FontWeight.w600,
+                fontSize: 24,
+                color: Colors.grey.shade900,
+                fontWeight: FontWeight.bold,
               ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              plan['subtitle'],
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 4),
-            Text(
-              '₹$price',
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
+            const SizedBox(height: 30),
+            _buildContactItem(
+              Icons.email,
+              'Email',
+              plan['contact']['email'],
+              onTap: () async {
+                final Uri emailLaunchUri = Uri(
+                  scheme: 'mailto',
+                  path: plan['contact']['email'],
+                );
+                await launchUrl(emailLaunchUri);
+              },
+            ),
+            const SizedBox(height: 12),
+            _buildContactItem(
+              Icons.chat,
+              'WhatsApp',
+              plan['contact']['whatsapp'],
+              onTap: () async {
+                final String phone = plan['contact']['whatsapp']
+                    .replaceAll(RegExp(r'\s+'), '')
+                    .replaceAll('+', '');
+                final Uri whatsappUri = Uri.parse("https://wa.me/$phone");
+                if (await canLaunchUrl(whatsappUri)) {
+                  await launchUrl(
+                    whatsappUri,
+                    mode: LaunchMode.externalApplication,
+                  );
+                }
+              },
+            ),
+            const SizedBox(height: 12),
+            _buildContactItem(
+              Icons.phone,
+              'Phone',
+              plan['contact']['phone'],
+              onTap: () async {
+                final Uri phoneUri = Uri(
+                  scheme: 'tel',
+                  path: plan['contact']['phone'],
+                );
+                await launchUrl(phoneUri);
+              },
+            ),
+            const SizedBox(height: 30),
+            Expanded(
+              child: ListView.builder(
+                itemCount: plan['features'].length,
+                itemBuilder: (context, index) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(
+                          Icons.star,
+                          size: 20,
+                          color: Colors.deepPurple,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            plan['features'][index],
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey.shade800,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
               ),
             ),
-            Text(
-              isYearly ? '/Year' : (isSixMonths ? '/6 Months' : '/Month'),
-              style: const TextStyle(fontSize: 8, color: Colors.black54),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContactItem(
+    IconData icon,
+    String label,
+    String value, {
+    VoidCallback? onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: Colors.blue, size: 20),
+            const SizedBox(width: 16),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -642,56 +612,21 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
     bool isSixMonths = false,
     bool isTrial = false,
   }) {
-    final price = isTrial
-        ? selectedPlan['price']
-        : (isYearly
-              ? selectedPlan['yearlyPrice']
-              : (isSixMonths
-                    ? selectedPlan['sixMonthPrice']
-                    : selectedPlan['monthlyPrice']));
-    final originalPrice = isTrial
-        ? selectedPlan['originalPrice']
-        : (isYearly
-              ? selectedPlan['yearlyOriginalPrice']
-              : (isSixMonths
-                    ? selectedPlan['sixMonthOriginalPrice']
-                    : selectedPlan['monthlyOriginalPrice']));
+    final price = selectedPlan['price'] ?? 0;
+    final originalPrice = selectedPlan['originalPrice'] ?? 0;
 
-    if (isTrial) {
-      // Bypass Payment and Go directly to Customization
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => BrandingCustomizationScreen(
-            planName: selectedPlan['name'],
-            price: price,
-            originalPrice: originalPrice,
-            isYearly: isYearly,
-            isSixMonths: isSixMonths,
-            paymentMethod: 'Free Trial',
-            transactionId: 'trial_${DateTime.now().millisecondsSinceEpoch}',
-            limits: selectedPlan['limits'],
-            geoLocation: selectedPlan['geoLocation'],
-            attendance: selectedPlan['attendance'],
-            barcode: selectedPlan['barcode'],
-            reportExport: selectedPlan['reportExport'],
-          ),
-        ),
-      );
-      return;
-    }
-
-    // Navigate to Payment Screen for Paid Plans
+    // Bypass Payment and Go directly to Customization
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => PaymentScreen(
+        builder: (context) => BrandingCustomizationScreen(
           planName: selectedPlan['name'],
           price: price,
           originalPrice: originalPrice,
           isYearly: isYearly,
           isSixMonths: isSixMonths,
-          isFirstTimeRegistration: widget.currentPlanName == null,
+          paymentMethod: 'Free Trial',
+          transactionId: 'trial_${DateTime.now().millisecondsSinceEpoch}',
           limits: selectedPlan['limits'],
           geoLocation: selectedPlan['geoLocation'],
           attendance: selectedPlan['attendance'],
