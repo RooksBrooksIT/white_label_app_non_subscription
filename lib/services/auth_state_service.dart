@@ -264,12 +264,8 @@ class AuthStateService extends ChangeNotifier {
             'needsSubscription': true,
           };
         } else {
-          // Engineers and Customers are blocked from logging in
-          return {
-            'success': false,
-            'message':
-                'Your administrator hasn\'t subscribed to a plan. Please contact your admin for access.',
-          };
+          // Engineers and Customers are redirected to AccessRestrictedScreen
+          return {'success': true, 'userData': userData, 'restricted': true};
         }
       }
 
@@ -396,16 +392,6 @@ class AuthStateService extends ChangeNotifier {
               await prefs.setString('appName', metadata['name'] ?? '');
             }
 
-            // Check subscription before allowing dashboard access
-            final effectiveTenant =
-                tenantId ?? ThemeService.instance.databaseName;
-            final isSubscribed = await FirestoreService.instance.isTenantActive(
-              tenantId: effectiveTenant,
-              appId: 'data',
-            );
-            if (!isSubscribed) {
-              return const SubscriptionPlansScreen();
-            }
             return const admindashboard();
           } else {
             // Engineer or Customer

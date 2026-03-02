@@ -922,27 +922,49 @@ exports.verifyOTPAndResetPassword = onRequest(async (req, res) => {
             return res.status(400).send({ data: { success: false, message: "OTP has expired" } });
         }
 
-        // 2. Find User in Firebase Auth
+        // 2. Find User and Tenant via Global Directory
+        // (Avoiding collectionGroup here as it requires an index which might be missing)
         const userRecord = await admin.auth().getUserByEmail(email);
         const uid = userRecord.uid;
+
+        const globalUserDoc = await admin.firestore().collection("global_user_directory").doc(uid).get();
+        if (!globalUserDoc.exists) {
+            return res.status(400).send({ data: { success: false, message: "User directory record not found. Please contact support." } });
+        }
+
+        const tenantId = globalUserDoc.data().tenantId;
+        if (!tenantId) {
+            return res.status(500).send({ data: { success: false, message: "No tenant associated with this user." } });
+        }
 
         // 3. Update Password in Firebase Auth
         await admin.auth().updateUser(uid, {
             password: newPassword
         });
 
-        // 4. Update Password in legacy 'admin' collection (Backward Compatibility)
-        // Find tenantId for this admin
-        const legacySnapshot = await admin.firestore().collectionGroup("admin").where("email", "==", email).get();
-        if (!legacySnapshot.empty) {
-            const updatePromises = legacySnapshot.docs.map(doc => doc.ref.update({ password: newPassword }));
-            await Promise.all(updatePromises);
+        // 4. Update Password in Tenant-Specific Collections
+        const batch = admin.firestore().batch();
+
+        // 4a. Update in 'users' collection (New Architecture)
+        const userRef = admin.firestore().collection(tenantId).doc("data").collection("users").doc(uid);
+        batch.set(userRef, { password: newPassword, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+
+        // 4b. Update in legacy 'admin' collection (Backward Compatibility)
+        // We look for a document in the tenant's admin collection with the matching email
+        const adminSnapshot = await admin.firestore().collection(tenantId).doc("data").collection("admin").where("email", "==", email).get();
+        if (!adminSnapshot.empty) {
+            adminSnapshot.docs.forEach(doc => {
+                batch.update(doc.ref, { password: newPassword });
+            });
         }
 
-        // 5. Cleanup OTP
+        // 5. Execute Updates
+        await batch.commit();
+
+        // 6. Cleanup OTP
         await admin.firestore().collection("otps").doc(email).delete();
 
-        console.log(`[PASSWORD RESET] Successfully updated for ${email}`);
+        console.log(`[PASSWORD RESET] Successfully updated for ${email} in tenant ${tenantId}`);
         res.send({ data: { success: true, message: "Password reset successfully" } });
 
     } catch (error) {

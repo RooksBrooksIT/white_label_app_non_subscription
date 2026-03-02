@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:subscription_rooks_app/backend/screens/engineer_login_page.dart';
 import 'package:subscription_rooks_app/frontend/screens/engineer_dashboard_page.dart';
+import 'package:subscription_rooks_app/subscription/access_restricted_screen.dart';
 
 class Engineerlogin extends StatefulWidget {
   const Engineerlogin({super.key});
@@ -51,6 +52,16 @@ class _EngineerloginState extends State<Engineerlogin> {
 
       if (result['success']) {
         if (!mounted) return;
+        if (result['restricted'] == true) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) =>
+                  const AccessRestrictedScreen(role: 'engineer'),
+            ),
+          );
+          return;
+        }
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(

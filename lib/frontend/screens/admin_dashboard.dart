@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -102,6 +103,112 @@ class _admindashboardState extends State<admindashboard> {
     });
   }
 
+  void _initSubscriptionStream() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final tenantId = ThemeService.instance.databaseName;
+    const appId = 'data';
+
+    // Listen to subscription updates
+    FirestoreService.instance
+        .streamSubscription(user.uid, tenantId, appId: appId)
+        .listen((data) {
+          if (!mounted) return;
+          if (data != null &&
+              (data.containsKey('planName') ||
+                  data.containsKey('expiresAt') ||
+                  data.containsKey('nextBillingAt'))) {
+            _updateSubscriptionData(data);
+          } else {
+            // Fallback: check branding document for subscription info
+            FirestoreService.instance
+                .brandingDoc(tenantId: tenantId, appId: appId)
+                .get()
+                .then((doc) {
+                  if (mounted && doc.exists && doc.data() != null) {
+                    final bData = doc.data()!;
+                    // Check root or a potentially nested 'branding' map
+                    if (bData.containsKey('planName') ||
+                        bData.containsKey('expiresAt') ||
+                        bData.containsKey('nextBillingAt') ||
+                        (bData.containsKey('branding') &&
+                            bData['branding'] is Map)) {
+                      _updateSubscriptionData(bData);
+                    } else {
+                      // Final fallback: get first active tenant subscription
+                      FirestoreService.instance
+                          .getActiveSubscription(
+                            tenantId: tenantId,
+                            appId: appId,
+                          )
+                          .then((tenantData) {
+                            if (mounted && tenantData != null) {
+                              _updateSubscriptionData(tenantData);
+                            }
+                          });
+                    }
+                  }
+                });
+          }
+        }, onError: (e) => debugPrint('Error in subscription stream: $e'));
+  }
+
+  void _updateSubscriptionData(Map<String, dynamic> data) {
+    if (!mounted) return;
+
+    // Check if data is nested in 'branding' map (common for global config)
+    Map<String, dynamic> source = data;
+    if (!data.containsKey('expiresAt') &&
+        !data.containsKey('nextBillingAt') &&
+        data.containsKey('branding') &&
+        data['branding'] is Map<String, dynamic>) {
+      source = data['branding'] as Map<String, dynamic>;
+    }
+
+    setState(() {
+      currentPlanName =
+          source['planName'] ??
+          (source.containsKey('expiresAt') ? 'Free Trial' : null);
+      billingCycle = source['isYearly'] == true
+          ? 'Yearly'
+          : (source['isSixMonths'] == true ? '6 Months' : 'Monthly');
+
+      DateTime? expiryDate;
+      final expiresAt = source['expiresAt'];
+      final nextBillingAt = source['nextBillingAt'];
+
+      if (expiresAt != null) {
+        if (expiresAt is Timestamp) {
+          expiryDate = expiresAt.toDate();
+        } else if (expiresAt is String) {
+          expiryDate = DateTime.tryParse(expiresAt);
+        }
+      } else if (nextBillingAt != null) {
+        if (nextBillingAt is String) {
+          expiryDate = DateTime.tryParse(nextBillingAt);
+        } else if (nextBillingAt is Timestamp) {
+          expiryDate = nextBillingAt.toDate();
+        }
+      }
+
+      if (expiryDate != null) {
+        remainingDays = (expiryDate.difference(DateTime.now()).inHours / 24)
+            .ceil();
+        if (remainingDays! < 0) remainingDays = 0;
+      }
+    });
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      NotificationService.instance.registerToken(
+        role: 'admin',
+        userId: user.uid,
+        email: adminEmail,
+      );
+    }
+  }
+
   void _loadAdminData() async {
     final profile = await AdminDashboardBackend.getAdminProfile();
     final code = await AdminDashboardBackend.getReferralCode();
@@ -111,76 +218,7 @@ class _admindashboardState extends State<admindashboard> {
         adminEmail = profile['email']!;
         referralCode = code;
       });
-      final user = FirebaseAuth.instance.currentUser;
-      if (user != null) {
-        NotificationService.instance.registerToken(
-          role: 'admin',
-          userId: user.uid, // Use UID instead of name
-          email: adminEmail,
-        );
-
-        // Check for active subscription
-        final tenantId = ThemeService.instance.databaseName;
-        final appId = ThemeService.instance.appName;
-        final isSubscribed = await FirestoreService.instance.isTenantActive(
-          tenantId: tenantId,
-          appId: appId,
-        );
-
-        if (!isSubscribed) {
-          if (mounted) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const SubscriptionPlansScreen(),
-              ),
-            );
-          }
-          return;
-        }
-
-        // Fetch Subscription Info for Badge
-        try {
-          final tenantId = ThemeService.instance.databaseName;
-          final appId = ThemeService.instance.appName;
-          final doc = await FirestoreService.instance
-              .subscriptionsRef(tenantId: tenantId, appId: appId)
-              .doc(user.uid)
-              .get();
-
-          if (doc.exists && doc.data() != null) {
-            final data = doc.data()!;
-            setState(() {
-              currentPlanName = data['planName'] as String?;
-              final isYearly = data['isYearly'] as bool? ?? false;
-              final isSixMonths = data['isSixMonths'] as bool? ?? false;
-
-              if (currentPlanName?.toLowerCase().contains('trial') ?? false) {
-                billingCycle = '30 Days';
-              } else if (isYearly) {
-                billingCycle = 'Yearly';
-              } else if (isSixMonths) {
-                billingCycle = '6 Months';
-              } else {
-                billingCycle = 'Monthly';
-              }
-
-              // Calculate remaining days
-              final nextBillingStr = data['nextBillingAt'] as String?;
-              if (nextBillingStr != null) {
-                final nextBilling = DateTime.tryParse(nextBillingStr);
-                if (nextBilling != null) {
-                  remainingDays = nextBilling.difference(DateTime.now()).inDays;
-                  // Ensure it's not negative
-                  if (remainingDays! < 0) remainingDays = 0;
-                }
-              }
-            });
-          }
-        } catch (e) {
-          debugPrint('Error loading subscription info: $e');
-        }
-      }
+      _initSubscriptionStream();
     }
   }
 
@@ -937,18 +975,8 @@ class _admindashboardState extends State<admindashboard> {
                 _buildDrawerItem(
                   icon: Icons.workspace_premium_rounded,
                   title: 'Manage Subscription',
-                  subtitle: remainingDays != null
-                      ? '$remainingDays Days Remaining'
-                      : 'Upgrade or switch plan',
-                  subtitleStyle: remainingDays != null
-                      ? TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w900,
-                          color: remainingDays! <= 3
-                              ? errorColor
-                              : primaryColor,
-                        )
-                      : null,
+                  subtitle: 'Upgrade or switch plan',
+                  subtitleStyle: null,
                   onTap: () {
                     Navigator.pop(context);
                     _navigateToChangePlan();
@@ -1018,6 +1046,7 @@ class _admindashboardState extends State<admindashboard> {
             },
           ),
           const SizedBox(height: 16),
+          
           Text(
             adminName,
             style: const TextStyle(
@@ -1150,6 +1179,7 @@ class _admindashboardState extends State<admindashboard> {
         builder: (_) => SubscriptionPlansScreen(
           currentPlanName: currentPlanName,
           hideTrial: true,
+          defaultToEnterprise: true,
         ),
       ),
     );

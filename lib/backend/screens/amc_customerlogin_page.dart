@@ -37,11 +37,7 @@ class AMCLoginBackend {
           appId: referralAppId,
         );
         if (!isSubscribed) {
-          return {
-            'success': false,
-            'message':
-                'Your organization\'s subscription has expired. Please contact your admin.',
-          };
+          return {'success': true, 'restricted': true};
         }
 
         SharedPreferences prefs = await SharedPreferences.getInstance();

@@ -15,11 +15,11 @@
       },
       "oauth_client": [
         {
-          "client_id": "416851266920-ena6354rn46bu5kp36fpd61ej0brfie4.apps.googleusercontent.com",
+          "client_id": "416851266920-74usg8o2matsgvbgun877lndb617s69e.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.rooks.subscription",
-            "certificate_hash": "e12789752be3dd27fb91a07bd2a1243e40be5bc2"
+            "certificate_hash": "559bc7146fb3882d96d59ad187ee73e52c87d447"
           }
         },
         {
@@ -43,7 +43,7 @@
               "client_id": "416851266920-i7v56ug6t76c81du9mnqtocq269fgf36.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "com.rooks.subscription"
+                "bundle_id": "com.example.subscriptionRooksApp"
               }
             }
           ]

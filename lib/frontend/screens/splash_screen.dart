@@ -68,11 +68,11 @@ class _SplashScreenState extends State<SplashScreen>
     final theme = ThemeService.instance;
 
     return Scaffold(
-      backgroundColor: theme.primaryColor, // Solid orange background
+      backgroundColor: Colors.white,
       body: Container(
         width: double.infinity,
         height: double.infinity,
-        color: theme.primaryColor,
+        color: Colors.white,
         child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -129,10 +129,10 @@ class _SplashScreenState extends State<SplashScreen>
                 opacity: _fadeAnimation,
                 child: Text(
                   theme.appName,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: theme.primaryColor,
                     letterSpacing: 2,
                     fontFamily: 'Lufga',
                   ),
@@ -148,7 +148,7 @@ class _SplashScreenState extends State<SplashScreen>
                   width: 50,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.8),
+                    color: theme.primaryColor.withOpacity(0.8),
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),

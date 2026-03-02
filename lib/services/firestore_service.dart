@@ -198,15 +198,83 @@ class FirestoreService {
     required String tenantId,
     String? appId,
   }) async {
-    // Subscription restrictions removed as per user request
-    return true;
+    try {
+      final doc = await subscriptionsRef(
+        tenantId: tenantId,
+        appId: appId,
+      ).doc(uid).get();
+      if (doc.exists && doc.data() != null) {
+        final data = doc.data()!;
+        if (data['status'] == 'active') {
+          final expiresAtField = data['expiresAt'];
+          if (expiresAtField != null) {
+            DateTime expiresAt;
+            if (expiresAtField is Timestamp) {
+              expiresAt = expiresAtField.toDate();
+            } else if (expiresAtField is String) {
+              expiresAt = DateTime.parse(expiresAtField);
+            } else {
+              return true; // Unknown format, fail safe to active
+            }
+            return expiresAt.isAfter(DateTime.now());
+          }
+          return true; // No expiry field but active status
+        }
+      }
+    } catch (e) {
+      debugPrint('Error checking subscription: $e');
+      // Return true on network errors or other failures to avoid blocking the user
+      return true;
+    }
+    return false;
   }
 
   /// Check if an organization (tenant) has any active subscription.
   /// Useful for gating access for non-admin users (Engineers, Customers).
   Future<bool> isTenantActive({required String tenantId, String? appId}) async {
-    // Subscription restrictions removed as per user request
-    return true;
+    try {
+      final sub = await getActiveSubscription(tenantId: tenantId, appId: appId);
+      return sub != null;
+    } catch (e) {
+      debugPrint('Error in isTenantActive: $e');
+      return true; // Fail-safe to active on error
+    }
+  }
+
+  /// Get the first active subscription for a tenant
+  Future<Map<String, dynamic>?> getActiveSubscription({
+    required String tenantId,
+    String? appId,
+  }) async {
+    try {
+      final snapshot = await subscriptionsRef(
+        tenantId: tenantId,
+        appId: appId,
+      ).where('status', isEqualTo: 'active').limit(1).get();
+
+      if (snapshot.docs.isNotEmpty) {
+        final data = snapshot.docs.first.data();
+        final expiresAtField = data['expiresAt'];
+        if (expiresAtField != null) {
+          DateTime expiresAt;
+          if (expiresAtField is Timestamp) {
+            expiresAt = expiresAtField.toDate();
+          } else if (expiresAtField is String) {
+            expiresAt = DateTime.parse(expiresAtField);
+          } else {
+            return data;
+          }
+          if (expiresAt.isAfter(DateTime.now())) {
+            return data;
+          }
+        } else {
+          return data; // No expiry field but active status
+        }
+      }
+    } catch (e) {
+      debugPrint('Error getting active subscription: $e');
+    }
+    return null;
   }
 
   /// Set the active status flag on a user document

@@ -10,10 +10,14 @@ class SubscriptionPlansScreen extends StatefulWidget {
   /// When true, hides the Free Trial tab (used when admin is changing an existing plan).
   final bool hideTrial;
 
+  /// When true, defaults the selected plan to Enterprise (used when managed from dashboard).
+  final bool defaultToEnterprise;
+
   const SubscriptionPlansScreen({
     super.key,
     this.currentPlanName,
     this.hideTrial = false,
+    this.defaultToEnterprise = false,
   });
 
   @override
@@ -26,6 +30,15 @@ enum PlanType { freeTrial, enterprise }
 class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
   PlanType selectedPlanType = PlanType.freeTrial;
   int selectedPlanIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.hideTrial || widget.defaultToEnterprise) {
+      selectedPlanType = PlanType.enterprise;
+      selectedPlanIndex = 1;
+    }
+  }
 
   // Data for Trial tier
   final Map<String, dynamic> trialPlan = {
@@ -60,8 +73,8 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
     'subtitle': 'Custom solutions for your large-scale business',
     'contact': {
       'email': 'info@rookstechnologies.com',
-      'whatsapp': '+91 8925633099',
-      'phone': '+91 8925633099',
+      'whatsapp': '+91 7358677670',
+      'phone': '+91 7358677670',
     },
     'features': [
       'Dedicated Account Manager',
@@ -235,15 +248,59 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
                     ),
                   )
                 else
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                    child: Text(
-                      'Contact us to enable Enterprise Mode',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.black54,
-                        fontWeight: FontWeight.w500,
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 20,
+                    ),
+                    child: GestureDetector(
+                      onTap: () async {
+                        final String phone =
+                            enterprisePlan['contact']['whatsapp']
+                                .replaceAll(RegExp(r'\s+'), '')
+                                .replaceAll('+', '');
+
+                        final Uri whatsappAppUri = Uri.parse(
+                          "whatsapp://send?phone=$phone",
+                        );
+                        final Uri whatsappWebUri = Uri.parse(
+                          "https://wa.me/$phone",
+                        );
+
+                        try {
+                          if (await canLaunchUrl(whatsappAppUri)) {
+                            await launchUrl(
+                              whatsappAppUri,
+                              mode: LaunchMode.externalApplication,
+                            );
+                          } else if (await canLaunchUrl(whatsappWebUri)) {
+                            await launchUrl(
+                              whatsappWebUri,
+                              mode: LaunchMode.externalApplication,
+                            );
+                          } else {
+                            await launchUrl(
+                              whatsappWebUri,
+                              mode: LaunchMode.platformDefault,
+                            );
+                          }
+                        } catch (e) {
+                          debugPrint('Error launching WhatsApp: $e');
+                          await launchUrl(
+                            whatsappWebUri,
+                            mode: LaunchMode.platformDefault,
+                          );
+                        }
+                      },
+                      child: const Text(
+                        'Contact us to enable Enterprise Mode',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.blue,
+                          fontWeight: FontWeight.w600,
+                          decoration: TextDecoration.underline,
+                        ),
                       ),
                     ),
                   ),
@@ -503,11 +560,37 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
                 final String phone = plan['contact']['whatsapp']
                     .replaceAll(RegExp(r'\s+'), '')
                     .replaceAll('+', '');
-                final Uri whatsappUri = Uri.parse("https://wa.me/$phone");
-                if (await canLaunchUrl(whatsappUri)) {
+
+                // Try whatsapp:// scheme first as it's more direct for apps
+                final Uri whatsappAppUri = Uri.parse(
+                  "whatsapp://send?phone=$phone",
+                );
+                final Uri whatsappWebUri = Uri.parse("https://wa.me/$phone");
+
+                try {
+                  if (await canLaunchUrl(whatsappAppUri)) {
+                    await launchUrl(
+                      whatsappAppUri,
+                      mode: LaunchMode.externalApplication,
+                    );
+                  } else if (await canLaunchUrl(whatsappWebUri)) {
+                    await launchUrl(
+                      whatsappWebUri,
+                      mode: LaunchMode.externalApplication,
+                    );
+                  } else {
+                    // Fallback to just launching the web URL without checking
+                    await launchUrl(
+                      whatsappWebUri,
+                      mode: LaunchMode.platformDefault,
+                    );
+                  }
+                } catch (e) {
+                  debugPrint('Error launching WhatsApp: $e');
+                  // Absolute fallback
                   await launchUrl(
-                    whatsappUri,
-                    mode: LaunchMode.externalApplication,
+                    whatsappWebUri,
+                    mode: LaunchMode.platformDefault,
                   );
                 }
               },

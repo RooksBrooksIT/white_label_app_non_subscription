@@ -3,6 +3,7 @@ import 'dart:math';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:image_cropper/image_cropper.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_dashboard.dart';
 import 'package:subscription_rooks_app/services/auth_state_service.dart';
@@ -176,9 +177,41 @@ class _BrandingCustomizationScreenState
         source: ImageSource.gallery,
       );
       if (pickedFile != null) {
-        setState(() {
-          _logoFile = File(pickedFile.path);
-        });
+        // --- Add Cropping Logic ---
+        final croppedFile = await ImageCropper().cropImage(
+          sourcePath: pickedFile.path,
+          uiSettings: [
+            AndroidUiSettings(
+              toolbarTitle: 'Crop Logo',
+              toolbarColor: _primaryColor,
+              toolbarWidgetColor: Colors.white,
+              activeControlsWidgetColor: _primaryColor,
+              initAspectRatio: CropAspectRatioPreset.square,
+              lockAspectRatio: false,
+              aspectRatioPresets: [
+                CropAspectRatioPreset.square,
+                CropAspectRatioPreset.original,
+                CropAspectRatioPreset.ratio4x3,
+                CropAspectRatioPreset.ratio16x9,
+              ],
+            ),
+            IOSUiSettings(
+              title: 'Crop Logo',
+              aspectRatioPresets: [
+                CropAspectRatioPreset.square,
+                CropAspectRatioPreset.original,
+                CropAspectRatioPreset.ratio4x3,
+                CropAspectRatioPreset.ratio16x9,
+              ],
+            ),
+          ],
+        );
+
+        if (croppedFile != null) {
+          setState(() {
+            _logoFile = File(croppedFile.path);
+          });
+        }
       }
     } catch (e) {
       // Handle permission errors, etc.
@@ -277,33 +310,47 @@ class _BrandingCustomizationScreenState
               ),
             ),
           ),
-          body: Stack(
-            children: [
-              SafeArea(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(24.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildHeader(),
-                      const SizedBox(height: 32),
-                      _buildAppInfoSection(),
-                      const SizedBox(height: 32),
-                      _buildLogoUploadSection(),
-                      const SizedBox(height: 32),
-                      _buildColorThemeSection(), // Redesigned section
-                      const SizedBox(height: 32),
-                      _buildVisualSettingsSection(),
-                      const SizedBox(height: 48),
-                      _buildPreviewSection(),
-                      const SizedBox(height: 48),
-                      _buildContinueButton(),
-                      const SizedBox(height: 20),
-                    ],
+          body: LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth > 800;
+              final horizontalPadding = isWide
+                  ? (constraints.maxWidth - 800) / 2 + 24
+                  : 24.0;
+
+              return Stack(
+                children: [
+                  SafeArea(
+                    child: SingleChildScrollView(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: horizontalPadding,
+                        vertical: 24.0,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildHeader(),
+                          const SizedBox(height: 32),
+                          _buildAppInfoSection(),
+                          const SizedBox(height: 32),
+                          _buildLogoUploadSection(),
+                          const SizedBox(height: 32),
+                          _buildColorThemeSection(
+                            constraints.maxWidth,
+                          ), // Passed maxWidth
+                          const SizedBox(height: 32),
+                          _buildVisualSettingsSection(),
+                          const SizedBox(height: 48),
+                          _buildPreviewSection(isWide), // Passed layout hint
+                          const SizedBox(height: 48),
+                          _buildContinueButton(),
+                          const SizedBox(height: 20),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-              ),
-            ],
+                ],
+              );
+            },
           ),
         ),
       ),
@@ -384,28 +431,33 @@ class _BrandingCustomizationScreenState
   }
 
   Widget _buildHeader() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Brand Your App',
-          style: TextStyle(
-            fontSize: 32,
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
-            letterSpacing: -0.5,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Make the app truly yours. Upload your logo and choose your brand colors.',
-          style: TextStyle(
-            fontSize: 16,
-            color: Colors.grey.shade600,
-            height: 1.5,
-          ),
-        ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isVerySmall = constraints.maxWidth < 360;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Brand Your App',
+              style: TextStyle(
+                fontSize: isVerySmall ? 24 : 32,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+                letterSpacing: -0.5,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Make the app truly yours. Upload your logo and choose your brand colors.',
+              style: TextStyle(
+                fontSize: isVerySmall ? 14 : 16,
+                color: Colors.grey.shade600,
+                height: 1.5,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -466,16 +518,20 @@ class _BrandingCustomizationScreenState
                 child: _logoFile != null
                     ? ClipRRect(
                         borderRadius: BorderRadius.circular(14),
-                        child: Image.file(_logoFile!, fit: BoxFit.contain),
+                        child: Center(
+                          child: Image.file(_logoFile!, fit: BoxFit.contain),
+                        ),
                       )
                     : _existingLogoUrl != null
                     ? ClipRRect(
                         borderRadius: BorderRadius.circular(14),
-                        child: Image.network(
-                          _existingLogoUrl!,
-                          fit: BoxFit.contain,
-                          errorBuilder: (context, error, stackTrace) =>
-                              _buildUploadPlaceholder(),
+                        child: Center(
+                          child: Image.network(
+                            _existingLogoUrl!,
+                            fit: BoxFit.contain,
+                            errorBuilder: (context, error, stackTrace) =>
+                                _buildUploadPlaceholder(),
+                          ),
                         ),
                       )
                     : _buildUploadPlaceholder(),
@@ -521,7 +577,15 @@ class _BrandingCustomizationScreenState
   }
 
   // REDESIGNED THEME COLOR SECTION - More Professional
-  Widget _buildColorThemeSection() {
+  Widget _buildColorThemeSection(double maxWidth) {
+    // Dynamic grid count based on available space
+    int crossAxisCount = 5;
+    if (maxWidth < 400) {
+      crossAxisCount = 4;
+    } else if (maxWidth > 600) {
+      crossAxisCount = 8;
+    }
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -610,13 +674,12 @@ class _BrandingCustomizationScreenState
                   GridView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 5,
-                          crossAxisSpacing: 12,
-                          mainAxisSpacing: 12,
-                          childAspectRatio: 1,
-                        ),
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: crossAxisCount,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                      childAspectRatio: 1,
+                    ),
                     itemCount: _presetThemes.length + 1, // +1 for Custom
                     itemBuilder: (context, index) {
                       final isCustom = index == _presetThemes.length;
@@ -945,10 +1008,14 @@ class _BrandingCustomizationScreenState
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: Colors.grey.shade200),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 16,
+                runSpacing: 12,
                 children: [
                   Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Container(
                         padding: const EdgeInsets.all(8),
@@ -983,44 +1050,48 @@ class _BrandingCustomizationScreenState
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(color: Colors.grey.shade200),
                     ),
-                    child: DropdownButton<String>(
-                      value: _selectedFont,
-                      underline: Container(),
-                      icon: Icon(Icons.arrow_drop_down, color: _primaryColor),
-                      items:
-                          [
-                                'Lufga',
-                                'Roboto',
-                                'Lato',
-                                'Montserrat',
-                                'Playfair Display',
-                                'Merriweather',
-                                'Oswald',
-                                'Fira Code',
-                                'Dancing Script',
-                              ]
-                              .map(
-                                (f) => DropdownMenuItem(
-                                  value: f,
-                                  child: Text(
-                                    f,
-                                    style: f == 'Lufga'
-                                        ? const TextStyle(
-                                            fontFamily: 'Lufga',
-                                            fontSize: 14,
-                                          )
-                                        : GoogleFonts.getFont(f, fontSize: 14),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: _selectedFont,
+                        icon: Icon(Icons.arrow_drop_down, color: _primaryColor),
+                        items:
+                            [
+                                  'Lufga',
+                                  'Roboto',
+                                  'Lato',
+                                  'Montserrat',
+                                  'Playfair Display',
+                                  'Merriweather',
+                                  'Oswald',
+                                  'Fira Code',
+                                  'Dancing Script',
+                                ]
+                                .map(
+                                  (f) => DropdownMenuItem(
+                                    value: f,
+                                    child: Text(
+                                      f,
+                                      style: f == 'Lufga'
+                                          ? const TextStyle(
+                                              fontFamily: 'Lufga',
+                                              fontSize: 14,
+                                            )
+                                          : GoogleFonts.getFont(
+                                              f,
+                                              fontSize: 14,
+                                            ),
+                                    ),
                                   ),
-                                ),
-                              )
-                              .toList(),
-                      onChanged: (val) {
-                        if (val != null) {
-                          setState(() {
-                            _selectedFont = val;
-                          });
-                        }
-                      },
+                                )
+                                .toList(),
+                        onChanged: (val) {
+                          if (val != null) {
+                            setState(() {
+                              _selectedFont = val;
+                            });
+                          }
+                        },
+                      ),
                     ),
                   ),
                 ],
@@ -1032,7 +1103,7 @@ class _BrandingCustomizationScreenState
     );
   }
 
-  Widget _buildPreviewSection() {
+  Widget _buildPreviewSection(bool isWide) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1148,18 +1219,40 @@ class _BrandingCustomizationScreenState
                     child: Row(
                       children: [
                         _logoFile != null
-                            ? Image.file(
-                                _logoFile!,
-                                height: 30,
-                                width: 30,
-                                fit: BoxFit.contain,
+                            ? Container(
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: Colors.grey.withOpacity(0.2),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: ClipOval(
+                                  child: Image.file(
+                                    _logoFile!,
+                                    height: 30,
+                                    width: 30,
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
                               )
                             : _existingLogoUrl != null
-                            ? Image.network(
-                                _existingLogoUrl!,
-                                height: 30,
-                                width: 30,
-                                fit: BoxFit.contain,
+                            ? Container(
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: Colors.grey.withOpacity(0.2),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: ClipOval(
+                                  child: Image.network(
+                                    _existingLogoUrl!,
+                                    height: 30,
+                                    width: 30,
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
                               )
                             : Container(
                                 width: 30,

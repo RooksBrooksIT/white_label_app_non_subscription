@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:subscription_rooks_app/frontend/screens/amc_main_page.dart';
 import 'package:subscription_rooks_app/backend/screens/amc_customerlogin_page.dart';
+import 'package:subscription_rooks_app/subscription/access_restricted_screen.dart';
 
 class AMCLoginPage extends StatefulWidget {
   const AMCLoginPage({super.key});
@@ -54,6 +55,15 @@ class _AMCLoginPageState extends State<AMCLoginPage>
 
     if (result['success']) {
       if (!mounted) return;
+      if (result['restricted'] == true) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) =>
+                const AccessRestrictedScreen(role: 'customer'),
+          ),
+        );
+        return;
+      }
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (context) => AMCCustomerMainPage()),
       );

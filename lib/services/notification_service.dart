@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/utils/logger_util.dart';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 
 // Top-level background message handler
 @pragma('vm:entry-point')
@@ -29,6 +30,14 @@ class NotificationService {
 
   Future<void> initialize() async {
     LoggerUtil.i("Initializing NotificationService...");
+
+    if (kIsWeb) {
+      LoggerUtil.i(
+        "NotificationService: Web platform detected. Skipping local notification setup.",
+      );
+      return;
+    }
+
     // 1. Request permissions (Skip on Windows)
     if (!Platform.isWindows) {
       NotificationSettings settings = await _fcm.requestPermission(
@@ -95,7 +104,7 @@ class NotificationService {
           requestAlertPermission: true,
         );
 
-    LoggerUtil.d("Platform: ${Platform.operatingSystem}");
+    LoggerUtil.d("Platform: ${kIsWeb ? 'web' : Platform.operatingSystem}");
 
     final LinuxInitializationSettings linuxInitSettings =
         LinuxInitializationSettings(defaultActionName: 'Open notification');
@@ -241,9 +250,9 @@ class NotificationService {
     String email = '',
   }) async {
     try {
-      if (Platform.isWindows) {
+      if (kIsWeb || Platform.isWindows) {
         LoggerUtil.i(
-          "Skipping FCM token registration on Windows (not supported).",
+          "Skipping FCM token registration on ${kIsWeb ? 'Web' : 'Windows'} (not supported).",
         );
         return;
       }
@@ -279,7 +288,7 @@ class NotificationService {
             'token': token,
             'email': email,
             'lastUpdated': FieldValue.serverTimestamp(),
-            'platform': Platform.operatingSystem,
+            'platform': kIsWeb ? 'web' : Platform.operatingSystem,
           }, SetOptions(merge: true))
           .then(
             (_) => LoggerUtil.i("Token registered SUCCESSFULLY at $docPath"),
