@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:subscription_rooks_app/services/auth_state_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -36,6 +38,11 @@ class _SplashScreenState extends State<SplashScreen>
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
 
     _controller.forward();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _showLocationPermissionDialog();
+    });
+
     _navigateToNext();
   }
 
@@ -54,6 +61,36 @@ class _SplashScreenState extends State<SplashScreen>
           transitionDuration: const Duration(milliseconds: 800),
         ),
       );
+    }
+  }
+
+  Future<void> _showLocationPermissionDialog() async {
+    final status = await Permission.location.status;
+    if (status.isGranted) return;
+
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Location Permission'),
+        content: const Text(
+          'Your location is securely stored and not shared with third parties.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Deny'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Allow'),
+          ),
+        ],
+      ),
+    );
+
+    if (result == true) {
+      await Geolocator.requestPermission();
     }
   }
 

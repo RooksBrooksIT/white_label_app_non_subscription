@@ -4,6 +4,7 @@ import 'package:subscription_rooks_app/frontend/screens/admin_signup_page.dart';
 import 'package:subscription_rooks_app/backend/screens/admin_login_page.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:subscription_rooks_app/frontend/screens/forgot_password_page.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class AdminLogin extends StatefulWidget {
   const AdminLogin({super.key});
@@ -233,6 +234,22 @@ class _AdminLoginState extends State<AdminLogin> {
                             style: TextStyle(
                               color: primaryColor,
                               fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () async {
+                            final Uri url = Uri.parse('https://sites.google.com/view/rooks-white-label-app/home');
+                            if (!await launchUrl(url)) {
+                              debugPrint('Could not launch $url');
+                            }
+                          },
+                          child: Text(
+                            'Show Privacy Policy',
+                            style: TextStyle(
+                              color: primaryColor,
+                              fontWeight: FontWeight.bold,
+                              decoration: TextDecoration.underline,
                             ),
                           ),
                         ),
