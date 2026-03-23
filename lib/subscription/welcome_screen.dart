@@ -75,7 +75,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     final phone = _phoneController.text.trim();
     final Map<String, dynamic> extraData = {
       if (phone.isNotEmpty) 'phone': phone,
-      if (linkedAppName != null) 'linkedAppName': linkedAppName,
+      'linkedAppName': ?linkedAppName,
       if (linkedAppName != null)
         'referralCode': _referralCodeController.text.trim(),
     };

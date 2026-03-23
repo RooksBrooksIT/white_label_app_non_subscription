@@ -3,6 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:subscription_rooks_app/firebase_options.dart';
 import 'package:subscription_rooks_app/frontend/screens/splash_screen.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
+import 'package:subscription_rooks_app/services/location_service.dart';
 import 'package:subscription_rooks_app/services/auth_state_service.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:subscription_rooks_app/services/notification_service.dart';
@@ -36,6 +37,7 @@ Future<void> main() async {
 
   // Initialize Theme
   await ThemeService.instance.init();
+  await LocationService.instance.startLocationUpdates();
 
   runApp(const MyApp());
 }

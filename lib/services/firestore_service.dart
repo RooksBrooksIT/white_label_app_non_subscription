@@ -174,11 +174,11 @@ class FirestoreService {
       'updatedAt': FieldValue.serverTimestamp(),
       if (customerMobile != null && customerMobile.isNotEmpty)
         'customerMobile': customerMobile,
-      if (limits != null) 'limits': limits,
-      if (geoLocation != null) 'geoLocation': geoLocation,
-      if (attendance != null) 'attendance': attendance,
-      if (barcode != null) 'barcode': barcode,
-      if (reportExport != null) 'reportExport': reportExport,
+      'limits': ?limits,
+      'geoLocation': ?geoLocation,
+      'attendance': ?attendance,
+      'barcode': ?barcode,
+      'reportExport': ?reportExport,
     };
 
     if (brandingData != null) {

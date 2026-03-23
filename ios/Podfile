@@ -39,5 +39,43 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
+    target.build_configurations.each do |config|
+      # 1. Consistent Deployment Target
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+      
+      # 2. Force Symbol Generation for dSYM
+      config.build_settings['DEBUG_INFORMATION_FORMAT'] = 'dwarf-with-dsym'
+      config.build_settings['GCC_GENERATE_DEBUGGING_SYMBOLS'] = 'YES'
+      
+      # 3. Prevent Symbol Stripping
+      # This ensures symbols are available for dsymutil to extract them.
+      config.build_settings['STRIP_INSTALLED_PRODUCT'] = 'NO'
+      config.build_settings['STRIP_STYLE'] = 'non-global'
+      config.build_settings['STRIP_SYMBOLS_DURING_COPY'] = 'NO'
+      config.build_settings['COPY_PHASE_STRIP'] = 'NO'
+      
+      # 4. Prevent post-install stripping that defaults to true in Archive builds
+      config.build_settings['DEPLOYMENT_POSTPROCESSING'] = 'NO'
+      
+      # 5. Bitcode must be off for modern iOS toolchains
+      config.build_settings['ENABLE_BITCODE'] = 'NO'
+      
+      # 6. Specific fix for some Firebase/C++ libraries (like Abseil)
+      config.build_settings['CLANG_ENABLE_CODE_COVERAGE'] = 'NO'
+    end
+  end
+
+  # 7. Fix for App Store validation: ensure all frameworks have the correct MinimumOSVersion
+  # and strip any remaining simulator architectures.
+  installer.aggregate_targets.each do |target|
+    target.user_project.targets.each do |user_target|
+      if user_target.name == 'Runner'
+        user_target.build_phases.each do |phase|
+          if phase.is_a?(Xcodeproj::Project::Object::PBXShellScriptBuildPhase) && phase.name == 'Thin Binary'
+            # We add a custom script after Thin Binary to catch everything else
+          end
+        end
+      end
+    end
   end
 end

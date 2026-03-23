@@ -514,7 +514,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
       final dynamic lngVal = data['lng'];
       final dynamic timestamp = data['updatedAt'];
       final String? status = data['engineerStatus']?.toString();
-      final String? docId = doc.id;
+      final String docId = doc.id;
 
       if (latVal != null && lngVal != null) {
         try {
@@ -590,7 +590,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
           }
 
           if (_autoFollow) {
-            _mapController.move(latestPos!, _mapController.camera.zoom);
+            _mapController.move(latestPos, _mapController.camera.zoom);
           }
           _lastUpdateTime = latestTimestamp?.toDate() ?? DateTime.now();
         }
@@ -1502,7 +1502,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                           _buildInfoStat(
                             Icons.speed_rounded,
                             "Speed",
-                            "${(_currentSpeed * 3.6).toStringAsFixed(1)}",
+                            (_currentSpeed * 3.6).toStringAsFixed(1),
                             "km/h",
                             Colors.orange,
                           ),
@@ -1518,7 +1518,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                           _buildInfoStat(
                             Icons.timeline_rounded,
                             "Distance",
-                            "${(_pathHistory.length * 0.01).toStringAsFixed(2)}",
+                            (_pathHistory.length * 0.01).toStringAsFixed(2),
                             "km",
                             Colors.green,
                           ),
