@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:subscription_rooks_app/services/auth_state_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:subscription_rooks_app/utils/location_disclosure_dialog.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -40,58 +40,37 @@ class _SplashScreenState extends State<SplashScreen>
     _controller.forward();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _showLocationPermissionDialog();
+      _initAndNavigate();
     });
-
-    _navigateToNext();
   }
 
-  Future<void> _navigateToNext() async {
+  Future<void> _initAndNavigate() async {
+    // Prefetch the target screen in background
     final Widget target = await AuthStateService.instance.getInitialScreen();
 
-    await Future.delayed(const Duration(seconds: 3));
+    // Show disclosure dialog — user must tap Allow or Deny to proceed
+    final result = await LocationDisclosure.showDisclosure(context);
+    if (!mounted) return;
 
-    if (mounted) {
-      Navigator.of(context).pushReplacement(
-        PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) => target,
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            return FadeTransition(opacity: animation, child: child);
-          },
-          transitionDuration: const Duration(milliseconds: 800),
-        ),
-      );
-    }
-  }
-
-  Future<void> _showLocationPermissionDialog() async {
-    final status = await Permission.location.status;
-    if (status.isGranted) return;
-
-    final result = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text('Location Permission'),
-        content: const Text(
-          'Your location is securely stored and not shared with third parties.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Deny'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Allow'),
-          ),
-        ],
-      ),
-    );
-
+    // If user allowed, trigger the actual OS permission popup
     if (result == true) {
       await Geolocator.requestPermission();
     }
+
+    // Brief pause so the splash logo is visible after dialog closes
+    await Future.delayed(const Duration(milliseconds: 800));
+    if (!mounted) return;
+
+    // Navigate to role/login page
+    Navigator.of(context).pushReplacement(
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) => target,
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+        transitionDuration: const Duration(milliseconds: 800),
+      ),
+    );
   }
 
   @override
