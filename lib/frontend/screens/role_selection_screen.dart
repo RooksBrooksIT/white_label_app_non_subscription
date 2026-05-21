@@ -72,7 +72,6 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                       return Image.network(
                         ThemeService.instance.logoUrl!,
                         height: 100,
-                        width: 250, // Added width constraint
                         fit: BoxFit.contain,
                         errorBuilder: (context, error, stackTrace) =>
                             const Icon(Icons.account_circle, size: 80),

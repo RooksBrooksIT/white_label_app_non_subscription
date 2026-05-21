@@ -3,8 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../backend/brand_model_backend.dart';
 
 class BrandModelPage extends StatefulWidget {
-  final bool isEmbedded;
-  const BrandModelPage({super.key, this.isEmbedded = false});
+  const BrandModelPage({super.key});
 
   @override
   State<BrandModelPage> createState() => _BrandModelPageState();
@@ -402,402 +401,9 @@ class _BrandModelPageState extends State<BrandModelPage> with RouteAware {
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
     final isSmallScreen = screenWidth < 600;
     final isVerySmallScreen = screenWidth < 400;
-
-    Widget bodyContent = isInitializing
-        ? Center(
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
-            ),
-          )
-        : isLoading
-        ? Center(
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
-            ),
-          )
-        : SingleChildScrollView(
-            padding: EdgeInsets.all(isSmallScreen ? 12.0 : 16.0),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [primaryColor.withOpacity(0.8), primaryColor],
-                      ),
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: primaryColor.withOpacity(0.3),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Padding(
-                      padding: EdgeInsets.all(isSmallScreen ? 16.0 : 20.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.2),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  Icons.add_box_rounded,
-                                  color: Colors.white,
-                                  size: isSmallScreen ? 20 : 24,
-                                ),
-                              ),
-                              SizedBox(width: isSmallScreen ? 8 : 12),
-                              Text(
-                                'Device Information',
-                                style: TextStyle(
-                                  fontSize: isSmallScreen ? 18 : 20,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ],
-                          ),
-                          SizedBox(height: isSmallScreen ? 8 : 12),
-                          Text(
-                            'Select a device type and provide the required details to add a new device to your inventory',
-                            style: TextStyle(
-                              fontSize: isSmallScreen ? 12 : 14,
-                              color: Colors.white.withOpacity(0.9),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: isSmallScreen ? 16 : 24),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 8.0),
-                    child: Text(
-                      'SELECT DEVICE TYPE *',
-                      style: TextStyle(
-                        fontSize: isSmallScreen ? 12 : 14,
-                        fontWeight: FontWeight.w600,
-                        color: textColor,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: isSmallScreen ? 8 : 12),
-                  // Responsive grid for device types
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      int crossAxisCount = isVerySmallScreen
-                          ? 1
-                          : (isSmallScreen ? 2 : 3);
-                      double spacing = isSmallScreen ? 12.0 : 16.0;
-                      double aspectRatio = isSmallScreen
-                          ? (constraints.maxWidth / crossAxisCount) / 100
-                          : (constraints.maxWidth / crossAxisCount) / 120;
-
-                      return GridView.count(
-                        crossAxisCount: crossAxisCount,
-                        crossAxisSpacing: spacing,
-                        mainAxisSpacing: spacing,
-                        childAspectRatio: aspectRatio,
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        children: [
-                          ...devicesbrands.map((devicesbrand) {
-                            return Container(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(16),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.grey.withOpacity(0.2),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: Card(
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                  side: BorderSide(
-                                    color: _selecteddevicesbrand == devicesbrand
-                                        ? primaryColor
-                                        : Colors.grey.shade300,
-                                    width: _selecteddevicesbrand == devicesbrand
-                                        ? 2
-                                        : 1,
-                                  ),
-                                ),
-                                color: _selecteddevicesbrand == devicesbrand
-                                    ? primaryColor.withOpacity(0.08)
-                                    : surfaceColor,
-                                child: InkWell(
-                                  onTap: () {
-                                    setState(() {
-                                      _selecteddevicesbrand = devicesbrand;
-                                      showExistingValues = false;
-                                      if (isEditing) _cancelEdit();
-                                    });
-                                  },
-                                  borderRadius: BorderRadius.circular(16),
-                                  child: Stack(
-                                    children: [
-                                      Padding(
-                                        padding: EdgeInsets.all(
-                                          isSmallScreen ? 8.0 : 12.0,
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            Container(
-                                              width: isSmallScreen ? 32 : 40,
-                                              height: isSmallScreen ? 32 : 40,
-                                              decoration: BoxDecoration(
-                                                color:
-                                                    _selecteddevicesbrand ==
-                                                        devicesbrand
-                                                    ? primaryColor
-                                                    : primaryColor.withOpacity(
-                                                        0.1,
-                                                      ),
-                                                shape: BoxShape.circle,
-                                              ),
-                                              child: Icon(
-                                                _getDeviceIcon(devicesbrand),
-                                                color:
-                                                    _selecteddevicesbrand ==
-                                                        devicesbrand
-                                                    ? Colors.white
-                                                    : primaryColor,
-                                                size: isSmallScreen ? 16 : 22,
-                                              ),
-                                            ),
-                                            SizedBox(
-                                              width: isSmallScreen ? 8 : 12,
-                                            ),
-                                            Expanded(
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                mainAxisAlignment:
-                                                    MainAxisAlignment.center,
-                                                children: [
-                                                  Text(
-                                                    devicesbrand,
-                                                    style: TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                      color:
-                                                          _selecteddevicesbrand ==
-                                                              devicesbrand
-                                                          ? primaryColor
-                                                          : textColor,
-                                                      fontSize: isSmallScreen
-                                                          ? 12
-                                                          : 14,
-                                                    ),
-                                                  ),
-                                                  SizedBox(
-                                                    height: isSmallScreen
-                                                        ? 2
-                                                        : 4,
-                                                  ),
-                                                  Text(
-                                                    devicesbrandCollections[devicesbrand]!,
-                                                    style: TextStyle(
-                                                      fontSize: isSmallScreen
-                                                          ? 10
-                                                          : 11,
-                                                      color: lightTextColor,
-                                                    ),
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      Positioned(
-                                        top: 4,
-                                        right: 4,
-                                        child: IconButton(
-                                          icon: Icon(
-                                            Icons.delete_outline,
-                                            size: isSmallScreen ? 16 : 18,
-                                            color: errorColor.withOpacity(0.7),
-                                          ),
-                                          onPressed: () =>
-                                              _deletedevicesbrand(devicesbrand),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            );
-                          }),
-                          // Add Device Card Button
-                          Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.grey.withOpacity(0.2),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Card(
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                                side: BorderSide(
-                                  color: primaryColor.withOpacity(0.3),
-                                  width: 1,
-                                ),
-                              ),
-                              child: InkWell(
-                                onTap: _showAddDeviceDialog,
-                                borderRadius: BorderRadius.circular(16),
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(16),
-                                    gradient: LinearGradient(
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                      colors: [
-                                        primaryColor.withOpacity(0.05),
-                                        primaryColor.withOpacity(0.1),
-                                      ],
-                                    ),
-                                  ),
-                                  child: Padding(
-                                    padding: EdgeInsets.all(
-                                      isSmallScreen ? 8.0 : 12.0,
-                                    ),
-                                    child: Column(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Icon(
-                                          Icons.add_circle_outline,
-                                          color: primaryColor,
-                                          size: isSmallScreen ? 24 : 28,
-                                        ),
-                                        SizedBox(height: isSmallScreen ? 4 : 8),
-                                        Text(
-                                          'Add New Type',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w600,
-                                            color: primaryColor,
-                                            fontSize: isSmallScreen ? 10 : 12,
-                                          ),
-                                          textAlign: TextAlign.center,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                  SizedBox(height: isSmallScreen ? 12 : 16),
-                  if (_selecteddevicesbrand == null)
-                    Padding(
-                      padding: const EdgeInsets.only(left: 8.0, top: 8),
-                      child: Text(
-                        'Please select a device type',
-                        style: TextStyle(
-                          color: errorColor,
-                          fontSize: isSmallScreen ? 11 : 12,
-                        ),
-                      ),
-                    ),
-                  SizedBox(height: isSmallScreen ? 16 : 24),
-                  if (_selecteddevicesbrand != null) ...[
-                    // Show Existing Values Toggle
-                    Container(
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        color: surfaceColor,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.grey.withOpacity(0.1),
-                            blurRadius: 4,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Padding(
-                        padding: EdgeInsets.all(isSmallScreen ? 12.0 : 16.0),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.list_alt,
-                              color: primaryColor,
-                              size: isSmallScreen ? 20 : 24,
-                            ),
-                            SizedBox(width: isSmallScreen ? 8 : 12),
-                            Expanded(
-                              child: Text(
-                                'Show Existing Values',
-                                style: TextStyle(
-                                  fontSize: isSmallScreen ? 14 : 16,
-                                  fontWeight: FontWeight.w600,
-                                  color: textColor,
-                                ),
-                              ),
-                            ),
-                            Switch(
-                              value: showExistingValues,
-                              onChanged: (value) {
-                                setState(() {
-                                  showExistingValues = value;
-                                  if (isEditing && !value) _cancelEdit();
-                                });
-                              },
-                              activeThumbColor: primaryColor,
-                              activeTrackColor: primaryColor.withOpacity(0.3),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    SizedBox(height: isSmallScreen ? 16 : 24),
-
-                    if (showExistingValues) _buildExistingValuesList(),
-
-                    if (!showExistingValues || isEditing)
-                      _buildDeviceDetailsForm(isSmallScreen),
-                  ],
-                ],
-              ),
-            ),
-          );
-
-    if (widget.isEmbedded) {
-      return bodyContent;
-    }
 
     return Scaffold(
       backgroundColor: lightBackground,
@@ -818,7 +424,404 @@ class _BrandModelPageState extends State<BrandModelPage> with RouteAware {
         ),
         iconTheme: const IconThemeData(color: Colors.white),
       ),
-      body: bodyContent,
+      body: isInitializing
+          ? Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
+              ),
+            )
+          : isLoading
+          ? Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
+              ),
+            )
+          : SingleChildScrollView(
+              padding: EdgeInsets.all(isSmallScreen ? 12.0 : 16.0),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [primaryColor.withOpacity(0.8), primaryColor],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: primaryColor.withOpacity(0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Padding(
+                        padding: EdgeInsets.all(isSmallScreen ? 16.0 : 20.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.2),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    Icons.add_box_rounded,
+                                    color: Colors.white,
+                                    size: isSmallScreen ? 20 : 24,
+                                  ),
+                                ),
+                                SizedBox(width: isSmallScreen ? 8 : 12),
+                                Text(
+                                  'Device Information',
+                                  style: TextStyle(
+                                    fontSize: isSmallScreen ? 18 : 20,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: isSmallScreen ? 8 : 12),
+                            Text(
+                              'Select a device type and provide the required details to add a new device to your inventory',
+                              style: TextStyle(
+                                fontSize: isSmallScreen ? 12 : 14,
+                                color: Colors.white.withOpacity(0.9),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: isSmallScreen ? 16 : 24),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8.0),
+                      child: Text(
+                        'SELECT DEVICE TYPE *',
+                        style: TextStyle(
+                          fontSize: isSmallScreen ? 12 : 14,
+                          fontWeight: FontWeight.w600,
+                          color: textColor,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: isSmallScreen ? 8 : 12),
+                    // Responsive grid for device types
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        int crossAxisCount = isVerySmallScreen
+                            ? 1
+                            : isSmallScreen
+                            ? 2
+                            : 3;
+                        double spacing = isSmallScreen ? 12.0 : 16.0;
+                        double aspectRatio = isSmallScreen
+                            ? (constraints.maxWidth / crossAxisCount) / 100
+                            : (constraints.maxWidth / crossAxisCount) / 120;
+
+                        return GridView.count(
+                          crossAxisCount: crossAxisCount,
+                          crossAxisSpacing: spacing,
+                          mainAxisSpacing: spacing,
+                          childAspectRatio: aspectRatio,
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          children: [
+                            ...devicesbrands.map((devicesbrand) {
+                              return Container(
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(16),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.grey.withOpacity(0.2),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Card(
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    side: BorderSide(
+                                      color:
+                                          _selecteddevicesbrand == devicesbrand
+                                          ? primaryColor
+                                          : Colors.grey.shade300,
+                                      width:
+                                          _selecteddevicesbrand == devicesbrand
+                                          ? 2
+                                          : 1,
+                                    ),
+                                  ),
+                                  color: _selecteddevicesbrand == devicesbrand
+                                      ? primaryColor.withOpacity(0.08)
+                                      : surfaceColor,
+                                  child: InkWell(
+                                    onTap: () {
+                                      setState(() {
+                                        _selecteddevicesbrand = devicesbrand;
+                                        showExistingValues = false;
+                                        if (isEditing) _cancelEdit();
+                                      });
+                                    },
+                                    borderRadius: BorderRadius.circular(16),
+                                    child: Stack(
+                                      children: [
+                                        Padding(
+                                          padding: EdgeInsets.all(
+                                            isSmallScreen ? 8.0 : 12.0,
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              Container(
+                                                width: isSmallScreen ? 32 : 40,
+                                                height: isSmallScreen ? 32 : 40,
+                                                decoration: BoxDecoration(
+                                                  color:
+                                                      _selecteddevicesbrand ==
+                                                          devicesbrand
+                                                      ? primaryColor
+                                                      : primaryColor
+                                                            .withOpacity(0.1),
+                                                  shape: BoxShape.circle,
+                                                ),
+                                                child: Icon(
+                                                  _getDeviceIcon(devicesbrand),
+                                                  color:
+                                                      _selecteddevicesbrand ==
+                                                          devicesbrand
+                                                      ? Colors.white
+                                                      : primaryColor,
+                                                  size: isSmallScreen ? 16 : 22,
+                                                ),
+                                              ),
+                                              SizedBox(
+                                                width: isSmallScreen ? 8 : 12,
+                                              ),
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  mainAxisAlignment:
+                                                      MainAxisAlignment.center,
+                                                  children: [
+                                                    Text(
+                                                      devicesbrand,
+                                                      style: TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                        color:
+                                                            _selecteddevicesbrand ==
+                                                                devicesbrand
+                                                            ? primaryColor
+                                                            : textColor,
+                                                        fontSize: isSmallScreen
+                                                            ? 12
+                                                            : 14,
+                                                      ),
+                                                    ),
+                                                    SizedBox(
+                                                      height: isSmallScreen
+                                                          ? 2
+                                                          : 4,
+                                                    ),
+                                                    Text(
+                                                      devicesbrandCollections[devicesbrand]!,
+                                                      style: TextStyle(
+                                                        fontSize: isSmallScreen
+                                                            ? 10
+                                                            : 11,
+                                                        color: lightTextColor,
+                                                      ),
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        Positioned(
+                                          top: 4,
+                                          right: 4,
+                                          child: IconButton(
+                                            icon: Icon(
+                                              Icons.delete_outline,
+                                              size: isSmallScreen ? 16 : 18,
+                                              color: errorColor.withOpacity(
+                                                0.7,
+                                              ),
+                                            ),
+                                            onPressed: () =>
+                                                _deletedevicesbrand(
+                                                  devicesbrand,
+                                                ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }),
+                            // Add Device Card Button
+                            Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.grey.withOpacity(0.2),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Card(
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  side: BorderSide(
+                                    color: primaryColor.withOpacity(0.3),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: InkWell(
+                                  onTap: _showAddDeviceDialog,
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(16),
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                        colors: [
+                                          primaryColor.withOpacity(0.05),
+                                          primaryColor.withOpacity(0.1),
+                                        ],
+                                      ),
+                                    ),
+                                    child: Padding(
+                                      padding: EdgeInsets.all(
+                                        isSmallScreen ? 8.0 : 12.0,
+                                      ),
+                                      child: Column(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            Icons.add_circle_outline,
+                                            color: primaryColor,
+                                            size: isSmallScreen ? 24 : 28,
+                                          ),
+                                          SizedBox(
+                                            height: isSmallScreen ? 4 : 8,
+                                          ),
+                                          Text(
+                                            'Add New Type',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                              color: primaryColor,
+                                              fontSize: isSmallScreen ? 10 : 12,
+                                            ),
+                                            textAlign: TextAlign.center,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                    SizedBox(height: isSmallScreen ? 12 : 16),
+                    if (_selecteddevicesbrand == null)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 8.0, top: 8),
+                        child: Text(
+                          'Please select a device type',
+                          style: TextStyle(
+                            color: errorColor,
+                            fontSize: isSmallScreen ? 11 : 12,
+                          ),
+                        ),
+                      ),
+                    SizedBox(height: isSmallScreen ? 16 : 24),
+                    if (_selecteddevicesbrand != null) ...[
+                      // Show Existing Values Toggle
+                      Container(
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          color: surfaceColor,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.grey.withOpacity(0.1),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Padding(
+                          padding: EdgeInsets.all(isSmallScreen ? 12.0 : 16.0),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.list_alt,
+                                color: primaryColor,
+                                size: isSmallScreen ? 20 : 24,
+                              ),
+                              SizedBox(width: isSmallScreen ? 8 : 12),
+                              Expanded(
+                                child: Text(
+                                  'Show Existing Values',
+                                  style: TextStyle(
+                                    fontSize: isSmallScreen ? 14 : 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: textColor,
+                                  ),
+                                ),
+                              ),
+                              Switch(
+                                value: showExistingValues,
+                                onChanged: (value) {
+                                  setState(() {
+                                    showExistingValues = value;
+                                    if (isEditing && !value) _cancelEdit();
+                                  });
+                                },
+                                activeThumbColor: primaryColor,
+                                activeTrackColor: primaryColor.withOpacity(0.3),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      SizedBox(height: isSmallScreen ? 16 : 24),
+
+                      if (showExistingValues) _buildExistingValuesList(),
+
+                      if (!showExistingValues || isEditing)
+                        _buildDeviceDetailsForm(isSmallScreen),
+                    ],
+                  ],
+                ),
+              ),
+            ),
     );
   }
 

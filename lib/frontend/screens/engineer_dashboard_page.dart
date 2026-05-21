@@ -20,7 +20,6 @@ import 'package:subscription_rooks_app/services/location_service.dart';
 import 'package:subscription_rooks_app/services/notification_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:subscription_rooks_app/services/storage_service.dart';
-import 'package:subscription_rooks_app/utils/location_disclosure_dialog.dart';
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
@@ -677,19 +676,7 @@ class _EngineerPageState extends State<EngineerPage> {
 
       // Start/Stop location tracking based on online status
       if (value) {
-        final hasConsent = await LocationDisclosure.showDisclosure(context);
-        if (hasConsent) {
-          await LocationService.instance.startTracking(widget.userName);
-        } else {
-          setState(() => _isOnline = false);
-          // Update back to offline in Firestore since consent was denied
-          await FirestoreService.instance.updateEngineerStatus(
-            tenantId: tenantId,
-            username: widget.userName,
-            isOnline: false,
-          );
-          return;
-        }
+        await LocationService.instance.startTracking(widget.userName);
       } else {
         await LocationService.instance.stopTracking(widget.userName);
       }

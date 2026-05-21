@@ -2,8 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:subscription_rooks_app/services/auth_state_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
-import 'package:geolocator/geolocator.dart';
-import 'package:subscription_rooks_app/utils/location_disclosure_dialog.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -38,39 +36,25 @@ class _SplashScreenState extends State<SplashScreen>
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
 
     _controller.forward();
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initAndNavigate();
-    });
+    _navigateToNext();
   }
 
-  Future<void> _initAndNavigate() async {
-    // Prefetch the target screen in background
+  Future<void> _navigateToNext() async {
     final Widget target = await AuthStateService.instance.getInitialScreen();
 
-    // Show disclosure dialog — user must tap Allow or Deny to proceed
-    final result = await LocationDisclosure.showDisclosure(context);
-    if (!mounted) return;
+    await Future.delayed(const Duration(seconds: 3));
 
-    // If user allowed, trigger the actual OS permission popup
-    if (result == true) {
-      await Geolocator.requestPermission();
+    if (mounted) {
+      Navigator.of(context).pushReplacement(
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) => target,
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+          transitionDuration: const Duration(milliseconds: 800),
+        ),
+      );
     }
-
-    // Brief pause so the splash logo is visible after dialog closes
-    await Future.delayed(const Duration(milliseconds: 800));
-    if (!mounted) return;
-
-    // Navigate to role/login page
-    Navigator.of(context).pushReplacement(
-      PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) => target,
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return FadeTransition(opacity: animation, child: child);
-        },
-        transitionDuration: const Duration(milliseconds: 800),
-      ),
-    );
   }
 
   @override
@@ -84,11 +68,11 @@ class _SplashScreenState extends State<SplashScreen>
     final theme = ThemeService.instance;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: theme.primaryColor, // Solid orange background
       body: Container(
         width: double.infinity,
         height: double.infinity,
-        color: Colors.white,
+        color: theme.primaryColor,
         child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -145,12 +129,11 @@ class _SplashScreenState extends State<SplashScreen>
                 opacity: _fadeAnimation,
                 child: Text(
                   theme.appName,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
-                    color: theme.primaryColor,
+                    color: Colors.white,
                     letterSpacing: 2,
-                    fontFamily: 'Lufga',
                   ),
                 ),
               ),
@@ -164,7 +147,7 @@ class _SplashScreenState extends State<SplashScreen>
                   width: 50,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: theme.primaryColor.withOpacity(0.8),
+                    color: Colors.white.withOpacity(0.8),
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),

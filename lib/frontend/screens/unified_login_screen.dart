@@ -198,11 +198,13 @@ class _UnifiedLoginScreenState extends State<UnifiedLoginScreen> {
                           ),
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 40),
                 Center(
                   child: TextButton(
                     onPressed: () async {
-                      final Uri url = Uri.parse('https://sites.google.com/view/rooks-white-label-app/home');
+                      final Uri url = Uri.parse(
+                        'https://sites.google.com/view/rooks-white-label-app/home',
+                      );
                       if (!await launchUrl(url)) {
                         debugPrint('Could not launch $url');
                       }

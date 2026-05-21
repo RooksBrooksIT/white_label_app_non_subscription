@@ -36,6 +36,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   firebase_core: ^4.3.0
   cloud_firestore: ^6.1.1
+  cloud_functions: ^6.2.0
   firebase_auth: ^6.1.3
   firebase_database: ^12.1.1
   firebase_app_check: any
@@ -67,6 +68,10 @@ dependencies:
   crypto: ^3.0.7
   flutter_dotenv: ^6.0.0
   logger: ^2.4.0
+  uuid: ^4.3.3
+  dio: ^5.9.2
+  qr_flutter: ^4.1.0
+  
 dev_dependencies:
   flutter_test:
     sdk: flutter

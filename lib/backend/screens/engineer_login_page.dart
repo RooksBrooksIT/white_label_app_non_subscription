@@ -59,7 +59,11 @@ class EngineerLoginBackend {
           appId: referralAppId,
         );
         if (!isSubscribed) {
-          return {'success': true, 'restricted': true, 'username': username};
+          return {
+            'success': false,
+            'message':
+                'Your organization\'s subscription has expired. Please contact your admin.',
+          };
         }
 
         try {

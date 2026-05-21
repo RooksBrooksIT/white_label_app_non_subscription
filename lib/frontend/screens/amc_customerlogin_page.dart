@@ -3,7 +3,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:subscription_rooks_app/frontend/screens/amc_main_page.dart';
 import 'package:subscription_rooks_app/backend/screens/amc_customerlogin_page.dart';
-import 'package:subscription_rooks_app/subscription/access_restricted_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class AMCLoginPage extends StatefulWidget {
@@ -56,15 +55,6 @@ class _AMCLoginPageState extends State<AMCLoginPage>
 
     if (result['success']) {
       if (!mounted) return;
-      if (result['restricted'] == true) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) =>
-                const AccessRestrictedScreen(role: 'customer'),
-          ),
-        );
-        return;
-      }
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (context) => AMCCustomerMainPage()),
       );
@@ -106,13 +96,21 @@ class _AMCLoginPageState extends State<AMCLoginPage>
                     ? Image.network(
                         ThemeService.instance.logoUrl!,
                         height: 100,
-                        width:
-                            250, // Added width constraint to prevent horizontal overflow
                         fit: BoxFit.contain,
-                        errorBuilder: (context, error, stackTrace) =>
-                            _buildDefaultLogo(), // Added error handling to prevent broken layout
                       )
-                    : _buildDefaultLogo(),
+                    : Container(
+                        height: 100,
+                        width: 100,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[100],
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.business_rounded,
+                          size: 50,
+                          color: Colors.black54,
+                        ),
+                      ),
               ),
               const SizedBox(height: 48),
               Text(
@@ -246,11 +244,13 @@ class _AMCLoginPageState extends State<AMCLoginPage>
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 40),
               Center(
                 child: TextButton(
                   onPressed: () async {
-                    final Uri url = Uri.parse('https://sites.google.com/view/rooks-white-label-app/home');
+                    final Uri url = Uri.parse(
+                      'https://sites.google.com/view/rooks-white-label-app/home',
+                    );
                     if (!await launchUrl(url)) {
                       debugPrint('Could not launch $url');
                     }
@@ -269,22 +269,6 @@ class _AMCLoginPageState extends State<AMCLoginPage>
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildDefaultLogo() {
-    return Container(
-      height: 100,
-      width: 100,
-      decoration: BoxDecoration(
-        color: Colors.grey[100],
-        shape: BoxShape.circle,
-      ),
-      child: const Icon(
-        Icons.business_rounded,
-        size: 50,
-        color: Colors.black54,
       ),
     );
   }

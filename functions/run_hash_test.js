@@ -1,0 +1,40 @@
+const fs = require('fs');
+const path = require('path');
+
+// Parse .env manually
+const envPath = path.join(__dirname, '.env');
+if (fs.existsSync(envPath)) {
+    const envContent = fs.readFileSync(envPath, 'utf8');
+    envContent.split('\n').forEach(line => {
+        const trimmed = line.trim();
+        if (trimmed && !trimmed.startsWith('#')) {
+            const parts = trimmed.split('=');
+            if (parts.length >= 2) {
+                const key = parts[0].trim();
+                const value = parts.slice(1).join('=').trim();
+                process.env[key] = value;
+            }
+        }
+    });
+}
+
+console.log("Loaded environment variables:");
+console.log("MID:", process.env.ICICI_MERCHANT_MID);
+console.log("Key:", process.env.ICICI_MERCHANT_KEY ? "EXISTS (len " + process.env.ICICI_MERCHANT_KEY.length + ")" : "MISSING");
+
+const iciciService = require('./src/icici_service');
+
+async function run() {
+    console.log("Starting hosted payment hash test...");
+    const result = await iciciService.initiateSale({
+        txnId: "RB" + Date.now().toString().slice(-8),
+        amount: "1.00",
+        email: "alenroro321@gmail.com",
+        customerName: "Alen",
+        customerMobile: "919345532939",
+        paymentMode: "CARD"
+    });
+    console.log("FINAL RESULT:", JSON.stringify(result, null, 2));
+}
+
+run();

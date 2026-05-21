@@ -1,19 +1,19 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'package:subscription_rooks_app/frontend/screens/admin_Engineer_reports.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_assign_tickets.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_barcode_scanner.dart';
-import 'package:subscription_rooks_app/frontend/screens/admin_device_assets_page.dart';
+import 'package:subscription_rooks_app/frontend/screens/admin_brandandmodel_page.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_attendance_page.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_attendance_reports.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_create_amc_customer.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_create_engineer.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_customer_report_page.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_deliverytickets_screen.dart';
+import 'package:subscription_rooks_app/frontend/screens/admin_device_config_page.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_geo_location_screen.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_view_barcode_details.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_view_engineer_updates.dart';
@@ -29,8 +29,10 @@ import 'package:subscription_rooks_app/backend/screens/admin_dashboard.dart';
 import 'package:subscription_rooks_app/services/notification_service.dart';
 import 'package:subscription_rooks_app/subscription/branding_customization_screen.dart';
 import 'package:subscription_rooks_app/subscription/subscription_plans_screen.dart';
-// import 'package:subscription_rooks_app/frontend/screens/admin_transactions_screen.dart';
+import 'package:subscription_rooks_app/frontend/screens/admin_transactions_screen.dart';
+import 'package:subscription_rooks_app/frontend/screens/about_us_screen.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
+import 'package:subscription_rooks_app/frontend/screens/contact_us_screen.dart';
 
 class admindashboard extends StatefulWidget {
   const admindashboard({super.key});
@@ -103,112 +105,6 @@ class _admindashboardState extends State<admindashboard> {
     });
   }
 
-  void _initSubscriptionStream() {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    final tenantId = ThemeService.instance.databaseName;
-    const appId = 'data';
-
-    // Listen to subscription updates
-    FirestoreService.instance
-        .streamSubscription(user.uid, tenantId, appId: appId)
-        .listen((data) {
-          if (!mounted) return;
-          if (data != null &&
-              (data.containsKey('planName') ||
-                  data.containsKey('expiresAt') ||
-                  data.containsKey('nextBillingAt'))) {
-            _updateSubscriptionData(data);
-          } else {
-            // Fallback: check branding document for subscription info
-            FirestoreService.instance
-                .brandingDoc(tenantId: tenantId, appId: appId)
-                .get()
-                .then((doc) {
-                  if (mounted && doc.exists && doc.data() != null) {
-                    final bData = doc.data()!;
-                    // Check root or a potentially nested 'branding' map
-                    if (bData.containsKey('planName') ||
-                        bData.containsKey('expiresAt') ||
-                        bData.containsKey('nextBillingAt') ||
-                        (bData.containsKey('branding') &&
-                            bData['branding'] is Map)) {
-                      _updateSubscriptionData(bData);
-                    } else {
-                      // Final fallback: get first active tenant subscription
-                      FirestoreService.instance
-                          .getActiveSubscription(
-                            tenantId: tenantId,
-                            appId: appId,
-                          )
-                          .then((tenantData) {
-                            if (mounted && tenantData != null) {
-                              _updateSubscriptionData(tenantData);
-                            }
-                          });
-                    }
-                  }
-                });
-          }
-        }, onError: (e) => debugPrint('Error in subscription stream: $e'));
-  }
-
-  void _updateSubscriptionData(Map<String, dynamic> data) {
-    if (!mounted) return;
-
-    // Check if data is nested in 'branding' map (common for global config)
-    Map<String, dynamic> source = data;
-    if (!data.containsKey('expiresAt') &&
-        !data.containsKey('nextBillingAt') &&
-        data.containsKey('branding') &&
-        data['branding'] is Map<String, dynamic>) {
-      source = data['branding'] as Map<String, dynamic>;
-    }
-
-    setState(() {
-      currentPlanName =
-          source['planName'] ??
-          (source.containsKey('expiresAt') ? 'Free Trial' : null);
-      billingCycle = source['isYearly'] == true
-          ? 'Yearly'
-          : (source['isSixMonths'] == true ? '6 Months' : 'Monthly');
-
-      DateTime? expiryDate;
-      final expiresAt = source['expiresAt'];
-      final nextBillingAt = source['nextBillingAt'];
-
-      if (expiresAt != null) {
-        if (expiresAt is Timestamp) {
-          expiryDate = expiresAt.toDate();
-        } else if (expiresAt is String) {
-          expiryDate = DateTime.tryParse(expiresAt);
-        }
-      } else if (nextBillingAt != null) {
-        if (nextBillingAt is String) {
-          expiryDate = DateTime.tryParse(nextBillingAt);
-        } else if (nextBillingAt is Timestamp) {
-          expiryDate = nextBillingAt.toDate();
-        }
-      }
-
-      if (expiryDate != null) {
-        remainingDays = (expiryDate.difference(DateTime.now()).inHours / 24)
-            .ceil();
-        if (remainingDays! < 0) remainingDays = 0;
-      }
-    });
-
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      NotificationService.instance.registerToken(
-        role: 'admin',
-        userId: user.uid,
-        email: adminEmail,
-      );
-    }
-  }
-
   void _loadAdminData() async {
     final profile = await AdminDashboardBackend.getAdminProfile();
     final code = await AdminDashboardBackend.getReferralCode();
@@ -218,7 +114,76 @@ class _admindashboardState extends State<admindashboard> {
         adminEmail = profile['email']!;
         referralCode = code;
       });
-      _initSubscriptionStream();
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        NotificationService.instance.registerToken(
+          role: 'admin',
+          userId: user.uid, // Use UID instead of name
+          email: adminEmail,
+        );
+
+        // Check for active subscription
+        final tenantId = ThemeService.instance.databaseName;
+        final appId = ThemeService.instance.appName;
+        final isSubscribed = await FirestoreService.instance.isTenantActive(
+          tenantId: tenantId,
+          appId: appId,
+        );
+
+        if (!isSubscribed) {
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const SubscriptionPlansScreen(),
+              ),
+            );
+          }
+          return;
+        }
+
+        // Fetch Subscription Info for Badge
+        try {
+          final tenantId = ThemeService.instance.databaseName;
+          final appId = ThemeService.instance.appName;
+          final doc = await FirestoreService.instance
+              .subscriptionsRef(tenantId: tenantId, appId: appId)
+              .doc(user.uid)
+              .get();
+
+          if (doc.exists && doc.data() != null) {
+            final data = doc.data()!;
+            setState(() {
+              currentPlanName = data['planName'] as String?;
+              final isYearly = data['isYearly'] as bool? ?? false;
+              final isSixMonths = data['isSixMonths'] as bool? ?? false;
+
+              if (currentPlanName?.toLowerCase().contains('trial') ?? false) {
+                billingCycle = '7 Days';
+              } else if (isYearly) {
+                billingCycle = 'Yearly';
+              } else if (isSixMonths) {
+                billingCycle = '6 Months';
+              } else {
+                billingCycle = 'Monthly';
+              }
+
+              // Calculate remaining days
+              final nextBillingStr = data['nextBillingAt'] as String?;
+              if (nextBillingStr != null) {
+                final nextBilling = DateTime.tryParse(nextBillingStr);
+                if (nextBilling != null) {
+                  remainingDays = nextBilling.difference(DateTime.now()).inDays;
+                  // Ensure it's not negative
+                  if (remainingDays! < 0) remainingDays = 0;
+                }
+              }
+            });
+          }
+        } catch (e) {
+          debugPrint('Error loading subscription info: $e');
+        }
+      }
     }
   }
 
@@ -393,16 +358,30 @@ class _admindashboardState extends State<admindashboard> {
                     const SizedBox(height: 24),
                     _buildManagementSection('Device & Assets', [
                       _buildMenuCard(
-                        title: 'Device & Assets',
-                        subtitle: 'Brand, model & configuration',
-                        icon: Icons.devices_rounded,
+                        title: 'Brand & Model',
+                        subtitle: 'Catalog management',
+                        icon: Icons.branding_watermark_rounded,
                         color: const Color(0xFFD63031),
                         onTap: () {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
+                              builder: (context) => BrandModelPage(),
+                            ),
+                          );
+                        },
+                      ),
+                      _buildMenuCard(
+                        title: 'Configuration',
+                        subtitle: 'Device parameters',
+                        icon: Icons.settings_input_component_rounded,
+                        color: const Color(0xFF2D3436),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
                               builder: (context) =>
-                                  const AdminDeviceAssetsPage(),
+                                  AdminDeviceConfigurationPage(),
                             ),
                           );
                         },
@@ -481,23 +460,23 @@ class _admindashboardState extends State<admindashboard> {
                       // ),
                     ]),
                     const SizedBox(height: 24),
-                    //                     _buildManagementSection('Financials', [
-                    //                       _buildMenuCard(
-                    //                         title: 'Transactions',
-                    //                         subtitle: 'Payments & Refunds',
-                    //                         icon: Icons.receipt_long_rounded,
-                    //                         color: const Color(0xFF00B894),
-                    //                         onTap: () {
-                    //                           Navigator.push(
-                    //                             context,
-                    //                             MaterialPageRoute(
-                    //                               builder: (context) =>
-                    //                                   const AdminTransactionsScreen(),
-                    //                             ),
-                    //                           );
-                    //                         },
-                    //                       ),
-                    //                     ]),
+                    _buildManagementSection('Financials', [
+                      _buildMenuCard(
+                        title: 'Transactions',
+                        subtitle: 'Payments & Refunds',
+                        icon: Icons.receipt_long_rounded,
+                        color: const Color(0xFF00B894),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  const AdminTransactionsScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                    ]),
                     const SizedBox(height: 48),
                   ],
                 ),
@@ -975,11 +954,52 @@ class _admindashboardState extends State<admindashboard> {
                 _buildDrawerItem(
                   icon: Icons.workspace_premium_rounded,
                   title: 'Manage Subscription',
-                  subtitle: 'Upgrade or switch plan',
-                  subtitleStyle: null,
+                  subtitle: remainingDays != null
+                      ? '$remainingDays Days Remaining'
+                      : 'Upgrade or switch plan',
+                  subtitleStyle: remainingDays != null
+                      ? TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          color: remainingDays! <= 3
+                              ? errorColor
+                              : primaryColor,
+                        )
+                      : null,
                   onTap: () {
                     Navigator.pop(context);
                     _navigateToChangePlan();
+                  },
+                ),
+                const Divider(indent: 20, endIndent: 20),
+
+                _buildDrawerItem(
+                  icon: Icons.contact_mail_rounded,
+                  title: 'Contact Us',
+                  subtitle: 'View company contact details',
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ContactUsScreen(),
+                      ),
+                    );
+                  },
+                ),
+                const Divider(indent: 20, endIndent: 20),
+                _buildDrawerItem(
+                  icon: Icons.info_rounded,
+                  title: 'About Us',
+                  subtitle: 'Learn more about ServNex',
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const AboutUsScreen(),
+                      ),
+                    );
                   },
                 ),
                 const Divider(indent: 20, endIndent: 20),
@@ -1046,7 +1066,6 @@ class _admindashboardState extends State<admindashboard> {
             },
           ),
           const SizedBox(height: 16),
-          
           Text(
             adminName,
             style: const TextStyle(
@@ -1179,7 +1198,6 @@ class _admindashboardState extends State<admindashboard> {
         builder: (_) => SubscriptionPlansScreen(
           currentPlanName: currentPlanName,
           hideTrial: true,
-          defaultToEnterprise: true,
         ),
       ),
     );

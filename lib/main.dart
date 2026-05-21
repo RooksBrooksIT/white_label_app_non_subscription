@@ -50,7 +50,7 @@ class MyApp extends StatelessWidget {
       builder: (context, _) {
         return MaterialApp(
           debugShowCheckedModeBanner: false,
-          title: 'ServNex',
+          title: 'Servnex',
           theme: ThemeService.instance.themeData,
           home: const SplashScreen(),
         );

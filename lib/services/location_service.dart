@@ -202,20 +202,20 @@ class LocationService {
 
     LocationPermission permission = await Geolocator.checkPermission();
 
-    // If permission is denied, we don't request it here because the UI
-    // layer must show the disclosure first and then call Geolocator.requestPermission().
-    if (permission == LocationPermission.denied ||
-        permission == LocationPermission.deniedForever) {
-      return false;
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) return false;
     }
+
+    if (permission == LocationPermission.deniedForever) return false;
 
     // Background tracking requires "Always" permission
     if (defaultTargetPlatform == TargetPlatform.android ||
         defaultTargetPlatform == TargetPlatform.iOS) {
       var backgroundStatus = await Permission.locationAlways.status;
       if (!backgroundStatus.isGranted) {
-        // This might still trigger a system popup, but usually after "In Use" is granted.
         backgroundStatus = await Permission.locationAlways.request();
+        // Note: Users might deny Always but allow In Use. We proceed but it might stop in background.
       }
     }
 
