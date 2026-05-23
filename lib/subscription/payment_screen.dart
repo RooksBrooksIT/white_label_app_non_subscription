@@ -233,58 +233,44 @@ class _PaymentScreenState extends State<PaymentScreen> with WidgetsBindingObserv
     //   );
     // } 
     else {
-      await _navigateToPaymentFailed(
-        txnId: txnId,
-        errorMessage: errorMessage,
+      // Existing failure logic...
+      final uid = AuthStateService.instance.currentUser?.uid;
+      if (uid != null) {
+        try {
+          await FirestoreService.instance.upsertSubscription(
+            uid: uid,
+            tenantId: ThemeService.instance.databaseName,
+            appId: 'data',
+            planName: widget.planName,
+            isYearly: widget.isYearly,
+            isSixMonths: widget.isSixMonths,
+            price: widget.price,
+            originalPrice: widget.originalPrice,
+            paymentMethod: selectedPaymentMethod,
+            status: 'inactive',
+            limits: widget.limits,
+            geoLocation: widget.geoLocation,
+            attendance: widget.attendance,
+            barcode: widget.barcode,
+            reportExport: widget.reportExport,
+          );
+        } catch (e) {
+          debugPrint('Error setting inactive status: $e');
+        }
+      }
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PaymentFailedScreen(
+            errorMessage: errorMessage,
+            paymentMethod: selectedPaymentMethod,
+            amount: widget.price,
+            transactionId: txnId,
+          ),
+        ),
       );
     }
-  }
-
-  /// Marks subscription as inactive in Firestore, then navigates to [PaymentFailedScreen].
-  /// Used for both verified failures and explicit user cancellations.
-  Future<void> _navigateToPaymentFailed({
-    required String txnId,
-    required String errorMessage,
-  }) async {
-    if (!mounted) return;
-
-    final uid = AuthStateService.instance.currentUser?.uid;
-    if (uid != null) {
-      try {
-        await FirestoreService.instance.upsertSubscription(
-          uid: uid,
-          tenantId: ThemeService.instance.databaseName,
-          appId: 'data',
-          planName: widget.planName,
-          isYearly: widget.isYearly,
-          isSixMonths: widget.isSixMonths,
-          price: widget.price,
-          originalPrice: widget.originalPrice,
-          paymentMethod: selectedPaymentMethod,
-          status: 'inactive',
-          limits: widget.limits,
-          geoLocation: widget.geoLocation,
-          attendance: widget.attendance,
-          barcode: widget.barcode,
-          reportExport: widget.reportExport,
-        );
-      } catch (e) {
-        debugPrint('Error setting inactive status: $e');
-      }
-    }
-
-    if (!mounted) return;
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => PaymentFailedScreen(
-          errorMessage: errorMessage,
-          paymentMethod: selectedPaymentMethod,
-          amount: widget.price,
-          transactionId: txnId,
-        ),
-      ),
-    );
   }
 
   // Responsive values based on screen width
@@ -427,10 +413,9 @@ class _PaymentScreenState extends State<PaymentScreen> with WidgetsBindingObserv
                 // Summary Section (Moved to top for better flow)
                 _buildSubscriptionSummary(formattedDate),
 
-                // Summary Section
-                _buildSubscriptionSummary(formattedDate),
+             
 
-                const SizedBox(height: 32),
+                const SizedBox(height: 100),
 
                 // Responsive Layout for Payment Actions
                 if (isDesktop)
@@ -474,121 +459,235 @@ class _PaymentScreenState extends State<PaymentScreen> with WidgetsBindingObserv
     );
   }
 
-  Widget _buildSubscriptionSummary(String formattedDate) {
-    return Container(
-      width: isDesktop ? 400 : double.infinity,
-      padding: EdgeInsets.all(containerPadding),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(borderRadius),
-        border: Border.all(color: Colors.grey.shade300),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'SUBSCRIPTION SUMMARY',
-            style: TextStyle(
-              fontSize: isDesktop ? 18 : 16,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${widget.planName} Plan',
-                      style: TextStyle(
-                        fontSize: isDesktop ? 22 : 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Wrap(
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      spacing: 8,
-                      children: [
-                        Text(
-                          widget.price == 0
-                              ? '7 Days Free Trial'
-                              : 'Billed For ${widget.isYearly ? '12 Months' : (widget.isSixMonths ? '6 Months' : '1 Month')}',
-                          style: TextStyle(
-                            fontSize: isDesktop ? 16 : 14,
-                            color: Colors.grey.shade600,
-                          ),
-                        ),
-                        Text(
-                          '•',
-                          style: TextStyle(
-                            color: Colors.black45,
-                            fontSize: isDesktop ? 16 : 14,
-                          ),
-                        ),
-                        Text(
-                          'Next Billing $formattedDate',
-                          style: TextStyle(
-                            fontSize: isDesktop ? 16 : 14,
-                            color: Colors.grey.shade600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+ Widget _buildSubscriptionSummary(String formattedDate) {
+  return Container(
+    width: isDesktop ? 400 : double.infinity,
+    padding: EdgeInsets.all(containerPadding),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(borderRadius + 4),
+      border: Border.all(color: Color(0xFFE2E8F0), width: 1),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.04),
+          blurRadius: 12,
+          offset: Offset(0, 4),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(20),
               ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (widget.originalPrice != null)
-                    Text(
-                      '₹${widget.originalPrice}',
-                      style: TextStyle(
-                        fontSize: isDesktop ? 18 : 16,
-                        color: Colors.grey.shade600,
-                        decoration: TextDecoration.lineThrough,
-                      ),
-                    ),
+                  Icon(Icons.circle, size: 8, color: Color(0xFF10B981)),
+                  SizedBox(width: 6),
                   Text(
-                    widget.price == 0 ? 'Free' : '₹${widget.price}',
+                    'ACTIVE',
                     style: TextStyle(
-                      fontSize: priceFontSize,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                      fontSize: isDesktop ? 11 : 10,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF10B981),
+                      letterSpacing: 0.8,
                     ),
                   ),
                 ],
               ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton.icon(
+            ),
+            TextButton.icon(
               onPressed: () => Navigator.pop(context),
-              icon: Icon(Icons.swap_horiz, size: isDesktop ? 20 : 18),
+              icon: Icon(Icons.edit_outlined, size: isDesktop ? 16 : 14),
               label: Text(
-                'Change plan',
-                style: TextStyle(
-                  fontSize: isDesktop ? 16 : 14,
-                  fontWeight: FontWeight.bold,
+                'Change',
+                style: TextStyle(fontSize: isDesktop ? 13 : 12),
+              ),
+              style: TextButton.styleFrom(
+                foregroundColor: Color(0xFF6366F1),
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              ),
+            ),
+          ],
+        ),
+
+        SizedBox(height: 20),
+
+        // Plan info
+        Text(
+          widget.planName,
+          style: TextStyle(
+            fontSize: isDesktop ? 22 : 20,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF0F172A),
+          ),
+        ),
+
+        SizedBox(height: 12),
+
+        // Price
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              widget.price == 0 ? 'Free' : '₹${widget.price}',
+              style: TextStyle(
+                fontSize: priceFontSize,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF0F172A),
+              ),
+            ),
+            if (widget.price != 0)
+              Padding(
+                padding: EdgeInsets.only(left: 4, bottom: 6),
+                child: Text(
+                  widget.isYearly ? '/year' : (widget.isSixMonths ? '/6mo' : '/mo'),
+                  style: TextStyle(
+                    fontSize: isDesktop ? 14 : 12,
+                    color: Color(0xFF64748B),
+                  ),
                 ),
               ),
-              style: TextButton.styleFrom(foregroundColor: Colors.black87),
-            ),
+            if (widget.originalPrice != null) ...[
+              SizedBox(width: 8),
+              Text(
+                '₹${widget.originalPrice}',
+                style: TextStyle(
+                  fontSize: isDesktop ? 14 : 12,
+                  color: Color(0xFF94A3B8),
+                  decoration: TextDecoration.lineThrough,
+                ),
+              ),
+              SizedBox(width: 8),
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Color(0xFFFEE2E2),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  '${((1 - widget.price / widget.originalPrice!) * 100).round()}% OFF',
+                  style: TextStyle(
+                    fontSize: isDesktop ? 10 : 9,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFFDC2626),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+
+        SizedBox(height: 20),
+
+        // Details card
+        Container(
+          padding: EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(12),
           ),
-        ],
+          child: Column(
+            children: [
+              _buildDetailRow(
+                icon: Icons.receipt_long_outlined,
+                label: 'Billing Cycle',
+                value: widget.price == 0
+                    ? '7 Days Free Trial'
+                    : widget.isYearly
+                        ? 'Billed Annually (12 months)'
+                        : widget.isSixMonths
+                            ? 'Billed Every 6 Months'
+                            : 'Billed Monthly',
+                isDesktop: isDesktop,
+              ),
+              SizedBox(height: 12),
+              _buildDetailRow(
+                icon: Icons.calendar_today_outlined,
+                label: 'Next Billing',
+                value: formattedDate,
+                isDesktop: isDesktop,
+              ),
+            ],
+          ),
+        ),
+
+        SizedBox(height: 16),
+
+        // Features preview
+        Container(
+          padding: EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            border: Border.all(color: Color(0xFFE2E8F0)),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.check_circle, size: 16, color: Color(0xFF10B981)),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Cancel anytime • No hidden fees • Secure payment',
+                  style: TextStyle(
+                    fontSize: isDesktop ? 11 : 10,
+                    color: Color(0xFF64748B),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+Widget _buildDetailRow({
+  required IconData icon,
+  required String label,
+  required String value,
+  required bool isDesktop,
+}) {
+  return Row(
+    children: [
+      Icon(icon, size: isDesktop ? 18 : 16, color: Color(0xFF64748B)),
+      SizedBox(width: 12),
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: isDesktop ? 11 : 10,
+                color: Color(0xFF64748B),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            SizedBox(height: 4),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: isDesktop ? 14 : 13,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF0F172A),
+              ),
+            ),
+          ],
+        ),
       ),
-    );
-  }
+    ],
+  );
+}
 
 
 
@@ -876,17 +975,15 @@ class _PaymentScreenState extends State<PaymentScreen> with WidgetsBindingObserv
 
       if (result != null && result is IciciPaymentResult) {
         if (result.success) {
-          // Confirmed success from return URL / Firestore stream — verify and activate.
           _verifyPaymentOnReturn(txnId);
         } else {
-          // Explicit failure or user cancellation — go directly to failure screen.
-          // No need to poll; the user clearly did not complete the payment.
-          final message = result.message ?? 'Payment was not completed.';
-          await _navigateToPaymentFailed(txnId: txnId, errorMessage: message);
+          // Verify on return anyway in case it was a delayed success, 
+          // or just handle failure directly.
+          _verifyPaymentOnReturn(txnId);
         }
       } else {
-        // User force-closed the webview without a conclusive result.
-        // Verify in case the payment actually went through before closing.
+        // User closed the webview without a conclusive result.
+        // We should verify just in case.
         _verifyPaymentOnReturn(txnId);
       }
     } catch (e) {

@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'package:subscription_rooks_app/frontend/screens/admin_Engineer_reports.dart';
@@ -146,17 +147,32 @@ class _admindashboardState extends State<admindashboard> {
         try {
           final tenantId = ThemeService.instance.databaseName;
           final appId = ThemeService.instance.appName;
-          final doc = await FirestoreService.instance
-              .subscriptionsRef(tenantId: tenantId, appId: appId)
-              .doc(user.uid)
+          final querySnapshot = await FirestoreService.instance
+              .collection(
+                'payment_transactions',
+                tenantId: tenantId,
+                appId: appId,
+              )
+              .orderBy('timestamp', descending: true)
+              .limit(10)
               .get();
 
-          if (doc.exists && doc.data() != null) {
-            final data = doc.data()!;
+          Map<String, dynamic>? data;
+          for (var doc in querySnapshot.docs) {
+            final map = doc.data() as Map<String, dynamic>;
+            final status = (map['status'] ?? '').toString().toUpperCase();
+            if (status == 'SUCCESS' || status == 'UAT_SIMULATED') {
+              data = map;
+              break;
+            }
+          }
+
+          if (data != null) {
+            final activeData = data!;
             setState(() {
-              currentPlanName = data['planName'] as String?;
-              final isYearly = data['isYearly'] as bool? ?? false;
-              final isSixMonths = data['isSixMonths'] as bool? ?? false;
+              currentPlanName = activeData['planName'] as String? ?? 'Subscription';
+              final isYearly = activeData['isYearly'] as bool? ?? false;
+              final isSixMonths = activeData['isSixMonths'] as bool? ?? false;
 
               if (currentPlanName?.toLowerCase().contains('trial') ?? false) {
                 billingCycle = '7 Days';
@@ -168,15 +184,23 @@ class _admindashboardState extends State<admindashboard> {
                 billingCycle = 'Monthly';
               }
 
-              // Calculate remaining days
-              final nextBillingStr = data['nextBillingAt'] as String?;
-              if (nextBillingStr != null) {
-                final nextBilling = DateTime.tryParse(nextBillingStr);
-                if (nextBilling != null) {
-                  remainingDays = nextBilling.difference(DateTime.now()).inDays;
-                  // Ensure it's not negative
-                  if (remainingDays! < 0) remainingDays = 0;
+              // Calculate remaining days from the transaction timestamp
+              final timestamp = activeData['timestamp'] as Timestamp?;
+              if (timestamp != null) {
+                final startedAt = timestamp.toDate();
+                DateTime nextBilling;
+                if (currentPlanName?.toLowerCase().contains('trial') ?? false) {
+                  nextBilling = startedAt.add(const Duration(days: 7));
+                } else if (isYearly) {
+                  nextBilling = DateTime(startedAt.year + 1, startedAt.month, startedAt.day);
+                } else if (isSixMonths) {
+                  nextBilling = DateTime(startedAt.year, startedAt.month + 6, startedAt.day);
+                } else {
+                  nextBilling = DateTime(startedAt.year, startedAt.month + 1, startedAt.day);
                 }
+                
+                remainingDays = nextBilling.difference(DateTime.now()).inDays;
+                if (remainingDays! < 0) remainingDays = 0;
               }
             });
           }
@@ -390,7 +414,7 @@ class _admindashboardState extends State<admindashboard> {
                     const SizedBox(height: 24),
                     _buildManagementSection('Inventory Control', [
                       _buildMenuCard(
-                        title: 'Barcode Hub',
+                        title: 'Barcode Scanner',
                         subtitle: 'Scanner and verification',
                         icon: Icons.qr_code_scanner_rounded,
                         color: const Color(0xFF1E3799),
@@ -404,7 +428,7 @@ class _admindashboardState extends State<admindashboard> {
                         },
                       ),
                       _buildMenuCard(
-                        title: 'Identity',
+                        title: 'Barcode Identity',
                         subtitle: 'Asset verification',
                         icon: Icons.fact_check_rounded,
                         color: const Color(0xFF38ADA9),
@@ -581,6 +605,39 @@ class _admindashboardState extends State<admindashboard> {
                               letterSpacing: -0.5,
                             ),
                           ),
+                          if (currentPlanName != null) ...[
+                            const SizedBox(height: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.3),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.workspace_premium_rounded,
+                                    color: _getPlanColor(currentPlanName!),
+                                    size: 14,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    '$currentPlanName${remainingDays != null ? ' • $remainingDays Days Left' : ''}',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -955,7 +1012,7 @@ class _admindashboardState extends State<admindashboard> {
                   icon: Icons.workspace_premium_rounded,
                   title: 'Manage Subscription',
                   subtitle: remainingDays != null
-                      ? '$remainingDays Days Remaining'
+                      ? '${currentPlanName ?? 'Plan'} - $remainingDays Days Remaining'
                       : 'Upgrade or switch plan',
                   subtitleStyle: remainingDays != null
                       ? TextStyle(
@@ -1172,32 +1229,16 @@ class _admindashboardState extends State<admindashboard> {
     );
   }
 
-  /// Fetches the admin's current plan from Firestore and navigates to the
-  /// SubscriptionPlansScreen with the plan name pre-highlighted.
-  Future<void> _navigateToChangePlan() async {
-    String? currentPlanName;
-    try {
-      final uid = AuthStateService.instance.currentUser?.uid;
-      final tenantId = ThemeService.instance.databaseName;
-      final appId = ThemeService.instance.appName;
-      if (uid != null) {
-        final doc = await FirestoreService.instance
-            .subscriptionsRef(tenantId: tenantId, appId: appId)
-            .doc(uid)
-            .get();
-        if (doc.exists && doc.data() != null) {
-          currentPlanName = doc.data()!['planName'] as String?;
-        }
-      }
-    } catch (_) {}
-
-    if (!mounted) return;
+  /// Navigates to the SubscriptionPlansScreen with the plan name pre-highlighted.
+  void _navigateToChangePlan() {
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => SubscriptionPlansScreen(
           currentPlanName: currentPlanName,
           hideTrial: true,
+          remainingDays: remainingDays,
+          billingCycle: billingCycle,
         ),
       ),
     );

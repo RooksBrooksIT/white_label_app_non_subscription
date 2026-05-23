@@ -161,7 +161,9 @@ class NotificationService {
         String? token = await _fcm.getToken();
         LoggerUtil.d("FCM Token on init: $token");
       } catch (e) {
-        LoggerUtil.e("Error getting FCM token on init: $e");
+        // SERVICE_NOT_AVAILABLE is a transient Google Play Services error.
+        // Firebase will automatically retry token retrieval — safe to ignore.
+        LoggerUtil.w("FCM token unavailable (will retry): $e");
       }
     } else {
       LoggerUtil.i("Skipping FCM initialization on Windows (not supported).");
@@ -304,7 +306,8 @@ class NotificationService {
             });
       });
     } catch (e) {
-      LoggerUtil.e("Error registering FCM token: $e");
+      // SERVICE_NOT_AVAILABLE is transient — Firebase retries automatically.
+      LoggerUtil.w("FCM token registration temporarily unavailable (will retry): $e");
     }
   }
 }

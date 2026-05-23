@@ -3,6 +3,7 @@ import 'dart:math';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:image_cropper/image_cropper.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_dashboard.dart';
 import 'package:subscription_rooks_app/services/auth_state_service.dart';
@@ -176,9 +177,27 @@ class _BrandingCustomizationScreenState
         source: ImageSource.gallery,
       );
       if (pickedFile != null) {
-        setState(() {
-          _logoFile = File(pickedFile.path);
-        });
+        final CroppedFile? croppedFile = await ImageCropper().cropImage(
+          sourcePath: pickedFile.path,
+          uiSettings: [
+            AndroidUiSettings(
+              toolbarTitle: 'Crop Logo',
+              toolbarColor: _primaryColor,
+              toolbarWidgetColor: Colors.white,
+              initAspectRatio: CropAspectRatioPreset.square,
+              lockAspectRatio: false,
+            ),
+            IOSUiSettings(
+              title: 'Crop Logo',
+            ),
+          ],
+        );
+
+        if (croppedFile != null) {
+          setState(() {
+            _logoFile = File(croppedFile.path);
+          });
+        }
       }
     } catch (e) {
       // Handle permission errors, etc.

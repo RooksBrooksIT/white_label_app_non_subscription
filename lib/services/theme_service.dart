@@ -11,7 +11,7 @@ class ThemeService extends ChangeNotifier {
   Color _backgroundColor = Colors.white;
   bool _isDarkMode = false;
   String _fontFamily = 'Roboto';
-  String _appName = 'ServicePro';
+  String _appName = 'ServNex';
   String _databaseName = 'default_db';
   String? _logoUrl;
 
@@ -95,7 +95,7 @@ class ThemeService extends ChangeNotifier {
 
     _isDarkMode = prefs.getBool('isDarkMode') ?? false;
     _fontFamily = prefs.getString('fontFamily') ?? 'Roboto';
-    _appName = prefs.getString('appName') ?? 'ServicePro';
+    _appName = prefs.getString('appName') ?? 'ServNex';
 
     // Support both 'tenantId' and 'databaseName' keys for backward compatibility and consistency
     final storedTenantId = prefs.getString('tenantId');
@@ -184,7 +184,7 @@ class ThemeService extends ChangeNotifier {
     _backgroundColor = Colors.white;
     _isDarkMode = false;
     _fontFamily = 'Roboto';
-    _appName = 'ServicePro';
+    _appName = 'ServNex';
     _logoUrl = null;
     notifyListeners();
     saveToLocal();

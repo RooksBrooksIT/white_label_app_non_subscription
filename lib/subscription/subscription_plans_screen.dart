@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'payment_screen.dart';
 import 'branding_customization_screen.dart';
 import 'package:subscription_rooks_app/services/auth_state_service.dart';
@@ -15,10 +16,18 @@ class SubscriptionPlansScreen extends StatefulWidget {
   /// When true, hides the Free Trial tab (used when admin is changing an existing plan).
   final bool hideTrial;
 
+  /// Remaining days on the active plan (shown in the active plan card).
+  final int? remainingDays;
+
+  /// Billing cycle of the active plan e.g. 'Monthly', 'Yearly', '6 Months'.
+  final String? billingCycle;
+
   const SubscriptionPlansScreen({
     super.key,
     this.currentPlanName,
     this.hideTrial = false,
+    this.remainingDays,
+    this.billingCycle,
   });
 
   @override
@@ -31,6 +40,12 @@ enum PlanType { freeTrial, monthly, sixMonths, yearly }
 class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
   PlanType selectedPlanType = PlanType.monthly;
   int selectedPlanIndex = 1; // Default: Gold (Index 1) for Paid plans
+
+  String? _fetchedPlanName;
+  int? _fetchedRemainingDays;
+  String? _fetchedBillingCycle;
+  Map<String, dynamic>? _fetchedLimits;
+  bool _isLoadingSubscription = true;
 
   // Plan data for Paid tiers
   final List<Map<String, dynamic>> plans = [
@@ -161,7 +176,24 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Auto-select current plan if provided
+    if (widget.currentPlanName != null) {
+      _fetchedPlanName = widget.currentPlanName;
+      _fetchedRemainingDays = widget.remainingDays;
+      _fetchedBillingCycle = widget.billingCycle;
+      if (widget.currentPlanName!.toLowerCase().contains('trial')) {
+        selectedPlanType = PlanType.freeTrial;
+      } else {
+        final idx = plans.indexWhere((p) => p['name'] == widget.currentPlanName);
+        if (idx != -1) {
+          selectedPlanIndex = idx;
+        }
+      }
+    }
+
     _startSubscriptionListener();
+    _fetchSubscriptionData();
   }
 
   @override
@@ -171,6 +203,12 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
   }
 
   void _startSubscriptionListener() {
+    // If the user already has an active plan and is managing it, 
+    // prevent the listener from auto-redirecting them back to the dashboard.
+    if (widget.currentPlanName != null || widget.hideTrial) {
+      return;
+    }
+
     final user = AuthStateService.instance.currentUser;
     if (user != null) {
       final tenantId = ThemeService.instance.databaseName;
@@ -193,6 +231,95 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
       MaterialPageRoute(builder: (context) => const admindashboard()),
       (route) => false,
     );
+  }
+
+  Future<void> _fetchSubscriptionData() async {
+    try {
+      final user = AuthStateService.instance.currentUser;
+      if (user == null) {
+        setState(() => _isLoadingSubscription = false);
+        return;
+      }
+
+      final tenantId = ThemeService.instance.databaseName;
+      final appId = ThemeService.instance.appName;
+
+      final querySnapshot = await FirestoreService.instance
+          .collection(
+            'payment_transactions',
+            tenantId: tenantId,
+            appId: appId,
+          )
+          .orderBy('timestamp', descending: true)
+          .limit(10)
+          .get();
+
+      Map<String, dynamic>? activeData;
+      for (var doc in querySnapshot.docs) {
+        final map = doc.data() as Map<String, dynamic>;
+        final status = (map['status'] ?? '').toString().toUpperCase();
+        if (status == 'SUCCESS' || status == 'UAT_SIMULATED') {
+          activeData = map;
+          break;
+        }
+      }
+
+      if (activeData != null && mounted) {
+        setState(() {
+          _fetchedPlanName = activeData!['planName'] as String? ?? 'Subscription';
+          final isYearly = activeData['isYearly'] as bool? ?? false;
+          final isSixMonths = activeData['isSixMonths'] as bool? ?? false;
+
+          if (_fetchedPlanName?.toLowerCase().contains('trial') ?? false) {
+            _fetchedBillingCycle = '7 Days';
+          } else if (isYearly) {
+            _fetchedBillingCycle = 'Yearly';
+          } else if (isSixMonths) {
+            _fetchedBillingCycle = '6 Months';
+          } else {
+            _fetchedBillingCycle = 'Monthly';
+          }
+
+          final timestamp = activeData['timestamp'] as Timestamp?;
+          if (timestamp != null) {
+            final startedAt = timestamp.toDate();
+            DateTime nextBilling;
+            if (_fetchedPlanName?.toLowerCase().contains('trial') ?? false) {
+              nextBilling = startedAt.add(const Duration(days: 7));
+            } else if (isYearly) {
+              nextBilling = DateTime(startedAt.year + 1, startedAt.month, startedAt.day);
+            } else if (isSixMonths) {
+              nextBilling = DateTime(startedAt.year, startedAt.month + 6, startedAt.day);
+            } else {
+              nextBilling = DateTime(startedAt.year, startedAt.month + 1, startedAt.day);
+            }
+            
+            _fetchedRemainingDays = nextBilling.difference(DateTime.now()).inDays;
+            if (_fetchedRemainingDays! < 0) _fetchedRemainingDays = 0;
+          }
+
+          if (activeData.containsKey('limits')) {
+            _fetchedLimits = activeData['limits'] as Map<String, dynamic>?;
+          }
+
+          // Update selection
+          if (_fetchedPlanName!.toLowerCase().contains('trial')) {
+            selectedPlanType = PlanType.freeTrial;
+          } else {
+            final idx = plans.indexWhere((p) => p['name'] == _fetchedPlanName);
+            if (idx != -1) {
+              selectedPlanIndex = idx;
+            }
+          }
+          _isLoadingSubscription = false;
+        });
+      } else {
+        setState(() => _isLoadingSubscription = false);
+      }
+    } catch (e) {
+      debugPrint('Error fetching subscription: $e');
+      if (mounted) setState(() => _isLoadingSubscription = false);
+    }
   }
 
   @override
@@ -251,7 +378,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
                                     color: Colors.black54,
                                   ),
                                 ),
-                                if (widget.currentPlanName != null) ...[
+                                if (_fetchedPlanName != null) ...[
                                   const SizedBox(height: 6),
                                   Container(
                                     padding: const EdgeInsets.symmetric(
@@ -266,7 +393,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
                                       ),
                                     ),
                                     child: Text(
-                                      'Active: ${widget.currentPlanName}',
+                                      'Active: $_fetchedPlanName',
                                       style: TextStyle(
                                         fontSize: 11,
                                         fontWeight: FontWeight.w600,
@@ -284,6 +411,10 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
                     ),
                   ),
                 ),
+
+                // Active Plan Status Card (shown when managing existing plan)
+                if (_fetchedPlanName != null)
+                  _buildActivePlanCard(),
 
                 // Plan Duration Selector (Tabs)
                 Padding(
@@ -345,40 +476,54 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
                   child: SizedBox(
                     width: double.infinity,
                     height: 56,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        if (selectedPlanType == PlanType.freeTrial) {
-                          _handlePlanSelection(
-                            context,
-                            trialPlan,
-                            isTrial: true,
-                          );
-                        } else {
-                          _handlePlanSelection(
-                            context,
-                            plans[selectedPlanIndex],
-                            isYearly: selectedPlanType == PlanType.yearly,
-                            isSixMonths: selectedPlanType == PlanType.sixMonths,
-                          );
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        elevation: 4,
-                      ),
-                      child: Text(
-                        selectedPlanType == PlanType.freeTrial
-                            ? 'Start 7-Day Free Trial'
-                            : 'Subscribe now',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Color.fromARGB(255, 0, 0, 0),
-                        ),
-                      ),
+                    child: Builder(
+                      builder: (context) {
+                        final isTrialSelected = selectedPlanType == PlanType.freeTrial;
+                        final currentSelectedPlanName = isTrialSelected 
+                            ? trialPlan['name'] 
+                            : plans[selectedPlanIndex]['name'];
+                        final isAlreadyCurrentPlan = _fetchedPlanName != null && 
+                            currentSelectedPlanName == _fetchedPlanName;
+
+                        return ElevatedButton(
+                          onPressed: isAlreadyCurrentPlan
+                              ? null // Disable if it's already the current plan
+                              : () {
+                                  if (isTrialSelected) {
+                                    _handlePlanSelection(
+                                      context,
+                                      trialPlan,
+                                      isTrial: true,
+                                    );
+                                  } else {
+                                    _handlePlanSelection(
+                                      context,
+                                      plans[selectedPlanIndex],
+                                      isYearly: selectedPlanType == PlanType.yearly,
+                                      isSixMonths: selectedPlanType == PlanType.sixMonths,
+                                    );
+                                  }
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: isAlreadyCurrentPlan ? Colors.grey.shade300 : Colors.white,
+                            foregroundColor: isAlreadyCurrentPlan ? Colors.grey.shade600 : Colors.black,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: isAlreadyCurrentPlan ? 0 : 4,
+                          ),
+                          child: Text(
+                            isAlreadyCurrentPlan
+                                ? 'Your Current Plan'
+                                : (isTrialSelected ? 'Start 7-Day Free Trial' : 'Subscribe now'),
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: isAlreadyCurrentPlan ? Colors.grey.shade700 : const Color.fromARGB(255, 0, 0, 0),
+                            ),
+                          ),
+                        );
+                      }
                     ),
                   ),
                 ),
@@ -447,8 +592,8 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
         ? '/7 Days'
         : (isYearly ? '/Year' : (isSixMonths ? '/6 Months' : '/Month'));
     final isCurrentPlan =
-        widget.currentPlanName != null &&
-        plan['name'] == widget.currentPlanName;
+        _fetchedPlanName != null &&
+        plan['name'] == _fetchedPlanName;
 
     return Container(
       width: double.infinity,
@@ -588,6 +733,154 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
     );
   }
 
+  Widget _buildActivePlanCard() {
+    final planName = _fetchedPlanName ?? widget.currentPlanName ?? 'Active Plan';
+    final days = _fetchedRemainingDays ?? widget.remainingDays;
+    final cycle = _fetchedBillingCycle ?? widget.billingCycle ?? 'Monthly';
+    final isExpiringSoon = days != null && days <= 7;
+    final cardColor = isExpiringSoon ? const Color(0xFFFFF3E0) : const Color(0xFFE8F5E9);
+    final borderColor = isExpiringSoon ? Colors.orange.shade300 : Colors.green.shade300;
+    final accentColor = isExpiringSoon ? Colors.orange.shade700 : Colors.green.shade700;
+
+    // Find limits from fetched limits or static config
+    Map<String, dynamic> activeLimits = _fetchedLimits ?? {};
+    if (activeLimits.isEmpty) {
+      if (planName.toLowerCase().contains('trial')) {
+        activeLimits = trialPlan['limits'];
+      } else {
+        final found = plans.firstWhere((p) => p['name'] == planName, orElse: () => {});
+        if (found.isNotEmpty) activeLimits = found['limits'];
+      }
+    }
+
+    final customers = activeLimits['maxCustomers'] == -1 ? 'Unlimited' : '${activeLimits['maxCustomers'] ?? 0}';
+    final engineers = activeLimits['maxEngineers'] == -1 ? 'Unlimited' : '${activeLimits['maxEngineers'] ?? 0}';
+    final storage = activeLimits['maxStorageGB'] == -1 ? 'Unlimited' : '${activeLimits['maxStorageGB'] ?? 0}GB';
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: cardColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: borderColor, width: 1.5),
+        ),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: accentColor.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    isExpiringSoon ? Icons.warning_rounded : Icons.verified_rounded,
+                    color: accentColor,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            planName,
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: accentColor,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: accentColor.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              cycle,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: accentColor,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        days != null
+                            ? (isExpiringSoon
+                                ? '⚠ Expires in $days day${days == 1 ? '' : 's'} — renew soon!'
+                                : '$days day${days == 1 ? '' : 's'} remaining on your plan')
+                            : 'Active subscription',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: accentColor.withValues(alpha: 0.85),
+                          fontWeight: isExpiringSoon ? FontWeight.w600 : FontWeight.w400,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _buildLimitIndicator(Icons.people, 'Customers', customers, accentColor),
+                  _buildLimitIndicator(Icons.engineering, 'Engineers', engineers, accentColor),
+                  _buildLimitIndicator(Icons.cloud, 'Storage', storage, accentColor),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLimitIndicator(IconData icon, String label, String value, Color accentColor) {
+    return Column(
+      children: [
+        Icon(icon, size: 18, color: accentColor),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: accentColor.withValues(alpha: 0.9),
+          ),
+        ),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 10,
+            color: accentColor.withValues(alpha: 0.7),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildBottomSelector(int index) {
     final plan = plans[index];
     final isSelected = selectedPlanIndex == index;
@@ -598,8 +891,8 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
         ? plan['yearlyPrice']
         : (isSixMonths ? plan['sixMonthPrice'] : plan['monthlyPrice']);
     final isCurrentPlan =
-        widget.currentPlanName != null &&
-        plan['name'] == widget.currentPlanName;
+        _fetchedPlanName != null &&
+        plan['name'] == _fetchedPlanName;
 
     return GestureDetector(
       onTap: () {
