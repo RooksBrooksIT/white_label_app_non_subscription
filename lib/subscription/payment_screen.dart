@@ -200,71 +200,89 @@ class _PaymentScreenState extends State<PaymentScreen>
     Navigator.pop(context); // Close verifying dialog
 
     if (isSuccess) {
-      // Existing success logic...
+      // Payment is genuinely successful
       final uid = AuthStateService.instance.currentUser?.uid;
-      
+
       if (uid != null) {
         try {
-          // Finalize registration first to ensure Firestore records exist
-          await AuthStateService.instance.finalizeRegistration();
-          
-          final tenantId = ThemeService.instance.databaseName;
+          // 1. Finalize registration in Firestore only after verified success
+          final finalizeResult = await AuthStateService.instance
+              .finalizeRegistration();
 
-          await FirestoreService.instance.setUserActiveStatus(
-            uid: uid,
-            tenantId: tenantId,
-            active: true,
-          );
+          if (finalizeResult['success'] == true) {
+            final tenantId = ThemeService.instance.databaseName;
 
-          await FirestoreService.instance.upsertSubscription(
-            uid: uid,
-            tenantId: tenantId,
-            appId: tenantId, // Standardized to tenantId to avoid duplication
-            planName: widget.planName,
-            isYearly: widget.isYearly,
-            isSixMonths: widget.isSixMonths,
-            price: widget.price,
-            originalPrice: widget.originalPrice,
-            paymentMethod: selectedPaymentMethod,
-            status: 'active',
-            limits: widget.limits,
-            geoLocation: widget.geoLocation,
-            attendance: widget.attendance,
-            barcode: widget.barcode,
-            reportExport: widget.reportExport,
-          );
+            // 2. Set user as active
+            await FirestoreService.instance.setUserActiveStatus(
+              uid: uid,
+              tenantId: tenantId,
+              active: true,
+            );
+
+            // 3. Save subscription details
+            await FirestoreService.instance.upsertSubscription(
+              uid: uid,
+              tenantId: tenantId,
+              appId: 'data',
+              planName: widget.planName,
+              isYearly: widget.isYearly,
+              isSixMonths: widget.isSixMonths,
+              price: widget.price,
+              originalPrice: widget.originalPrice,
+              paymentMethod: selectedPaymentMethod,
+              status: 'active',
+              limits: widget.limits,
+              geoLocation: widget.geoLocation,
+              attendance: widget.attendance,
+              barcode: widget.barcode,
+              reportExport: widget.reportExport,
+            );
+
+            // 4. Finally navigate to success screen
+            _navigateToSuccess(txnId);
+          } else {
+            throw Exception(
+              finalizeResult['message'] ??
+                  'Failed to finalize registration data.',
+            );
+          }
         } catch (e) {
-          debugPrint('Error finalizing registration or setting status: $e');
+          debugPrint('Critical Error after successful payment: $e');
+          // Even if Firestore fails, the payment was successful.
+          // We show success but log the error for manual intervention if needed.
+          _navigateToSuccess(txnId);
         }
+      } else {
+        _navigateToSuccess(txnId);
       }
-      _navigateToSuccess(txnId);
-    }
-    // else if (isPending) {
-    //   // Handle PENDING state - show a informative dialog instead of failure screen
-    //   showDialog(
-    //     context: context,
-    //     builder: (context) => AlertDialog(
-    //       title: const Text('Payment Pending'),
-    //       content: const Text(
-    //         'Your payment is still being processed by your bank. '
-    //         'Please check the subscription status in a few minutes. '
-    //         'If the amount was deducted, your subscription will be activated automatically once the bank confirms it.'
-    //       ),
-    //       actions: [
-    //         TextButton(
-    //           onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
-    //           child: const Text('Go to Dashboard'),
-    //         ),
-    //       ],
-    //     ),
-    //   );
-    // }
-    else {
-      // Existing failure logic...
+    } else if (isPending) {
+      // Handle PENDING state - show a informative dialog
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Payment Pending'),
+          content: const Text(
+            'Your payment is currently being processed by the bank. '
+            'Please do not try again immediately. '
+            'Once confirmed, your account will be activated automatically. '
+            'You can check your status in a few minutes.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () =>
+                  Navigator.of(context).popUntil((route) => route.isFirst),
+              child: const Text('Go to Dashboard'),
+            ),
+          ],
+        ),
+      );
+    } else {
+      // Verification explicitly failed
       final uid = AuthStateService.instance.currentUser?.uid;
       final tenantId = ThemeService.instance.databaseName;
       if (uid != null) {
         try {
+          // Record failed attempt but do not finalize registration
           await FirestoreService.instance.upsertSubscription(
             uid: uid,
             tenantId: tenantId,
@@ -275,7 +293,7 @@ class _PaymentScreenState extends State<PaymentScreen>
             price: widget.price,
             originalPrice: widget.originalPrice,
             paymentMethod: selectedPaymentMethod,
-            status: 'inactive',
+            status: 'failed', // Mark as failed
             limits: widget.limits,
             geoLocation: widget.geoLocation,
             attendance: widget.attendance,
@@ -283,7 +301,7 @@ class _PaymentScreenState extends State<PaymentScreen>
             reportExport: widget.reportExport,
           );
         } catch (e) {
-          debugPrint('Error setting inactive status: $e');
+          debugPrint('Error recording failed payment: $e');
         }
       }
 
