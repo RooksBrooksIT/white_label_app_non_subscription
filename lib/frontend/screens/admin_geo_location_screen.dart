@@ -14,12 +14,18 @@ class AdminGeoLocationScreen extends StatefulWidget {
   final String engineerId;
   final String engineerName;
   final String? bookingDocId;
+  final double? customerLat;
+  final double? customerLng;
+  final String? customerAddress;
 
   const AdminGeoLocationScreen({
     super.key,
     required this.engineerId,
     required this.engineerName,
     this.bookingDocId,
+    this.customerLat,
+    this.customerLng,
+    this.customerAddress,
   });
 
   @override
@@ -573,13 +579,88 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
           _buildMap(),
           _buildFloatingControls(),
           _buildEngineerOverlay(),
+          if (widget.customerAddress != null) _buildCustomerAddressOverlay(),
         ],
       ),
     );
   }
 
+  Widget _buildCustomerAddressOverlay() {
+    return Positioned(
+      bottom: 20,
+      left: 20,
+      right: 20,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 5),
+            ),
+          ],
+          border: Border.all(color: Colors.red.shade100),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.home_work_rounded,
+                color: Colors.red.shade700,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    "Customer Address",
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red.shade900,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    widget.customerAddress!,
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      color: Colors.black87,
+                      height: 1.3,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildMap() {
-    final center = _lastLocation ?? const latlong.LatLng(12.9716, 77.5946);
+    final latlong.LatLng? customerPos =
+        widget.customerLat != null && widget.customerLng != null
+        ? latlong.LatLng(widget.customerLat!, widget.customerLng!)
+        : null;
+
+    final center =
+        _lastLocation ?? customerPos ?? const latlong.LatLng(12.9716, 77.5946);
 
     return FlutterMap(
       mapController: _mapController,
@@ -597,6 +678,48 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
           urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
           userAgentPackageName: 'com.rooks.charity_app',
         ),
+        if (customerPos != null)
+          MarkerLayer(
+            markers: [
+              Marker(
+                point: customerPos,
+                width: 120,
+                height: 120,
+                child: Column(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.15),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                        border: Border.all(color: Colors.red.shade100),
+                      ),
+                      child: Text(
+                        "Customer Location",
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.red.shade900,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    const Icon(Icons.location_pin, color: Colors.red, size: 40),
+                  ],
+                ),
+              ),
+            ],
+          ),
         if (_pathHistory.isNotEmpty)
           PolylineLayer(
             polylines: [

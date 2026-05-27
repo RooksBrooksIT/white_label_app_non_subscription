@@ -15,6 +15,8 @@ import 'package:subscription_rooks_app/backend/screens/admin_login_page.dart';
 import 'package:subscription_rooks_app/backend/screens/engineer_login_page.dart';
 import 'package:subscription_rooks_app/backend/screens/amc_customerlogin_page.dart';
 import 'package:subscription_rooks_app/subscription/access_restricted_screen.dart';
+import 'package:subscription_rooks_app/subscription/plan_expired_screen.dart';
+import 'package:subscription_rooks_app/services/subscription_expiry_service.dart';
 
 class AuthStateService extends ChangeNotifier {
   AuthStateService._();
@@ -248,15 +250,27 @@ class AuthStateService extends ChangeNotifier {
       final userData = doc.data() as Map<String, dynamic>;
       final role = userData['role'] ?? 'user';
 
-      // 1. Unified Subscription Check for all roles
-      // Always look for subscription in the stable 'data' bucket
+      // Check subscription status
       final isSubscribed = await FirestoreService.instance.isTenantActive(
         tenantId: scope,
         appId: 'data',
       );
 
       if (!isSubscribed) {
+        final subDoc = await FirestoreService.instance
+            .subscriptionsRef(tenantId: scope, appId: 'data')
+            .limit(1)
+            .get();
+        final alreadyHasSubscription = subDoc.docs.isNotEmpty;
+
         if (role == 'admin' || role == 'Owner') {
+          if (alreadyHasSubscription) {
+            return {
+              'success': true,
+              'userData': userData,
+              'subscriptionExpired': true,
+            };
+          }
           // Admins are sent to SubscriptionPlansScreen
           return {
             'success': true,
@@ -264,6 +278,13 @@ class AuthStateService extends ChangeNotifier {
             'needsSubscription': true,
           };
         } else {
+          if (alreadyHasSubscription) {
+            return {
+              'success': false,
+              'message':
+                  'Your organization\'s subscription has expired. Please contact your admin.',
+            };
+          }
           // Engineers and Customers are blocked from logging in
           return {
             'success': false,
@@ -340,8 +361,30 @@ class AuthStateService extends ChangeNotifier {
     await prefs.remove(_kUserRole);
     await prefs.remove('last_role');
 
+    // Stop subscription listener on logout
+    SubscriptionExpiryService.instance.stopListening();
+
     _isRegistered = false;
     notifyListeners();
+  }
+
+  Future<Widget> _getRestrictedOrExpiredScreen({
+    required String tenantId,
+    required String role,
+    required bool isAdmin,
+  }) async {
+    try {
+      final subDoc = await FirestoreService.instance
+          .subscriptionsRef(tenantId: tenantId, appId: 'data')
+          .limit(1)
+          .get();
+      if (subDoc.docs.isNotEmpty) {
+        return PlanExpiredScreen(role: role);
+      }
+    } catch (_) {}
+    return isAdmin
+        ? const SubscriptionPlansScreen()
+        : AccessRestrictedScreen(role: role);
   }
 
   /// Determines the initial screen based on persisted login state
@@ -404,7 +447,11 @@ class AuthStateService extends ChangeNotifier {
               appId: 'data',
             );
             if (!isSubscribed) {
-              return const SubscriptionPlansScreen();
+              return await _getRestrictedOrExpiredScreen(
+                tenantId: effectiveTenant,
+                role: role ?? 'admin',
+                isAdmin: true,
+              );
             }
             return const admindashboard();
           } else {
@@ -417,7 +464,11 @@ class AuthStateService extends ChangeNotifier {
             );
 
             if (!isSubscribed) {
-              return AccessRestrictedScreen(role: role ?? 'user');
+              return await _getRestrictedOrExpiredScreen(
+                tenantId: effectiveTenant,
+                role: role ?? 'user',
+                isAdmin: false,
+              );
             }
 
             if (role == 'engineer') {
@@ -446,7 +497,11 @@ class AuthStateService extends ChangeNotifier {
             appId: 'data',
           );
           if (!isSubscribed) {
-            return const SubscriptionPlansScreen();
+            return await _getRestrictedOrExpiredScreen(
+              tenantId: adminTenantId,
+              role: 'admin',
+              isAdmin: true,
+            );
           }
         }
         return const admindashboard();
@@ -463,7 +518,11 @@ class AuthStateService extends ChangeNotifier {
             appId: 'data',
           );
           if (!isSubscribed) {
-            return const AccessRestrictedScreen(role: 'engineer');
+            return await _getRestrictedOrExpiredScreen(
+              tenantId: tenantId,
+              role: 'engineer',
+              isAdmin: false,
+            );
           }
         }
         return EngineerPage(userEmail: '', userName: engineerName);
@@ -479,7 +538,11 @@ class AuthStateService extends ChangeNotifier {
             appId: 'data',
           );
           if (!isSubscribed) {
-            return const AccessRestrictedScreen(role: 'customer');
+            return await _getRestrictedOrExpiredScreen(
+              tenantId: tenantId,
+              role: 'customer',
+              isAdmin: false,
+            );
           }
         }
         return const AMCCustomerMainPage();

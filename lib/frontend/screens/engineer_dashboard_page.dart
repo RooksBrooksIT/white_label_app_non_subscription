@@ -647,6 +647,19 @@ class _EngineerPageState extends State<EngineerPage> {
     _listenToNotifications();
     _setupFCMListeners();
     _fetchInitialOnlineStatus();
+    _requestInitialLocationPermission();
+  }
+
+  Future<void> _requestInitialLocationPermission() async {
+    // Prompt for location permission immediately after login
+    try {
+      final permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        await Geolocator.requestPermission();
+      }
+    } catch (e) {
+      debugPrint('Error requesting initial location permission: $e');
+    }
   }
 
   Future<void> _fetchInitialOnlineStatus() async {
@@ -660,11 +673,29 @@ class _EngineerPageState extends State<EngineerPage> {
           .get();
 
       if (doc.docs.isNotEmpty && mounted) {
+        bool online = doc.docs.first.data()['isOnline'] ?? false;
         setState(() {
-          _isOnline = doc.docs.first.data()['isOnline'] ?? false;
+          _isOnline = online;
         });
+
+        // If recovered state is online, start tracking automatically
+        if (online) {
+          LocationService.instance.startTracking(widget.userName);
+        }
       }
     }
+  }
+
+  void _showSnackBar(String message, Color color) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+    );
   }
 
   Future<void> _toggleOnlineStatus(bool value) async {
@@ -676,7 +707,18 @@ class _EngineerPageState extends State<EngineerPage> {
 
       // Start/Stop location tracking based on online status
       if (value) {
-        await LocationService.instance.startTracking(widget.userName);
+        bool started = await LocationService.instance.startTracking(
+          widget.userName,
+        );
+        if (!started && mounted) {
+          // If tracking failed to start (likely due to permissions), revert toggle
+          setState(() => _isOnline = false);
+          _showSnackBar(
+            'Could not start location tracking. Please enable location permissions.',
+            ProfessionalTheme.error,
+          );
+          return; // Exit without updating Firestore status
+        }
       } else {
         await LocationService.instance.stopTracking(widget.userName);
       }
@@ -1070,6 +1112,7 @@ class _EngineerPageState extends State<EngineerPage> {
         headerSliverBuilder: (context, innerBoxIsScrolled) {
           return [
             SliverAppBar(
+              automaticallyImplyLeading: false,
               iconTheme: const IconThemeData(color: Colors.white),
               expandedHeight: 140,
               collapsedHeight: 64,
@@ -2895,8 +2938,7 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
     final paymentTypes = [
       'Cash',
       'UPI Transaction',
-      'Check',
-      'Net Banking',
+      'Cheque',
       'Others',
       'No Payment',
     ];

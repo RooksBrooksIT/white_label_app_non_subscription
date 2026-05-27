@@ -97,39 +97,39 @@ class _AuthSelectionScreenState extends State<AuthSelectionScreen>
                     child: Opacity(
                       opacity: _logoOpacity.value,
                       child: Container(
-                        padding: const EdgeInsets.all(25),
+                        width: 140,
+                        height: 140,
+                        padding: const EdgeInsets.all(4),
                         decoration: BoxDecoration(
-                          color: Colors.grey[50],
+                          color: Colors.white,
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
+                              color: Colors.black.withOpacity(0.08),
                               blurRadius: 30,
-                              spreadRadius: 5,
-                              offset: const Offset(0, 15),
+                              spreadRadius: 2,
+                              offset: const Offset(0, 10),
                             ),
                           ],
+                          border: Border.all(
+                            color: Colors.grey.shade200,
+                            width: 1,
+                          ),
                         ),
-                        child: ThemeService.instance.logoUrl != null
-                            ? Image.network(
-                                ThemeService.instance.logoUrl!,
-                                width: 110,
-                                height: 110,
-                                fit: BoxFit.contain,
-                                errorBuilder: (context, error, stackTrace) =>
-                                    Image.asset(
-                                      'assets/images/logo.png',
-                                      width: 110,
-                                      height: 110,
-                                      fit: BoxFit.contain,
-                                    ),
-                              )
-                            : Image.asset(
-                                'assets/images/logo.png',
-                                width: 110,
-                                height: 110,
-                                fit: BoxFit.contain,
-                              ),
+                        child: Container(
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: ThemeService.instance.logoUrl != null
+                              ? Image.network(
+                                  ThemeService.instance.logoUrl!,
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      _buildDefaultLogo(),
+                                )
+                              : _buildDefaultLogo(),
+                        ),
                       ),
                     ),
                   ),
@@ -263,6 +263,18 @@ class _AuthSelectionScreenState extends State<AuthSelectionScreen>
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildDefaultLogo() {
+    return Image.asset(
+      'assets/images/logo.png',
+      fit: BoxFit.contain,
+      errorBuilder: (context, error, stackTrace) => Icon(
+        Icons.rocket_launch_rounded,
+        size: 50,
+        color: Theme.of(context).primaryColor,
       ),
     );
   }

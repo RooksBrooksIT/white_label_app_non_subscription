@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart' as geo;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/foundation.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
@@ -198,28 +199,85 @@ class LocationService {
 
   Future<bool> _handlePermissions() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) return false;
+    if (!serviceEnabled) {
+      debugPrint('LocationService: Location services are disabled.');
+      // Optionally prompt user to enable services
+      return false;
+    }
 
     LocationPermission permission = await Geolocator.checkPermission();
 
     if (permission == LocationPermission.denied) {
+      debugPrint('LocationService: Permission denied. Requesting...');
       permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) return false;
-    }
-
-    if (permission == LocationPermission.deniedForever) return false;
-
-    // Background tracking requires "Always" permission
-    if (defaultTargetPlatform == TargetPlatform.android ||
-        defaultTargetPlatform == TargetPlatform.iOS) {
-      var backgroundStatus = await Permission.locationAlways.status;
-      if (!backgroundStatus.isGranted) {
-        backgroundStatus = await Permission.locationAlways.request();
-        // Note: Users might deny Always but allow In Use. We proceed but it might stop in background.
+      if (permission == LocationPermission.denied) {
+        debugPrint('LocationService: Permission denied by user.');
+        return false;
       }
     }
 
+    if (permission == LocationPermission.deniedForever) {
+      debugPrint('LocationService: Permission denied forever.');
+      // Users must manually enable in settings
+      return false;
+    }
+
+    // For background tracking on Android and iOS
+    if (defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS) {
+      // Request 'locationAlways' specifically for background support if needed
+      var alwaysStatus = await Permission.locationAlways.status;
+      if (!alwaysStatus.isGranted) {
+        debugPrint(
+          'LocationService: Requesting "Always" permission for background tracking.',
+        );
+        alwaysStatus = await Permission.locationAlways.request();
+
+        if (alwaysStatus.isPermanentlyDenied) {
+          debugPrint(
+            'LocationService: "Always" permission permanently denied.',
+          );
+          // On some versions of Android, user might need to go to settings
+          // openAppSettings();
+        }
+      }
+    }
+
+    debugPrint('LocationService: All necessary permissions granted.');
     return true;
+  }
+
+  /// Fetches the current position and reverse geocodes it to an address string
+  Future<Map<String, dynamic>?> getCurrentLocationData() async {
+    bool hasPermission = await _handlePermissions();
+    if (!hasPermission) return null;
+
+    try {
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      List<geo.Placemark> placemarks = await geo.placemarkFromCoordinates(
+        position.latitude,
+        position.longitude,
+      );
+
+      String address = "";
+      if (placemarks.isNotEmpty) {
+        geo.Placemark place = placemarks[0];
+        address =
+            "${place.street}, ${place.subLocality}, ${place.locality}, ${place.postalCode}, ${place.country}";
+      }
+
+      return {
+        'latitude': position.latitude,
+        'longitude': position.longitude,
+        'address': address,
+      };
+    } catch (e) {
+      debugPrint('Error getting current location: $e');
+      return null;
+    }
   }
 
   /// Diagnostic tool to help verify RTDB connection and permissions

@@ -5,6 +5,7 @@ import 'package:subscription_rooks_app/frontend/screens/app_main_page.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_dashboard.dart';
 import 'package:subscription_rooks_app/frontend/screens/engineer_dashboard_page.dart';
 import 'package:subscription_rooks_app/subscription/subscription_plans_screen.dart';
+import 'package:subscription_rooks_app/subscription/plan_expired_screen.dart';
 import 'package:subscription_rooks_app/frontend/screens/forgot_password_page.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -51,6 +52,14 @@ class _UnifiedLoginScreenState extends State<UnifiedLoginScreen> {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const SubscriptionPlansScreen()),
+        );
+        return;
+      }
+
+      if (result['subscriptionExpired'] == true) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => PlanExpiredScreen(role: role ?? 'admin')),
         );
         return;
       }

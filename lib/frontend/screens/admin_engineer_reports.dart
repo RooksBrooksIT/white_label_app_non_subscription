@@ -88,84 +88,106 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
         slivers: [
           // Modern App Bar with gradient
           SliverAppBar(
-            expandedHeight: isMobile ? 120 : 150,
+            expandedHeight: isMobile ? 130 : 160,
             floating: false,
             pinned: true,
-            backgroundColor: Colors.transparent,
-            flexibleSpace: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Theme.of(context).primaryColor,
-                    Theme.of(context).primaryColor.withOpacity(0.8),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(30),
-                  bottomRight: Radius.circular(30),
-                ),
-              ),
-              child: FlexibleSpaceBar(
-                centerTitle: false,
-                titlePadding: EdgeInsets.only(
-                  left: isMobile ? 60 : 80,
-                  bottom: 16,
-                ),
-                title: Row(
-                  children: [
-                    if (isDesktop) ...[
-                      Icon(
-                        Icons.analytics_rounded,
-                        color: Colors.white.withOpacity(0.9),
-                        size: 32,
-                      ),
-                      const SizedBox(width: 12),
+            elevation: 0,
+            backgroundColor: Theme.of(context).primaryColor,
+            automaticallyImplyLeading: false,
+            flexibleSpace: FlexibleSpaceBar(
+              background: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Theme.of(context).primaryColor,
+                      ThemeService.instance.secondaryColor,
                     ],
-                    Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Engineer Performance',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: isMobile ? 20 : 24,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-                        if (!isMobile)
-                          Text(
-                            'Real-time analytics and performance metrics',
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.8),
-                              fontSize: 14,
-                              fontWeight: FontWeight.w400,
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+                child: Stack(
+                  children: [
+                    Positioned(
+                      right: -40,
+                      top: -40,
+                      child: CircleAvatar(
+                        radius: 90,
+                        backgroundColor: Colors.white.withOpacity(0.05),
+                      ),
+                    ),
+                    SafeArea(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.2),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: IconButton(
+                                    icon: const Icon(
+                                      Icons.arrow_back_ios_new_rounded,
+                                      color: Colors.white,
+                                      size: 18,
+                                    ),
+                                    onPressed: () => Navigator.of(context).pop(),
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.15),
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  child: const Icon(
+                                    Icons.analytics_rounded,
+                                    color: Colors.white,
+                                    size: 24,
+                                  ),
+                                ),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        'Engineer Performance',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: isMobile ? 20 : 24,
+                                          fontWeight: FontWeight.w800,
+                                          letterSpacing: -0.3,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Real-time analytics & metrics',
+                                        style: TextStyle(
+                                          color: Colors.white.withOpacity(0.75),
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                      ],
+                          ],
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
-            ),
-            leading: IconButton(
-              icon: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.arrow_back_ios_new_rounded,
-                  color: Colors.white,
-                  size: 18,
-                ),
-              ),
-              onPressed: () => Navigator.of(context).pop(),
             ),
           ),
 
@@ -836,43 +858,47 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
 
   Widget _buildKPICard(String title, String value, IconData icon, Color color) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.1)),
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
+        border: Border.all(color: color.withOpacity(0.15)),
       ),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, color: color, size: 18),
-              ),
-            ],
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: color, size: 24),
           ),
-          const SizedBox(height: 12),
+          const Spacer(),
           Text(
             value,
             style: TextStyle(
-              color: color,
-              fontSize: 20,
+              color: _getContrastColor(Theme.of(context).cardColor),
+              fontSize: 24,
               fontWeight: FontWeight.w800,
+              letterSpacing: -0.5,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             title,
             style: TextStyle(
-              color: color.withOpacity(0.8),
-              fontSize: 11,
+              color: _getContrastColor(Theme.of(context).cardColor).withOpacity(0.6),
+              fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -904,34 +930,53 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
         final icon = _getStatusIcon(status);
 
         return Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: color.withOpacity(0.1)),
+            color: Theme.of(context).cardColor,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: color.withOpacity(0.08),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
+            ],
+            border: Border.all(color: color.withOpacity(0.15)),
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, color: color, size: 28),
-              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: color, size: 28),
+              ),
+              const SizedBox(height: 16),
               Text(
                 count.toString(),
                 style: TextStyle(
-                  color: color,
-                  fontSize: 24,
+                  color: _getContrastColor(Theme.of(context).cardColor),
+                  fontSize: 26,
                   fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5,
                 ),
               ),
               const SizedBox(height: 4),
-              Text(
-                status,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: color.withOpacity(0.8),
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.5,
+              Expanded(
+                child: Text(
+                  status,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: _getContrastColor(Theme.of(context).cardColor).withOpacity(0.7),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
+                  ),
                 ),
               ),
             ],

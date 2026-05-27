@@ -193,7 +193,7 @@ class FirestoreService {
   }
 
   /// Check if a user has an active subscription within a tenant
-  /// Also checks if the subscription has expired based on nextBillingAt
+  /// Also checks if the subscription has expired based on expiresAt/nextBillingAt
   Future<bool> hasActiveSubscription({
     required String uid,
     required String tenantId,
@@ -208,23 +208,19 @@ class FirestoreService {
         final data = doc.data()!;
         if (data['status'] != 'active') return false;
 
-        // Check if subscription has expired
-        final nextBillingStr = data['nextBillingAt'] as String?;
-        if (nextBillingStr != null) {
-          final nextBilling = DateTime.tryParse(nextBillingStr);
-          if (nextBilling != null && DateTime.now().isAfter(nextBilling)) {
-            // Subscription has expired — mark as expired and deactivate user
-            await subscriptionsRef(
-              tenantId: tenantId,
-              appId: appId,
-            ).doc(uid).update({'status': 'expired'});
-            await setUserActiveStatus(
-              uid: uid,
-              tenantId: tenantId,
-              active: false,
-            );
-            return false;
-          }
+        final expiryDate = _getExpiryDate(data);
+        if (expiryDate == null || DateTime.now().toUtc().isAfter(expiryDate)) {
+          // Subscription has expired — mark as expired and deactivate user
+          await subscriptionsRef(
+            tenantId: tenantId,
+            appId: appId,
+          ).doc(uid).update({'status': 'expired'});
+          await setUserActiveStatus(
+            uid: uid,
+            tenantId: tenantId,
+            active: false,
+          );
+          return false;
         }
         return true;
       }
@@ -252,20 +248,71 @@ class FirestoreService {
 
       if (querySnapshot.docs.isEmpty) return false;
 
-      final data = querySnapshot.docs.first.data();
-      final nextBillingStr = data['nextBillingAt'] as String?;
-      if (nextBillingStr != null) {
-        final nextBilling = DateTime.tryParse(nextBillingStr);
-        if (nextBilling != null && DateTime.now().isAfter(nextBilling)) {
-          // Found an active doc but it's expired
-          return false;
-        }
+      final doc = querySnapshot.docs.first;
+      final data = doc.data();
+      final expiryDate = _getExpiryDate(data);
+      if (expiryDate == null || DateTime.now().toUtc().isAfter(expiryDate)) {
+        // Found an active doc but it's expired -> Update status to expired
+        await doc.reference.update({'status': 'expired'});
+        // Deactivate the admin user associated with this doc
+        await setUserActiveStatus(
+          uid: doc.id,
+          tenantId: tenantId,
+          active: false,
+        );
+        return false;
       }
       return true;
     } catch (e) {
       debugPrint('Error checking tenant active status: $e');
       return false;
     }
+  }
+
+  /// Fetches the subscription data for a tenant to check for features like geoLocation
+  Future<Map<String, dynamic>?> getTenantSubscriptionData({
+    required String tenantId,
+    String? appId,
+  }) async {
+    try {
+      // 1. Check in the specific app-specific bucket
+      var querySnapshot = await subscriptionsRef(
+        tenantId: tenantId,
+        appId: appId,
+      ).where('status', isEqualTo: 'active').limit(1).get();
+
+      // 2. FALLBACK: Check in the default 'data' bucket
+      if (querySnapshot.docs.isEmpty && appId != 'data' && appId != null) {
+        querySnapshot = await subscriptionsRef(
+          tenantId: tenantId,
+          appId: 'data',
+        ).where('status', isEqualTo: 'active').limit(1).get();
+      }
+
+      if (querySnapshot.docs.isNotEmpty) {
+        return querySnapshot.docs.first.data();
+      }
+    } catch (e) {
+      debugPrint('Error fetching tenant subscription data: $e');
+    }
+    return null;
+  }
+
+  /// Expiry date helper for timezone consistency
+  DateTime? _getExpiryDate(Map<String, dynamic> data) {
+    final expiresAt = data['expiresAt'];
+    if (expiresAt != null) {
+      if (expiresAt is Timestamp) {
+        return expiresAt.toDate().toUtc();
+      } else if (expiresAt is String) {
+        return DateTime.tryParse(expiresAt)?.toUtc();
+      }
+    }
+    final nextBillingStr = data['nextBillingAt'] as String?;
+    if (nextBillingStr != null) {
+      return DateTime.tryParse(nextBillingStr)?.toUtc();
+    }
+    return null;
   }
 
   /// Set the active status flag on a user document
@@ -295,6 +342,49 @@ class FirestoreService {
       }
       return null;
     });
+  }
+
+  // Stream any subscription for a tenant (useful when doc ID is unknown)
+  Stream<Map<String, dynamic>?> streamTenantSubscription(
+    String tenantId, {
+    String? appId,
+  }) {
+    return subscriptionsRef(tenantId: tenantId, appId: appId).snapshots().map((
+      snapshot,
+    ) {
+      if (snapshot.docs.isNotEmpty) {
+        // Try to find one that is active or just return the first one
+        try {
+          return snapshot.docs.firstWhere((doc) {
+            final data = doc.data();
+            return data['status'] == 'active';
+          }).data();
+        } catch (_) {
+          return snapshot.docs.first.data();
+        }
+      }
+      return null;
+    });
+  }
+
+  Future<String?> getActiveSubscriptionAppId({
+    required String tenantId,
+    String? appId,
+  }) async {
+    var querySnapshot = await subscriptionsRef(
+      tenantId: tenantId,
+      appId: appId,
+    ).limit(1).get();
+    if (querySnapshot.docs.isNotEmpty) return appId;
+
+    if (appId != 'data' && appId != null) {
+      querySnapshot = await subscriptionsRef(
+        tenantId: tenantId,
+        appId: 'data',
+      ).limit(1).get();
+      if (querySnapshot.docs.isNotEmpty) return 'data';
+    }
+    return appId;
   }
 
   // Update only branding data for a tenant

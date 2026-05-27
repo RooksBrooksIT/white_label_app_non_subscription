@@ -50,6 +50,18 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
     Navigator.push(context, MaterialPageRoute(builder: (_) => targetScreen));
   }
 
+  Widget _buildDefaultLogo(ThemeData theme) {
+    return Image.asset(
+      'assets/images/logo.png',
+      fit: BoxFit.contain,
+      errorBuilder: (context, error, stackTrace) => Icon(
+        Icons.rocket_launch_rounded,
+        size: 48,
+        color: theme.primaryColor,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -68,19 +80,39 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                 ListenableBuilder(
                   listenable: ThemeService.instance,
                   builder: (context, _) {
-                    if (ThemeService.instance.logoUrl != null) {
-                      return Image.network(
-                        ThemeService.instance.logoUrl!,
-                        height: 100,
-                        fit: BoxFit.contain,
-                        errorBuilder: (context, error, stackTrace) =>
-                            const Icon(Icons.account_circle, size: 80),
-                      );
-                    }
-                    return Icon(
-                      Icons.account_circle_outlined,
-                      size: 80,
-                      color: theme.textTheme.bodyLarge?.color?.withOpacity(0.8),
+                    final logoUrl = ThemeService.instance.logoUrl;
+                    return Container(
+                      width: 120,
+                      height: 120,
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: theme.dividerColor.withOpacity(0.1),
+                          width: 1.5,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.08),
+                            blurRadius: 20,
+                            spreadRadius: 2,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: Container(
+                        decoration: const BoxDecoration(shape: BoxShape.circle),
+                        clipBehavior: Clip.antiAlias,
+                        child: logoUrl != null && logoUrl.isNotEmpty
+                            ? Image.network(
+                                logoUrl,
+                                fit: BoxFit.contain,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    _buildDefaultLogo(theme),
+                              )
+                            : _buildDefaultLogo(theme),
+                      ),
                     );
                   },
                 ),

@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'dart:math';
 import 'package:subscription_rooks_app/frontend/screens/admin_assign_engineer_page.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_geo_location_screen.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:subscription_rooks_app/frontend/screens/customer_var_data_screen.dart'
     as customer_var;
 
@@ -218,7 +219,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
               color: Theme.of(context).primaryColor.withOpacity(0.7),
               size: getProportionalSize(24),
             ),
-            hintText: 'Search Booking ID...',
+            hintText: 'Search Booking ID, Customer, or Mobile...',
             hintStyle: TextStyle(
               color: Theme.of(context).hintColor.withOpacity(0.7),
               fontWeight: FontWeight.w500,
@@ -245,7 +246,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
           data[key].toString().trim().isNotEmpty) {
         final value = data[key].toString().trim();
         // Avoid returning 'N/A' or similar invalid values
-        if (value.toLowerCase() != 'n/a' && !value.contains('/')) {
+        if (value.toLowerCase() != 'n/a') {
           return value;
         }
       }
@@ -411,10 +412,22 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
             'adminStatus',
           ], '').toLowerCase();
           final bookingId = getField(data, ['bookingId'], '').toLowerCase();
+          final customerName = getField(data, [
+            'customerName',
+            'CustomerName',
+          ], '').toLowerCase();
+          final mobileNumber = getField(data, [
+            'mobileNumber',
+            'MobileNumber',
+          ], '').toLowerCase();
 
-          if (searchQuery.isNotEmpty &&
-              !bookingId.contains(searchQuery.toLowerCase())) {
-            return false;
+          if (searchQuery.isNotEmpty) {
+            final query = searchQuery.toLowerCase();
+            if (!bookingId.contains(query) &&
+                !customerName.contains(query) &&
+                !mobileNumber.contains(query)) {
+              return false;
+            }
           }
 
           // Check ticket status
@@ -482,6 +495,8 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
               jobType: getField(data, ['jobType', 'JobType']),
               amount: getField(data, ['amount']),
               customerid: getField(data, ['customerid', 'id', 'Id']),
+              customerFileUrl: getField(data, ['customerFileUrl']),
+              fileName: getField(data, ['fileName']),
             );
             String statusRaw = getField(data, [
               'engineerStatus',
@@ -518,6 +533,13 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
             ], 'Not Assigned');
             final bool isCompleted = status.toLowerCase().contains('complete');
 
+            final double? customerLat = data['latitude'] != null
+                ? (data['latitude'] as num).toDouble()
+                : null;
+            final double? customerLng = data['longitude'] != null
+                ? (data['longitude'] as num).toDouble()
+                : null;
+
             return _buildCustomerCard(
               customer,
               index + 1,
@@ -532,6 +554,8 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
               screenHeight,
               getProportionalSize,
               durationInfo,
+              customerLat,
+              customerLng,
             );
           },
         );
@@ -553,6 +577,8 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
     double screenHeight,
     double Function(double) getProportionalSize,
     Map<String, dynamic> durationInfo,
+    double? customerLat,
+    double? customerLng,
   ) {
     // Local helper for status color
     Color getStatusColor(String status) {
@@ -614,6 +640,8 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
               screenWidth,
               screenHeight,
               getProportionalSize,
+              customerLat,
+              customerLng,
             );
           },
         );
@@ -939,6 +967,8 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
     double screenWidth,
     double screenHeight,
     double Function(double) getProportionalSize,
+    double? customerLat,
+    double? customerLng,
   ) {
     final dt = customer.timestamp.toDate();
     final dateString = DateFormat('dd/MM/yyyy').format(dt);
@@ -1316,6 +1346,13 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                                             engineerName:
                                                                 assignedEmployee,
                                                             bookingDocId: docId,
+                                                            customerLat:
+                                                                customerLat,
+                                                            customerLng:
+                                                                customerLng,
+                                                            customerAddress:
+                                                                customer
+                                                                    .address,
                                                           ),
                                                     ),
                                                   );
@@ -1494,6 +1531,18 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                               dateString,
                               getProportionalSize,
                             ),
+                            _ticketDetailRow(
+                              'Address',
+                              customer.address,
+                              getProportionalSize,
+                              valueStyle: TextStyle(
+                                fontSize: getProportionalSize(14),
+                                color: Theme.of(
+                                  context,
+                                ).textTheme.bodyMedium?.color,
+                                height: 1.3,
+                              ),
+                            ),
                             // Payment Type field
                             StreamBuilder<DocumentSnapshot>(
                               stream: FirestoreService.instance
@@ -1538,6 +1587,101 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
+                            const SizedBox(height: 12),
+                            // NEW: Customer Location Button
+                            ElevatedButton.icon(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        AdminGeoLocationScreen(
+                                          engineerId:
+                                              assignedEmployee != 'Not Assigned'
+                                              ? assignedEmployee
+                                              : 'N/A',
+                                          engineerName:
+                                              assignedEmployee != 'Not Assigned'
+                                              ? assignedEmployee
+                                              : 'N/A',
+                                          bookingDocId: docId,
+                                          customerLat: customerLat,
+                                          customerLng: customerLng,
+                                          customerAddress: customer.address,
+                                        ),
+                                  ),
+                                );
+                              },
+                              icon: const Icon(
+                                Icons.location_on,
+                                color: Colors.white,
+                              ),
+                              label: const Text(
+                                'CUSTOMER LOCATION',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red.shade600,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                            ),
+                            // NEW: View Attachment Button
+                            if (customer.customerFileUrl != null &&
+                                customer.customerFileUrl!.isNotEmpty &&
+                                customer.customerFileUrl != 'N/A')
+                              Padding(
+                                padding: const EdgeInsets.only(top: 12.0),
+                                child: ElevatedButton.icon(
+                                  onPressed: () async {
+                                    final url = Uri.parse(
+                                      customer.customerFileUrl!,
+                                    );
+                                    if (await canLaunchUrl(url)) {
+                                      await launchUrl(
+                                        url,
+                                        mode: LaunchMode.externalApplication,
+                                      );
+                                    } else {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Could not open file'),
+                                        ),
+                                      );
+                                    }
+                                  },
+                                  icon: const Icon(
+                                    Icons.file_download_outlined,
+                                    color: Colors.white,
+                                  ),
+                                  label: Text(
+                                    'VIEW / DOWNLOAD (${customer.fileName ?? "Attachment"})',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.blue.shade700,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 14,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    elevation: 2,
+                                  ),
+                                ),
+                              ),
                           ],
                         ),
                       ),
@@ -1578,8 +1722,10 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                               context,
                                             ).textTheme.bodyMedium?.color,
                                             fontSize: getProportionalSize(14),
+                                            height: 1.2,
                                           ),
-                                          overflow: TextOverflow.ellipsis,
+                                          maxLines: 3,
+                                          overflow: TextOverflow.visible,
                                         ),
                                       ),
                                     ],

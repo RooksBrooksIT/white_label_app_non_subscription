@@ -55,8 +55,12 @@ class _admindashboardState extends State<admindashboard> {
   DateTime? _lastBackPressed;
   bool _isUploadingQR = false;
   String? currentPlanName;
+  String? subscriptionStatus;
   String? billingCycle;
   int? remainingDays;
+  bool _hasAttendanceFeature = true;
+  bool _hasBarcodeFeature = true;
+  bool _hasGeoLocationFeature = true;
 
   // Dynamic Color Palette from ThemeService
   late Color primaryColor;
@@ -143,72 +147,100 @@ class _admindashboardState extends State<admindashboard> {
           return;
         }
 
-        // Fetch Subscription Info for Badge
+        // Fetch Subscription Info dynamically
         try {
           final tenantId = ThemeService.instance.databaseName;
           final appId = ThemeService.instance.appName;
-          final querySnapshot = await FirestoreService.instance
-              .collection(
-                'payment_transactions',
-                tenantId: tenantId,
-                appId: appId,
-              )
-              .orderBy('timestamp', descending: true)
-              .limit(10)
-              .get();
 
-          Map<String, dynamic>? data;
-          for (var doc in querySnapshot.docs) {
-            final map = doc.data() as Map<String, dynamic>;
-            final status = (map['status'] ?? '').toString().toUpperCase();
-            if (status == 'SUCCESS' || status == 'UAT_SIMULATED') {
-              data = map;
-              break;
-            }
-          }
+          final actualAppId = await FirestoreService.instance
+              .getActiveSubscriptionAppId(tenantId: tenantId, appId: appId);
 
-          if (data != null) {
-            final activeData = data!;
-            setState(() {
-              currentPlanName = activeData['planName'] as String? ?? 'Subscription';
-              final isYearly = activeData['isYearly'] as bool? ?? false;
-              final isSixMonths = activeData['isSixMonths'] as bool? ?? false;
+          FirestoreService.instance
+              .streamTenantSubscription(tenantId, appId: actualAppId)
+              .listen((data) {
+                if (mounted) {
+                  setState(() {
+                    if (data != null) {
+                      currentPlanName = data['planName'] as String?;
+                      subscriptionStatus = data['status'] as String?;
 
-              if (currentPlanName?.toLowerCase().contains('trial') ?? false) {
-                billingCycle = '7 Days';
-              } else if (isYearly) {
-                billingCycle = 'Yearly';
-              } else if (isSixMonths) {
-                billingCycle = '6 Months';
-              } else {
-                billingCycle = 'Monthly';
-              }
+                      final isYearly = data['isYearly'] as bool? ?? false;
+                      final isSixMonths = data['isSixMonths'] as bool? ?? false;
 
-              // Calculate remaining days from the transaction timestamp
-              final timestamp = activeData['timestamp'] as Timestamp?;
-              if (timestamp != null) {
-                final startedAt = timestamp.toDate();
-                DateTime nextBilling;
-                if (currentPlanName?.toLowerCase().contains('trial') ?? false) {
-                  nextBilling = startedAt.add(const Duration(days: 7));
-                } else if (isYearly) {
-                  nextBilling = DateTime(startedAt.year + 1, startedAt.month, startedAt.day);
-                } else if (isSixMonths) {
-                  nextBilling = DateTime(startedAt.year, startedAt.month + 6, startedAt.day);
-                } else {
-                  nextBilling = DateTime(startedAt.year, startedAt.month + 1, startedAt.day);
+                      if (currentPlanName?.toLowerCase().contains('trial') ??
+                          false) {
+                        billingCycle = '7 Days';
+                      } else if (isYearly) {
+                        billingCycle = 'Yearly';
+                      } else if (isSixMonths) {
+                        billingCycle = '6 Months';
+                      } else {
+                        billingCycle = 'Monthly';
+                      }
+
+                      _hasAttendanceFeature =
+                          data['attendance'] as bool? ?? true;
+                      _hasBarcodeFeature = data['barcode'] as bool? ?? true;
+                      _hasGeoLocationFeature =
+                          data['geoLocation'] as bool? ?? true;
+
+                      final expiresAt = data['expiresAt'];
+                      if (expiresAt != null) {
+                        DateTime expiryDate;
+                        if (expiresAt is Timestamp) {
+                          expiryDate = expiresAt.toDate();
+                        } else if (expiresAt is String) {
+                          expiryDate =
+                              DateTime.tryParse(expiresAt) ?? DateTime.now();
+                        } else {
+                          expiryDate = DateTime.now();
+                        }
+                        remainingDays = expiryDate
+                            .difference(DateTime.now())
+                            .inDays;
+                      } else {
+                        remainingDays = 0;
+                      }
+                    } else {
+                      currentPlanName = null;
+                      subscriptionStatus = null;
+                      remainingDays = null;
+                      billingCycle = null;
+                    }
+                  });
                 }
-                
-                remainingDays = nextBilling.difference(DateTime.now()).inDays;
-                if (remainingDays! < 0) remainingDays = 0;
-              }
-            });
-          }
+              });
         } catch (e) {
           debugPrint('Error loading subscription info: $e');
         }
       }
     }
+  }
+
+  String get _appBarSubscriptionText {
+    if (currentPlanName == null) {
+      return 'No Active Plan';
+    }
+    final isExpired =
+        subscriptionStatus == 'expired' ||
+        (remainingDays != null && remainingDays! < 0);
+    if (isExpired) {
+      return '$currentPlanName • Expired';
+    }
+    return '$currentPlanName • ${remainingDays ?? 0} days left';
+  }
+
+  Color get _appBarSubscriptionColor {
+    if (currentPlanName == null) {
+      return Colors.grey.shade400;
+    }
+    final isExpired =
+        subscriptionStatus == 'expired' ||
+        (remainingDays != null && remainingDays! < 0);
+    if (isExpired) {
+      return errorColor;
+    }
+    return _getPlanColor(currentPlanName!);
   }
 
   @override
@@ -318,35 +350,38 @@ class _admindashboardState extends State<admindashboard> {
                           );
                         },
                       ),
-                      _buildMenuCard(
-                        title: 'Attendance',
-                        subtitle: 'Check-in history',
-                        icon: Icons.how_to_reg_rounded,
-                        color: const Color(0xFFF0932B),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const AdminAttendancePage(),
-                            ),
-                          );
-                        },
-                      ),
-                      _buildMenuCard(
-                        title: 'Attendance Reports',
-                        subtitle: 'Analytics and logs',
-                        icon: Icons.analytics_rounded,
-                        color: const Color(0xFF3949AB),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  const AdminAttendanceReportsPage(),
-                            ),
-                          );
-                        },
-                      ),
+                      if (_hasAttendanceFeature)
+                        _buildMenuCard(
+                          title: 'Attendance',
+                          subtitle: 'Check-in history',
+                          icon: Icons.how_to_reg_rounded,
+                          color: const Color(0xFFF0932B),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const AdminAttendancePage(),
+                              ),
+                            );
+                          },
+                        ),
+                      if (_hasAttendanceFeature)
+                        _buildMenuCard(
+                          title: 'Attendance Reports',
+                          subtitle: 'Analytics and logs',
+                          icon: Icons.analytics_rounded,
+                          color: const Color(0xFF3949AB),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const AdminAttendanceReportsPage(),
+                              ),
+                            );
+                          },
+                        ),
                     ]),
                     const SizedBox(height: 24),
                     _buildManagementSection('Customer Hub', [
@@ -413,68 +448,72 @@ class _admindashboardState extends State<admindashboard> {
                     ]),
                     const SizedBox(height: 24),
                     _buildManagementSection('Inventory Control', [
-                      _buildMenuCard(
-                        title: 'Barcode Scanner',
-                        subtitle: 'Scanner and verification',
-                        icon: Icons.qr_code_scanner_rounded,
-                        color: const Color(0xFF1E3799),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => AdminBarcodeScanner(),
-                            ),
-                          );
-                        },
-                      ),
-                      _buildMenuCard(
-                        title: 'Barcode Identity',
-                        subtitle: 'Asset verification',
-                        icon: Icons.fact_check_rounded,
-                        color: const Color(0xFF38ADA9),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  BarcodeIdentifierScreen(scannedBarcode: ""),
-                            ),
-                          );
-                        },
-                      ),
-                      _buildMenuCard(
-                        title: 'Barcode Details',
-                        subtitle: 'Comprehensive asset info',
-                        icon: Icons.inventory_2_rounded,
-                        color: const Color(0xFF483785),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  const AdminViewBarcodeDetails(),
-                            ),
-                          );
-                        },
-                      ),
-                      _buildMenuCard(
-                        title: 'Engineer Location',
-                        subtitle: 'Comprehensive asset info',
-                        icon: Icons.location_pin,
-                        color: const Color(0xFF483785),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  const AdminGeoLocationScreen(
-                                    engineerId: '',
-                                    engineerName: '',
-                                  ),
-                            ),
-                          );
-                        },
-                      ),
+                      if (_hasBarcodeFeature)
+                        _buildMenuCard(
+                          title: 'Barcode Scanner',
+                          subtitle: 'Scanner and verification',
+                          icon: Icons.qr_code_scanner_rounded,
+                          color: const Color(0xFF1E3799),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => AdminBarcodeScanner(),
+                              ),
+                            );
+                          },
+                        ),
+                      if (_hasBarcodeFeature)
+                        _buildMenuCard(
+                          title: 'Barcode Identity',
+                          subtitle: 'Asset verification',
+                          icon: Icons.fact_check_rounded,
+                          color: const Color(0xFF38ADA9),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    BarcodeIdentifierScreen(scannedBarcode: ""),
+                              ),
+                            );
+                          },
+                        ),
+                      if (_hasBarcodeFeature)
+                        _buildMenuCard(
+                          title: 'Barcode Details',
+                          subtitle: 'Comprehensive asset info',
+                          icon: Icons.inventory_2_rounded,
+                          color: const Color(0xFF483785),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const AdminViewBarcodeDetails(),
+                              ),
+                            );
+                          },
+                        ),
+                      if (_hasGeoLocationFeature)
+                        _buildMenuCard(
+                          title: 'Engineer Location',
+                          subtitle: 'Comprehensive asset info',
+                          icon: Icons.location_pin,
+                          color: const Color(0xFF483785),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const AdminGeoLocationScreen(
+                                      engineerId: '',
+                                      engineerName: '',
+                                    ),
+                              ),
+                            );
+                          },
+                        ),
                       //   onTap: () => Navigator.push(
                       //     context,
                       //     MaterialPageRoute(
@@ -605,39 +644,45 @@ class _admindashboardState extends State<admindashboard> {
                               letterSpacing: -0.5,
                             ),
                           ),
-                          if (currentPlanName != null) ...[
-                            const SizedBox(height: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: Colors.white.withValues(alpha: 0.3),
-                                  width: 1,
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.workspace_premium_rounded,
-                                    color: _getPlanColor(currentPlanName!),
-                                    size: 14,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    '$currentPlanName${remainingDays != null ? ' • $remainingDays Days Left' : ''}',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
+                          const SizedBox(height: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.3),
+                                width: 1,
                               ),
                             ),
-                          ],
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  currentPlanName == null ||
+                                          subscriptionStatus == 'expired' ||
+                                          (remainingDays != null &&
+                                              remainingDays! < 0)
+                                      ? Icons.info_outline_rounded
+                                      : Icons.workspace_premium_rounded,
+                                  color: _appBarSubscriptionColor,
+                                  size: 14,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  _appBarSubscriptionText,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -835,6 +880,7 @@ class _admindashboardState extends State<admindashboard> {
   }
 
   Widget _buildManagementSection(String title, List<Widget> cards) {
+    if (cards.isEmpty) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1011,18 +1057,23 @@ class _admindashboardState extends State<admindashboard> {
                 _buildDrawerItem(
                   icon: Icons.workspace_premium_rounded,
                   title: 'Manage Subscription',
-                  subtitle: remainingDays != null
-                      ? '${currentPlanName ?? 'Plan'} - $remainingDays Days Remaining'
-                      : 'Upgrade or switch plan',
-                  subtitleStyle: remainingDays != null
+                  subtitle: _appBarSubscriptionText,
+                  subtitleStyle:
+                      remainingDays != null && currentPlanName != null
                       ? TextStyle(
-                          fontSize: 16,
+                          fontSize: 14,
                           fontWeight: FontWeight.w900,
-                          color: remainingDays! <= 3
+                          color:
+                              (subscriptionStatus == 'expired' ||
+                                  remainingDays! <= 3)
                               ? errorColor
                               : primaryColor,
                         )
-                      : null,
+                      : TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: errorColor,
+                        ),
                   onTap: () {
                     Navigator.pop(context);
                     _navigateToChangePlan();
@@ -1138,39 +1189,41 @@ class _admindashboardState extends State<admindashboard> {
               fontSize: 14,
             ),
           ),
-          if (currentPlanName != null) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: _getPlanColor(currentPlanName!).withOpacity(0.8),
-                  width: 1.5,
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.workspace_premium_rounded,
-                    color: _getPlanColor(currentPlanName!),
-                    size: 16,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    '${currentPlanName!} : ${billingCycle ?? "Active"}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: _appBarSubscriptionColor.withOpacity(0.8),
+                width: 1.5,
               ),
             ),
-          ],
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  currentPlanName == null ||
+                          subscriptionStatus == 'expired' ||
+                          (remainingDays != null && remainingDays! < 0)
+                      ? Icons.info_outline_rounded
+                      : Icons.workspace_premium_rounded,
+                  color: _appBarSubscriptionColor,
+                  size: 16,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  _appBarSubscriptionText,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );

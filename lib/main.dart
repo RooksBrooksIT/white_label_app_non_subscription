@@ -8,6 +8,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:subscription_rooks_app/services/notification_service.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:subscription_rooks_app/services/subscription_expiry_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,6 +38,9 @@ Future<void> main() async {
   // Initialize Theme
   await ThemeService.instance.init();
 
+  // Initialize Subscription Expiry Service
+  SubscriptionExpiryService.instance.initialize();
+
   runApp(const MyApp());
 }
 
@@ -49,6 +53,7 @@ class MyApp extends StatelessWidget {
       listenable: ThemeService.instance,
       builder: (context, _) {
         return MaterialApp(
+          navigatorKey: SubscriptionExpiryService.instance.navigatorKey,
           debugShowCheckedModeBanner: false,
           title: 'Servnex',
           theme: ThemeService.instance.themeData,

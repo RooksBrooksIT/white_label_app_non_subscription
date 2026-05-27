@@ -2,6 +2,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:subscription_rooks_app/services/auth_state_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:geolocator/geolocator.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -36,13 +39,42 @@ class _SplashScreenState extends State<SplashScreen>
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
 
     _controller.forward();
+    _handleInitialLaunch();
+  }
+
+  Future<void> _handleInitialLaunch() async {
+    final prefs = await SharedPreferences.getInstance();
+    final isFirstLaunch = prefs.getBool('is_first_launch') ?? true;
+
+    if (isFirstLaunch) {
+      // Request permissions sequentially on first launch
+      await _requestPermissions();
+      await prefs.setBool('is_first_launch', false);
+    }
+
     _navigateToNext();
+  }
+
+  Future<void> _requestPermissions() async {
+    // 1. Notification Permission
+    await Permission.notification.request();
+
+    // 2. Location Permission
+    try {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        await Geolocator.requestPermission();
+      }
+    } catch (e) {
+      debugPrint('Error requesting location permission in splash: $e');
+    }
   }
 
   Future<void> _navigateToNext() async {
     final Widget target = await AuthStateService.instance.getInitialScreen();
 
-    await Future.delayed(const Duration(seconds: 3));
+    // Ensure splash is visible for at least some time
+    await Future.delayed(const Duration(seconds: 2));
 
     if (mounted) {
       Navigator.of(context).pushReplacement(
@@ -111,7 +143,7 @@ class _SplashScreenState extends State<SplashScreen>
                             theme.logoUrl != null && theme.logoUrl!.isNotEmpty
                             ? Image.network(
                                 theme.logoUrl!,
-                                fit: BoxFit.cover,
+                                fit: BoxFit.contain,
                                 errorBuilder: (context, error, stackTrace) =>
                                     _buildDefaultLogo(),
                               )
@@ -162,7 +194,7 @@ class _SplashScreenState extends State<SplashScreen>
   Widget _buildDefaultLogo() {
     return Image.asset(
       'assets/images/logo.png',
-      fit: BoxFit.cover,
+      fit: BoxFit.contain,
       errorBuilder: (context, error, stackTrace) => Icon(
         Icons.rocket_launch_rounded,
         size: 50,
