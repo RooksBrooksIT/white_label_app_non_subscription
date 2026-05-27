@@ -96,7 +96,7 @@ class _AdminAttendancePageState extends State<AdminAttendancePage>
         records.add({
           'engineerId': uid,
           'status': status,
-          if (comment != null) 'comment': comment,
+          'comment': ?comment,
         });
       }
 

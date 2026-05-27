@@ -1392,7 +1392,7 @@ class _admindashboardState extends State<admindashboard> {
                                   height: 180,
                                   width: 180,
                                   fit: BoxFit.contain,
-                                  errorBuilder: (_, __, ___) => Icon(
+                                  errorBuilder: (_, _, _) => Icon(
                                     Icons.broken_image_outlined,
                                     size: 60,
                                     color: textLightColor,

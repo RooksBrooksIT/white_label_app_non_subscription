@@ -291,16 +291,25 @@ class _TermsAndConditionsScreenState extends State<TermsAndConditionsScreen>
               ),
               child: Padding(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 20,
+                  horizontal: 16,
+                  vertical: 12,
                 ),
                 child: Row(
                   children: [
+                    IconButton(
+                      icon: const Icon(
+                        Icons.arrow_back_ios_new_rounded,
+                        size: 20,
+                      ),
+                      onPressed: () => Navigator.pop(context),
+                      color: const Color(0xFF1A1A1A),
+                    ),
+                    const SizedBox(width: 8),
                     Container(
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF0D47A1).withValues(alpha: 0.1),
+                        color: const Color(0xFF0D47A1).withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: const Icon(
@@ -309,62 +318,31 @@ class _TermsAndConditionsScreenState extends State<TermsAndConditionsScreen>
                         size: 24,
                       ),
                     ),
-                    const SizedBox(width: 16),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            'Terms & Conditions',
+                            'Terms of Service',
                             style: TextStyle(
-                              fontSize: 20,
+                              fontSize: 18,
                               fontWeight: FontWeight.bold,
                               color: Color(0xFF1A1A1A),
                             ),
                           ),
                           Text(
                             widget.isPreRegistration
-                                ? 'Please review before creating your account'
-                                : 'Please read and accept to continue',
+                                ? 'Review before creating account'
+                                : 'Accept to continue',
                             style: TextStyle(
-                              fontSize: 13,
+                              fontSize: 12,
                               color: Colors.grey.shade600,
                             ),
                           ),
                         ],
                       ),
                     ),
-                    // if (!_hasScrolledToBottom)
-                    //   Container(
-                    //     padding: const EdgeInsets.symmetric(
-                    //       horizontal: 12,
-                    //       vertical: 6,
-                    //     ),
-                    //     decoration: BoxDecoration(
-                    //       color: Colors.amber.shade50,
-                    //       borderRadius: BorderRadius.circular(20),
-                    //       border: Border.all(color: Colors.amber.shade200),
-                    //     ),
-                    //     child: Row(
-                    //       mainAxisSize: MainAxisSize.min,
-                    //       children: [
-                    //         Icon(
-                    //           Icons.unfold_more,
-                    //           size: 16,
-                    //           color: Colors.amber.shade700,
-                    //         ),
-                    //         const SizedBox(width: 6),
-                    //         Text(
-                    //           'Scroll to end',
-                    //           style: TextStyle(
-                    //             fontSize: 12,
-                    //             color: Colors.amber.shade700,
-                    //             fontWeight: FontWeight.w500,
-                    //           ),
-                    //         ),
-                    //       ],
-                    //     ),
-                    //   ),
                   ],
                 ),
               ),
@@ -476,106 +454,36 @@ class _TermsAndConditionsScreenState extends State<TermsAndConditionsScreen>
                               // Terms Sections
                               _buildProfessionalSection(
                                 '1. Acceptance of Terms',
-                                'By accessing or using ServNex, you agree to be bound by these Terms. If you do not agree, please do not use the app.',
+                                'By using ServNex, you agree to these terms. If you don\'t agree, please do not use the app.',
                                 Icons.check_circle_outline,
                               ),
                               const SizedBox(height: 20),
 
                               _buildProfessionalSection(
-                                '2. Services',
-                                'ServNex provides IT-related services including service booking, tracking, and technical support. Services may change or be discontinued without notice.',
-                                Icons.build_outlined,
-                              ),
-                              const SizedBox(height: 20),
-
-                              _buildProfessionalSection(
-                                '3. User Account',
-                                'You must provide accurate details during registration. You are responsible for maintaining account confidentiality and all activities under your account.',
+                                '2. Account Responsibility',
+                                'You are responsible for keeping your account details accurate and your login credentials secure.',
                                 Icons.account_circle_outlined,
                               ),
                               const SizedBox(height: 20),
 
                               _buildProfessionalSection(
-                                '4. Payments',
-                                'All payments must be made through available methods in the app. Prices are displayed before payment and may include applicable taxes.',
+                                '3. Payments & Subscriptions',
+                                'Payments are processed securely. Subscriptions auto-renew unless cancelled before the billing cycle ends.',
                                 Icons.payment_outlined,
                               ),
                               const SizedBox(height: 20),
 
                               _buildProfessionalSection(
-                                '5. Subscriptions',
-                                'Subscriptions renew automatically unless cancelled. Cancellation will take effect at the end of the billing period. No partial refunds will be issued.',
-                                Icons.subscriptions_outlined,
-                              ),
-                              const SizedBox(height: 20),
-
-                              _buildProfessionalSection(
-                                '6. Cancellation & Refunds',
-                                'Services can be cancelled before completion. Eligible refunds will be processed within 5–7 business days.',
-                                Icons.refresh_outlined,
-                              ),
-                              const SizedBox(height: 20),
-
-                              _buildProfessionalSection(
-                                '7. User Conduct',
-                                'You agree not to misuse the app, provide false information, or interfere with app functionality.',
+                                '4. Prohibited Conduct',
+                                'You agree not to misuse the app, provide false information, or attempt to disrupt the service.',
                                 Icons.gavel_outlined,
                               ),
                               const SizedBox(height: 20),
 
                               _buildProfessionalSection(
-                                '8. Use License',
-                                'You are granted limited permission to use the app for personal use only. You may not copy, modify, reverse engineer, or misuse any part of the service.',
-                                Icons.security_outlined,
-                              ),
-                              const SizedBox(height: 20),
-
-                              _buildProfessionalSection(
-                                '9. Disclaimer',
-                                'All services are provided "as is" without warranties of any kind.',
-                                Icons.warning_outlined,
-                              ),
-                              const SizedBox(height: 20),
-
-                              _buildProfessionalSection(
-                                '10. Limitation of Liability',
-                                'ServNex is not liable for indirect or consequential damages arising from the use of the app.',
-                                Icons.balance_outlined,
-                              ),
-                              const SizedBox(height: 20),
-
-                              _buildProfessionalSection(
-                                '11. Privacy',
-                                'Your use of ServNex is also governed by our Privacy Policy.',
-                                Icons.privacy_tip_outlined,
-                              ),
-                              const SizedBox(height: 20),
-
-                              _buildProfessionalSection(
-                                '12. Modifications',
-                                'We may update these Terms at any time. Continued use of the app indicates acceptance of the updated Terms.',
-                                Icons.update_outlined,
-                              ),
-                              const SizedBox(height: 20),
-
-                              _buildProfessionalSection(
-                                '13. Governing Law',
-                                'These Terms are governed by the laws of India.',
-                                Icons.account_balance_outlined,
-                              ),
-                              const SizedBox(height: 20),
-
-                              _buildProfessionalSection(
-                                '14. Company Information',
-                                'Business Name: ServNex\nAddress: No:17, Jawahar Street, Ramavarmapuram, Nagercoil - 629001\nEmail: support@rookstechnologies.com\nPhone: +91 7358677670',
+                                '5. Company Info',
+                                'Business Name: ServNex\nAddress: RAMAVARMAPURAM, NAGERCOIL\nEmail: support@rookstechnologies.com',
                                 Icons.business_outlined,
-                              ),
-                              const SizedBox(height: 20),
-
-                              _buildProfessionalSection(
-                                '15. Contact',
-                                'For any questions, contact us using the details above.',
-                                Icons.contact_support_outlined,
                               ),
 
                               const SizedBox(height: 32),
@@ -795,53 +703,19 @@ class _TermsAndConditionsScreenState extends State<TermsAndConditionsScreen>
                                     disabledBackgroundColor:
                                         Colors.grey.shade300,
                                     elevation: isButtonEnabled ? 3 : 0,
-                                    shadowColor: isButtonEnabled
-                                        ? const Color(
-                                            0xFF0D47A1,
-                                          ).withValues(alpha: 0.5)
-                                        : Colors.transparent,
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(14),
                                     ),
                                   ),
-                                  child: _isLoading
-                                      ? const SizedBox(
-                                          height: 24,
-                                          width: 24,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2.5,
-                                            valueColor:
-                                                AlwaysStoppedAnimation<Color>(
-                                                  Colors.white,
-                                                ),
-                                          ),
-                                        )
-                                      : Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            if (isButtonEnabled)
-                                              const Icon(
-                                                Icons.arrow_forward,
-                                                size: 20,
-                                              ),
-                                            if (isButtonEnabled)
-                                              const SizedBox(width: 12),
-                                            Text(
-                                              widget.isPreRegistration
-                                                  ? 'ACCEPT & CREATE ACCOUNT'
-                                                  : 'ACCEPT & CONTINUE',
-                                              style: TextStyle(
-                                                fontSize: 15,
-                                                fontWeight: FontWeight.w700,
-                                                letterSpacing: 0.5,
-                                                color: isButtonEnabled
-                                                    ? Colors.white
-                                                    : Colors.grey.shade500,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
+                                  child: Text(
+                                    _isLoading
+                                        ? 'Processing...'
+                                        : 'Accept & Continue',
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
@@ -918,52 +792,36 @@ class _TermsAndConditionsScreenState extends State<TermsAndConditionsScreen>
     String content,
     IconData icon,
   ) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200, width: 1),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: const Color(0xFF0D47A1).withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 20, color: const Color(0xFF0D47A1)),
+            const SizedBox(width: 12),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF1A1A1A),
+              ),
             ),
-            child: Icon(icon, color: const Color(0xFF0D47A1), size: 18),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF1A1A1A),
-                    height: 1.3,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  content,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey.shade700,
-                    height: 1.5,
-                  ),
-                ),
-              ],
+          ],
+        ),
+        const SizedBox(height: 8),
+        Padding(
+          padding: const EdgeInsets.only(left: 32),
+          child: Text(
+            content,
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey.shade700,
+              height: 1.5,
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

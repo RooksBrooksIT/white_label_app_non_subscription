@@ -534,7 +534,7 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
             vertical: screenHeight * 0.01,
           ),
           itemCount: filteredDocs.length,
-          separatorBuilder: (_, __) => SizedBox(height: screenHeight * 0.015),
+          separatorBuilder: (_, _) => SizedBox(height: screenHeight * 0.015),
           itemBuilder: (context, index) {
             final data = filteredDocs[index].data() as Map<String, dynamic>;
             return _buildDeliveryCard(

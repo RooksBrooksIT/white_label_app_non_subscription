@@ -3367,7 +3367,7 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: _imageFiles!.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 12),
+              separatorBuilder: (_, _) => const SizedBox(width: 12),
               itemBuilder: (context, index) {
                 final image = _imageFiles![index];
                 return Stack(
@@ -3691,7 +3691,7 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
                                         ),
                                       );
                                     },
-                                errorBuilder: (_, __, ___) => Center(
+                                errorBuilder: (_, _, _) => Center(
                                   child: Column(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
