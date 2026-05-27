@@ -26,6 +26,10 @@ class PaymentScreen extends StatefulWidget {
   final bool? attendance;
   final bool? barcode;
   final bool? reportExport;
+
+  /// User data for a new user who hasn't registered yet.
+  final Map<String, dynamic>? pendingUserData;
+
   const PaymentScreen({
     super.key,
     required this.planName,
@@ -40,6 +44,7 @@ class PaymentScreen extends StatefulWidget {
     this.attendance,
     this.barcode,
     this.reportExport,
+    this.pendingUserData,
   });
 
   @override
@@ -196,8 +201,56 @@ class _PaymentScreenState extends State<PaymentScreen>
 
     if (isSuccess) {
       // Existing success logic...
-      final uid = AuthStateService.instance.currentUser?.uid;
-      final tenantId = ThemeService.instance.databaseName;
+      String? uid = AuthStateService.instance.currentUser?.uid;
+      final tenantId =
+          widget.pendingUserData?['tenantId'] ??
+          ThemeService.instance.databaseName;
+
+      // If we have pending user data, register the user now
+      if (widget.pendingUserData != null && uid == null) {
+        try {
+          // Extract core fields and pass the rest as additionalData
+          final name = widget.pendingUserData!['name'] as String;
+          final email = widget.pendingUserData!['email'] as String;
+          final password = widget.pendingUserData!['password'] as String;
+          final role = widget.pendingUserData!['role'] as String;
+
+          final additionalData =
+              Map<String, dynamic>.from(widget.pendingUserData!)
+                ..remove('name')
+                ..remove('email')
+                ..remove('password')
+                ..remove('role')
+                ..remove('tenantId');
+
+          final result = await AuthStateService.instance.registerUser(
+            name: name,
+            email: email,
+            password: password,
+            role: role,
+            additionalData: additionalData.isNotEmpty ? additionalData : null,
+          );
+          if (result['success']) {
+            uid = result['uid'];
+            // Update the payment document with the real UID
+            await FirebaseFirestore.instance
+                .collection('payments')
+                .doc(txnId)
+                .update({'uid': uid, 'userId': uid});
+          } else {
+            debugPrint(
+              'Error registering user after payment: ${result['message']}',
+            );
+            // This is a critical error state - payment succeeded but registration failed
+            // For now, we'll continue, but in production you'd want a recovery flow.
+          }
+        } catch (e) {
+          debugPrint('Fatal error registering user after payment: $e');
+        }
+      }
+
+      // final tenantId = widget.pendingUserData?['tenantId'] ?? ThemeService.instance.databaseName; // Already defined above
+
       if (uid != null) {
         try {
           await FirestoreService.instance.setUserActiveStatus(
@@ -816,7 +869,7 @@ class _PaymentScreenState extends State<PaymentScreen>
   }
 
   Future<void> _processPayment() async {
-    final uid = AuthStateService.instance.currentUser?.uid ?? 'demo-user';
+    final uid = AuthStateService.instance.currentUser?.uid;
 
     await _processIciciPayment(uid: uid);
   }
@@ -831,7 +884,7 @@ class _PaymentScreenState extends State<PaymentScreen>
   }
 
   /// Process payment via ICICI initiateSale (Standard Web Flow).
-  Future<void> _processIciciPayment({required String uid}) async {
+  Future<void> _processIciciPayment({String? uid}) async {
     // Show initiating dialog
     showDialog(
       context: context,
@@ -851,15 +904,34 @@ class _PaymentScreenState extends State<PaymentScreen>
     try {
       final tenantId = ThemeService.instance.databaseName;
       final appId = ThemeService.instance.appName;
+
+      // Use pending email if user is not logged in yet
       final email =
           AuthStateService.instance.currentUser?.email ??
+          widget.pendingUserData?['email'] ??
           'customer@example.com';
 
+      // If user is not logged in, we use a placeholder ID for payment initiation
+      // This ID will be updated to the real UID after successful payment and registration.
+      final effectiveUid =
+          uid ?? 'PENDING_${DateTime.now().millisecondsSinceEpoch}';
+
       // Fetch customer data for pre-filling
-      final customerData = await IciciService.instance.fetchCustomerData(
-        uid,
-        tenantId,
-      );
+      Map<String, String> customerData = {
+        'name': 'Customer',
+        'phone': '919999999999',
+      };
+      if (uid != null) {
+        customerData = await IciciService.instance.fetchCustomerData(
+          uid,
+          tenantId,
+        );
+      } else if (widget.pendingUserData != null) {
+        customerData = {
+          'name': widget.pendingUserData!['name'] ?? 'Customer',
+          'phone': '919999999999', // Default if not in pending data
+        };
+      }
 
       // 1. Initiate Sale via backend
       final paymentMode = selectedPaymentMethod == 'Net Banking'
@@ -887,6 +959,7 @@ class _PaymentScreenState extends State<PaymentScreen>
         attendance: widget.attendance,
         barcode: widget.barcode,
         reportExport: widget.reportExport,
+        userId: effectiveUid,
       );
 
       debugPrint(
@@ -901,7 +974,7 @@ class _PaymentScreenState extends State<PaymentScreen>
       }
 
       // 2. Handle standard web flow
-      await _handleWebFlow(response, uid);
+      await _handleWebFlow(response, effectiveUid);
     } catch (e) {
       if (mounted && Navigator.canPop(context)) {
         Navigator.pop(context);

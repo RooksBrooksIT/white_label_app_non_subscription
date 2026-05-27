@@ -85,13 +85,7 @@ class AuthStateService extends ChangeNotifier {
       String targetScope = ThemeService.instance.appName;
 
       if (role == 'admin') {
-        // Generate dynamic collection name: OrganizationName_YYYYMMDD
-        final now = DateTime.now();
-        final dateStr =
-            "${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}";
-        // Clean organization name (remove spaces)
-        final cleanOrgName = name.replaceAll(' ', '');
-        targetScope = "${cleanOrgName}_$dateStr";
+        targetScope = FirestoreService.generateTenantId(name);
       } else if (additionalData != null &&
           additionalData.containsKey('linkedAppName')) {
         targetScope = additionalData['linkedAppName'];

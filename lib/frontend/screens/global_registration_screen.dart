@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:subscription_rooks_app/services/auth_state_service.dart';
+import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
+import 'package:subscription_rooks_app/subscription/subscription_plans_screen.dart';
 
 class GlobalRegistrationScreen extends StatefulWidget {
   const GlobalRegistrationScreen({super.key});
@@ -45,11 +47,34 @@ class _GlobalRegistrationScreenState extends State<GlobalRegistrationScreen> {
 
     setState(() => _isLoading = true);
 
+    final name = _nameController.text.trim();
+    final tenantId = FirestoreService.generateTenantId(name);
+    final pendingUserData = {
+      'name': name,
+      'email': _emailController.text.trim(),
+      'password': _passwordController.text.trim(),
+      'role': _selectedRole,
+      'tenantId': tenantId,
+    };
+
+    if (_selectedRole == 'admin') {
+      setState(() => _isLoading = false);
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) =>
+              SubscriptionPlansScreen(pendingUserData: pendingUserData),
+        ),
+      );
+      return;
+    }
+
     final result = await AuthStateService.instance.registerUser(
-      name: _nameController.text.trim(),
-      email: _emailController.text.trim(),
-      password: _passwordController.text.trim(),
-      role: _selectedRole,
+      name: pendingUserData['name']!,
+      email: pendingUserData['email']!,
+      password: pendingUserData['password']!,
+      role: pendingUserData['role']!,
     );
 
     if (!mounted) return;

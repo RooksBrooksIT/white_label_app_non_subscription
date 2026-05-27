@@ -775,6 +775,13 @@ exports.processPaymentSuccess = onDocumentWritten(
             });
 
             // ── 8. Update Subscription Dates & Lifecycle ────────────────
+            // Skip subscription update if UID is a placeholder (PENDING_...)
+            // The Flutter app will handle registration and subscription update after success.
+            if (uid.startsWith("PENDING_")) {
+                console.log(`[LIFECYCLE] Skipping subscription update for placeholder UID: ${uid}`);
+                return;
+            }
+
             // Calculate expiry based on billing cycle
             const expiryDate = new Date();
             if (newData.isYearly) {
@@ -827,6 +834,14 @@ exports.logPaymentActivity = onDocumentWritten("payments/{txnId}", async (event)
 
     if (!newData || !newData.tenantId || !newData.appId) {
         console.warn(`[LOG] Skipping log for ${txnId}: Missing tenantId or appId`);
+        return;
+    }
+
+    // NEW RULE: Only mirror to tenant bucket once a terminal status (SUCCESS/FAILED) is reached.
+    // This prevents premature creation of tenant collections if the user cancels before paying.
+    const status = newData.status || "PENDING";
+    if (status === "PENDING") {
+        console.log(`[LOG] Skipping mirror for ${txnId}: Status is still PENDING.`);
         return;
     }
 

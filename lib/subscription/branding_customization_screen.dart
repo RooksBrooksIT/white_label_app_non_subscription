@@ -29,6 +29,9 @@ class BrandingCustomizationScreen extends StatefulWidget {
   final bool? barcode;
   final bool? reportExport;
 
+  /// User data for a new user who hasn't registered yet.
+  final Map<String, dynamic>? pendingUserData;
+
   const BrandingCustomizationScreen({
     super.key,
     this.planName,
@@ -44,6 +47,7 @@ class BrandingCustomizationScreen extends StatefulWidget {
     this.attendance,
     this.barcode,
     this.reportExport,
+    this.pendingUserData,
   });
 
   @override
@@ -187,9 +191,7 @@ class _BrandingCustomizationScreenState
               initAspectRatio: CropAspectRatioPreset.square,
               lockAspectRatio: false,
             ),
-            IOSUiSettings(
-              title: 'Crop Logo',
-            ),
+            IOSUiSettings(title: 'Crop Logo'),
           ],
         );
 
@@ -1421,8 +1423,43 @@ class _BrandingCustomizationScreenState
             };
 
             // Use real auth uid if available
-            final uid =
-                AuthStateService.instance.currentUser?.uid ?? 'demo-user';
+            String? uid = AuthStateService.instance.currentUser?.uid;
+
+            // If we have pending user data, register the user now
+            if (widget.pendingUserData != null && uid == null) {
+              // Extract core fields and pass the rest as additionalData
+              final name = widget.pendingUserData!['name'] as String;
+              final email = widget.pendingUserData!['email'] as String;
+              final password = widget.pendingUserData!['password'] as String;
+              final role = widget.pendingUserData!['role'] as String;
+
+              final additionalData =
+                  Map<String, dynamic>.from(widget.pendingUserData!)
+                    ..remove('name')
+                    ..remove('email')
+                    ..remove('password')
+                    ..remove('role')
+                    ..remove('tenantId');
+
+              final result = await AuthStateService.instance.registerUser(
+                name: name,
+                email: email,
+                password: password,
+                role: role,
+                additionalData: additionalData.isNotEmpty
+                    ? additionalData
+                    : null,
+              );
+              if (result['success']) {
+                uid = result['uid'];
+              } else {
+                throw Exception(
+                  result['message'] ?? 'Failed to create account',
+                );
+              }
+            }
+
+            uid ??= 'demo-user';
 
             debugPrint(
               'BrandingCustomizationScreen: uid=$uid, appName=${_appNameController.text}',

@@ -22,12 +22,16 @@ class SubscriptionPlansScreen extends StatefulWidget {
   /// Billing cycle of the active plan e.g. 'Monthly', 'Yearly', '6 Months'.
   final String? billingCycle;
 
+  /// User data for a new user who hasn't registered yet.
+  final Map<String, dynamic>? pendingUserData;
+
   const SubscriptionPlansScreen({
     super.key,
     this.currentPlanName,
     this.hideTrial = false,
     this.remainingDays,
     this.billingCycle,
+    this.pendingUserData,
   });
 
   @override
@@ -176,7 +180,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
   @override
   void initState() {
     super.initState();
-    
+
     // Auto-select current plan if provided
     if (widget.currentPlanName != null) {
       _fetchedPlanName = widget.currentPlanName;
@@ -185,7 +189,9 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
       if (widget.currentPlanName!.toLowerCase().contains('trial')) {
         selectedPlanType = PlanType.freeTrial;
       } else {
-        final idx = plans.indexWhere((p) => p['name'] == widget.currentPlanName);
+        final idx = plans.indexWhere(
+          (p) => p['name'] == widget.currentPlanName,
+        );
         if (idx != -1) {
           selectedPlanIndex = idx;
         }
@@ -203,25 +209,28 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
   }
 
   void _startSubscriptionListener() {
-    // If the user already has an active plan and is managing it, 
+    // If the user already has an active plan and is managing it,
     // prevent the listener from auto-redirecting them back to the dashboard.
     if (widget.currentPlanName != null || widget.hideTrial) {
       return;
     }
 
     final user = AuthStateService.instance.currentUser;
+    final tenantId =
+        widget.pendingUserData?['tenantId'] ??
+        ThemeService.instance.databaseName;
+
     if (user != null) {
-      final tenantId = ThemeService.instance.databaseName;
       _subscriptionListener = FirestoreService.instance
           .streamSubscription(user.uid, tenantId, appId: 'data')
           .listen((subData) {
-        if (subData != null && subData['status'] == 'active') {
-          // Subscription became active in real-time!
-          if (mounted) {
-            _handleSubscriptionActive();
-          }
-        }
-      });
+            if (subData != null && subData['status'] == 'active') {
+              // Subscription became active in real-time!
+              if (mounted) {
+                _handleSubscriptionActive();
+              }
+            }
+          });
     }
   }
 
@@ -236,20 +245,17 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
   Future<void> _fetchSubscriptionData() async {
     try {
       final user = AuthStateService.instance.currentUser;
-      if (user == null) {
+      final tenantId = widget.pendingUserData?['tenantId'] ?? ThemeService.instance.databaseName;
+
+      if (user == null && widget.pendingUserData == null) {
         setState(() => _isLoadingSubscription = false);
         return;
       }
 
-      final tenantId = ThemeService.instance.databaseName;
       final appId = ThemeService.instance.appName;
 
       final querySnapshot = await FirestoreService.instance
-          .collection(
-            'payment_transactions',
-            tenantId: tenantId,
-            appId: appId,
-          )
+          .collection('payment_transactions', tenantId: tenantId, appId: appId)
           .orderBy('timestamp', descending: true)
           .limit(10)
           .get();
@@ -266,7 +272,8 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
 
       if (activeData != null && mounted) {
         setState(() {
-          _fetchedPlanName = activeData!['planName'] as String? ?? 'Subscription';
+          _fetchedPlanName =
+              activeData!['planName'] as String? ?? 'Subscription';
           final isYearly = activeData['isYearly'] as bool? ?? false;
           final isSixMonths = activeData['isSixMonths'] as bool? ?? false;
 
@@ -287,14 +294,28 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
             if (_fetchedPlanName?.toLowerCase().contains('trial') ?? false) {
               nextBilling = startedAt.add(const Duration(days: 7));
             } else if (isYearly) {
-              nextBilling = DateTime(startedAt.year + 1, startedAt.month, startedAt.day);
+              nextBilling = DateTime(
+                startedAt.year + 1,
+                startedAt.month,
+                startedAt.day,
+              );
             } else if (isSixMonths) {
-              nextBilling = DateTime(startedAt.year, startedAt.month + 6, startedAt.day);
+              nextBilling = DateTime(
+                startedAt.year,
+                startedAt.month + 6,
+                startedAt.day,
+              );
             } else {
-              nextBilling = DateTime(startedAt.year, startedAt.month + 1, startedAt.day);
+              nextBilling = DateTime(
+                startedAt.year,
+                startedAt.month + 1,
+                startedAt.day,
+              );
             }
-            
-            _fetchedRemainingDays = nextBilling.difference(DateTime.now()).inDays;
+
+            _fetchedRemainingDays = nextBilling
+                .difference(DateTime.now())
+                .inDays;
             if (_fetchedRemainingDays! < 0) _fetchedRemainingDays = 0;
           }
 
@@ -413,8 +434,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
                 ),
 
                 // Active Plan Status Card (shown when managing existing plan)
-                if (_fetchedPlanName != null)
-                  _buildActivePlanCard(),
+                if (_fetchedPlanName != null) _buildActivePlanCard(),
 
                 // Plan Duration Selector (Tabs)
                 Padding(
@@ -478,11 +498,13 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
                     height: 56,
                     child: Builder(
                       builder: (context) {
-                        final isTrialSelected = selectedPlanType == PlanType.freeTrial;
-                        final currentSelectedPlanName = isTrialSelected 
-                            ? trialPlan['name'] 
+                        final isTrialSelected =
+                            selectedPlanType == PlanType.freeTrial;
+                        final currentSelectedPlanName = isTrialSelected
+                            ? trialPlan['name']
                             : plans[selectedPlanIndex]['name'];
-                        final isAlreadyCurrentPlan = _fetchedPlanName != null && 
+                        final isAlreadyCurrentPlan =
+                            _fetchedPlanName != null &&
                             currentSelectedPlanName == _fetchedPlanName;
 
                         return ElevatedButton(
@@ -499,14 +521,21 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
                                     _handlePlanSelection(
                                       context,
                                       plans[selectedPlanIndex],
-                                      isYearly: selectedPlanType == PlanType.yearly,
-                                      isSixMonths: selectedPlanType == PlanType.sixMonths,
+                                      isYearly:
+                                          selectedPlanType == PlanType.yearly,
+                                      isSixMonths:
+                                          selectedPlanType ==
+                                          PlanType.sixMonths,
                                     );
                                   }
                                 },
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: isAlreadyCurrentPlan ? Colors.grey.shade300 : Colors.white,
-                            foregroundColor: isAlreadyCurrentPlan ? Colors.grey.shade600 : Colors.black,
+                            backgroundColor: isAlreadyCurrentPlan
+                                ? Colors.grey.shade300
+                                : Colors.white,
+                            foregroundColor: isAlreadyCurrentPlan
+                                ? Colors.grey.shade600
+                                : Colors.black,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
@@ -515,15 +544,19 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
                           child: Text(
                             isAlreadyCurrentPlan
                                 ? 'Your Current Plan'
-                                : (isTrialSelected ? 'Start 7-Day Free Trial' : 'Subscribe now'),
+                                : (isTrialSelected
+                                      ? 'Start 7-Day Free Trial'
+                                      : 'Subscribe now'),
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
-                              color: isAlreadyCurrentPlan ? Colors.grey.shade700 : const Color.fromARGB(255, 0, 0, 0),
+                              color: isAlreadyCurrentPlan
+                                  ? Colors.grey.shade700
+                                  : const Color.fromARGB(255, 0, 0, 0),
                             ),
                           ),
                         );
-                      }
+                      },
                     ),
                   ),
                 ),
@@ -592,8 +625,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
         ? '/7 Days'
         : (isYearly ? '/Year' : (isSixMonths ? '/6 Months' : '/Month'));
     final isCurrentPlan =
-        _fetchedPlanName != null &&
-        plan['name'] == _fetchedPlanName;
+        _fetchedPlanName != null && plan['name'] == _fetchedPlanName;
 
     return Container(
       width: double.infinity,
@@ -734,13 +766,20 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
   }
 
   Widget _buildActivePlanCard() {
-    final planName = _fetchedPlanName ?? widget.currentPlanName ?? 'Active Plan';
+    final planName =
+        _fetchedPlanName ?? widget.currentPlanName ?? 'Active Plan';
     final days = _fetchedRemainingDays ?? widget.remainingDays;
     final cycle = _fetchedBillingCycle ?? widget.billingCycle ?? 'Monthly';
     final isExpiringSoon = days != null && days <= 7;
-    final cardColor = isExpiringSoon ? const Color(0xFFFFF3E0) : const Color(0xFFE8F5E9);
-    final borderColor = isExpiringSoon ? Colors.orange.shade300 : Colors.green.shade300;
-    final accentColor = isExpiringSoon ? Colors.orange.shade700 : Colors.green.shade700;
+    final cardColor = isExpiringSoon
+        ? const Color(0xFFFFF3E0)
+        : const Color(0xFFE8F5E9);
+    final borderColor = isExpiringSoon
+        ? Colors.orange.shade300
+        : Colors.green.shade300;
+    final accentColor = isExpiringSoon
+        ? Colors.orange.shade700
+        : Colors.green.shade700;
 
     // Find limits from fetched limits or static config
     Map<String, dynamic> activeLimits = _fetchedLimits ?? {};
@@ -748,14 +787,23 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
       if (planName.toLowerCase().contains('trial')) {
         activeLimits = trialPlan['limits'];
       } else {
-        final found = plans.firstWhere((p) => p['name'] == planName, orElse: () => {});
+        final found = plans.firstWhere(
+          (p) => p['name'] == planName,
+          orElse: () => {},
+        );
         if (found.isNotEmpty) activeLimits = found['limits'];
       }
     }
 
-    final customers = activeLimits['maxCustomers'] == -1 ? 'Unlimited' : '${activeLimits['maxCustomers'] ?? 0}';
-    final engineers = activeLimits['maxEngineers'] == -1 ? 'Unlimited' : '${activeLimits['maxEngineers'] ?? 0}';
-    final storage = activeLimits['maxStorageGB'] == -1 ? 'Unlimited' : '${activeLimits['maxStorageGB'] ?? 0}GB';
+    final customers = activeLimits['maxCustomers'] == -1
+        ? 'Unlimited'
+        : '${activeLimits['maxCustomers'] ?? 0}';
+    final engineers = activeLimits['maxEngineers'] == -1
+        ? 'Unlimited'
+        : '${activeLimits['maxEngineers'] ?? 0}';
+    final storage = activeLimits['maxStorageGB'] == -1
+        ? 'Unlimited'
+        : '${activeLimits['maxStorageGB'] ?? 0}GB';
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
@@ -778,7 +826,9 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
-                    isExpiringSoon ? Icons.warning_rounded : Icons.verified_rounded,
+                    isExpiringSoon
+                        ? Icons.warning_rounded
+                        : Icons.verified_rounded,
                     color: accentColor,
                     size: 22,
                   ),
@@ -801,7 +851,10 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
                           ),
                           const SizedBox(width: 8),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: accentColor.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(20),
@@ -821,13 +874,15 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
                       Text(
                         days != null
                             ? (isExpiringSoon
-                                ? '⚠ Expires in $days day${days == 1 ? '' : 's'} — renew soon!'
-                                : '$days day${days == 1 ? '' : 's'} remaining on your plan')
+                                  ? '⚠ Expires in $days day${days == 1 ? '' : 's'} — renew soon!'
+                                  : '$days day${days == 1 ? '' : 's'} remaining on your plan')
                             : 'Active subscription',
                         style: TextStyle(
                           fontSize: 12,
                           color: accentColor.withValues(alpha: 0.85),
-                          fontWeight: isExpiringSoon ? FontWeight.w600 : FontWeight.w400,
+                          fontWeight: isExpiringSoon
+                              ? FontWeight.w600
+                              : FontWeight.w400,
                         ),
                       ),
                     ],
@@ -845,9 +900,24 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _buildLimitIndicator(Icons.people, 'Customers', customers, accentColor),
-                  _buildLimitIndicator(Icons.engineering, 'Engineers', engineers, accentColor),
-                  _buildLimitIndicator(Icons.cloud, 'Storage', storage, accentColor),
+                  _buildLimitIndicator(
+                    Icons.people,
+                    'Customers',
+                    customers,
+                    accentColor,
+                  ),
+                  _buildLimitIndicator(
+                    Icons.engineering,
+                    'Engineers',
+                    engineers,
+                    accentColor,
+                  ),
+                  _buildLimitIndicator(
+                    Icons.cloud,
+                    'Storage',
+                    storage,
+                    accentColor,
+                  ),
                 ],
               ),
             ),
@@ -857,7 +927,12 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
     );
   }
 
-  Widget _buildLimitIndicator(IconData icon, String label, String value, Color accentColor) {
+  Widget _buildLimitIndicator(
+    IconData icon,
+    String label,
+    String value,
+    Color accentColor,
+  ) {
     return Column(
       children: [
         Icon(icon, size: 18, color: accentColor),
@@ -891,8 +966,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
         ? plan['yearlyPrice']
         : (isSixMonths ? plan['sixMonthPrice'] : plan['monthlyPrice']);
     final isCurrentPlan =
-        _fetchedPlanName != null &&
-        plan['name'] == _fetchedPlanName;
+        _fetchedPlanName != null && plan['name'] == _fetchedPlanName;
 
     return GestureDetector(
       onTap: () {
@@ -1022,6 +1096,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
             attendance: selectedPlan['attendance'],
             barcode: selectedPlan['barcode'],
             reportExport: selectedPlan['reportExport'],
+            pendingUserData: widget.pendingUserData,
           ),
         ),
       );
@@ -1044,6 +1119,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
           attendance: selectedPlan['attendance'],
           barcode: selectedPlan['barcode'],
           reportExport: selectedPlan['reportExport'],
+          pendingUserData: widget.pendingUserData,
         ),
       ),
     );

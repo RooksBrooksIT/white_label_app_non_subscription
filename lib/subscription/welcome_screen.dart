@@ -101,6 +101,39 @@ class _WelcomeScreenState extends State<WelcomeScreen>
         'referralCode': _referralCodeController.text.trim(),
     };
 
+    if (_selectedRole == 'admin') {
+      // For Admins: Defer registration until after payment
+      final tenantId = FirestoreService.generateTenantId(_nameController.text.trim());
+      final pendingUserData = {
+        'name': _nameController.text.trim(),
+        'email': _emailController.text.trim(),
+        'password': _passwordController.text.trim(),
+        'role': _selectedRole,
+        'tenantId': tenantId,
+        ...extraData,
+      };
+
+      setState(() => _isLoading = false);
+      if (!mounted) return;
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Account details saved. Now choose your plan.'),
+        ),
+      );
+      
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => SubscriptionPlansScreen(
+            pendingUserData: pendingUserData,
+          ),
+        ),
+      );
+      return;
+    }
+
+    // For non-admins: Register immediately
     final result = await AuthStateService.instance.registerUser(
       name: _nameController.text.trim(),
       email: _emailController.text.trim(),

@@ -8,6 +8,17 @@ class FirestoreService {
 
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
+  /// Generates a consistent tenant ID based on organization name and current date.
+  /// Format: {CleanName}_YYYYMMDD
+  static String generateTenantId(String name) {
+    final now = DateTime.now();
+    final dateStr =
+        "${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}";
+    // Clean name: alphanumeric only, remove spaces
+    final cleanName = name.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '');
+    return "${cleanName}_$dateStr";
+  }
+
   /// Returns a collection reference rooted under:
   /// {organizationName}_{createdDate} (coll) -> {documentId} (doc) -> {subCollectionName} (coll)
   /// This follows the format: OrganizationName_createdDate

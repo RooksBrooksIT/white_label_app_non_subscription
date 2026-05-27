@@ -60,26 +60,31 @@ class IciciService {
     bool? barcode,
     bool? reportExport,
     String? returnUrl,
+    String? userId, // Optional userId for registration flow
   }) async {
     const TAG = '[ICICI-SERVICE]';
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) throw Exception('User not authenticated');
+      final effectiveUserId = userId ?? user?.uid;
 
-      final idToken = await user.getIdToken();
-      
+      if (effectiveUserId == null) throw Exception('User not authenticated');
+
+      String? idToken;
+      if (user != null) {
+        idToken = await user.getIdToken();
+      }
 
       final response = await _dio.post(
         _createSessionUrl,
         options: Options(
           headers: {
-            'Authorization': 'Bearer $idToken',
+            if (idToken != null) 'Authorization': 'Bearer $idToken',
             'Content-Type': 'application/json',
           },
         ),
         data: {
           'amount': amount,
-          'userId': user.uid,
+          'userId': effectiveUserId,
           'email': email,
           'mobile': customerMobile,
           'tenantId': tenantId,
