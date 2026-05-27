@@ -180,9 +180,14 @@ class _PaymentScreenState extends State<PaymentScreen> with WidgetsBindingObserv
     if (isSuccess) {
       // Existing success logic...
       final uid = AuthStateService.instance.currentUser?.uid;
-      final tenantId = ThemeService.instance.databaseName;
+      
       if (uid != null) {
         try {
+          // Finalize registration first to ensure Firestore records exist
+          await AuthStateService.instance.finalizeRegistration();
+          
+          final tenantId = ThemeService.instance.databaseName;
+
           await FirestoreService.instance.setUserActiveStatus(
             uid: uid,
             tenantId: tenantId,
@@ -207,7 +212,7 @@ class _PaymentScreenState extends State<PaymentScreen> with WidgetsBindingObserv
             reportExport: widget.reportExport,
           );
         } catch (e) {
-          debugPrint('Error setting active status: $e');
+          debugPrint('Error finalizing registration or setting status: $e');
         }
       }
       _navigateToSuccess(txnId);

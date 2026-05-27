@@ -107,6 +107,8 @@ class _WelcomeScreenState extends State<WelcomeScreen>
       password: _passwordController.text.trim(),
       role: _selectedRole,
       additionalData: extraData.isNotEmpty ? extraData : null,
+      deferFirestore:
+          _selectedRole == 'admin', // Defer for admin to wait for payment
     );
 
     if (!mounted) return;
