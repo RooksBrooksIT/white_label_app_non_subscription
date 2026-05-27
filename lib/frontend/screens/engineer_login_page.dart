@@ -4,6 +4,7 @@ import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:subscription_rooks_app/backend/screens/engineer_login_page.dart';
 import 'package:subscription_rooks_app/frontend/screens/engineer_dashboard_page.dart';
 import 'package:subscription_rooks_app/subscription/access_restricted_screen.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class Engineerlogin extends StatefulWidget {
   const Engineerlogin({super.key});
@@ -247,6 +248,25 @@ class _EngineerloginState extends State<Engineerlogin> {
                       style: GoogleFonts.inter(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Center(
+                  child: TextButton(
+                    onPressed: () async {
+                      final Uri url = Uri.parse('https://sites.google.com/view/rooks-white-label-app/home');
+                      if (!await launchUrl(url)) {
+                        debugPrint('Could not launch $url');
+                      }
+                    },
+                    child: Text(
+                      'Show Privacy Policy',
+                      style: GoogleFonts.inter(
+                        color: Colors.grey[700],
+                        fontWeight: FontWeight.bold,
+                        decoration: TextDecoration.underline,
                       ),
                     ),
                   ),

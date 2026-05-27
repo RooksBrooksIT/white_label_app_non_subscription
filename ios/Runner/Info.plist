@@ -41,12 +41,8 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>This app requires access to the camera to take a photo of your logo.</string>
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>This app needs access to location to track engineer's live location for service tickets.</string>
-	<key>NSLocationAlwaysUsageDescription</key>
-	<string>This app needs access to location even in the background to track engineer's live location while working on service tickets.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>This app needs access to location when open to track engineer's live location for service tickets.</string>
+	<string>This app needs access to your location while you are using it to provide relevant local service information.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>This app requires access to the microphone for video recording.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
@@ -76,7 +72,6 @@
 	<true/>
 	<key>UIBackgroundModes</key>
 	<array>
-		<string>location</string>
 		<string>fetch</string>
 		<string>remote-notification</string>
 	</array>

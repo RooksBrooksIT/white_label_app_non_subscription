@@ -10,25 +10,24 @@ class LocationService {
   StreamSubscription<Position>? _positionStream;
   final Logger _log = Logger();
 
-  /// Request "always" location permission.
+  /// Request "when in use" location permission.
   Future<bool> _requestPermission() async {
-    var status = await Permission.locationAlways.status;
+    var status = await Permission.location.status;
     if (status.isGranted) return true;
     if (status.isDenied) {
-      status = await Permission.locationAlways.request();
+      status = await Permission.location.request();
     }
     return status.isGranted;
   }
 
-  /// Start listening to location updates. This works in the background on iOS
-  /// because `allowsBackgroundLocationUpdates` is set to true in AppDelegate.
-  /// Public method used by UI to start background tracking for a specific user.
+  /// Start listening to location updates while the app is in use.
+  /// Public method used by UI to start tracking for a specific user.
   Future<void> startTracking([String? userId]) async {
     // userId can be used for analytics or tagging if needed.
     await startLocationUpdates();
   }
 
-  /// Public method used by UI to stop background tracking.
+  /// Public method used by UI to stop location tracking.
   Future<void> stopTracking([String? userId]) async {
     await stopLocationUpdates();
   }
