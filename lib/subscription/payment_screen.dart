@@ -201,58 +201,15 @@ class _PaymentScreenState extends State<PaymentScreen>
 
     if (isSuccess) {
       // Existing success logic...
-      String? uid = AuthStateService.instance.currentUser?.uid;
-      final tenantId =
-          widget.pendingUserData?['tenantId'] ??
-          ThemeService.instance.databaseName;
-
-      // If we have pending user data, register the user now
-      if (widget.pendingUserData != null && uid == null) {
-        try {
-          // Extract core fields and pass the rest as additionalData
-          final name = widget.pendingUserData!['name'] as String;
-          final email = widget.pendingUserData!['email'] as String;
-          final password = widget.pendingUserData!['password'] as String;
-          final role = widget.pendingUserData!['role'] as String;
-
-          final additionalData =
-              Map<String, dynamic>.from(widget.pendingUserData!)
-                ..remove('name')
-                ..remove('email')
-                ..remove('password')
-                ..remove('role')
-                ..remove('tenantId');
-
-          final result = await AuthStateService.instance.registerUser(
-            name: name,
-            email: email,
-            password: password,
-            role: role,
-            additionalData: additionalData.isNotEmpty ? additionalData : null,
-          );
-          if (result['success']) {
-            uid = result['uid'];
-            // Update the payment document with the real UID
-            await FirebaseFirestore.instance
-                .collection('payments')
-                .doc(txnId)
-                .update({'uid': uid, 'userId': uid});
-          } else {
-            debugPrint(
-              'Error registering user after payment: ${result['message']}',
-            );
-            // This is a critical error state - payment succeeded but registration failed
-            // For now, we'll continue, but in production you'd want a recovery flow.
-          }
-        } catch (e) {
-          debugPrint('Fatal error registering user after payment: $e');
-        }
-      }
-
-      // final tenantId = widget.pendingUserData?['tenantId'] ?? ThemeService.instance.databaseName; // Already defined above
-
+      final uid = AuthStateService.instance.currentUser?.uid;
+      
       if (uid != null) {
         try {
+          // Finalize registration first to ensure Firestore records exist
+          await AuthStateService.instance.finalizeRegistration();
+          
+          final tenantId = ThemeService.instance.databaseName;
+
           await FirestoreService.instance.setUserActiveStatus(
             uid: uid,
             tenantId: tenantId,
@@ -277,7 +234,7 @@ class _PaymentScreenState extends State<PaymentScreen>
             reportExport: widget.reportExport,
           );
         } catch (e) {
-          debugPrint('Error setting active status: $e');
+          debugPrint('Error finalizing registration or setting status: $e');
         }
       }
       _navigateToSuccess(txnId);

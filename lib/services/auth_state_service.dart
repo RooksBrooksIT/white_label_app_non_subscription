@@ -41,6 +41,9 @@ class AuthStateService extends ChangeNotifier {
   bool get isRegistered => _isRegistered;
   User? get currentUser => _auth?.currentUser;
 
+  // Temporary storage for registration data during the multi-step process
+  Map<String, dynamic>? _pendingRegistrationData;
+
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     _isRegistered = prefs.getBool(_kIsRegistered) ?? false;
@@ -64,28 +67,96 @@ class AuthStateService extends ChangeNotifier {
     required String password,
     required String role,
     Map<String, dynamic>? additionalData,
+    bool deferFirestore = false,
   }) async {
     try {
-      // Safety check
-      if (Firebase.apps.isEmpty) {
-        return {'success': false, 'message': 'Firebase is not initialized.'};
+      final auth = FirebaseAuth.instance;
+
+      // 1. Check if user is already logged in with same email
+      if (auth.currentUser != null && auth.currentUser!.email == email) {
+        debugPrint('User already authenticated: ${auth.currentUser!.uid}');
+      } else {
+        try {
+          await auth.createUserWithEmailAndPassword(
+            email: email,
+            password: password,
+          );
+        } on FirebaseAuthException catch (e) {
+          if (e.code == 'email-already-in-use') {
+            // Attempt to sign in if the account was already created in a previous attempt
+            try {
+              await auth.signInWithEmailAndPassword(
+                email: email,
+                password: password,
+              );
+              debugPrint('User already exists, signed in instead');
+            } catch (signInError) {
+              return {
+                'success': false,
+                'message':
+                    'Auth Error: The email address is already in use by another account.',
+              };
+            }
+          } else {
+            rethrow;
+          }
+        }
       }
 
-      debugPrint('Attempting to register user: $email with role: $role');
+      final uid = auth.currentUser!.uid;
 
-      // 1. Create user in Firebase Auth
-      UserCredential userCredential = await auth.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+      // Store data for finalization
+      _pendingRegistrationData = {
+        'uid': uid,
+        'name': name,
+        'email': email,
+        'password': password,
+        'role': role,
+        'additionalData': additionalData,
+      };
 
-      final uid = userCredential.user!.uid;
+      if (deferFirestore) {
+        debugPrint('Firestore save deferred for $uid');
+        return {'success': true, 'uid': uid};
+      }
+
+      return await finalizeRegistration();
+    } on FirebaseAuthException catch (e) {
+      debugPrint('Registration Error (FirebaseAuth): ${e.code} - ${e.message}');
+      return {
+        'success': false,
+        'message': 'Auth Error: ${e.message} (Code: ${e.code})',
+      };
+    } catch (e) {
+      debugPrint('Registration Error (App): $e');
+      return {'success': false, 'message': 'System Error: ${e.toString()}'};
+    }
+  }
+
+  Future<Map<String, dynamic>> finalizeRegistration() async {
+    if (_pendingRegistrationData == null) {
+      return {'success': false, 'message': 'No registration data found.'};
+    }
+
+    try {
+      final uid = _pendingRegistrationData!['uid'];
+      final name = _pendingRegistrationData!['name'];
+      final email = _pendingRegistrationData!['email'];
+      final password = _pendingRegistrationData!['password'];
+      final role = _pendingRegistrationData!['role'];
+      final additionalData = _pendingRegistrationData!['additionalData'];
 
       // Determine proper scope (Company DB)
       String targetScope = ThemeService.instance.appName;
 
-      if (role == 'admin') {
-        targetScope = FirestoreService.generateTenantId(name);
+      if (role == 'admin' || role == 'Owner') {
+        // Generate dynamic collection name: OrganizationName_YYYYMMDD
+        final now = DateTime.now();
+        final dateStr =
+            "${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}";
+        // Clean organization name (remove spaces)
+        final cleanOrgName = name.replaceAll(' ', '');
+        targetScope = "${cleanOrgName}_$dateStr";
       } else if (additionalData != null &&
           additionalData.containsKey('linkedAppName')) {
         targetScope = additionalData['linkedAppName'];
@@ -100,8 +171,8 @@ class AuthStateService extends ChangeNotifier {
         'registeredAt': FieldValue.serverTimestamp(),
         'isApproved': role == 'admin' ? true : false,
         'active': false, // User starts inactive until subscription is completed
-        'tenantId': targetScope, // Store the tenant ID or scope
-        ...?additionalData,
+        'tenantId': targetScope,
+        ...?(additionalData as Map<String, dynamic>?),
       };
 
       // Store in the specific Company's 'users' collection
@@ -111,11 +182,10 @@ class AuthStateService extends ChangeNotifier {
           .set(userData);
 
       // 2b. Register in Global Directory for Login Lookup
-      // Every user (including Admin) must be in the global directory to be found during login
       await FirestoreService.instance.saveUserDirectory(
         uid: uid,
         tenantId: targetScope,
-        appName: 'data', // Stable ID for primary app
+        appName: 'data',
         role: role,
       );
 
@@ -126,14 +196,13 @@ class AuthStateService extends ChangeNotifier {
       _isRegistered = true;
 
       if (role == 'admin' || role == 'Owner') {
-        // Also register in the 'admin' collection for backward compatibility with AdminLoginBackend
+        // Also register in the 'admin' collection for backward compatibility
         await FirestoreService.instance
             .collection('admin', tenantId: targetScope)
             .doc(name)
             .set({
               'email': email,
-              'password':
-                  password, // Note: Existing logic uses plain text password in this collection
+              'password': password,
               'name': name,
               'tenantId': targetScope,
               'uid': uid,
@@ -155,18 +224,14 @@ class AuthStateService extends ChangeNotifier {
           databaseName: targetScope,
         );
       }
+
+      _pendingRegistrationData = null; // Clear after successful save
       notifyListeners();
 
       return {'success': true, 'uid': uid};
-    } on FirebaseAuthException catch (e) {
-      debugPrint('Registration Error (FirebaseAuth): ${e.code} - ${e.message}');
-      return {
-        'success': false,
-        'message': 'Auth Error: ${e.message} (Code: ${e.code})',
-      };
     } catch (e) {
-      debugPrint('Registration Error (App): $e');
-      return {'success': false, 'message': 'System Error: ${e.toString()}'};
+      debugPrint('Finalize Registration Error: $e');
+      return {'success': false, 'message': 'Finalize Error: ${e.toString()}'};
     }
   }
 
