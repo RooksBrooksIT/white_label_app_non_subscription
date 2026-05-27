@@ -169,8 +169,8 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
       'Web support included',
     ],
     'geoLocation': true,
-    'attendance': false,
-    'barcode': false,
+    'attendance': true,
+    'barcode': true,
     'reportExport': true,
     'color': const Color(0xFFE3F2FD),
   };
@@ -245,7 +245,9 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
   Future<void> _fetchSubscriptionData() async {
     try {
       final user = AuthStateService.instance.currentUser;
-      final tenantId = widget.pendingUserData?['tenantId'] ?? ThemeService.instance.databaseName;
+      final tenantId =
+          widget.pendingUserData?['tenantId'] ??
+          ThemeService.instance.databaseName;
 
       if (user == null && widget.pendingUserData == null) {
         setState(() => _isLoadingSubscription = false);
@@ -1113,7 +1115,9 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
           originalPrice: originalPrice,
           isYearly: isYearly,
           isSixMonths: isSixMonths,
-          isFirstTimeRegistration: widget.currentPlanName == null,
+          // Correctly distinguish new users from existing users.
+          // New users have pendingUserData because their Auth/Firestore records aren't created yet.
+          isFirstTimeRegistration: widget.pendingUserData != null,
           limits: selectedPlan['limits'],
           geoLocation: selectedPlan['geoLocation'],
           attendance: selectedPlan['attendance'],
