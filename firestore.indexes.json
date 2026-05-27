@@ -2,7 +2,7 @@
   "indexes": [],
   "fieldOverrides": [
     {
-      "collectionGroup": "subscriptions",
+      "collectionGroup": "subscription",
       "fieldPath": "status",
       "indexes": [
         {

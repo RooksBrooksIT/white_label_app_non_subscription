@@ -787,7 +787,7 @@ exports.processPaymentSuccess = onDocumentWritten(
 
             const subscriptionRef = admin.firestore()
                 .collection(tenantId)
-                .doc(appId)
+                .doc(tenantId) // Standardized to tenantId to avoid duplication with 'data' bucket
                 .collection("subscription")
                 .doc(uid);
 
@@ -1032,7 +1032,7 @@ exports.checkSubscriptionExpiryReminders = onSchedule({
 
     try {
         const subscriptionsSnapshot = await admin.firestore()
-            .collectionGroup("subscriptions")
+            .collectionGroup("subscription")
             .where("status", "==", "active")
             .get();
 
@@ -1170,7 +1170,7 @@ exports.testExpiryReminder = onRequest({ invoker: "public" }, async (req, res) =
 
     try {
         const subscriptionsSnapshot = await admin.firestore()
-            .collectionGroup("subscriptions")
+            .collectionGroup("subscription")
             .where("status", "==", "active")
             .get();
 

@@ -34,7 +34,12 @@ class FirestoreService {
   CollectionReference<Map<String, dynamic>> subscriptionsRef({
     required String tenantId,
     String? appId,
-  }) => collection('subscription', tenantId: tenantId, appId: appId);
+  }) {
+    // Force use of tenantId as the document bucket for subscriptions to avoid duplicates.
+    // This ensures path is always: {tenantId} (coll) -> {tenantId} (doc) -> subscription (coll)
+    // instead of defaulting to 'data' or being split between 'data' and the appName.
+    return collection('subscription', tenantId: tenantId, appId: tenantId);
+  }
 
   /// Tenant-specific reference for referral codes
   CollectionReference<Map<String, dynamic>> referralCodesRef({
@@ -232,19 +237,11 @@ class FirestoreService {
   /// Useful for gating access for non-admin users (Engineers, Customers).
   Future<bool> isTenantActive({required String tenantId, String? appId}) async {
     try {
-      // 1. Check in the specific app-specific bucket (Alen Cho, etc.)
+      // Check in the standardized bucket (now forced to tenantId bucket in subscriptionsRef)
       var querySnapshot = await subscriptionsRef(
         tenantId: tenantId,
         appId: appId,
       ).where('status', isEqualTo: 'active').limit(1).get();
-
-      // 2. FALLBACK: Check in the default 'data' bucket if not found or if appId was 'data'
-      if (querySnapshot.docs.isEmpty && appId != 'data' && appId != null) {
-        querySnapshot = await subscriptionsRef(
-          tenantId: tenantId,
-          appId: 'data',
-        ).where('status', isEqualTo: 'active').limit(1).get();
-      }
 
       if (querySnapshot.docs.isEmpty) return false;
 
@@ -275,19 +272,11 @@ class FirestoreService {
     String? appId,
   }) async {
     try {
-      // 1. Check in the specific app-specific bucket
+      // Check in the standardized bucket
       var querySnapshot = await subscriptionsRef(
         tenantId: tenantId,
         appId: appId,
       ).where('status', isEqualTo: 'active').limit(1).get();
-
-      // 2. FALLBACK: Check in the default 'data' bucket
-      if (querySnapshot.docs.isEmpty && appId != 'data' && appId != null) {
-        querySnapshot = await subscriptionsRef(
-          tenantId: tenantId,
-          appId: 'data',
-        ).where('status', isEqualTo: 'active').limit(1).get();
-      }
 
       if (querySnapshot.docs.isNotEmpty) {
         return querySnapshot.docs.first.data();
@@ -375,16 +364,9 @@ class FirestoreService {
       tenantId: tenantId,
       appId: appId,
     ).limit(1).get();
-    if (querySnapshot.docs.isNotEmpty) return appId;
+    if (querySnapshot.docs.isNotEmpty) return tenantId;
 
-    if (appId != 'data' && appId != null) {
-      querySnapshot = await subscriptionsRef(
-        tenantId: tenantId,
-        appId: 'data',
-      ).limit(1).get();
-      if (querySnapshot.docs.isNotEmpty) return 'data';
-    }
-    return appId;
+    return tenantId;
   }
 
   // Update only branding data for a tenant
