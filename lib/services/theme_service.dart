@@ -15,8 +15,6 @@ class ThemeService extends ChangeNotifier {
   String _databaseName = 'default_db';
   String? _logoUrl;
 
-  String get brandingFontFamily => 'Lufga';
-
   Color get primaryColor => _primaryColor;
   Color get secondaryColor => _secondaryColor;
   Color get backgroundColor => _backgroundColor;
@@ -37,9 +35,7 @@ class ThemeService extends ChangeNotifier {
         surface:
             _backgroundColor, // Use background color for surface/background
       ),
-      textTheme: _fontFamily == 'Lufga'
-          ? base.textTheme.apply(fontFamily: 'Lufga')
-          : GoogleFonts.getTextTheme(_fontFamily, base.textTheme),
+      textTheme: GoogleFonts.getTextTheme(_fontFamily, base.textTheme),
       scaffoldBackgroundColor: _backgroundColor,
       canvasColor: _backgroundColor,
       appBarTheme: AppBarTheme(
@@ -69,9 +65,7 @@ class ThemeService extends ChangeNotifier {
         brightness: Brightness.light,
         surface: background,
       ),
-      textTheme: fontFamily == 'Lufga'
-          ? base.textTheme.apply(fontFamily: 'Lufga')
-          : GoogleFonts.getTextTheme(fontFamily, base.textTheme),
+      textTheme: GoogleFonts.getTextTheme(fontFamily, base.textTheme),
       scaffoldBackgroundColor: background,
       canvasColor: background,
       appBarTheme: const AppBarTheme(

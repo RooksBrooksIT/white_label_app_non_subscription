@@ -1,16 +1,28 @@
-# subscription_rooks_app
+# ServNex: Service Management & White-Labeled Platform
 
-A new Flutter project.
+Welcome to **ServNex**, a robust, multi-tenant service management application built with Flutter and Firebase. This platform is designed to provide organizations with a fully customizable, white-labeled solution for managing service tickets, field engineers, and Annual Maintenance Contracts (AMC).
 
-## Getting Started
+## 🚀 Overview
+ServNex connects Administrators, Field Engineers, and Customers in a single real-time ecosystem. Each organization (tenant) enjoys their own isolated database bucket and a uniquely branded experience (colors, logo, and app name).
 
-This project is a starting point for a Flutter application.
+## 🏢 Key Features
+- **Multi-Tenant Isolation**: Secure data separation for multiple organizations.
+- **Dynamic White-Labeling**: Real-time app rebranding for each tenant.
+- **Advanced Field Operations**: Geo-fenced attendance, live engineer tracking, and barcode asset validation.
+- **Comprehensive Ticketing**: Automated service request lifecycle management.
+- **Detailed Reporting**: Analytics for attendance, performance, and customer satisfaction.
 
-A few resources to get you started if this is your first Flutter project:
+## 📚 Documentation
+To help you get started with development or to understand the technical architecture, please refer to our detailed documentation in the `docs/` folder:
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+- **[Technical Analysis](docs/detailed_analysis.md)**: Deep dive into the architecture, multitenancy strategy, and data schema.
+- **[Developer Guide](docs/developer_guide.md)**: Onboarding instructions, coding standards, and common development workflows.
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## 🛠️ Tech Stack
+- **Framework**: Flutter
+- **Backend**: Firebase (Auth, Firestore, Storage, FCM)
+- **Maps**: Google Maps & Flutter Map
+- **Animations**: Lottie
+
+---
+*Built with ❤️ by the ServNex Engineering Team.*

@@ -91,4 +91,28 @@ class StorageService {
       return null;
     }
   }
+
+  Future<String?> uploadCustomerFile({
+    required String customerId,
+    required File file,
+    required String originalFileName,
+  }) async {
+    try {
+      final tenantId = ThemeService.instance.databaseName;
+      // File naming: {customerId}_{originalFileName}
+      final fileName = '${customerId}_$originalFileName';
+      // Updated Path: images/{tenantId}/customer_files/{fileName}
+      final path = 'images/$tenantId/customer_files/$fileName';
+
+      if (!await file.exists()) return null;
+
+      final ref = _storage.ref().child(path);
+      final uploadTask = ref.putFile(file);
+      final snapshot = await uploadTask;
+      return await snapshot.ref.getDownloadURL();
+    } catch (e) {
+      print('StorageService: Error uploading customer file: $e');
+      return null;
+    }
+  }
 }

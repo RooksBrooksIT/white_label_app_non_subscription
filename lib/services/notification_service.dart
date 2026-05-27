@@ -5,7 +5,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/utils/logger_util.dart';
 import 'dart:io';
-import 'package:flutter/foundation.dart';
 
 // Top-level background message handler
 @pragma('vm:entry-point')
@@ -30,14 +29,6 @@ class NotificationService {
 
   Future<void> initialize() async {
     LoggerUtil.i("Initializing NotificationService...");
-
-    if (kIsWeb) {
-      LoggerUtil.i(
-        "NotificationService: Web platform detected. Skipping local notification setup.",
-      );
-      return;
-    }
-
     // 1. Request permissions (Skip on Windows)
     if (!Platform.isWindows) {
       NotificationSettings settings = await _fcm.requestPermission(
@@ -104,7 +95,7 @@ class NotificationService {
           requestAlertPermission: true,
         );
 
-    LoggerUtil.d("Platform: ${kIsWeb ? 'web' : Platform.operatingSystem}");
+    LoggerUtil.d("Platform: ${Platform.operatingSystem}");
 
     final LinuxInitializationSettings linuxInitSettings =
         LinuxInitializationSettings(defaultActionName: 'Open notification');
@@ -170,7 +161,9 @@ class NotificationService {
         String? token = await _fcm.getToken();
         LoggerUtil.d("FCM Token on init: $token");
       } catch (e) {
-        LoggerUtil.e("Error getting FCM token on init: $e");
+        // SERVICE_NOT_AVAILABLE is a transient Google Play Services error.
+        // Firebase will automatically retry token retrieval — safe to ignore.
+        LoggerUtil.w("FCM token unavailable (will retry): $e");
       }
     } else {
       LoggerUtil.i("Skipping FCM initialization on Windows (not supported).");
@@ -250,9 +243,9 @@ class NotificationService {
     String email = '',
   }) async {
     try {
-      if (kIsWeb || Platform.isWindows) {
+      if (Platform.isWindows) {
         LoggerUtil.i(
-          "Skipping FCM token registration on ${kIsWeb ? 'Web' : 'Windows'} (not supported).",
+          "Skipping FCM token registration on Windows (not supported).",
         );
         return;
       }
@@ -288,7 +281,7 @@ class NotificationService {
             'token': token,
             'email': email,
             'lastUpdated': FieldValue.serverTimestamp(),
-            'platform': kIsWeb ? 'web' : Platform.operatingSystem,
+            'platform': Platform.operatingSystem,
           }, SetOptions(merge: true))
           .then(
             (_) => LoggerUtil.i("Token registered SUCCESSFULLY at $docPath"),
@@ -313,7 +306,8 @@ class NotificationService {
             });
       });
     } catch (e) {
-      LoggerUtil.e("Error registering FCM token: $e");
+      // SERVICE_NOT_AVAILABLE is transient — Firebase retries automatically.
+      LoggerUtil.w("FCM token registration temporarily unavailable (will retry): $e");
     }
   }
 }

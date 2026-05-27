@@ -1,79 +1,313 @@
 import 'dart:async';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart' as geo;
 import 'package:permission_handler/permission_handler.dart';
-import 'package:logger/logger.dart';
+import 'package:flutter/foundation.dart';
+import 'package:subscription_rooks_app/services/theme_service.dart';
 
 class LocationService {
-  LocationService._privateConstructor();
-  static final LocationService instance = LocationService._privateConstructor();
+  static final LocationService instance = LocationService._internal();
+  LocationService._internal();
 
-  StreamSubscription<Position>? _positionStream;
-  final Logger _log = Logger();
+  StreamSubscription<Position>? _positionSubscription;
+  final FirebaseDatabase _db = FirebaseDatabase.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  /// Request "when in use" location permission.
-  Future<bool> _requestPermission() async {
-    var status = await Permission.location.status;
-    if (status.isGranted) return true;
-    if (status.isDenied) {
-      status = await Permission.location.request();
-    }
-    return status.isGranted;
+  bool _isTracking = false;
+  bool get isTracking => _isTracking;
+  String? _currentEngineerId;
+
+  String _sanitizePath(String path) {
+    return path.replaceAll(RegExp(r'[.#$\[\]/]'), '_');
   }
 
-  /// Start listening to location updates while the app is in use.
-  /// Public method used by UI to start tracking for a specific user.
-  Future<void> startTracking([String? userId]) async {
-    // userId can be used for analytics or tagging if needed.
-    await startLocationUpdates();
+  Future<void> _ensureAuthenticated() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        debugPrint(
+          'LocationService: No session found. Attempting Anonymous Auth...',
+        );
+        final cred = await _auth.signInAnonymously();
+        debugPrint(
+          'LocationService: Anonymous Auth successful. UID: ${cred.user?.uid}',
+        );
+      } else {
+        debugPrint('LocationService: Already authenticated as ${user.uid}');
+      }
+    } catch (e) {
+      debugPrint('LocationService: Anonymous Auth FATAL ERROR: $e');
+      debugPrint(
+        'Please check if "Anonymous" sign-in provider is enabled in Firebase Console.',
+      );
+    }
   }
 
-  /// Public method used by UI to stop location tracking.
-  Future<void> stopTracking([String? userId]) async {
-    await stopLocationUpdates();
-  }
+  /// Starts live location tracking for the specified engineer
+  Future<bool> startTracking(String engineerId, {String? bookingId}) async {
+    await _ensureAuthenticated();
 
-  Future<void> startLocationUpdates() async {
-    final hasPermission = await _requestPermission();
-    if (!hasPermission) {
-      _log.w('Location permission not granted');
-      return;
+    if (_isTracking && _currentEngineerId == engineerId) {
+      if (bookingId != null) {
+        _updateActiveBooking(engineerId, bookingId);
+      }
+      return true;
     }
 
-    // Ensure location services are enabled.
-    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      _log.w('Location services are disabled');
-      return;
-    }
+    // 1. Request Permissions
+    bool hasPermission = await _handlePermissions();
+    if (!hasPermission) return false;
 
-    // Define high‑accuracy settings suitable for real‑time tracking.
-    final locationSettings = LocationSettings(
+    _currentEngineerId = engineerId;
+
+    // 2. Configure Settings (Best for Navigation for Exact Tracking)
+    final locationSettings = AndroidSettings(
       accuracy: LocationAccuracy.bestForNavigation,
-      distanceFilter: 0, // receive all updates
-      // iOS specific: time interval in milliseconds
-      // (Geolocator forwards this to the native API)
-      // ignore: avoid_dynamic_calls
-      // (the field exists on iOS only, safe to set)
-      // timeInterval: 1000,
+      distanceFilter: 2, // 2 meters for high precision
+      forceLocationManager: false,
+      intervalDuration: const Duration(seconds: 3), // 3 seconds for fluidity
+      foregroundNotificationConfig: const ForegroundNotificationConfig(
+        notificationText: "Tracking your location for service tickets",
+        notificationTitle: "Live Location On",
+        enableWakeLock: true,
+      ),
     );
 
-    _positionStream =
-        Geolocator.getPositionStream(locationSettings: locationSettings).listen(
-          (Position position) {
-            // Here you would send the position to your backend or update UI.
-            _log.i(
-              'Background location: ${position.latitude}, ${position.longitude}',
-            );
-          },
-          onError: (e) {
-            _log.e('Location stream error: $e');
-          },
-        );
+    // 3. Start Listening with robust error handling
+    try {
+      _positionSubscription =
+          Geolocator.getPositionStream(
+            locationSettings: locationSettings,
+          ).listen(
+            (Position position) {
+              updateDatabase(engineerId, position, bookingId: bookingId);
+            },
+            onError: (error) {
+              debugPrint('Location Stream Error: $error');
+              // Resume tracking if it's just a temporary glitch
+              _reconnectTracking(engineerId);
+            },
+            cancelOnError: false,
+          );
+
+      _isTracking = true;
+      _setOnlineStatus(engineerId, true, bookingId: bookingId);
+      return true;
+    } catch (e) {
+      debugPrint('Could not start location stream: $e');
+      return false;
+    }
   }
 
-  /// Stop listening when the app is terminated or you no longer need updates.
-  Future<void> stopLocationUpdates() async {
-    await _positionStream?.cancel();
-    _positionStream = null;
+  /// Attempts to restart tracking if disconnected
+  void _reconnectTracking(String engineerId) {
+    debugPrint('Attempting to reconnect location tracking...');
+    Future.delayed(const Duration(seconds: 10), () {
+      if (_isTracking) startTracking(engineerId);
+    });
+  }
+
+  /// Stops tracking and updates status to offline
+  Future<void> stopTracking(String engineerId) async {
+    try {
+      await _positionSubscription?.cancel();
+    } catch (e) {
+      debugPrint('Error canceling location stream: $e');
+    }
+    _positionSubscription = null;
+    _isTracking = false;
+    _currentEngineerId = null;
+    _setOnlineStatus(engineerId, false);
+  }
+
+  Future<void> updateDatabase(
+    String engineerId,
+    Position position, {
+    String? bookingId,
+  }) async {
+    await _ensureAuthenticated();
+
+    try {
+      final sanitizedId = _sanitizePath(engineerId);
+      final tenantId = ThemeService.instance.databaseName;
+      // Use set() or update() depending on preference. update() is safer for existing data.
+      final ref = _db.ref('$tenantId/engineers/$sanitizedId/location');
+      await ref.update({
+        'lat': position.latitude,
+        'lng': position.longitude,
+        'heading': position.heading,
+        'speed': position.speed,
+        'accuracy': position.accuracy,
+        'lastUpdate': ServerValue.timestamp,
+      });
+
+      // If a booking is active, also sync to the order_tracking node
+      if (bookingId != null) {
+        final sanitizedBookingId = _sanitizePath(bookingId);
+        final orderRef = _db.ref(
+          '$tenantId/order_tracking/$sanitizedBookingId/lastLocation',
+        );
+        await orderRef.update({
+          'lat': position.latitude,
+          'lng': position.longitude,
+          'timestamp': ServerValue.timestamp,
+        });
+      }
+    } catch (e) {
+      debugPrint('Database Update Error: $e');
+      // If internet is gone, we don't crash, we just wait for next update.
+    }
+  }
+
+  Future<void> _updateActiveBooking(String engineerId, String bookingId) async {
+    await _ensureAuthenticated();
+    try {
+      final sanitizedId = _sanitizePath(engineerId);
+      final tenantId = ThemeService.instance.databaseName;
+      await _db.ref('$tenantId/engineers/$sanitizedId').update({
+        'activeBookingId': bookingId,
+      });
+    } catch (e) {
+      debugPrint('Error updating active booking: $e');
+    }
+  }
+
+  Future<void> _setOnlineStatus(
+    String engineerId,
+    bool isOnline, {
+    String? bookingId,
+  }) async {
+    await _ensureAuthenticated();
+    try {
+      final sanitizedId = _sanitizePath(engineerId);
+      final tenantId = ThemeService.instance.databaseName;
+      final ref = _db.ref('$tenantId/engineers/$sanitizedId');
+      final updates = {
+        'isOnline': isOnline,
+        'lastOnline': ServerValue.timestamp,
+      };
+      if (isOnline && bookingId != null) {
+        updates['activeBookingId'] = bookingId;
+      }
+      await ref.update(updates);
+    } catch (e) {
+      debugPrint('Status Update Error: $e');
+    }
+  }
+
+  Future<bool> _handlePermissions() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      debugPrint('LocationService: Location services are disabled.');
+      // Optionally prompt user to enable services
+      return false;
+    }
+
+    LocationPermission permission = await Geolocator.checkPermission();
+
+    if (permission == LocationPermission.denied) {
+      debugPrint('LocationService: Permission denied. Requesting...');
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        debugPrint('LocationService: Permission denied by user.');
+        return false;
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      debugPrint('LocationService: Permission denied forever.');
+      // Users must manually enable in settings
+      return false;
+    }
+
+    // For background tracking on Android and iOS
+    if (defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS) {
+      // Request 'locationAlways' specifically for background support if needed
+      var alwaysStatus = await Permission.locationAlways.status;
+      if (!alwaysStatus.isGranted) {
+        debugPrint(
+          'LocationService: Requesting "Always" permission for background tracking.',
+        );
+        alwaysStatus = await Permission.locationAlways.request();
+
+        if (alwaysStatus.isPermanentlyDenied) {
+          debugPrint(
+            'LocationService: "Always" permission permanently denied.',
+          );
+          // On some versions of Android, user might need to go to settings
+          // openAppSettings();
+        }
+      }
+    }
+
+    debugPrint('LocationService: All necessary permissions granted.');
+    return true;
+  }
+
+  /// Fetches the current position and reverse geocodes it to an address string
+  Future<Map<String, dynamic>?> getCurrentLocationData() async {
+    bool hasPermission = await _handlePermissions();
+    if (!hasPermission) return null;
+
+    try {
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      List<geo.Placemark> placemarks = await geo.placemarkFromCoordinates(
+        position.latitude,
+        position.longitude,
+      );
+
+      String address = "";
+      if (placemarks.isNotEmpty) {
+        geo.Placemark place = placemarks[0];
+        address =
+            "${place.street}, ${place.subLocality}, ${place.locality}, ${place.postalCode}, ${place.country}";
+      }
+
+      return {
+        'latitude': position.latitude,
+        'longitude': position.longitude,
+        'address': address,
+      };
+    } catch (e) {
+      debugPrint('Error getting current location: $e');
+      return null;
+    }
+  }
+
+  /// Diagnostic tool to help verify RTDB connection and permissions
+  Future<void> testConnection(String testId) async {
+    debugPrint('--- LocationService: Diagnostic Test Start ---');
+    await _ensureAuthenticated();
+    final user = _auth.currentUser;
+    if (user == null) {
+      debugPrint('TEST FAILED: No authenticated user session.');
+      return;
+    }
+
+    try {
+      final sanitizedId = _sanitizePath(testId);
+      final tenantId = ThemeService.instance.databaseName;
+      final ref = _db.ref('$tenantId/connection_test/$sanitizedId');
+      await ref.set({
+        'status': 'success',
+        'timestamp': ServerValue.timestamp,
+        'uid': user.uid,
+      });
+      debugPrint(
+        'TEST SUCCESS: Successfully wrote to RTDB node connection_test/$sanitizedId',
+      );
+    } catch (e) {
+      debugPrint('TEST FAILED: RTDB Write Error: $e');
+      debugPrint(
+        'If this is Permission Denied, your Rules or Anonymous Auth are likely misconfigured.',
+      );
+    }
+    debugPrint('--- LocationService: Diagnostic Test End ---');
   }
 }

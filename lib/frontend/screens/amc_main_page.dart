@@ -183,10 +183,10 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
       height: 40,
       decoration: BoxDecoration(
         color: Theme.of(context).primaryColor,
-        borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(30),
-          bottomRight: Radius.circular(30),
-        ),
+        // borderRadius: const BorderRadius.only(
+        //   bottomLeft: Radius.circular(30),
+        //   bottomRight: Radius.circular(30),
+        // ),
       ),
     );
   }
@@ -427,10 +427,10 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
             padding: const EdgeInsets.all(20),
             decoration: const BoxDecoration(
               color: Color(0xFFF8FAFC),
-              borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(24),
-                bottomRight: Radius.circular(24),
-              ),
+              // borderRadius: BorderRadius.only(
+              //   bottomLeft: Radius.circular(24),
+              //   bottomRight: Radius.circular(24),
+              // ),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1779,10 +1779,10 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
       height: 40,
       decoration: BoxDecoration(
         color: Theme.of(context).primaryColor,
-        borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(40),
-          bottomRight: Radius.circular(40),
-        ),
+        // borderRadius: const BorderRadius.only(
+        //   bottomLeft: Radius.circular(40),
+        //   bottomRight: Radius.circular(40),
+        // ),
       ),
     );
   }

@@ -34,7 +34,7 @@ class FirestoreService {
   CollectionReference<Map<String, dynamic>> subscriptionsRef({
     required String tenantId,
     String? appId,
-  }) => collection('subscriptions', tenantId: tenantId, appId: appId);
+  }) => collection('subscription', tenantId: tenantId, appId: appId);
 
   /// Tenant-specific reference for referral codes
   CollectionReference<Map<String, dynamic>> referralCodesRef({
@@ -136,6 +136,7 @@ class FirestoreService {
     required int price,
     int? originalPrice,
     String paymentMethod = 'unknown',
+    String status = 'active', // Add status parameter
     Map<String, dynamic>? brandingData,
     String? appId,
     String? customerMobile, // stored for future payment lookups
@@ -149,8 +150,8 @@ class FirestoreService {
     DateTime nextBilling;
 
     if (planName.toLowerCase().contains('trial')) {
-      // Free Trial is exactly 30 days
-      nextBilling = now.add(const Duration(days: 30));
+      // Free Trial is exactly 7 days
+      nextBilling = now.add(const Duration(days: 7));
     } else if (isYearly) {
       nextBilling = DateTime(now.year + 1, now.month, now.day);
     } else if (isSixMonths) {
@@ -166,7 +167,7 @@ class FirestoreService {
       'price': price,
       'originalPrice': originalPrice,
       'paymentMethod': paymentMethod,
-      'status': 'active',
+      'status': status,
       'startedAt': now.toIso8601String(),
       'nextBillingAt': nextBilling.toIso8601String(),
       'expiresAt':
@@ -192,7 +193,7 @@ class FirestoreService {
   }
 
   /// Check if a user has an active subscription within a tenant
-  /// Also checks if the subscription has expired based on nextBillingAt
+  /// Also checks if the subscription has expired based on expiresAt/nextBillingAt
   Future<bool> hasActiveSubscription({
     required String uid,
     required String tenantId,
@@ -205,27 +206,25 @@ class FirestoreService {
       ).doc(uid).get();
       if (doc.exists && doc.data() != null) {
         final data = doc.data()!;
-        if (data['status'] == 'active') {
-          final expiresAtField = data['expiresAt'];
-          if (expiresAtField != null) {
-            DateTime expiresAt;
-            if (expiresAtField is Timestamp) {
-              expiresAt = expiresAtField.toDate();
-            } else if (expiresAtField is String) {
-              expiresAt = DateTime.parse(expiresAtField);
-            } else {
-              return true; // Unknown format, fail safe to active
-            }
-            return expiresAt.isAfter(DateTime.now());
-          }
-          return true; // No expiry field but active status
+        if (data['status'] != 'active') return false;
+
+        final expiryDate = _getExpiryDate(data);
+        if (expiryDate == null || DateTime.now().toUtc().isAfter(expiryDate)) {
+          // Subscription has expired — mark as expired and deactivate user
+          await subscriptionsRef(
+            tenantId: tenantId,
+            appId: appId,
+          ).doc(uid).update({'status': 'expired'});
+          await setUserActiveStatus(
+            uid: uid,
+            tenantId: tenantId,
+            active: false,
+          );
+          return false;
         }
+        return true;
       }
-    } catch (e) {
-      debugPrint('Error checking subscription: $e');
-      // Return true on network errors or other failures to avoid blocking the user
-      return true;
-    }
+    } catch (_) {}
     return false;
   }
 
@@ -233,46 +232,85 @@ class FirestoreService {
   /// Useful for gating access for non-admin users (Engineers, Customers).
   Future<bool> isTenantActive({required String tenantId, String? appId}) async {
     try {
-      final sub = await getActiveSubscription(tenantId: tenantId, appId: appId);
-      return sub != null;
-    } catch (e) {
-      debugPrint('Error in isTenantActive: $e');
-      return true; // Fail-safe to active on error
-    }
-  }
-
-  /// Get the first active subscription for a tenant
-  Future<Map<String, dynamic>?> getActiveSubscription({
-    required String tenantId,
-    String? appId,
-  }) async {
-    try {
-      final snapshot = await subscriptionsRef(
+      // 1. Check in the specific app-specific bucket (Alen Cho, etc.)
+      var querySnapshot = await subscriptionsRef(
         tenantId: tenantId,
         appId: appId,
       ).where('status', isEqualTo: 'active').limit(1).get();
 
-      if (snapshot.docs.isNotEmpty) {
-        final data = snapshot.docs.first.data();
-        final expiresAtField = data['expiresAt'];
-        if (expiresAtField != null) {
-          DateTime expiresAt;
-          if (expiresAtField is Timestamp) {
-            expiresAt = expiresAtField.toDate();
-          } else if (expiresAtField is String) {
-            expiresAt = DateTime.parse(expiresAtField);
-          } else {
-            return data;
-          }
-          if (expiresAt.isAfter(DateTime.now())) {
-            return data;
-          }
-        } else {
-          return data; // No expiry field but active status
-        }
+      // 2. FALLBACK: Check in the default 'data' bucket if not found or if appId was 'data'
+      if (querySnapshot.docs.isEmpty && appId != 'data' && appId != null) {
+        querySnapshot = await subscriptionsRef(
+          tenantId: tenantId,
+          appId: 'data',
+        ).where('status', isEqualTo: 'active').limit(1).get();
+      }
+
+      if (querySnapshot.docs.isEmpty) return false;
+
+      final doc = querySnapshot.docs.first;
+      final data = doc.data();
+      final expiryDate = _getExpiryDate(data);
+      if (expiryDate == null || DateTime.now().toUtc().isAfter(expiryDate)) {
+        // Found an active doc but it's expired -> Update status to expired
+        await doc.reference.update({'status': 'expired'});
+        // Deactivate the admin user associated with this doc
+        await setUserActiveStatus(
+          uid: doc.id,
+          tenantId: tenantId,
+          active: false,
+        );
+        return false;
+      }
+      return true;
+    } catch (e) {
+      debugPrint('Error checking tenant active status: $e');
+      return false;
+    }
+  }
+
+  /// Fetches the subscription data for a tenant to check for features like geoLocation
+  Future<Map<String, dynamic>?> getTenantSubscriptionData({
+    required String tenantId,
+    String? appId,
+  }) async {
+    try {
+      // 1. Check in the specific app-specific bucket
+      var querySnapshot = await subscriptionsRef(
+        tenantId: tenantId,
+        appId: appId,
+      ).where('status', isEqualTo: 'active').limit(1).get();
+
+      // 2. FALLBACK: Check in the default 'data' bucket
+      if (querySnapshot.docs.isEmpty && appId != 'data' && appId != null) {
+        querySnapshot = await subscriptionsRef(
+          tenantId: tenantId,
+          appId: 'data',
+        ).where('status', isEqualTo: 'active').limit(1).get();
+      }
+
+      if (querySnapshot.docs.isNotEmpty) {
+        return querySnapshot.docs.first.data();
       }
     } catch (e) {
-      debugPrint('Error getting active subscription: $e');
+      debugPrint('Error fetching tenant subscription data: $e');
+    }
+    return null;
+  }
+
+  /// Expiry date helper for timezone consistency
+  DateTime? _getExpiryDate(Map<String, dynamic> data) {
+    final expiresAt = data['expiresAt'];
+    if (expiresAt != null) {
+      if (expiresAt is Timestamp) {
+        return expiresAt.toDate().toUtc();
+      } else if (expiresAt is String) {
+        return DateTime.tryParse(expiresAt)?.toUtc();
+      }
+    }
+    final nextBillingStr = data['nextBillingAt'] as String?;
+    if (nextBillingStr != null) {
+      return DateTime.tryParse(nextBillingStr)?.toUtc();
     }
     return null;
   }
@@ -304,6 +342,49 @@ class FirestoreService {
       }
       return null;
     });
+  }
+
+  // Stream any subscription for a tenant (useful when doc ID is unknown)
+  Stream<Map<String, dynamic>?> streamTenantSubscription(
+    String tenantId, {
+    String? appId,
+  }) {
+    return subscriptionsRef(tenantId: tenantId, appId: appId).snapshots().map((
+      snapshot,
+    ) {
+      if (snapshot.docs.isNotEmpty) {
+        // Try to find one that is active or just return the first one
+        try {
+          return snapshot.docs.firstWhere((doc) {
+            final data = doc.data();
+            return data['status'] == 'active';
+          }).data();
+        } catch (_) {
+          return snapshot.docs.first.data();
+        }
+      }
+      return null;
+    });
+  }
+
+  Future<String?> getActiveSubscriptionAppId({
+    required String tenantId,
+    String? appId,
+  }) async {
+    var querySnapshot = await subscriptionsRef(
+      tenantId: tenantId,
+      appId: appId,
+    ).limit(1).get();
+    if (querySnapshot.docs.isNotEmpty) return appId;
+
+    if (appId != 'data' && appId != null) {
+      querySnapshot = await subscriptionsRef(
+        tenantId: tenantId,
+        appId: 'data',
+      ).limit(1).get();
+      if (querySnapshot.docs.isNotEmpty) return 'data';
+    }
+    return appId;
   }
 
   // Update only branding data for a tenant
@@ -425,6 +506,79 @@ class FirestoreService {
       }
     } catch (e) {
       // debugPrint('Error fetching admin referral code: $e');
+    }
+    return null;
+  }
+
+  /// Save Terms & Conditions acceptance for a user
+  Future<void> saveTermsAndConditionsAcceptance({
+    required String uid,
+    required String tenantId,
+    required DateTime timestamp,
+    String? appId,
+  }) async {
+    try {
+      await collection(
+        'users',
+        tenantId: tenantId,
+        appId: appId,
+      ).doc(uid).update({
+        'termsAndConditionsAccepted': true,
+        'termsAcceptedAt': timestamp.toIso8601String(),
+        'termsAcceptedTimestamp': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      debugPrint('Error saving T&C acceptance: $e');
+      rethrow;
+    }
+  }
+
+  /// Check if a user has accepted Terms & Conditions
+  Future<bool> hasAcceptedTermsAndConditions({
+    required String uid,
+    required String tenantId,
+    String? appId,
+  }) async {
+    try {
+      final doc = await collection(
+        'users',
+        tenantId: tenantId,
+        appId: appId,
+      ).doc(uid).get();
+
+      if (doc.exists && doc.data() != null) {
+        return doc.data()?['termsAndConditionsAccepted'] == true;
+      }
+    } catch (e) {
+      debugPrint('Error checking T&C acceptance: $e');
+    }
+    return false;
+  }
+
+  /// Get Terms & Conditions acceptance details for a user
+  Future<Map<String, dynamic>?> getTermsAndConditionsDetails({
+    required String uid,
+    required String tenantId,
+    String? appId,
+  }) async {
+    try {
+      final doc = await collection(
+        'users',
+        tenantId: tenantId,
+        appId: appId,
+      ).doc(uid).get();
+
+      if (doc.exists && doc.data() != null) {
+        final data = doc.data()!;
+        return {
+          'accepted': data['termsAndConditionsAccepted'] ?? false,
+          'acceptedAt': data['termsAcceptedAt'],
+          'acceptedTimestamp': data['termsAcceptedTimestamp'],
+        };
+      }
+    } catch (e) {
+      debugPrint('Error fetching T&C details: $e');
     }
     return null;
   }

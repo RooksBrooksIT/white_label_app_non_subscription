@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_assigndelivery_page.dart';
 import 'package:subscription_rooks_app/frontend/screens/customer_var_data_screen.dart'
     as customer_var;
@@ -644,6 +645,8 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
       jobType: _getField(data, ['jobType', 'JobType']),
       amount: _getField(data, ['amount']),
       customerid: _getField(data, ['id', 'Id', 'customerid']),
+      customerFileUrl: _getField(data, ['customerFileUrl']),
+      fileName: _getField(data, ['fileName']),
     );
 
     final statusInfo = _getStatusInfo(data);
@@ -1620,6 +1623,64 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
                                           fontWeight: FontWeight.bold,
                                         ),
                                       ),
+                                      if (customer.customerFileUrl != null &&
+                                          customer
+                                              .customerFileUrl!
+                                              .isNotEmpty &&
+                                          customer.customerFileUrl != 'N/A')
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            top: 12.0,
+                                          ),
+                                          child: ElevatedButton.icon(
+                                            onPressed: () async {
+                                              final url = Uri.parse(
+                                                customer.customerFileUrl!,
+                                              );
+                                              if (await canLaunchUrl(url)) {
+                                                await launchUrl(
+                                                  url,
+                                                  mode: LaunchMode
+                                                      .externalApplication,
+                                                );
+                                              } else {
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  const SnackBar(
+                                                    content: Text(
+                                                      'Could not open file',
+                                                    ),
+                                                  ),
+                                                );
+                                              }
+                                            },
+                                            icon: const Icon(
+                                              Icons.file_download_outlined,
+                                              color: Colors.white,
+                                            ),
+                                            label: Text(
+                                              'VIEW / DOWNLOAD (${customer.fileName ?? "Attachment"})',
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor:
+                                                  Colors.blue.shade700,
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    vertical: 14,
+                                                  ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                              elevation: 2,
+                                            ),
+                                          ),
+                                        ),
                                     ],
                                   ),
                                 ),

@@ -202,10 +202,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
           Container(
             decoration: BoxDecoration(
               color: Theme.of(context).primaryColor,
-              borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(24),
-                bottomRight: Radius.circular(24),
-              ),
+
               boxShadow: [
                 BoxShadow(
                   color: Theme.of(context).primaryColor.withOpacity(0.2),

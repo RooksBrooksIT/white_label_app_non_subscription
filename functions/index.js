@@ -106,7 +106,7 @@ async function sendNotification(tenantId, appId, role, userId, payload) {
 
 // 1. HTTP Test Function: Send notification to any user
 // Usage: https://<region>-<project>.cloudfunctions.net/testNotify?tenantId=white-label-app-33300&appId=data&role=engineer&userId=JohnDoe
-exports.testNotify = onRequest(async (req, res) => {
+exports.testNotify = onRequest({ invoker: "public" }, async (req, res) => {
     const { tenantId, appId, role, userId } = req.query;
     if (!tenantId || !appId || !role || !userId) {
         return res.status(400).send("Missing query params: tenantId, appId, role, userId");
@@ -788,7 +788,7 @@ exports.processPaymentSuccess = onDocumentWritten(
             const subscriptionRef = admin.firestore()
                 .collection(tenantId)
                 .doc(appId)
-                .collection("subscriptions")
+                .collection("subscription")
                 .doc(uid);
 
             await subscriptionRef.set({
@@ -802,6 +802,11 @@ exports.processPaymentSuccess = onDocumentWritten(
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                 reminderSent: false, // Reset for new period
                 corporateEmail: recipientEmail,
+                limits: newData.limits || null,
+                geoLocation: newData.geoLocation || false,
+                attendance: newData.attendance || false,
+                barcode: newData.barcode || false,
+                reportExport: newData.reportExport || false,
             }, { merge: true });
 
             console.log(`[LIFECYCLE] Updated subscription for ${uid} | expires=${expiryDate.toISOString()}`);
@@ -811,6 +816,55 @@ exports.processPaymentSuccess = onDocumentWritten(
         }
     });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 5.5. Real-time Payment Activity Logging
+//     Trigger: payments/{txnId} (Any write/update)
+//     Action: Mirrored to {tenantId}/{appId}/payment_logs/{txnId} for auditing.
+// ─────────────────────────────────────────────────────────────────────────────
+exports.logPaymentActivity = onDocumentWritten("payments/{txnId}", async (event) => {
+    const newData = event.data.after ? event.data.after.data() : null;
+    const { txnId } = event.params;
+
+    if (!newData || !newData.tenantId || !newData.appId) {
+        console.warn(`[LOG] Skipping log for ${txnId}: Missing tenantId or appId`);
+        return;
+    }
+
+    const { tenantId, appId } = newData;
+    console.log(`[LOG] Recording activity for TXN: ${txnId} in ${tenantId}/${appId}`);
+
+    try {
+        const logData = {
+            userId: newData.userId || newData.uid || "unknown",
+            planName: newData.planName || "Subscription",
+            transactionId: txnId,
+            paymentAmount: newData.amount || 0,
+            paymentStatus: newData.status || "PENDING",
+            paymentMethod: newData.paymentMethod || newData.paymentMode || "Online",
+            timestamp: newData.updatedAt || admin.firestore.FieldValue.serverTimestamp(),
+            errorMessage: newData.error || null,
+            email: newData.email || null,
+            customerName: newData.customerName || null,
+            // Audit fields
+            loggedAt: admin.firestore.FieldValue.serverTimestamp(),
+            source: "Cloud Function Trigger"
+        };
+
+        // Write to tenant-specific logs collection
+        // Using txnId as the doc ID ensures we update the existing log rather than duplicating
+        await admin.firestore()
+            .collection(tenantId)
+            .doc(appId)
+            .collection("payment_logs")
+            .doc(txnId)
+            .set(logData, { merge: true });
+
+        console.log(`[LOG] ✅ Successfully logged activity for ${txnId}`);
+    } catch (error) {
+        console.error(`[LOG ERROR] Failed to log payment activity for ${txnId}:`, error.message);
+    }
+});
+
 /**
  * ─────────────────────────────────────────────────────────────────────────────
  * OTP & Password Reset Logic
@@ -818,7 +872,7 @@ exports.processPaymentSuccess = onDocumentWritten(
  */
 
 // 7. Send OTP for Forgot Password
-exports.sendOTP = onRequest(async (req, res) => {
+exports.sendOTP = onRequest({ invoker: "public" }, async (req, res) => {
     // Handle CORS
     res.set('Access-Control-Allow-Origin', '*');
     if (req.method === 'OPTIONS') {
@@ -887,7 +941,7 @@ exports.sendOTP = onRequest(async (req, res) => {
 });
 
 // 8. Verify OTP and Reset Password
-exports.verifyOTPAndResetPassword = onRequest(async (req, res) => {
+exports.verifyOTPAndResetPassword = onRequest({ invoker: "public" }, async (req, res) => {
     // Handle CORS
     res.set('Access-Control-Allow-Origin', '*');
     if (req.method === 'OPTIONS') {
@@ -922,49 +976,27 @@ exports.verifyOTPAndResetPassword = onRequest(async (req, res) => {
             return res.status(400).send({ data: { success: false, message: "OTP has expired" } });
         }
 
-        // 2. Find User and Tenant via Global Directory
-        // (Avoiding collectionGroup here as it requires an index which might be missing)
+        // 2. Find User in Firebase Auth
         const userRecord = await admin.auth().getUserByEmail(email);
         const uid = userRecord.uid;
-
-        const globalUserDoc = await admin.firestore().collection("global_user_directory").doc(uid).get();
-        if (!globalUserDoc.exists) {
-            return res.status(400).send({ data: { success: false, message: "User directory record not found. Please contact support." } });
-        }
-
-        const tenantId = globalUserDoc.data().tenantId;
-        if (!tenantId) {
-            return res.status(500).send({ data: { success: false, message: "No tenant associated with this user." } });
-        }
 
         // 3. Update Password in Firebase Auth
         await admin.auth().updateUser(uid, {
             password: newPassword
         });
 
-        // 4. Update Password in Tenant-Specific Collections
-        const batch = admin.firestore().batch();
-
-        // 4a. Update in 'users' collection (New Architecture)
-        const userRef = admin.firestore().collection(tenantId).doc("data").collection("users").doc(uid);
-        batch.set(userRef, { password: newPassword, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
-
-        // 4b. Update in legacy 'admin' collection (Backward Compatibility)
-        // We look for a document in the tenant's admin collection with the matching email
-        const adminSnapshot = await admin.firestore().collection(tenantId).doc("data").collection("admin").where("email", "==", email).get();
-        if (!adminSnapshot.empty) {
-            adminSnapshot.docs.forEach(doc => {
-                batch.update(doc.ref, { password: newPassword });
-            });
+        // 4. Update Password in legacy 'admin' collection (Backward Compatibility)
+        // Find tenantId for this admin
+        const legacySnapshot = await admin.firestore().collectionGroup("admin").where("email", "==", email).get();
+        if (!legacySnapshot.empty) {
+            const updatePromises = legacySnapshot.docs.map(doc => doc.ref.update({ password: newPassword }));
+            await Promise.all(updatePromises);
         }
 
-        // 5. Execute Updates
-        await batch.commit();
-
-        // 6. Cleanup OTP
+        // 5. Cleanup OTP
         await admin.firestore().collection("otps").doc(email).delete();
 
-        console.log(`[PASSWORD RESET] Successfully updated for ${email} in tenant ${tenantId}`);
+        console.log(`[PASSWORD RESET] Successfully updated for ${email}`);
         res.send({ data: { success: true, message: "Password reset successfully" } });
 
     } catch (error) {
@@ -979,7 +1011,13 @@ exports.verifyOTPAndResetPassword = onRequest(async (req, res) => {
  * ─────────────────────────────────────────────────────────────────────────────
  * Checks for active subscriptions expiring in 3 days and sends a reminder.
  */
-exports.checkSubscriptionExpiryReminders = onSchedule("0 9 * * *", async (event) => {
+exports.checkSubscriptionExpiryReminders = onSchedule({
+    schedule:   "0 9 * * *",
+    timeZone:   "Asia/Kolkata",
+    retryCount: 0,
+    memory:     "256MiB",
+}, async (event) => {
+
     console.log("[SCHEDULER] Running daily subscription reminders check at 09:00 AM IST...");
 
     const now = new Date();
@@ -1123,7 +1161,7 @@ exports.checkSubscriptionExpiryReminders = onSchedule("0 9 * * *", async (event)
 // ─────────────────────────────────────────────────────────────────────────────
 // 6. Temporary HTTP Trigger for Testing Subscription Expiry (Manual)
 // ─────────────────────────────────────────────────────────────────────────────
-exports.testExpiryReminder = onRequest(async (req, res) => {
+exports.testExpiryReminder = onRequest({ invoker: "public" }, async (req, res) => {
     console.log("[TEST] Manually triggering subscription reminders check...");
 
     const now = new Date();
@@ -1183,3 +1221,93 @@ exports.testExpiryReminder = onRequest(async (req, res) => {
         res.status(500).send("Error: " + error.message);
     }
 });
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * 7. Payment Reconciliation Scheduler (Hourly)
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Automatically recovers PENDING payments that were never completed by 
+ * verifying their status with ICICI Bank after 30 minutes.
+ */
+exports.reconcileStuckPayments = onSchedule({
+    schedule:   "0 * * * *", // Every hour
+    timeZone:   "Asia/Kolkata",
+    retryCount: 1,
+    memory:     "256MiB",
+}, async (event) => {
+    console.log("[RECONCILE] Running hourly payment reconciliation...");
+
+    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+    const iciciService = require("./src/icici_service");
+
+    try {
+        const pendingSnap = await admin.firestore()
+            .collection("payments")
+            .where("status", "==", "PENDING")
+            .where("createdAt", "<=", admin.firestore.Timestamp.fromDate(thirtyMinutesAgo))
+            .limit(50)
+            .get();
+
+        if (pendingSnap.empty) {
+            console.log("[RECONCILE] No stuck PENDING payments found.");
+            return;
+        }
+
+        console.log(`[RECONCILE] Found ${pendingSnap.size} stuck payments. Starting verification...`);
+
+        const reconcilePromises = pendingSnap.docs.map(async (doc) => {
+            const txnId = doc.id;
+            const data = doc.data();
+
+            try {
+                const verifyResult = await iciciService.statusCheck(txnId);
+                if (!verifyResult.success) return;
+
+                const statusData = verifyResult.data;
+                const respCode = statusData?.RESPONSE_CODE || statusData?.responseCode || statusData?.respHeader?.returnCode;
+
+                let finalStatus = "PENDING";
+                if (respCode === "0" || respCode === "00" || respCode === "SUCCESS" || respCode === "200") {
+                    finalStatus = "SUCCESS";
+                } else if (respCode === "1" || respCode === "99" || respCode === "FAILED") {
+                    finalStatus = "FAILED";
+                }
+
+                if (finalStatus !== "PENDING") {
+                    console.log(`[RECONCILE] Updating ${txnId} to ${finalStatus}`);
+                    await doc.ref.update({
+                        status: finalStatus,
+                        reconciledAt: admin.firestore.FieldValue.serverTimestamp(),
+                        iciciResponse: { reconciliation: statusData }
+                    });
+
+                    // Trigger successful payment logic if needed (Receipts, etc.)
+                    // This will be handled by the 'onDocumentWritten' trigger for processPaymentSuccess
+                }
+            } catch (err) {
+                console.error(`[RECONCILE ERROR] Failed for ${txnId}:`, err.message);
+            }
+        });
+
+        await Promise.all(reconcilePromises);
+        console.log("[RECONCILE] ✅ Hourly reconciliation completed.");
+    } catch (error) {
+        console.error("[RECONCILE FATAL]", error);
+    }
+});
+
+// ===== ICICI PAYMENT GATEWAY FUNCTIONS =====
+const iciciFunctions = require("./src/iciciPaymentFunctions");
+
+// processRefund  → called by Flutter admin panel for refunds
+// paymentCallback → webhook called by ICICI after payment
+// verifyPayment   → called by Flutter app to poll status
+exports.processRefund    = iciciFunctions.processRefund;
+exports.paymentCallback  = iciciFunctions.paymentCallback;
+exports.verifyPayment    = iciciFunctions.verifyPayment;
+
+// ===== CARD, NET BANKING & UPI PAYMENT SESSION =====
+// Primary payment initiation endpoint — handles CARD, NETBANKING, UPI
+const { createPaymentSession } = require("./src/createPaymentSession");
+exports.createPaymentSession = createPaymentSession;
+

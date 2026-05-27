@@ -239,7 +239,9 @@ class _AdminLoginState extends State<AdminLogin> {
                         ),
                         TextButton(
                           onPressed: () async {
-                            final Uri url = Uri.parse('https://sites.google.com/view/rooks-white-label-app/home');
+                            final Uri url = Uri.parse(
+                              'https://sites.google.com/view/rooks-white-label-app/home',
+                            );
                             if (!await launchUrl(url)) {
                               debugPrint('Could not launch $url');
                             }
