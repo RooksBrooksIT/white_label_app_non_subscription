@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:subscription_rooks_app/frontend/screens/admin_tickets_overview.dart';
 import 'package:subscription_rooks_app/services/notification_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:intl/intl.dart';
@@ -198,7 +199,18 @@ class AdminNotificationsPage extends StatelessWidget {
         notification['id'],
       );
     }
-    // You can add navigation logic here based on notification type if needed
+
+    final bookingId = notification['bookingId'];
+    if (bookingId != null && bookingId.toString().isNotEmpty) {
+      // Navigate to the tickets overview with a filter or search
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) =>
+              AdminPage_CusDetails(statusFilter: "", searchQuery: bookingId),
+        ),
+      );
+    }
   }
 
   void _markAllAsRead(BuildContext context, String tenantId, String appId) {

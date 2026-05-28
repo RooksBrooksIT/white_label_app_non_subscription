@@ -5,16 +5,19 @@ import 'package:intl/intl.dart';
 import 'dart:math';
 import 'package:subscription_rooks_app/frontend/screens/admin_assign_engineer_page.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_geo_location_screen.dart';
+import 'package:subscription_rooks_app/services/notification_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:subscription_rooks_app/frontend/screens/customer_var_data_screen.dart'
     as customer_var;
 
 class AdminPage_CusDetails extends StatefulWidget {
   final customer_var.Customer? newCustomer;
+  final String? searchQuery;
   const AdminPage_CusDetails({
     super.key,
     this.newCustomer,
     required String statusFilter,
+    this.searchQuery,
   });
 
   @override
@@ -29,6 +32,10 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
   @override
   void initState() {
     super.initState();
+    if (widget.searchQuery != null) {
+      searchQuery = widget.searchQuery!;
+      _searchController.text = widget.searchQuery!;
+    }
   }
 
   // Calculate working days between two dates (excludes Sat/Sun)
@@ -2225,27 +2232,15 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                             });
 
                                         // Add notification for Admin (Acknowledged)
-                                        try {
-                                          await FirestoreService.instance
-                                              .collection('notifications')
-                                              .add({
-                                                'audience': 'admin',
-                                                'title': 'Ticket Acknowledged',
-                                                'body':
-                                                    'You have scheduled an appointment for ticket ${customer.bookingId} (${customer.customerName})',
-                                                'timestamp':
-                                                    FieldValue.serverTimestamp(),
-                                                'seen': false,
-                                                'type': 'ticket_acknowledged',
-                                                'bookingId': customer.bookingId,
-                                                'customerName':
-                                                    customer.customerName,
-                                              });
-                                        } catch (e) {
-                                          debugPrint(
-                                            'Error adding admin notification: $e',
-                                          );
-                                        }
+                                        await NotificationService.sendNotificationToFirestore(
+                                          audience: 'admin',
+                                          title: 'Ticket Acknowledged',
+                                          body:
+                                              'You have scheduled an appointment for ticket ${customer.bookingId} (${customer.customerName})',
+                                          type: 'ticket_acknowledged',
+                                          bookingId: customer.bookingId,
+                                          customerName: customer.customerName,
+                                        );
 
                                         // Show success message
                                         ScaffoldMessenger.of(
@@ -2436,44 +2431,26 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                       .update({'adminStatus': 'Canceled'});
 
                                   // Add notifications for Admin and Customer
-                                  try {
-                                    // Notification for Customer
-                                    await FirestoreService.instance
-                                        .collection('notifications')
-                                        .add({
-                                          'audience': 'customer',
-                                          'customerId': customer.customerid,
-                                          'title': 'Ticket Canceled',
-                                          'body':
-                                              'Your ticket ${customer.bookingId} has been canceled by the administrator.',
-                                          'timestamp':
-                                              FieldValue.serverTimestamp(),
-                                          'seen': false,
-                                          'type': 'ticket_canceled',
-                                          'bookingId': customer.bookingId,
-                                          'customerName': customer.customerName,
-                                        });
+                                  await NotificationService.sendNotificationToFirestore(
+                                    audience: 'customer',
+                                    customerId: customer.customerid,
+                                    title: 'Ticket Canceled',
+                                    body:
+                                        'Your ticket ${customer.bookingId} has been canceled by the administrator.',
+                                    type: 'ticket_canceled',
+                                    bookingId: customer.bookingId,
+                                    customerName: customer.customerName,
+                                  );
 
-                                    // Notification for Admin
-                                    await FirestoreService.instance
-                                        .collection('notifications')
-                                        .add({
-                                          'audience': 'admin',
-                                          'title': 'Ticket Canceled',
-                                          'body':
-                                              'You have canceled ticket ${customer.bookingId} (${customer.customerName})',
-                                          'timestamp':
-                                              FieldValue.serverTimestamp(),
-                                          'seen': false,
-                                          'type': 'ticket_canceled',
-                                          'bookingId': customer.bookingId,
-                                          'customerName': customer.customerName,
-                                        });
-                                  } catch (e) {
-                                    debugPrint(
-                                      'Error adding notifications: $e',
-                                    );
-                                  }
+                                  await NotificationService.sendNotificationToFirestore(
+                                    audience: 'admin',
+                                    title: 'Ticket Canceled',
+                                    body:
+                                        'You have canceled ticket ${customer.bookingId} (${customer.customerName})',
+                                    type: 'ticket_canceled',
+                                    bookingId: customer.bookingId,
+                                    customerName: customer.customerName,
+                                  );
 
                                   Navigator.pop(context);
                                   ScaffoldMessenger.of(context).showSnackBar(

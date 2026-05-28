@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/frontend/screens/assign_confirmation_page.dart';
 import 'package:subscription_rooks_app/frontend/screens/customer_var_data_screen.dart';
+import 'package:subscription_rooks_app/services/notification_service.dart';
 
 class AssignEngineerPage extends StatefulWidget {
   final Customer customer;
@@ -591,25 +592,15 @@ class _AssignEngineerPageState extends State<AssignEngineerPage> {
       // Also write an in-app notification document so engineers
       // currently online in the app will receive an immediate dialog
       // via the EngineerPage's notifications listener.
-      try {
-        // Create a notification document targeted specifically to engineers.
-        // Avoid adding a top-level `customerName` field so customer listeners
-        // (which filter by customerName) do not pick up engineer notifications.
-        await FirestoreService.instance.collection('notifications').add({
-          'engineerName': engineerName,
-          'type': 'new_assignment',
-          'bookingId': widget.customer.bookingId,
-          'body': 'You have been assigned a new task: ${widget.customer.bookingId}',
-          'audience': 'engineer',
-          'timestamp': FieldValue.serverTimestamp(),
-          'processed': false,
-          'status': 'pending',
-          'customerName': widget.customer.customerName,
-        });
-      } catch (e) {
-        // non-fatal - assignment already persisted; log for debugging
-        print('Failed to write notification doc: $e');
-      }
+      await NotificationService.sendNotificationToFirestore(
+        audience: 'engineer',
+        engineerName: engineerName,
+        type: 'new_assignment',
+        bookingId: widget.customer.bookingId,
+        body: 'You have been assigned a new task: ${widget.customer.bookingId}',
+        customerName: widget.customer.customerName,
+        additionalData: {'processed': false, 'status': 'pending'}, title: '',
+      );
 
       if (mounted) {
         setState(() => _isAssigning = false);

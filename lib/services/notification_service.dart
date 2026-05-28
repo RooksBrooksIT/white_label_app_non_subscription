@@ -251,6 +251,45 @@ class NotificationService {
     );
   }
 
+  /// Sends a notification to Firestore to be picked up by the targeted audience
+  static Future<void> sendNotificationToFirestore({
+    required String audience,
+    required String title,
+    required String body,
+    String? type,
+    String? bookingId,
+    String? customerId,
+    String? customerName,
+    String? engineerName,
+    Map<String, dynamic>? additionalData,
+  }) async {
+    try {
+      final Map<String, dynamic> notificationData = {
+        'audience': audience,
+        'title': title,
+        'body': body,
+        'timestamp': FieldValue.serverTimestamp(),
+        'seen': false,
+        'type': type,
+        'bookingId': bookingId,
+        'customerId': customerId,
+        'customerName': customerName,
+        'engineerName': engineerName,
+      };
+
+      if (additionalData != null) {
+        notificationData.addAll(additionalData);
+      }
+
+      await FirestoreService.instance
+          .collection('notifications')
+          .add(notificationData);
+      LoggerUtil.i("Notification sent to Firestore for audience: $audience");
+    } catch (e) {
+      LoggerUtil.e("Error sending notification to Firestore: $e");
+    }
+  }
+
   /// Marks all notifications as seen for an admin
   Future<void> markAllNotificationsAsRead(String tenantId, String appId) async {
     try {

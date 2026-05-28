@@ -383,20 +383,15 @@ class _AmcCustomerHomePageState extends State<AmcCustomerHomePage> {
             .set(adminData);
 
         // Add real-time notification for Admin
-        try {
-          await FirestoreService.instance.collection('notifications').add({
-            'audience': 'admin',
-            'title': 'New Ticket Received',
-            'body': 'A new ticket ($bookingId) has been raised by ${_customerNameController.text}',
-            'timestamp': FieldValue.serverTimestamp(),
-            'seen': false,
-            'type': 'new_ticket',
-            'bookingId': bookingId,
-            'customerName': _customerNameController.text,
-          });
-        } catch (e) {
-          debugPrint('Error adding admin notification: $e');
-        }
+        await NotificationService.sendNotificationToFirestore(
+          audience: 'admin',
+          title: 'New Ticket Received',
+          body:
+              'A new ticket ($bookingId) has been raised by ${_customerNameController.text}',
+          type: 'new_ticket',
+          bookingId: bookingId,
+          customerName: _customerNameController.text,
+        );
 
         if (!mounted) return;
         showDialog(
