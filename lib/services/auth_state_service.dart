@@ -67,9 +67,22 @@ class AuthStateService extends ChangeNotifier {
     required String password,
     required String role,
     Map<String, dynamic>? additionalData,
-    bool deferFirestore = false,
+    bool deferAuth = false,
   }) async {
     try {
+      if (deferAuth) {
+        // Just store the data in memory for now
+        _pendingRegistrationData = {
+          'name': name,
+          'email': email,
+          'password': password,
+          'role': role,
+          'additionalData': additionalData,
+        };
+        debugPrint('Account registration deferred for $email');
+        return {'success': true, 'message': 'Account details saved locally.'};
+      }
+
       final auth = FirebaseAuth.instance;
 
       // 1. Check if user is already logged in with same email
@@ -115,11 +128,6 @@ class AuthStateService extends ChangeNotifier {
         'additionalData': additionalData,
       };
 
-      if (deferFirestore) {
-        debugPrint('Firestore save deferred for $uid');
-        return {'success': true, 'uid': uid};
-      }
-
       return await finalizeRegistration();
     } on FirebaseAuthException catch (e) {
       debugPrint('Registration Error (FirebaseAuth): ${e.code} - ${e.message}');
@@ -130,6 +138,54 @@ class AuthStateService extends ChangeNotifier {
     } catch (e) {
       debugPrint('Registration Error (App): $e');
       return {'success': false, 'message': 'System Error: ${e.toString()}'};
+    }
+  }
+
+  /// Creates the actual Firebase Auth account and then the Firestore records.
+  /// Used after successful payment for new users.
+  Future<Map<String, dynamic>> createAndFinalizeAccount() async {
+    if (_pendingRegistrationData == null) {
+      return {
+        'success': false,
+        'message': 'No pending registration data found.',
+      };
+    }
+
+    try {
+      final name = _pendingRegistrationData!['name'];
+      final email = _pendingRegistrationData!['email'];
+      final password = _pendingRegistrationData!['password'];
+
+      final auth = FirebaseAuth.instance;
+      UserCredential? userCredential;
+
+      // 1. Create the Auth account if not already logged in
+      if (auth.currentUser == null || auth.currentUser!.email != email) {
+        try {
+          userCredential = await auth.createUserWithEmailAndPassword(
+            email: email,
+            password: password,
+          );
+        } on FirebaseAuthException catch (e) {
+          if (e.code == 'email-already-in-use') {
+            userCredential = await auth.signInWithEmailAndPassword(
+              email: email,
+              password: password,
+            );
+          } else {
+            rethrow;
+          }
+        }
+      }
+
+      final uid = auth.currentUser!.uid;
+      _pendingRegistrationData!['uid'] = uid;
+
+      // 2. Now call the standard finalization to create Firestore records
+      return await finalizeRegistration();
+    } catch (e) {
+      debugPrint('Error creating and finalizing account: $e');
+      return {'success': false, 'message': e.toString()};
     }
   }
 

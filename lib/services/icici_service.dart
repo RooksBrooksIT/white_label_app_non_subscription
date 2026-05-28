@@ -21,7 +21,8 @@ class IciciPaymentResponse {
     return IciciPaymentResponse(
       success: json['success'] ?? false,
       txnId: json['txnId'] as String?,
-      redirectUrl: (json['upiQR'] as String?) ?? (json['redirectUrl'] as String?),
+      redirectUrl:
+          (json['upiQR'] as String?) ?? (json['redirectUrl'] as String?),
       error: json['error'] as String?,
     );
   }
@@ -31,16 +32,19 @@ class IciciService {
   IciciService._();
   static final IciciService instance = IciciService._();
 
-  static const String _baseUrl = 'https://us-central1-white-label-app-33300.cloudfunctions.net';
+  static const String _baseUrl =
+      'https://us-central1-white-label-app-33300.cloudfunctions.net';
   static const String returnUrl = '$_baseUrl/paymentReturn';
   static const String _createSessionUrl = '$_baseUrl/createPaymentSession';
   static const String _processRefundUrl = '$_baseUrl/processRefund';
   static const String _verifyPaymentUrl = '$_baseUrl/verifyPayment';
 
-  final Dio _dio = Dio(BaseOptions(
-    connectTimeout: const Duration(seconds: 30),
-    receiveTimeout: const Duration(seconds: 30),
-  ));
+  final Dio _dio = Dio(
+    BaseOptions(
+      connectTimeout: const Duration(seconds: 30),
+      receiveTimeout: const Duration(seconds: 30),
+    ),
+  );
 
   /// Initiates a standard ICICI Payment Session (Cards, NetBanking, UPI)
   Future<IciciPaymentResponse> initiatePayment({
@@ -105,7 +109,6 @@ class IciciService {
       );
 
       return IciciPaymentResponse.fromJson(response.data);
-
     } on DioException catch (e) {
       debugPrint('$TAG Dio Error Data: ${e.response?.data}');
       return IciciPaymentResponse(
@@ -133,10 +136,13 @@ class IciciService {
           .collection('users')
           .doc(uid)
           .get();
-          
+
       if (userDoc.exists) {
         final data = userDoc.data();
-        phone = (data?['customerMobile'] as String?) ?? (data?['phone'] as String?) ?? '';
+        phone =
+            (data?['customerMobile'] as String?) ??
+            (data?['phone'] as String?) ??
+            '';
         name = (data?['name'] as String?) ?? 'Customer';
       }
     } catch (e) {
@@ -197,21 +203,20 @@ class IciciService {
     const TAG = '[ICICI-VERIFY]';
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) throw Exception('User not authenticated');
+      String? idToken;
+      if (user != null) {
+        idToken = await user.getIdToken();
+      }
 
-      final idToken = await user.getIdToken();
       final response = await _dio.post(
         _verifyPaymentUrl,
         options: Options(
           headers: {
-            'Authorization': 'Bearer $idToken',
+            if (idToken != null) 'Authorization': 'Bearer $idToken',
             'Content-Type': 'application/json',
           },
         ),
-        data: {
-          'txnId': txnId,
-          'userId': user.uid,
-        },
+        data: {'txnId': txnId, if (user != null) 'userId': user.uid},
       );
 
       return response.data as Map<String, dynamic>;

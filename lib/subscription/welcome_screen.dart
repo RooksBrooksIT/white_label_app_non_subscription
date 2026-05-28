@@ -12,6 +12,7 @@ class WelcomeScreen extends StatefulWidget {
   @override
   State<WelcomeScreen> createState() => _WelcomeScreenState();
 }
+
 class _WelcomeScreenState extends State<WelcomeScreen>
     with SingleTickerProviderStateMixin {
   int _currentStep = 1;
@@ -102,33 +103,49 @@ class _WelcomeScreenState extends State<WelcomeScreen>
 
     if (_selectedRole == 'admin') {
       // For Admins: Defer registration until after payment
-      final tenantId = FirestoreService.generateTenantId(_nameController.text.trim());
-      final pendingUserData = {
-        'name': _nameController.text.trim(),
-        'email': _emailController.text.trim(),
-        'password': _passwordController.text.trim(),
-        'role': _selectedRole,
-        'tenantId': tenantId,
-        ...extraData,
-      };
+      final result = await AuthStateService.instance.registerUser(
+        name: _nameController.text.trim(),
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+        role: _selectedRole,
+        additionalData: extraData.isNotEmpty ? extraData : null,
+        deferAuth: true,
+      );
 
       setState(() => _isLoading = false);
       if (!mounted) return;
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Account details saved. Now choose your plan.'),
-        ),
-      );
-      
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => SubscriptionPlansScreen(
-            pendingUserData: pendingUserData,
+
+      if (result['success']) {
+        final tenantId = FirestoreService.generateTenantId(
+          _nameController.text.trim(),
+        );
+        final pendingUserData = {
+          'name': _nameController.text.trim(),
+          'email': _emailController.text.trim(),
+          'password': _passwordController.text.trim(),
+          'role': _selectedRole,
+          'tenantId': tenantId,
+          ...extraData,
+        };
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Account details saved. Now choose your plan.'),
           ),
-        ),
-      );
+        );
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) =>
+                SubscriptionPlansScreen(pendingUserData: pendingUserData),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result['message'] ?? 'Failed to save data')),
+        );
+      }
       return;
     }
 
@@ -139,8 +156,6 @@ class _WelcomeScreenState extends State<WelcomeScreen>
       password: _passwordController.text.trim(),
       role: _selectedRole,
       additionalData: extraData.isNotEmpty ? extraData : null,
-      deferFirestore:
-          _selectedRole == 'admin', // Defer for admin to wait for payment
     );
 
     if (!mounted) return;

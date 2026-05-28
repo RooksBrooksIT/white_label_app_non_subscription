@@ -201,58 +201,67 @@ class _PaymentScreenState extends State<PaymentScreen>
 
     if (isSuccess) {
       // Payment is genuinely successful
-      final uid = AuthStateService.instance.currentUser?.uid;
+      String? uid = AuthStateService.instance.currentUser?.uid;
 
-      if (uid != null) {
-        try {
-          // 1. Finalize registration in Firestore only after verified success
-          final finalizeResult = await AuthStateService.instance
-              .finalizeRegistration();
-
-          if (finalizeResult['success'] == true) {
-            final tenantId = ThemeService.instance.databaseName;
-
-            // 2. Set user as active
-            await FirestoreService.instance.setUserActiveStatus(
-              uid: uid,
-              tenantId: tenantId,
-              active: true,
-            );
-
-            // 3. Save subscription details
-            await FirestoreService.instance.upsertSubscription(
-              uid: uid,
-              tenantId: tenantId,
-              appId: 'data',
-              planName: widget.planName,
-              isYearly: widget.isYearly,
-              isSixMonths: widget.isSixMonths,
-              price: widget.price,
-              originalPrice: widget.originalPrice,
-              paymentMethod: selectedPaymentMethod,
-              status: 'active',
-              limits: widget.limits,
-              geoLocation: widget.geoLocation,
-              attendance: widget.attendance,
-              barcode: widget.barcode,
-              reportExport: widget.reportExport,
-            );
-
-            // 4. Finally navigate to success screen
-            _navigateToSuccess(txnId);
+      try {
+        // If we have pending user data, register/create the user now
+        if (widget.pendingUserData != null && uid == null) {
+          final result = await AuthStateService.instance
+              .createAndFinalizeAccount();
+          if (result['success']) {
+            uid = result['uid'];
+            // Update the payment document with the real UID
+            await FirebaseFirestore.instance
+                .collection('payments')
+                .doc(txnId)
+                .update({'uid': uid, 'userId': uid});
           } else {
             throw Exception(
-              finalizeResult['message'] ??
-                  'Failed to finalize registration data.',
+              result['message'] ?? 'Failed to create and finalize account.',
             );
           }
-        } catch (e) {
-          debugPrint('Critical Error after successful payment: $e');
-          // Even if Firestore fails, the payment was successful.
-          // We show success but log the error for manual intervention if needed.
-          _navigateToSuccess(txnId);
+        } else if (uid != null) {
+          // Existing user upgrading - just finalize any pending Firestore logic if needed
+          await AuthStateService.instance.finalizeRegistration();
         }
-      } else {
+
+        if (uid != null) {
+          final tenantId =
+              widget.pendingUserData?['tenantId'] ??
+              ThemeService.instance.databaseName;
+
+          // 2. Set user as active
+          await FirestoreService.instance.setUserActiveStatus(
+            uid: uid,
+            tenantId: tenantId,
+            active: true,
+          );
+
+          // 3. Save subscription details
+          await FirestoreService.instance.upsertSubscription(
+            uid: uid,
+            tenantId: tenantId,
+            appId: 'data',
+            planName: widget.planName,
+            isYearly: widget.isYearly,
+            isSixMonths: widget.isSixMonths,
+            price: widget.price,
+            originalPrice: widget.originalPrice,
+            paymentMethod: selectedPaymentMethod,
+            status: 'active',
+            limits: widget.limits,
+            geoLocation: widget.geoLocation,
+            attendance: widget.attendance,
+            barcode: widget.barcode,
+            reportExport: widget.reportExport,
+          );
+        }
+
+        // 4. Finally navigate to success screen
+        _navigateToSuccess(txnId);
+      } catch (e) {
+        debugPrint('Critical Error after successful payment: $e');
+        // Even if Firestore fails, the payment was successful.
         _navigateToSuccess(txnId);
       }
     } else if (isPending) {

@@ -807,7 +807,14 @@ exports.processPaymentSuccess = onDocumentWritten(
                 startedAt: admin.firestore.FieldValue.serverTimestamp(),
                 expiresAt: admin.firestore.Timestamp.fromDate(expiryDate),
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                reminderSent: false, // Reset for new period
+                reminderSent: false, // Legacy field
+                remindersSent: {
+                    twoDay: false,
+                    oneDay: false,
+                },
+                reminder3DaysSentAt: null,
+                reminder2DaysSentAt: null,
+                reminder1DaySentAt: null,
                 corporateEmail: recipientEmail,
                 limits: newData.limits || null,
                 geoLocation: newData.geoLocation || false,
@@ -1082,31 +1089,69 @@ exports.checkSubscriptionExpiryReminders = onSchedule({
             const tenantId = pathSegments[0];
             const appId = pathSegments[1];
 
-            // ─── LOGIC 1: 3-Day Expiry Warning ───
+            // ─── LOGIC 1: Expiry Warning Reminders (3, 2, and 1 day) ───
             const diffDays = Math.ceil((expiryDate - now) / (1000 * 60 * 60 * 24));
+            const formattedExpiry = expiryDate.toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" });
 
-            if (diffDays === 3 && !subData.reminder3DaysSentAt) {
-                console.log(`[SCHEDULER] Sending 3-day reminder for ${uid} in ${tenantId}`);
+            if ((diffDays === 3 && !subData.reminder3DaysSentAt) || 
+                (diffDays === 2 && !subData.reminder2DaysSentAt) || 
+                (diffDays === 1 && !subData.reminder1DaySentAt)) {
+                
+                let dayLabel = `${diffDays} days`;
+                if (diffDays === 1) dayLabel = "24 hours";
+                
+                console.log(`[SCHEDULER] Sending ${dayLabel} reminder for ${uid} in ${tenantId}`);
 
-                const formattedExpiry = expiryDate.toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" });
-                const title = "Subscription Expiring Soon";
-                const body = `Your ${planName} subscription will expire in 3 days (${formattedExpiry}). Please renew to avoid service loss.`;
+                const title = `Subscription Expiring in ${dayLabel}`;
+                const body = `Your ${planName} subscription will expire in ${dayLabel} (${formattedExpiry}). Please renew to avoid service loss.`;
 
-                // 1. Email
+                // 1. Email Template
+                const emailHtml = `
+                    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
+                        <div style="background-color: ${BRAND_BLUE}; padding: 20px; text-align: center;">
+                            <h1 style="color: white; margin: 0; font-size: 24px;">Subscription Reminder</h1>
+                        </div>
+                        <div style="padding: 30px; color: #333; line-height: 1.6;">
+                            <p>Hello,</p>
+                            <p>This is a reminder that your <strong>${planName}</strong> subscription is about to expire.</p>
+                            
+                            <div style="background-color: ${BRAND_BLUE_LIGHT}; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${BRAND_BLUE};">
+                                <p style="margin: 0;"><strong>Expiry Date:</strong> ${formattedExpiry}</p>
+                                <p style="margin: 5px 0 0 0;"><strong>Time Remaining:</strong> ${dayLabel}</p>
+                            </div>
+
+                            <p>To ensure uninterrupted access to your features and data, please renew or upgrade your plan.</p>
+                            
+                            <div style="text-align: center; margin: 30px 0;">
+                                <a href="https://rookstechnologies.com/renew" style="background-color: ${BRAND_BLUE}; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Renew Subscription</a>
+                            </div>
+
+                            <p style="font-size: 14px; color: #666;">If you have already renewed, please ignore this email. Thank you for choosing ${process.env.COMPANY_NAME || "Rooks And Brooks"}.</p>
+                        </div>
+                        <div style="background-color: #f9f9f9; padding: 20px; text-align: center; font-size: 12px; color: #999; border-top: 1px solid #eeeeee;">
+                            <p style="margin: 0;">&copy; ${new Date().getFullYear()} ${process.env.COMPANY_NAME || "Rooks And Brooks"}. All rights reserved.</p>
+                        </div>
+                    </div>
+                `;
+
                 if (recipientEmail) {
                     await admin.firestore().collection("mail").add({
                         to: recipientEmail,
                         message: {
-                            subject: 'Urgent: 3 Days Remaining for Your Subscription',
-                            html: `<p>Your <strong>${planName}</strong> expires on <strong>${formattedExpiry}</strong>.</p><p>Please renew your plan soon.</p>`,
+                            subject: `Urgent: ${dayLabel} Remaining for Your Subscription`,
+                            html: emailHtml,
                         },
                         createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                        type: "expiry_3day_warning"
+                        type: `expiry_${diffDays}day_warning`
                     });
                 }
 
                 // 2. Push & In-App
-                await sendNotification(tenantId, appId, "admin", uid, { notification: { title, body }, data: { type: "expiry_3day" } });
+                await sendNotification(tenantId, appId, "admin", uid, { 
+                    notification: { title, body }, 
+                    data: { type: `expiry_${diffDays}day`, expiryDate: formattedExpiry } 
+                });
+
                 await admin.firestore().collection(tenantId).doc(appId).collection("notifications").add({
                     customerId: uid,
                     title,
@@ -1116,7 +1161,11 @@ exports.checkSubscriptionExpiryReminders = onSchedule({
                     type: "subscription_expiry"
                 });
 
-                await doc.ref.update({ reminder3DaysSentAt: admin.firestore.FieldValue.serverTimestamp() });
+                // Update correct flag
+                const updateField = diffDays === 3 ? "reminder3DaysSentAt" : 
+                                   diffDays === 2 ? "reminder2DaysSentAt" : "reminder1DaySentAt";
+                
+                await doc.ref.update({ [updateField]: admin.firestore.FieldValue.serverTimestamp() });
             }
 
             // ─── LOGIC 2: Monthly Status for 6-Month/Yearly ───
@@ -1215,12 +1264,15 @@ exports.testExpiryReminder = onRequest({ invoker: "public" }, async (req, res) =
 
             const diffDays = Math.ceil((expiryDate - now) / (1000 * 60 * 60 * 24));
 
-            if (diffDays === 3) {
-                results.push(`3-DAY TRIGGER: ${uid} in ${tenantId}`);
+            if (diffDays === 3 || diffDays === 2 || diffDays === 1) {
+                results.push(`${diffDays}-DAY TRIGGER: ${uid} in ${tenantId}`);
                 // In test mode, we don't check for sentAt flags to allow repeated tests
                 await admin.firestore().collection("mail").add({
                     to: recipientEmail || "support@rookstechnologies.com",
-                    message: { subject: '[TEST] 3-Day Warning', html: `<p>Expiring on ${expiryDate.toLocaleDateString()}</p>` },
+                    message: { 
+                        subject: `[TEST] ${diffDays}-Day Warning`, 
+                        html: `<p>Expiring on ${expiryDate.toLocaleDateString()}</p>` 
+                    },
                     createdAt: admin.firestore.FieldValue.serverTimestamp()
                 });
             }
