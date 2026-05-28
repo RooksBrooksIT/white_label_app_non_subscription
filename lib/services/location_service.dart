@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart' as geo;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/foundation.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
+import 'package:subscription_rooks_app/services/firestore_service.dart';
 
 class LocationService {
   static final LocationService instance = LocationService._internal();
@@ -18,7 +20,7 @@ class LocationService {
   bool _isTracking = false;
   bool get isTracking => _isTracking;
   String? _currentEngineerId;
-
+  DateTime? _lastFirestoreUpdate;
   String _sanitizePath(String path) {
     return path.replaceAll(RegExp(r'[.#$\[\]/]'), '_');
   }
@@ -134,14 +136,28 @@ class LocationService {
       final tenantId = ThemeService.instance.databaseName;
       // Use set() or update() depending on preference. update() is safer for existing data.
       final ref = _db.ref('$tenantId/engineers/$sanitizedId/location');
-      await ref.update({
+      final updateData = {
         'lat': position.latitude,
         'lng': position.longitude,
         'heading': position.heading,
         'speed': position.speed,
         'accuracy': position.accuracy,
         'lastUpdate': ServerValue.timestamp,
-      });
+      };
+
+      try {
+        await ref.update(updateData);
+      } catch (e) {
+        // If the existing location node was a primitive (String, etc), update() fails. Fallback to set().
+        await ref.set(updateData);
+      }
+
+      // 5-minute Firestore heartbeat
+      final now = DateTime.now();
+      if (_lastFirestoreUpdate == null || now.difference(_lastFirestoreUpdate!).inMinutes >= 5) {
+        _lastFirestoreUpdate = now;
+        _updateFirestoreHeartbeat(engineerId, position);
+      }
 
       // If a booking is active, also sync to the order_tracking node
       if (bookingId != null) {
@@ -158,6 +174,27 @@ class LocationService {
     } catch (e) {
       debugPrint('Database Update Error: $e');
       // If internet is gone, we don't crash, we just wait for next update.
+    }
+  }
+
+  Future<void> _updateFirestoreHeartbeat(String engineerId, Position position) async {
+    try {
+      final querySnapshot = await FirestoreService.instance
+          .collection('EngineerLogin')
+          .where('Username', isEqualTo: engineerId)
+          .limit(1)
+          .get();
+
+      if (querySnapshot.docs.isNotEmpty) {
+        final docId = querySnapshot.docs.first.id;
+        await FirestoreService.instance.collection('EngineerLogin').doc(docId).update({
+          'latitude': position.latitude,
+          'longitude': position.longitude,
+          'lastUpdatedTime': FieldValue.serverTimestamp(),
+        });
+      }
+    } catch (e) {
+      debugPrint('Firestore Heartbeat Error: $e');
     }
   }
 
