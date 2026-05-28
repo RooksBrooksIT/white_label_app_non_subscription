@@ -4,6 +4,7 @@ import 'package:subscription_rooks_app/frontend/screens/admin_tickets_overview.d
 import 'package:subscription_rooks_app/services/notification_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:intl/intl.dart';
+import 'package:subscription_rooks_app/models/notification_model.dart';
 
 class AdminNotificationsPage extends StatelessWidget {
   const AdminNotificationsPage({super.key});
@@ -11,7 +12,6 @@ class AdminNotificationsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tenantId = ThemeService.instance.databaseName;
-    final appId = ThemeService.instance.appName;
     final primaryColor = ThemeService.instance.primaryColor;
 
     return Scaffold(
@@ -27,14 +27,13 @@ class AdminNotificationsPage extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.done_all, color: Colors.white),
             tooltip: 'Mark all as read',
-            onPressed: () => _markAllAsRead(context, tenantId, appId),
+            onPressed: () => _markAllAsRead(context, tenantId),
           ),
         ],
       ),
       body: StreamBuilder<List<Map<String, dynamic>>>(
         stream: NotificationService.instance.getAdminNotificationsStream(
           tenantId,
-          appId,
         ),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -45,7 +44,24 @@ class AdminNotificationsPage extends StatelessWidget {
             return Center(child: Text('Error: ${snapshot.error}'));
           }
 
-          final notifications = snapshot.data ?? [];
+          final rawNotifications = snapshot.data ?? [];
+          final notifications = rawNotifications
+              .map(
+                (data) => NotificationModel(
+                  id: data['id'],
+                  title: data['title'] ?? 'No Title',
+                  body: data['body'] ?? 'No Content',
+                  timestamp:
+                      (data['timestamp'] as Timestamp?)?.toDate() ??
+                      DateTime.now(),
+                  seen: data['seen'] ?? false,
+                  type: data['type'],
+                  bookingId: data['bookingId'],
+                  customerName: data['customerName'],
+                  audience: data['audience'],
+                ),
+              )
+              .toList();
 
           if (notifications.isEmpty) {
             return Center(
@@ -76,13 +92,10 @@ class AdminNotificationsPage extends StatelessWidget {
             itemCount: notifications.length,
             itemBuilder: (context, index) {
               final notification = notifications[index];
-              final isSeen = notification['seen'] ?? false;
-              final timestamp =
-                  (notification['timestamp'] as Timestamp?)?.toDate() ??
-                  DateTime.now();
+              final isSeen = notification.seen;
               final formattedDate = DateFormat(
                 'MMM d, h:mm a',
-              ).format(timestamp);
+              ).format(notification.timestamp);
 
               return Container(
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -113,12 +126,12 @@ class AdminNotificationsPage extends StatelessWidget {
                         ? Colors.grey[200]
                         : primaryColor.withOpacity(0.1),
                     child: Icon(
-                      _getIconForType(notification['type']),
+                      _getIconForType(notification.type),
                       color: isSeen ? Colors.grey[600] : primaryColor,
                     ),
                   ),
                   title: Text(
-                    notification['title'] ?? 'No Title',
+                    notification.title,
                     style: TextStyle(
                       fontWeight: isSeen ? FontWeight.normal : FontWeight.bold,
                       fontSize: 16,
@@ -130,7 +143,7 @@ class AdminNotificationsPage extends StatelessWidget {
                     children: [
                       const SizedBox(height: 4),
                       Text(
-                        notification['body'] ?? 'No Content',
+                        notification.body,
                         style: TextStyle(color: Colors.grey[600], fontSize: 14),
                       ),
                       const SizedBox(height: 8),
@@ -150,12 +163,8 @@ class AdminNotificationsPage extends StatelessWidget {
                           ),
                         )
                       : null,
-                  onTap: () => _handleNotificationTap(
-                    context,
-                    tenantId,
-                    appId,
-                    notification,
-                  ),
+                  onTap: () =>
+                      _handleNotificationTap(context, tenantId, notification),
                 ),
               );
             },
@@ -181,6 +190,8 @@ class AdminNotificationsPage extends StatelessWidget {
         return Icons.cancel_presentation_rounded;
       case 'monthly_status':
         return Icons.calendar_today;
+      case 'subscription_expiry':
+        return Icons.warning_amber_rounded;
       default:
         return Icons.notifications;
     }
@@ -189,18 +200,16 @@ class AdminNotificationsPage extends StatelessWidget {
   void _handleNotificationTap(
     BuildContext context,
     String tenantId,
-    String appId,
-    Map<String, dynamic> notification,
+    NotificationModel notification,
   ) {
-    if (!(notification['seen'] ?? false)) {
+    if (!notification.seen) {
       NotificationService.instance.markNotificationAsRead(
         tenantId,
-        appId,
-        notification['id'],
+        notification.id,
       );
     }
 
-    final bookingId = notification['bookingId'];
+    final bookingId = notification.bookingId;
     if (bookingId != null && bookingId.toString().isNotEmpty) {
       // Navigate to the tickets overview with a filter or search
       Navigator.push(
@@ -213,8 +222,8 @@ class AdminNotificationsPage extends StatelessWidget {
     }
   }
 
-  void _markAllAsRead(BuildContext context, String tenantId, String appId) {
-    NotificationService.instance.markAllNotificationsAsRead(tenantId, appId);
+  void _markAllAsRead(BuildContext context, String tenantId) {
+    NotificationService.instance.markAllNotificationsAsRead(tenantId);
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('All notifications marked as read')),
     );

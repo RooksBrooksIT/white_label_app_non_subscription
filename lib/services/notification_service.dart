@@ -291,7 +291,10 @@ class NotificationService {
   }
 
   /// Marks all notifications as seen for an admin
-  Future<void> markAllNotificationsAsRead(String tenantId, String appId) async {
+  Future<void> markAllNotificationsAsRead(
+    String tenantId, {
+    String? appId,
+  }) async {
     try {
       final query = await FirestoreService.instance
           .collection('notifications', tenantId: tenantId, appId: appId)
@@ -312,9 +315,9 @@ class NotificationService {
   /// Marks a specific notification as seen
   Future<void> markNotificationAsRead(
     String tenantId,
-    String appId,
-    String notificationId,
-  ) async {
+    String notificationId, {
+    String? appId,
+  }) async {
     try {
       await FirestoreService.instance
           .collection('notifications', tenantId: tenantId, appId: appId)
@@ -327,9 +330,9 @@ class NotificationService {
 
   /// Stream of admin notifications
   Stream<List<Map<String, dynamic>>> getAdminNotificationsStream(
-    String tenantId,
-    String appId,
-  ) {
+    String tenantId, {
+    String? appId,
+  }) {
     return FirestoreService.instance
         .collection('notifications', tenantId: tenantId, appId: appId)
         .where('audience', isEqualTo: 'admin')
@@ -356,9 +359,9 @@ class NotificationService {
 
   /// Stream of unread admin notifications count
   Stream<int> getUnreadAdminNotificationsCountStream(
-    String tenantId,
-    String appId,
-  ) {
+    String tenantId, {
+    String? appId,
+  }) {
     return FirestoreService.instance
         .collection('notifications', tenantId: tenantId, appId: appId)
         .where('audience', isEqualTo: 'admin')

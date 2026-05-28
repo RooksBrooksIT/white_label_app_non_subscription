@@ -104,6 +104,26 @@ async function sendNotification(tenantId, appId, role, userId, payload) {
     }
 }
 
+/**
+ * Creates a persistent notification document in Firestore.
+ **/
+async function createPersistentNotification(tenantId, appId, payload) {
+    try {
+        await admin.firestore()
+            .collection(tenantId)
+            .doc(appId)
+            .collection("notifications")
+            .add({
+                ...payload,
+                timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                seen: false
+            });
+        console.log(`[SUCCESS] Persistent notification created for ${payload.audience || "unknown audience"}`);
+    } catch (error) {
+        console.error(`[SYSTEM ERROR] createPersistentNotification failed:`, error);
+    }
+}
+
 // 1. HTTP Test Function: Send notification to any user
 // Usage: https://<region>-<project>.cloudfunctions.net/testNotify?tenantId=white-label-app-33300&appId=data&role=engineer&userId=JohnDoe
 exports.testNotify = onRequest({ invoker: "public" }, async (req, res) => {
@@ -193,6 +213,16 @@ exports.handleTicketCreation = onDocumentCreated("{tenantId}/{appId}/Admin_detai
 
         await Promise.all(promises);
         console.log(`[SUCCESS] Notified ${adminsSnapshot.size} admin devices`);
+
+        // 2. Create persistent notification for admins
+        await createPersistentNotification(tenantId, appId, {
+            audience: "admin",
+            title: payload.notification.title,
+            body: payload.notification.body,
+            type: payload.data.type,
+            bookingId: payload.data.bookingId,
+            customerName: ticketData.customerName || "a customer"
+        });
     } catch (e) {
         console.error("[SYSTEM ERROR] onTicketRaised failed:", e);
     }
@@ -241,20 +271,15 @@ exports.handleTicketStatusUpdate = onDocumentUpdated("{tenantId}/{appId}/Admin_d
             await sendNotification(tenantId, appId, "customer", newData.id, customerPayload);
 
             // Also create an in-app notification document for the customer banner
-            await admin.firestore()
-                .collection(tenantId)
-                .doc(appId)
-                .collection("notifications")
-                .add({
-                    customerId: newData.id,
-                    customerName: newData.customerName || "",
-                    bookingId: bookingId,
-                    title: "Ticket Assigned",
-                    body: `Your ticket (${bookingId}) has been assigned to ${newData.assignedEmployee}`,
-                    timestamp: admin.firestore.FieldValue.serverTimestamp(),
-                    seen: false,
-                    type: "ticket_assigned"
-                });
+            await createPersistentNotification(tenantId, appId, {
+                audience: "customer",
+                customerId: newData.id,
+                customerName: newData.customerName || "",
+                bookingId: bookingId,
+                title: "Ticket Assigned",
+                body: `Your ticket (${bookingId}) has been assigned to ${newData.assignedEmployee}`,
+                type: "ticket_assigned"
+            });
         }
     }
 
@@ -283,20 +308,15 @@ exports.handleTicketStatusUpdate = onDocumentUpdated("{tenantId}/{appId}/Admin_d
             await sendNotification(tenantId, appId, "customer", newData.id, payload);
 
             // Also create an in-app notification document for the banner
-            await admin.firestore()
-                .collection(tenantId)
-                .doc(appId)
-                .collection("notifications")
-                .add({
-                    customerId: newData.id,
-                    customerName: newData.customerName || "",
-                    bookingId: bookingId,
-                    title: "Ticket Update",
-                    body: `Your ticket (${bookingId}) status is now: ${currentStatus}`,
-                    timestamp: admin.firestore.FieldValue.serverTimestamp(),
-                    seen: false,
-                    type: "status_update"
-                });
+            await createPersistentNotification(tenantId, appId, {
+                audience: "customer",
+                customerId: newData.id,
+                customerName: newData.customerName || "",
+                bookingId: bookingId,
+                title: "Ticket Update",
+                body: `Your ticket (${bookingId}) status is now: ${currentStatus}`,
+                type: "status_update"
+            });
         }
 
         // 2. Notify Admins if engineerStatus changed
@@ -332,27 +352,34 @@ exports.handleTicketStatusUpdate = onDocumentUpdated("{tenantId}/{appId}/Admin_d
                 await Promise.all(adminPromises);
                 console.log(`[SUCCESS] Notified ${adminsSnapshot.size} admins about engineer status update.`);
             }
+
+            // Also create a persistent notification for admins
+            await createPersistentNotification(tenantId, appId, {
+                audience: "admin",
+                title: adminPayload.notification.title,
+                body: adminPayload.notification.body,
+                type: adminPayload.data.type,
+                bookingId: adminPayload.data.bookingId,
+                status: adminPayload.data.status,
+                engineerName: adminPayload.data.engineerName
+            });
         }
     }
 });
 
-// 4. Send Email via Nodemailer when a document is created in the "mail" collection
-exports.processMailDocument = onDocumentCreated("mail/{docId}", async (event) => {
-    const data = event.data.data();
-    if (!data || !data.to) {
-        console.error("[EMAIL] Skipping: Missing 'to' field.");
-        return;
-    }
+// 4. Send Email via Nodemailer when a document is created or updated in the "mail" collection
+exports.processMailDocument = onDocumentWritten("mail/{docId}", async (event) => {
+    const data = event.data.after ? event.data.after.data() : null;
+    
+    // Skip if document was deleted or missing required fields
+    if (!data || !data.to) return;
+
+    // Only process if status is pending. 
+    // RETRY status is handled by the scheduledEmailRetry function which resets it to PENDING.
+    const status = data.status || { state: "PENDING" };
+    if (status.state !== "PENDING") return;
 
     const nodemailer = require("nodemailer");
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // ACTION REQUIRED: Replace YOUR_GMAIL_APP_PASSWORD with your Gmail App
-    // Password. Generate one at:
-    //   myaccount.google.com → Security → 2-Step Verification → App Passwords
-    // For production, store this in Firebase Secret Manager:
-    //   firebase functions:secrets:set GMAIL_APP_PASSWORD
-    // ─────────────────────────────────────────────────────────────────────────
     const transporter = nodemailer.createTransport({
         host: process.env.SMTP_HOST || "smtp.hostinger.com",
         port: parseInt(process.env.SMTP_PORT || "465"),
@@ -363,8 +390,6 @@ exports.processMailDocument = onDocumentCreated("mail/{docId}", async (event) =>
         },
     });
 
-    console.log(`[EMAIL] Attempting to send using ${process.env.SMTP_USER || "support@rookstechnologies.com"}`);
-
     const mailOptions = {
         from: `"${process.env.COMPANY_NAME || "Rooks And Brooks"}" <${process.env.SMTP_USER || "support@rookstechnologies.com"}>`,
         to: data.to,
@@ -374,28 +399,62 @@ exports.processMailDocument = onDocumentCreated("mail/{docId}", async (event) =>
             filename: att.filename,
             content: att.content,
             encoding: "base64",
-            contentType: att.contentType, // Added contentType for better attachment handling
+            contentType: att.contentType,
         })),
     };
 
     try {
-        console.log(`[EMAIL] Sending to ${data.to} | Subject: "${data.message.subject}"`);
+        console.log(`[EMAIL] Attempting to send to ${data.to} | Subject: "${data.message.subject}"`);
         await transporter.sendMail(mailOptions);
         console.log(`[EMAIL] Successfully sent to ${data.to}`);
 
-        return event.data.ref.update({
-            status: { state: "SENT", sentAt: admin.firestore.FieldValue.serverTimestamp() },
+        return event.data.after.ref.update({
+            status: { 
+                state: "SENT", 
+                sentAt: admin.firestore.FieldValue.serverTimestamp(),
+                attempts: (status.attempts || 0) + 1
+            },
         });
     } catch (error) {
-        console.error(`[EMAIL ERROR] Failed to send to ${data.to}:`, error.message);
-        return event.data.ref.update({
+        const attempts = (status.attempts || 0) + 1;
+        const maxAttempts = 3;
+        const canRetry = attempts < maxAttempts;
+
+        console.error(`[EMAIL ERROR] Attempt ${attempts}/${maxAttempts} failed for ${data.to}:`, error.message);
+
+        return event.data.after.ref.update({
             status: {
-                state: "ERROR",
+                state: canRetry ? "RETRY" : "ERROR",
                 error: error.message,
                 failedAt: admin.firestore.FieldValue.serverTimestamp(),
+                attempts: attempts,
+                nextRetryAt: canRetry ? admin.firestore.Timestamp.fromDate(new Date(Date.now() + (Math.pow(2, attempts) * 60000))) : null // Exponential backoff
             },
         });
     }
+});
+
+// 4.5. Scheduled Email Retry
+//     Schedule: Every 30 minutes
+//     Action: Resets documents in 'RETRY' state back to 'PENDING' if their nextRetryAt has passed.
+exports.scheduledEmailRetry = onSchedule("*/30 * * * *", async (event) => {
+    const db = admin.firestore();
+    const now = admin.firestore.Timestamp.now();
+
+    const snapshot = await db.collection("mail")
+        .where("status.state", "==", "RETRY")
+        .get();
+
+    const promises = [];
+    snapshot.forEach(doc => {
+        const data = doc.data();
+        if (data.status.nextRetryAt && data.status.nextRetryAt.toDate() <= now.toDate()) {
+            console.log(`[EMAIL RETRY] Resetting ${doc.id} for another attempt.`);
+            promises.push(doc.ref.update({ "status.state": "PENDING" }));
+        }
+    });
+
+    return Promise.all(promises);
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -887,11 +946,246 @@ exports.logPaymentActivity = onDocumentWritten("payments/{txnId}", async (event)
     }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 10. Automated Subscription Expiry Reminders
+//     Schedule: Daily at 09:00 AM IST (03:30 AM UTC)
+//     Action: Scans all active subscriptions and sends emails 2 days and 1 day before expiry.
+// ─────────────────────────────────────────────────────────────────────────────
+exports.scheduledSubscriptionReminders = onSchedule("0 3 * * *", async (event) => {
+    console.log("[REMINDER] Starting daily subscription expiry check...");
+    const now = new Date();
+    const db = admin.firestore();
+
+    try {
+        // Query all active subscriptions across all tenants
+        const subscriptionsSnapshot = await db.collectionGroup("subscription")
+            .where("status", "==", "active")
+            .get();
+
+        console.log(`[REMINDER] Found ${subscriptionsSnapshot.size} active subscriptions to check.`);
+
+        const promises = [];
+
+        for (const doc of subscriptionsSnapshot.docs) {
+            const data = doc.data();
+            const expiresAt = data.expiresAt ? data.expiresAt.toDate() : null;
+
+            if (!expiresAt) continue;
+
+            const diffTime = expiresAt.getTime() - now.getTime();
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            let reminderType = null;
+            const remindersSent = data.remindersSent || { twoDay: false, oneDay: false };
+
+            if (diffDays === 2 && !remindersSent.twoDay) {
+                reminderType = "twoDay";
+            } else if (diffDays === 1 && !remindersSent.oneDay) {
+                reminderType = "oneDay";
+            }
+
+            if (reminderType) {
+                promises.push(sendExpiryReminder(doc.ref, data, expiresAt, reminderType));
+            }
+        }
+
+        await Promise.all(promises);
+        console.log(`[REMINDER] Daily check completed. Processed ${promises.length} reminders.`);
+    } catch (error) {
+        console.error("[REMINDER ERROR] Failed to process scheduled reminders:", error);
+    }
+});
+
 /**
- * ─────────────────────────────────────────────────────────────────────────────
- * OTP & Password Reset Logic
- * ─────────────────────────────────────────────────────────────────────────────
+ * Helper to send expiry reminder email and update document
  */
+async function sendExpiryReminder(docRef, data, expiresAt, type) {
+    const db = admin.firestore();
+    const uid = docRef.id;
+    const pathSegments = docRef.path.split("/");
+    const tenantId = pathSegments[0];
+    const planName = data.planName || "Subscription Plan";
+    const formattedExpiry = expiresAt.toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" });
+
+    // 1. Determine recipient email
+    let recipientEmail = data.corporateEmail;
+
+    if (!recipientEmail) {
+        // Fallback: Check user document in tenant
+        const userDoc = await db.collection(tenantId).doc("data")
+            .collection("users").doc(uid).get();
+        if (userDoc.exists) {
+            recipientEmail = userDoc.data().email;
+        }
+    }
+
+    if (!recipientEmail) {
+        // Final fallback: Auth
+        try {
+            const authUser = await admin.auth().getUser(uid);
+            recipientEmail = authUser.email;
+        } catch (e) {
+            console.warn(`[REMINDER] Could not find email for user ${uid} in tenant ${tenantId}`);
+            return;
+        }
+    }
+
+    if (!recipientEmail) return;
+
+    console.log(`[REMINDER] Sending ${type} reminder to ${recipientEmail} for plan ${planName}`);
+
+    // 2. Generate Email Content
+    const daysLeft = type === "twoDay" ? 2 : 1;
+    const subject = `Urgent: Your ${planName} expires in ${daysLeft} day${daysLeft > 1 ? "s" : ""}!`;
+
+    const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Subscription Expiry Reminder</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #F4F6F9; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #F4F6F9; padding: 40px 0;">
+        <tr>
+            <td align="center">
+                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+                    <!-- Header -->
+                    <tr>
+                        <td style="background-color: #1A237E; padding: 40px; text-align: center;">
+                            <h1 style="color: #ffffff; margin: 0; font-size: 24px;">Subscription Expiring Soon</h1>
+                        </td>
+                    </tr>
+                    <!-- Body -->
+                    <tr>
+                        <td style="padding: 40px;">
+                            <p style="font-size: 16px; color: #333; line-height: 1.6; margin-top: 0;">
+                                Hello,
+                            </p>
+                            <p style="font-size: 16px; color: #333; line-height: 1.6;">
+                                This is a friendly reminder that your <strong>${planName}</strong> is set to expire in <strong>${daysLeft} day${daysLeft > 1 ? "s" : ""}</strong> on <strong>${formattedExpiry}</strong>.
+                            </p>
+                            <p style="font-size: 16px; color: #333; line-height: 1.6;">
+                                To ensure uninterrupted access to all our professional tools and features, we recommend renewing your plan today.
+                            </p>
+
+                            <!-- Plan Details Box -->
+                            <div style="background-color: #F8F9FA; border-radius: 8px; padding: 20px; margin: 30px 0; border-left: 4px solid #1A237E;">
+                                <table width="100%">
+                                    <tr>
+                                        <td style="color: #666; font-size: 14px; padding-bottom: 5px;">Plan Name:</td>
+                                        <td align="right" style="color: #1A237E; font-weight: bold;">${planName}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="color: #666; font-size: 14px;">Expiry Date:</td>
+                                        <td align="right" style="color: #1A237E; font-weight: bold;">${formattedExpiry}</td>
+                                    </tr>
+                                </table>
+                            </div>
+
+                            <p style="font-size: 16px; color: #333; line-height: 1.6; text-align: center;">
+                                Click the button below to renew your subscription:
+                            </p>
+
+                            <div style="text-align: center; margin-top: 30px;">
+                                <a href="https://rookstechnologies.com/renew" style="background-color: #1A237E; color: #ffffff; padding: 15px 35px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                                    Renew Subscription Now
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    <!-- Footer -->
+                    <tr>
+                        <td style="padding: 30px; border-top: 1px solid #EEEEEE; text-align: center;">
+                            <p style="font-size: 12px; color: #999; margin: 0;">
+                                &copy; ${new Date().getFullYear()} Rooks & Brooks Technologies. All rights reserved.
+                            </p>
+                            <p style="font-size: 12px; color: #999; margin: 10px 0 0;">
+                                Support: support@rookstechnologies.com
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
+    `;
+
+    // 3. Queue Email
+    await db.collection("mail").add({
+        to: recipientEmail,
+        message: {
+            subject: subject,
+            html: htmlContent,
+        },
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        type: "expiry_reminder",
+        reminderType: type,
+        uid: uid,
+        tenantId: tenantId,
+    });
+
+    // 4. Update Subscription Record to prevent duplicates
+    const updateData = {};
+    updateData[`remindersSent.${type}`] = true;
+    updateData[`reminder${type === "twoDay" ? "2Days" : "1Day"}SentAt`] = admin.firestore.FieldValue.serverTimestamp();
+
+    await docRef.update(updateData);
+    console.log(`[REMINDER] ✅ ${type} reminder queued and recorded for ${recipientEmail}`);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 11. HTTP Test Function: Manually trigger expiry checks
+// ─────────────────────────────────────────────────────────────────────────────
+exports.testExpiryReminders = onRequest({ invoker: "public" }, async (req, res) => {
+    console.log("[HTTP TEST] Manually triggering expiry reminders...");
+    const now = new Date();
+    const db = admin.firestore();
+
+    try {
+        const subscriptionsSnapshot = await db.collectionGroup("subscription")
+            .where("status", "==", "active")
+            .get();
+
+        const results = [];
+
+        for (const doc of subscriptionsSnapshot.docs) {
+            const data = doc.data();
+            const expiresAt = data.expiresAt ? data.expiresAt.toDate() : null;
+
+            if (!expiresAt) continue;
+
+            const diffTime = expiresAt.getTime() - now.getTime();
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            let reminderType = null;
+            const remindersSent = data.remindersSent || { twoDay: false, oneDay: false };
+
+            if (diffDays === 2 && !remindersSent.twoDay) {
+                reminderType = "twoDay";
+            } else if (diffDays === 1 && !remindersSent.oneDay) {
+                reminderType = "oneDay";
+            }
+
+            if (reminderType) {
+                await sendExpiryReminder(doc.ref, data, expiresAt, reminderType);
+                results.push({ uid: doc.id, type: reminderType, email: data.corporateEmail || "unknown" });
+            }
+        }
+
+        res.send({
+            success: true,
+            message: `Processed ${results.length} reminders.`,
+            details: results
+        });
+    } catch (error) {
+        console.error("[HTTP TEST ERROR]", error);
+        res.status(500).send({ success: false, error: error.message });
+    }
+});
 
 // 7. Send OTP for Forgot Password
 exports.sendOTP = onRequest({ invoker: "public" }, async (req, res) => {
@@ -1152,12 +1446,11 @@ exports.checkSubscriptionExpiryReminders = onSchedule({
                     data: { type: `expiry_${diffDays}day`, expiryDate: formattedExpiry } 
                 });
 
-                await admin.firestore().collection(tenantId).doc(appId).collection("notifications").add({
+                await createPersistentNotification(tenantId, appId, {
+                    audience: "admin",
                     customerId: uid,
                     title,
                     body,
-                    timestamp: admin.firestore.FieldValue.serverTimestamp(),
-                    seen: false,
                     type: "subscription_expiry"
                 });
 
@@ -1199,12 +1492,11 @@ exports.checkSubscriptionExpiryReminders = onSchedule({
 
                         // 2. Push & In-App
                         await sendNotification(tenantId, appId, "admin", uid, { notification: { title, body }, data: { type: "monthly_status" } });
-                        await admin.firestore().collection(tenantId).doc(appId).collection("notifications").add({
+                        await createPersistentNotification(tenantId, appId, {
+                            audience: "admin",
                             customerId: uid,
                             title,
                             body,
-                            timestamp: admin.firestore.FieldValue.serverTimestamp(),
-                            seen: false,
                             type: "monthly_status"
                         });
 

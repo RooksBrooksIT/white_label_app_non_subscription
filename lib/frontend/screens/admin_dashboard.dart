@@ -117,10 +117,9 @@ class _admindashboardState extends State<admindashboard> {
 
   void _initAdminNotificationListener() {
     final tenantId = ThemeService.instance.databaseName;
-    final appId = ThemeService.instance.appName;
 
     _adminNotificationSubscription = FirestoreService.instance
-        .collection('notifications', tenantId: tenantId, appId: appId)
+        .collection('notifications', tenantId: tenantId)
         .where('audience', isEqualTo: 'admin')
         .where('seen', isEqualTo: false)
         .snapshots()
@@ -597,7 +596,6 @@ class _admindashboardState extends State<admindashboard> {
           stream: NotificationService.instance
               .getUnreadAdminNotificationsCountStream(
                 ThemeService.instance.databaseName,
-                ThemeService.instance.appName,
               ),
           builder: (context, snapshot) {
             final unreadCount = snapshot.data ?? 0;
@@ -692,7 +690,9 @@ class _admindashboardState extends State<admindashboard> {
                           ),
                           child: CircleAvatar(
                             radius: 30,
-                            backgroundColor: Colors.white.withValues(alpha: 0.2),
+                            backgroundColor: Colors.white.withValues(
+                              alpha: 0.2,
+                            ),
                             backgroundImage:
                                 ThemeService.instance.logoUrl != null
                                 ? NetworkImage(ThemeService.instance.logoUrl!)
