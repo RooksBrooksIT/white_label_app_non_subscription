@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -34,6 +35,7 @@ import 'package:subscription_rooks_app/frontend/screens/admin_transactions_scree
 import 'package:subscription_rooks_app/frontend/screens/about_us_screen.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/frontend/screens/contact_us_screen.dart';
+import 'package:subscription_rooks_app/frontend/screens/admin_notifications_page.dart';
 
 class admindashboard extends StatefulWidget {
   const admindashboard({super.key});
@@ -61,6 +63,7 @@ class _admindashboardState extends State<admindashboard> {
   bool _hasAttendanceFeature = true;
   bool _hasBarcodeFeature = true;
   bool _hasGeoLocationFeature = true;
+  StreamSubscription<QuerySnapshot>? _adminNotificationSubscription;
 
   // Dynamic Color Palette from ThemeService
   late Color primaryColor;
@@ -89,10 +92,12 @@ class _admindashboardState extends State<admindashboard> {
   @override
   void dispose() {
     ThemeService.instance.removeListener(_onThemeChanged);
+    _adminNotificationSubscription?.cancel();
     super.dispose();
   }
 
   void _initStreams() {
+    _initAdminNotificationListener();
     AdminDashboardBackend.getEngineerUpdateCountStream().listen((count) {
       if (mounted) setState(() => engineerUpdateCount = count);
     });
@@ -108,6 +113,34 @@ class _admindashboardState extends State<admindashboard> {
     AdminDashboardBackend.getPendingTicketsStream().listen((count) {
       if (mounted) setState(() => pendingTickets = count);
     });
+  }
+
+  void _initAdminNotificationListener() {
+    final tenantId = ThemeService.instance.databaseName;
+    final appId = ThemeService.instance.appName;
+
+    _adminNotificationSubscription = FirestoreService.instance
+        .collection('notifications', tenantId: tenantId, appId: appId)
+        .where('audience', isEqualTo: 'admin')
+        .where('seen', isEqualTo: false)
+        .snapshots()
+        .listen((snapshot) {
+          for (var change in snapshot.docChanges) {
+            if (change.type == DocumentChangeType.added) {
+              final data = change.doc.data() as Map<String, dynamic>?;
+              if (data != null) {
+                final title = data['title'] ?? 'New Notification';
+                final body = data['body'] ?? '';
+
+                // Show local notification for foreground updates
+                NotificationService.instance.showNotification(
+                  title: title,
+                  body: body,
+                );
+              }
+            }
+          }
+        });
   }
 
   void _loadAdminData() async {
@@ -560,6 +593,60 @@ class _admindashboardState extends State<admindashboard> {
       backgroundColor: primaryColor,
       automaticallyImplyLeading: false,
       actions: [
+        StreamBuilder<int>(
+          stream: NotificationService.instance
+              .getUnreadAdminNotificationsCountStream(
+                ThemeService.instance.databaseName,
+                ThemeService.instance.appName,
+              ),
+          builder: (context, snapshot) {
+            final unreadCount = snapshot.data ?? 0;
+            return Stack(
+              children: [
+                IconButton(
+                  icon: const Icon(
+                    Icons.notifications_rounded,
+                    color: Colors.white,
+                    size: 28,
+                  ),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const AdminNotificationsPage(),
+                      ),
+                    );
+                  },
+                ),
+                if (unreadCount > 0)
+                  Positioned(
+                    right: 8,
+                    top: 8,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 16,
+                        minHeight: 16,
+                      ),
+                      child: Text(
+                        unreadCount > 9 ? '9+' : unreadCount.toString(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
         IconButton(
           icon: const Icon(Icons.menu_rounded, color: Colors.white, size: 28),
           onPressed: () => _scaffoldKey.currentState?.openEndDrawer(),

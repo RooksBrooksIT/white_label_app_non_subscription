@@ -1292,6 +1292,8 @@ class _EngineerUpdateCardState extends State<EngineerUpdateCard> {
           'body': 'Your ticket $bookingId status has been updated to $action.',
           'timestamp': FieldValue.serverTimestamp(),
           'seen': false,
+          'audience': 'customer',
+          'type': 'status_update',
         });
       } catch (e) {
         // Log but do not block UI
