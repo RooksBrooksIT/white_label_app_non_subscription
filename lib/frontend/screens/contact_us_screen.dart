@@ -40,11 +40,11 @@ class ContactUsScreen extends StatelessWidget {
                       height: 80,
                       width: 80,
                       decoration: BoxDecoration(
-                        color: primaryColor.withOpacity(0.1),
+                        color: primaryColor.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: primaryColor.withOpacity(0.2),
+                            color: primaryColor.withValues(alpha: 0.2),
                             blurRadius: 20,
                             offset: const Offset(0, 8),
                           ),
@@ -106,7 +106,7 @@ class ContactUsScreen extends StatelessWidget {
                       'We\'re here to help and answer any questions you might have. We look forward to hearing from you.',
                       style: TextStyle(
                         fontSize: 15,
-                        color: textColor.withOpacity(0.7),
+                        color: textColor.withValues(alpha: 0.7),
                         height: 1.5,
                       ),
                     ),
@@ -124,7 +124,7 @@ class ContactUsScreen extends StatelessWidget {
                         borderRadius: BorderRadius.circular(28),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
+                            color: Colors.black.withValues(alpha: 0.05),
                             blurRadius: 20,
                             offset: const Offset(0, 8),
                           ),
@@ -140,7 +140,7 @@ class ContactUsScreen extends StatelessWidget {
                                 Container(
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
-                                    color: primaryColor.withOpacity(0.1),
+                                    color: primaryColor.withValues(alpha: 0.1),
                                     borderRadius: BorderRadius.circular(16),
                                   ),
                                   child: Icon(
@@ -192,8 +192,8 @@ class ContactUsScreen extends StatelessWidget {
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
                         color: isDark
-                            ? const Color(0xFF2D2D44).withOpacity(0.5)
-                            : primaryColor.withOpacity(0.05),
+                            ? const Color(0xFF2D2D44).withValues(alpha: 0.5)
+                            : primaryColor.withValues(alpha: 0.05),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Row(
@@ -221,7 +221,7 @@ class ContactUsScreen extends StatelessWidget {
                                   'Monday to Saturday • 9:00 AM – 6:00 PM',
                                   style: TextStyle(
                                     fontSize: 14,
-                                    color: textColor.withOpacity(0.7),
+                                    color: textColor.withValues(alpha: 0.7),
                                   ),
                                 ),
                                 const SizedBox(height: 4),
@@ -229,7 +229,7 @@ class ContactUsScreen extends StatelessWidget {
                                   'Sunday & Public Holidays: Closed',
                                   style: TextStyle(
                                     fontSize: 12,
-                                    color: textColor.withOpacity(0.5),
+                                    color: textColor.withValues(alpha: 0.5),
                                   ),
                                 ),
                               ],
@@ -266,8 +266,8 @@ class ContactUsScreen extends StatelessWidget {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                iconColor.withOpacity(0.15),
-                iconColor.withOpacity(0.05),
+                iconColor.withValues(alpha: 0.15),
+                iconColor.withValues(alpha: 0.05),
               ],
             ),
             borderRadius: BorderRadius.circular(18),

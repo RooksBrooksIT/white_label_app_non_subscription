@@ -84,7 +84,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
     return {
       'label': '$wdOpen day${wdOpen == 1 ? '' : 's'} to go',
       'color': Theme.of(context).primaryColor,
-      'bg': Theme.of(context).primaryColor.withOpacity(0.1),
+      'bg': Theme.of(context).primaryColor.withValues(alpha: 0.1),
     };
   }
 
@@ -192,13 +192,13 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
           borderRadius: BorderRadius.circular(getProportionalSize(16)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: getProportionalSize(10),
               offset: Offset(0, getProportionalSize(4)),
             ),
           ],
           border: Border.all(
-            color: Theme.of(context).dividerColor.withOpacity(0.1),
+            color: Theme.of(context).dividerColor.withValues(alpha: 0.1),
           ),
         ),
         child: TextField(
@@ -216,12 +216,12 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
           decoration: InputDecoration(
             prefixIcon: Icon(
               Icons.search_rounded,
-              color: Theme.of(context).primaryColor.withOpacity(0.7),
+              color: Theme.of(context).primaryColor.withValues(alpha: 0.7),
               size: getProportionalSize(24),
             ),
             hintText: 'Search Booking ID, Customer, or Mobile...',
             hintStyle: TextStyle(
-              color: Theme.of(context).hintColor.withOpacity(0.7),
+              color: Theme.of(context).hintColor.withValues(alpha: 0.7),
               fontWeight: FontWeight.w500,
               fontSize: getProportionalSize(14),
             ),
@@ -653,7 +653,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
           borderRadius: BorderRadius.circular(getProportionalSize(16)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: getProportionalSize(10),
               offset: Offset(0, getProportionalSize(4)),
             ),
@@ -661,7 +661,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
           border: isAMC
               ? Border.all(color: const Color(0xFFFFD700), width: 1.5)
               : Border.all(
-                  color: Theme.of(context).dividerColor.withOpacity(0.1),
+                  color: Theme.of(context).dividerColor.withValues(alpha: 0.1),
                 ),
         ),
         padding: EdgeInsets.symmetric(
@@ -682,7 +682,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                     decoration: BoxDecoration(
                       color: isAMC
                           ? const Color(0xFFFFF8E1)
-                          : statusColor.withOpacity(0.1),
+                          : statusColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(
                         getProportionalSize(12),
                       ),
@@ -724,7 +724,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                             fontSize: getProportionalSize(14),
                             color: Theme.of(
                               context,
-                            ).textTheme.bodyMedium?.color?.withOpacity(0.7),
+                            ).textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
                             fontWeight: FontWeight.w500,
                           ),
                           maxLines: 1,
@@ -740,7 +740,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                       vertical: getProportionalSize(6),
                     ),
                     decoration: BoxDecoration(
-                      color: statusColor.withOpacity(0.1),
+                      color: statusColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(
                         getProportionalSize(20),
                       ),
@@ -760,7 +760,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
 
             Divider(
               height: 1,
-              color: Theme.of(context).dividerColor.withOpacity(0.1),
+              color: Theme.of(context).dividerColor.withValues(alpha: 0.1),
             ),
 
             // Details Section
@@ -1012,7 +1012,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                 child: Container(
                   decoration: BoxDecoration(
                     color: isCanceled
-                        ? Theme.of(context).disabledColor.withOpacity(0.1)
+                        ? Theme.of(context).disabledColor.withValues(alpha: 0.1)
                         : isAppointment
                         ? Color(0xFFFFF9C4)
                         : isAMC
@@ -1023,7 +1023,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.13),
+                        color: Colors.black.withValues(alpha: 0.13),
                         blurRadius: getProportionalSize(6),
                         offset: Offset(
                           getProportionalSize(2),
@@ -1466,7 +1466,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                               vertical: screenHeight * 0.008,
                             ),
                             decoration: BoxDecoration(
-                              color: Color(0xFFFFD700).withOpacity(0.2),
+                              color: Color(0xFFFFD700).withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
                                 color: Color(0xFFFFD700),
@@ -1688,7 +1688,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                       Divider(
                         height: screenHeight * 0.033,
                         thickness: 1,
-                        color: Theme.of(context).primaryColor.withOpacity(0.5),
+                        color: Theme.of(context).primaryColor.withValues(alpha: 0.5),
                       ),
                       Padding(
                         padding: EdgeInsets.symmetric(
@@ -2728,7 +2728,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
             child: Text(
               'Job Type',
               style: TextStyle(
-                color: Colors.black.withOpacity(0.5),
+                color: Colors.black.withValues(alpha: 0.5),
                 fontSize: getProportionalSize(14),
                 fontFamily: 'Arial',
               ),
@@ -2751,13 +2751,13 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
         // Table Header
         Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF0B3470).withOpacity(0.1),
+            color: const Color(0xFF0B3470).withValues(alpha: 0.1),
             borderRadius: BorderRadius.only(
               topLeft: Radius.circular(getProportionalSize(8)),
               topRight: Radius.circular(getProportionalSize(8)),
             ),
             border: Border.all(
-              color: const Color(0xFF0B3470).withOpacity(0.3),
+              color: const Color(0xFF0B3470).withValues(alpha: 0.3),
               width: 1,
             ),
           ),
@@ -2773,7 +2773,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                 decoration: BoxDecoration(
                   border: Border(
                     right: BorderSide(
-                      color: const Color(0xFF0B3470).withOpacity(0.3),
+                      color: const Color(0xFF0B3470).withValues(alpha: 0.3),
                       width: 1,
                     ),
                   ),
@@ -2800,7 +2800,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                   decoration: BoxDecoration(
                     border: Border(
                       right: BorderSide(
-                        color: const Color(0xFF0B3470).withOpacity(0.3),
+                        color: const Color(0xFF0B3470).withValues(alpha: 0.3),
                         width: 1,
                       ),
                     ),
@@ -2848,7 +2848,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
           return Container(
             decoration: BoxDecoration(
               border: Border.all(
-                color: const Color(0xFF0B3470).withOpacity(0.2),
+                color: const Color(0xFF0B3470).withValues(alpha: 0.2),
                 width: 1,
               ),
               borderRadius: isLast
@@ -2870,7 +2870,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                   decoration: BoxDecoration(
                     border: Border(
                       right: BorderSide(
-                        color: const Color(0xFF0B3470).withOpacity(0.2),
+                        color: const Color(0xFF0B3470).withValues(alpha: 0.2),
                         width: 1,
                       ),
                     ),
@@ -2897,7 +2897,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                     decoration: BoxDecoration(
                       border: Border(
                         right: BorderSide(
-                          color: const Color(0xFF0B3470).withOpacity(0.2),
+                          color: const Color(0xFF0B3470).withValues(alpha: 0.2),
                           width: 1,
                         ),
                       ),
@@ -2990,7 +2990,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
             child: Text(
               label,
               style: TextStyle(
-                color: Colors.black.withOpacity(0.5),
+                color: Colors.black.withValues(alpha: 0.5),
                 fontSize: getProportionalSize(14),
                 fontFamily: 'Arial',
               ),

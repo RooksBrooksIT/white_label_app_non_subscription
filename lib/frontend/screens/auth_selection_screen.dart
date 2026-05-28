@@ -97,7 +97,7 @@ class _AuthSelectionScreenState extends State<AuthSelectionScreen>
               height: 300,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: primaryColor.withOpacity(0.05),
+                color: primaryColor.withValues(alpha: 0.05),
               ),
             ),
           ),
@@ -109,7 +109,7 @@ class _AuthSelectionScreenState extends State<AuthSelectionScreen>
               height: 200,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: primaryColor.withOpacity(0.03),
+                color: primaryColor.withValues(alpha: 0.03),
               ),
             ),
           ),
@@ -136,7 +136,7 @@ class _AuthSelectionScreenState extends State<AuthSelectionScreen>
                             borderRadius: BorderRadius.circular(32),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.06),
+                                color: Colors.black.withValues(alpha: 0.06),
                                 blurRadius: 24,
                                 offset: const Offset(0, 12),
                               ),
@@ -186,11 +186,11 @@ class _AuthSelectionScreenState extends State<AuthSelectionScreen>
                           color: theme.cardColor,
                           borderRadius: BorderRadius.circular(32),
                           border: Border.all(
-                            color: theme.dividerColor.withOpacity(0.05),
+                            color: theme.dividerColor.withValues(alpha: 0.05),
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.02),
+                              color: Colors.black.withValues(alpha: 0.02),
                               blurRadius: 20,
                               offset: const Offset(0, 10),
                             ),

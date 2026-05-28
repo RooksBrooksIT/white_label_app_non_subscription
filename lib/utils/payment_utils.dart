@@ -1,7 +1,6 @@
-/**
- * Payment Utilities and Helpers
- * File: lib/utils/payment_utils.dart
- */
+/// Payment Utilities and Helpers
+/// File: lib/utils/payment_utils.dart
+library;
 
 import 'package:uuid/uuid.dart';
 import 'package:flutter/material.dart';

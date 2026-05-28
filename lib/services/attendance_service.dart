@@ -52,7 +52,14 @@ class AttendanceService {
       final docId = querySnapshot.docs.first.id;
 
       // Update the fields in the document
-      await FirestoreService.instance.collection('EngineerLogin').doc(docId).update({
+      // Direct Firestore update with tenant handling
+      final tenantId = ThemeService.instance.databaseName;
+      final docRef = FirebaseFirestore.instance
+          .collection(tenantId)
+          .doc('data')
+          .collection('EngineerLogin')
+          .doc(docId);
+      await docRef.update({
         'latitude': position.latitude,
         'longitude': position.longitude,
         'lastUpdatedTime': FieldValue.serverTimestamp(),

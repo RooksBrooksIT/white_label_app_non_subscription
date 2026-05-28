@@ -65,7 +65,7 @@ class _AdminTransactionsScreenState extends State<AdminTransactionsScreen> {
                 color: Colors.white,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.grey.withOpacity(0.1),
+                    color: Colors.grey.withValues(alpha: 0.1),
                     spreadRadius: 1,
                     blurRadius: 4,
                     offset: const Offset(0, 2),
@@ -137,7 +137,7 @@ class _AdminTransactionsScreenState extends State<AdminTransactionsScreen> {
                             backgroundColor: Colors.grey[50],
                             selectedColor: _getStatusColor(
                               filter,
-                            ).withOpacity(0.1),
+                            ).withValues(alpha: 0.1),
                             checkmarkColor: _getStatusColor(filter),
                             labelStyle: TextStyle(
                               color: isSelected
@@ -490,7 +490,7 @@ class _AdminTransactionsScreenState extends State<AdminTransactionsScreen> {
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: _getStatusColor(status).withOpacity(0.1),
+              color: _getStatusColor(status).withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
@@ -531,10 +531,10 @@ class _AdminTransactionsScreenState extends State<AdminTransactionsScreen> {
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: _getStatusColor(status).withOpacity(0.1),
+                  color: _getStatusColor(status).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: _getStatusColor(status).withOpacity(0.3),
+                    color: _getStatusColor(status).withValues(alpha: 0.3),
                   ),
                 ),
                 child: Text(
@@ -657,13 +657,13 @@ class _AdminTransactionsScreenState extends State<AdminTransactionsScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: enabled
-            ? Colors.green.withOpacity(0.1)
-            : Colors.grey.withOpacity(0.1),
+            ? Colors.green.withValues(alpha: 0.1)
+            : Colors.grey.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: enabled
-              ? Colors.green.withOpacity(0.3)
-              : Colors.grey.withOpacity(0.3),
+              ? Colors.green.withValues(alpha: 0.3)
+              : Colors.grey.withValues(alpha: 0.3),
         ),
       ),
       child: Row(

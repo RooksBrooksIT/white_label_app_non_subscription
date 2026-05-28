@@ -264,7 +264,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
 
       Map<String, dynamic>? activeData;
       for (var doc in querySnapshot.docs) {
-        final map = doc.data() as Map<String, dynamic>;
+        final map = doc.data();
         final status = (map['status'] ?? '').toString().toUpperCase();
         if (status == 'SUCCESS' || status == 'UAT_SIMULATED') {
           activeData = map;

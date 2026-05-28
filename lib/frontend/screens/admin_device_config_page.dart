@@ -18,7 +18,7 @@ class _AdminDeviceConfigurationPageState
   bool _isLoading = false;
 
   Color get primaryColor => Theme.of(context).primaryColor;
-  Color get accentColor => primaryColor.withOpacity(0.1);
+  Color get accentColor => primaryColor.withValues(alpha: 0.1);
 
   @override
   void dispose() {
@@ -272,14 +272,14 @@ class _AdminDeviceConfigurationPageState
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey.withOpacity(0.3),
+                  color: Colors.grey.withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
               const SizedBox(height: 20),
               CircleAvatar(
                 radius: 30,
-                backgroundColor: primaryColor.withOpacity(0.1),
+                backgroundColor: primaryColor.withValues(alpha: 0.1),
                 child: Icon(
                   _getIconData(deviceType),
                   color: primaryColor,
@@ -495,12 +495,12 @@ class _AdminDeviceConfigurationPageState
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [primaryColor, primaryColor.withOpacity(0.8)],
+          colors: [primaryColor, primaryColor.withValues(alpha: 0.8)],
         ),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: primaryColor.withOpacity(0.3),
+            color: primaryColor.withValues(alpha: 0.3),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -525,7 +525,7 @@ class _AdminDeviceConfigurationPageState
                 Text(
                   'Manage your hardware inventory and settings',
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.9),
+                    color: Colors.white.withValues(alpha: 0.9),
                     fontSize: 13,
                   ),
                 ),
@@ -542,7 +542,7 @@ class _AdminDeviceConfigurationPageState
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
-        side: BorderSide(color: Colors.grey.withOpacity(0.2)),
+        side: BorderSide(color: Colors.grey.withValues(alpha: 0.2)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(20.0),
@@ -661,10 +661,10 @@ class _AdminDeviceConfigurationPageState
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.grey.withOpacity(0.1)),
+                    border: Border.all(color: Colors.grey.withValues(alpha: 0.1)),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.02),
+                        color: Colors.black.withValues(alpha: 0.02),
                         blurRadius: 10,
                         offset: const Offset(0, 4),
                       ),
@@ -676,7 +676,7 @@ class _AdminDeviceConfigurationPageState
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: primaryColor.withOpacity(0.05),
+                          color: primaryColor.withValues(alpha: 0.05),
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
@@ -710,7 +710,7 @@ class _AdminDeviceConfigurationPageState
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 10,
-                          color: primaryColor.withOpacity(0.5),
+                          color: primaryColor.withValues(alpha: 0.5),
                         ),
                       ),
                     ],

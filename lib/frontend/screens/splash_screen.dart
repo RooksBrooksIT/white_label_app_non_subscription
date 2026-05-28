@@ -122,7 +122,7 @@ class _SplashScreenState extends State<SplashScreen>
                       color: Colors.white, // Outer white ring
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.15),
+                          color: Colors.black.withValues(alpha: 0.15),
                           blurRadius: 25,
                           spreadRadius: 3,
                         ),
@@ -179,7 +179,7 @@ class _SplashScreenState extends State<SplashScreen>
                   width: 50,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.8),
+                    color: Colors.white.withValues(alpha: 0.8),
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),

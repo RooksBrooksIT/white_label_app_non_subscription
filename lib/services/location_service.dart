@@ -29,21 +29,20 @@ class LocationService {
     try {
       final user = _auth.currentUser;
       if (user == null) {
-        debugPrint(
-          'LocationService: No session found. Attempting Anonymous Auth...',
-        );
-        final cred = await _auth.signInAnonymously();
-        debugPrint(
-          'LocationService: Anonymous Auth successful. UID: ${cred.user?.uid}',
-        );
+        debugPrint('LocationService: No session found. Attempting Anonymous Auth...');
+        try {
+          final cred = await _auth.signInAnonymously();
+          debugPrint('LocationService: Anonymous Auth successful. UID: ${cred.user?.uid}');
+        } catch (e) {
+          // If Anonymous provider is disabled, log and continue without auth.
+          debugPrint('LocationService: Anonymous Auth failed (likely disabled): $e');
+          // Proceed; Realtime Database/Firestore rules must allow unauthenticated writes.
+        }
       } else {
         debugPrint('LocationService: Already authenticated as ${user.uid}');
       }
     } catch (e) {
-      debugPrint('LocationService: Anonymous Auth FATAL ERROR: $e');
-      debugPrint(
-        'Please check if "Anonymous" sign-in provider is enabled in Firebase Console.',
-      );
+      debugPrint('LocationService: Unexpected auth error: $e');
     }
   }
 
@@ -179,7 +178,7 @@ class LocationService {
 
   Future<void> _updateFirestoreHeartbeat(String engineerId, Position position) async {
     try {
-      final querySnapshot = await FirestoreService.instance
+      final querySnapshot = await FirebaseFirestore.instance
           .collection('EngineerLogin')
           .where('Username', isEqualTo: engineerId)
           .limit(1)
@@ -187,7 +186,10 @@ class LocationService {
 
       if (querySnapshot.docs.isNotEmpty) {
         final docId = querySnapshot.docs.first.id;
-        await FirestoreService.instance.collection('EngineerLogin').doc(docId).update({
+        await FirebaseFirestore.instance
+            .collection('EngineerLogin')
+            .doc(docId)
+            .update({
           'latitude': position.latitude,
           'longitude': position.longitude,
           'lastUpdatedTime': FieldValue.serverTimestamp(),
@@ -203,9 +205,25 @@ class LocationService {
     try {
       final sanitizedId = _sanitizePath(engineerId);
       final tenantId = ThemeService.instance.databaseName;
+      // Update active booking in Realtime Database
       await _db.ref('$tenantId/engineers/$sanitizedId').update({
         'activeBookingId': bookingId,
       });
+      // Also store booking reference in Firestore for consistency
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('EngineerLogin')
+          .where('Username', isEqualTo: engineerId)
+          .limit(1)
+          .get();
+      if (querySnapshot.docs.isNotEmpty) {
+        final docId = querySnapshot.docs.first.id;
+        await FirebaseFirestore.instance
+            .collection('EngineerLogin')
+            .doc(docId)
+            .update({
+          'activeBookingId': bookingId,
+        });
+      }
     } catch (e) {
       debugPrint('Error updating active booking: $e');
     }

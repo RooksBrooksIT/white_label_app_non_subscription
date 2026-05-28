@@ -309,7 +309,7 @@ class _TermsAndConditionsScreenState extends State<TermsAndConditionsScreen>
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF0D47A1).withOpacity(0.1),
+                        color: const Color(0xFF0D47A1).withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: const Icon(
@@ -368,7 +368,7 @@ class _TermsAndConditionsScreenState extends State<TermsAndConditionsScreen>
                   child: Column(
                     children: [
                       // Scroll Progress Bar
-                      Container(
+                      SizedBox(
                         height: 3,
                         child: LinearProgressIndicator(
                           value: _hasScrolledToBottom

@@ -512,7 +512,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator> {
                     // Search Card
                     Card(
                       elevation: 8,
-                      shadowColor: primaryColor.withOpacity(0.3),
+                      shadowColor: primaryColor.withValues(alpha: 0.3),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(20),
                       ),
@@ -525,7 +525,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator> {
                               Theme.of(context).cardColor,
                               Theme.of(
                                 context,
-                              ).primaryColorLight.withOpacity(0.1),
+                              ).primaryColorLight.withValues(alpha: 0.1),
                             ],
                           ),
                           borderRadius: BorderRadius.circular(20),
@@ -613,7 +613,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator> {
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(15),
                                     ),
-                                    shadowColor: primaryColor.withOpacity(0.4),
+                                    shadowColor: primaryColor.withValues(alpha: 0.4),
                                   ),
                                   child: _loading
                                       ? SizedBox(
@@ -682,7 +682,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator> {
                           color: _selectedCount > 0
                               ? Theme.of(
                                   context,
-                                ).primaryColorLight.withOpacity(0.2)
+                                ).primaryColorLight.withValues(alpha: 0.2)
                               : Theme.of(context).cardColor,
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
@@ -823,7 +823,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator> {
                                     (_selectedCount > 0 || resultData != null)
                                     ? Theme.of(
                                         context,
-                                      ).colorScheme.error.withOpacity(0.3)
+                                      ).colorScheme.error.withValues(alpha: 0.3)
                                     : Theme.of(context).disabledColor,
                               ),
                             ),
@@ -854,7 +854,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator> {
                   width: iconSize,
                   height: iconSize,
                   decoration: BoxDecoration(
-                    color: Theme.of(context).primaryColorLight.withOpacity(0.1),
+                    color: Theme.of(context).primaryColorLight.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(

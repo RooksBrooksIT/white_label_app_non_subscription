@@ -209,11 +209,11 @@ class _WelcomeScreenState extends State<WelcomeScreen>
           icon: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.9),
+              color: Colors.white.withValues(alpha: 0.9),
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -258,7 +258,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                   shape: BoxShape.circle,
                   gradient: RadialGradient(
                     colors: [
-                      Colors.black.withOpacity(0.03),
+                      Colors.black.withValues(alpha: 0.03),
                       Colors.transparent,
                     ],
                   ),
@@ -275,7 +275,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                   shape: BoxShape.circle,
                   gradient: RadialGradient(
                     colors: [
-                      Colors.black.withOpacity(0.02),
+                      Colors.black.withValues(alpha: 0.02),
                       Colors.transparent,
                     ],
                   ),
@@ -331,12 +331,12 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.95),
+        color: Colors.white.withValues(alpha: 0.95),
         borderRadius: BorderRadius.circular(40),
         border: Border.all(color: Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -390,7 +390,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
               boxShadow: isActive
                   ? [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.15),
+                        color: Colors.black.withValues(alpha: 0.15),
                         blurRadius: 8,
                         offset: const Offset(0, 2),
                       ),
@@ -553,7 +553,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
               border: Border.all(color: Colors.grey.shade200, width: 1),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.02),
+                  color: Colors.black.withValues(alpha: 0.02),
                   blurRadius: 12,
                   offset: const Offset(0, 4),
                 ),
@@ -570,7 +570,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
+                        color: Colors.black.withValues(alpha: 0.1),
                         blurRadius: 8,
                       ),
                     ],
@@ -651,8 +651,9 @@ class _WelcomeScreenState extends State<WelcomeScreen>
             ],
             validator: (v) {
               if (v == null || v.isEmpty) return 'Enter phone number';
-              if (v.length != 10)
+              if (v.length != 10) {
                 return 'Phone number must be exactly 10 digits';
+              }
               return null;
             },
           ),
@@ -769,7 +770,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
         borderRadius: BorderRadius.circular(32),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
+            color: Colors.black.withValues(alpha: 0.2),
             blurRadius: 24,
             offset: const Offset(0, 12),
           ),
@@ -781,7 +782,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
+              color: Colors.white.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(20),
             ),
             child: const Icon(
@@ -806,7 +807,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
             'Our platform scales with your business while delivering a premium brand experience.',
             style: GoogleFonts.inter(
               fontSize: 15,
-              color: Colors.white.withOpacity(0.85),
+              color: Colors.white.withValues(alpha: 0.85),
               height: 1.45,
             ),
           ),
@@ -910,7 +911,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.25),
+              color: Colors.black.withValues(alpha: 0.25),
               blurRadius: 20,
               offset: const Offset(0, 8),
             ),

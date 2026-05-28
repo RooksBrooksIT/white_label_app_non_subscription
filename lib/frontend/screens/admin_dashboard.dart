@@ -583,7 +583,7 @@ class _admindashboardState extends State<admindashboard> {
               top: -50,
               child: CircleAvatar(
                 radius: 100,
-                backgroundColor: Colors.white.withOpacity(0.05),
+                backgroundColor: Colors.white.withValues(alpha: 0.05),
               ),
             ),
             SafeArea(
@@ -599,13 +599,13 @@ class _admindashboardState extends State<admindashboard> {
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             border: Border.all(
-                              color: Colors.white.withOpacity(0.5),
+                              color: Colors.white.withValues(alpha: 0.5),
                               width: 2,
                             ),
                           ),
                           child: CircleAvatar(
                             radius: 30,
-                            backgroundColor: Colors.white.withOpacity(0.2),
+                            backgroundColor: Colors.white.withValues(alpha: 0.2),
                             backgroundImage:
                                 ThemeService.instance.logoUrl != null
                                 ? NetworkImage(ThemeService.instance.logoUrl!)
@@ -630,7 +630,7 @@ class _admindashboardState extends State<admindashboard> {
                           Text(
                             ThemeService.instance.appName,
                             style: TextStyle(
-                              color: Colors.white.withOpacity(0.8),
+                              color: Colors.white.withValues(alpha: 0.8),
                               fontSize: 14,
                               fontWeight: FontWeight.w400,
                             ),
@@ -748,7 +748,7 @@ class _admindashboardState extends State<admindashboard> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.withOpacity(0.1)),
+        border: Border.all(color: Colors.grey.withValues(alpha: 0.1)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -854,7 +854,7 @@ class _admindashboardState extends State<admindashboard> {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: color.withOpacity(0.3),
+              color: color.withValues(alpha: 0.3),
               blurRadius: 12,
               offset: const Offset(0, 6),
             ),
@@ -919,7 +919,7 @@ class _admindashboardState extends State<admindashboard> {
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.02),
+                color: Colors.black.withValues(alpha: 0.02),
                 blurRadius: 10,
                 offset: const Offset(0, 4),
               ),
@@ -930,7 +930,7 @@ class _admindashboardState extends State<admindashboard> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
+                  color: color.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Icon(icon, color: color, size: 24),
@@ -981,7 +981,7 @@ class _admindashboardState extends State<admindashboard> {
               const SizedBox(width: 8),
               Icon(
                 Icons.chevron_right_rounded,
-                color: textLightColor.withOpacity(0.5),
+                color: textLightColor.withValues(alpha: 0.5),
               ),
             ],
           ),
@@ -1130,7 +1130,7 @@ class _admindashboardState extends State<admindashboard> {
             child: Text(
               'Version 1.0.0',
               style: TextStyle(
-                color: textLightColor.withOpacity(0.5),
+                color: textLightColor.withValues(alpha: 0.5),
                 fontSize: 12,
               ),
             ),
@@ -1159,7 +1159,7 @@ class _admindashboardState extends State<admindashboard> {
             builder: (context, _) {
               return CircleAvatar(
                 radius: 35,
-                backgroundColor: Colors.white.withOpacity(0.2),
+                backgroundColor: Colors.white.withValues(alpha: 0.2),
                 backgroundImage: ThemeService.instance.logoUrl != null
                     ? NetworkImage(ThemeService.instance.logoUrl!)
                     : null,
@@ -1185,7 +1185,7 @@ class _admindashboardState extends State<admindashboard> {
           Text(
             adminEmail,
             style: TextStyle(
-              color: Colors.white.withOpacity(0.8),
+              color: Colors.white.withValues(alpha: 0.8),
               fontSize: 14,
             ),
           ),
@@ -1193,10 +1193,10 @@ class _admindashboardState extends State<admindashboard> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
+              color: Colors.white.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: _appBarSubscriptionColor.withOpacity(0.8),
+                color: _appBarSubscriptionColor.withValues(alpha: 0.8),
                 width: 1.5,
               ),
             ),
@@ -1253,7 +1253,7 @@ class _admindashboardState extends State<admindashboard> {
       leading: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: (color ?? primaryColor).withOpacity(0.1),
+          color: (color ?? primaryColor).withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Icon(icon, color: color ?? primaryColor, size: 22),
@@ -1319,7 +1319,7 @@ class _admindashboardState extends State<admindashboard> {
                         Container(
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: primaryColor.withOpacity(0.1),
+                            color: primaryColor.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Icon(

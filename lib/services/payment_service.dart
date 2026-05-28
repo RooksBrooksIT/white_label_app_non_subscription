@@ -1,10 +1,9 @@
-/**
- * Flutter Service: ICICI Payment Gateway Integration
- * File: lib/services/payment_service.dart
- * 
- * This service handles all payment operations by calling Firebase Cloud Functions
- * ALL sensitive operations (hashing, API calls) happen on backend
- */
+/// Flutter Service: ICICI Payment Gateway Integration
+/// File: lib/services/payment_service.dart
+/// 
+/// This service handles all payment operations by calling Firebase Cloud Functions
+/// ALL sensitive operations (hashing, API calls) happen on backend
+library;
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_functions/cloud_functions.dart';
