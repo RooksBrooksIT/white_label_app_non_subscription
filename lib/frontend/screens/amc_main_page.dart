@@ -215,19 +215,19 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withValues(alpha: 0.1),
                 blurRadius: 20,
                 offset: const Offset(0, 10),
               ),
             ],
-            border: Border.all(color: Colors.green.withOpacity(0.3), width: 1),
+            border: Border.all(color: Colors.green.withValues(alpha: 0.3), width: 1),
           ),
           child: Row(
             children: [
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.green.withOpacity(0.1),
+                  color: Colors.green.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
@@ -326,7 +326,7 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 15,
             offset: const Offset(0, 8),
           ),
@@ -343,7 +343,7 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).primaryColor.withOpacity(0.1),
+                    color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Icon(
@@ -499,7 +499,7 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(
@@ -558,7 +558,7 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
               boxShadow: isActive
                   ? [
                       BoxShadow(
-                        color: Theme.of(context).primaryColor.withOpacity(0.3),
+                        color: Theme.of(context).primaryColor.withValues(alpha: 0.3),
                         blurRadius: 6,
                         offset: const Offset(0, 3),
                       ),
@@ -682,9 +682,9 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.amber.withOpacity(0.05),
+              color: Colors.amber.withValues(alpha: 0.05),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.amber.withOpacity(0.1)),
+              border: Border.all(color: Colors.amber.withValues(alpha: 0.1)),
             ),
             child: Text(
               desc,
@@ -705,7 +705,7 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.red.withOpacity(0.05),
+              color: Colors.red.withValues(alpha: 0.05),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
@@ -741,13 +741,13 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           decoration: BoxDecoration(
             color: isDanger
-                ? Colors.red.withOpacity(0.05)
-                : Theme.of(context).primaryColor.withOpacity(0.05),
+                ? Colors.red.withValues(alpha: 0.05)
+                : Theme.of(context).primaryColor.withValues(alpha: 0.05),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: isDanger
-                  ? Colors.red.withOpacity(0.1)
-                  : Theme.of(context).primaryColor.withOpacity(0.1),
+                  ? Colors.red.withValues(alpha: 0.1)
+                  : Theme.of(context).primaryColor.withValues(alpha: 0.1),
             ),
           ),
           child: Row(
@@ -914,7 +914,7 @@ class _CancelTicketDialogState extends State<CancelTicketDialog> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.1),
+                color: Colors.red.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
@@ -1014,7 +1014,7 @@ class _CancelTicketDialogState extends State<CancelTicketDialog> {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      disabledBackgroundColor: Colors.red.withOpacity(0.3),
+                      disabledBackgroundColor: Colors.red.withValues(alpha: 0.3),
                     ),
                     child: _isSubmitting
                         ? const SizedBox(
@@ -1127,7 +1127,7 @@ class FeedbackDialog extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
+                    color: color.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(icon, size: 48, color: color),
@@ -1301,9 +1301,9 @@ class FeedbackDialog extends StatelessWidget {
         width: 80,
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.05),
+          color: color.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: color.withOpacity(0.1), width: 1),
+          border: Border.all(color: color.withValues(alpha: 0.1), width: 1),
         ),
         child: Column(
           children: [
@@ -1314,7 +1314,7 @@ class FeedbackDialog extends StatelessWidget {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w800,
-                color: color.withOpacity(0.8),
+                color: color.withValues(alpha: 0.8),
               ),
             ),
           ],
@@ -1562,7 +1562,7 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
+                      color: Colors.black.withValues(alpha: 0.1),
                       blurRadius: 8,
                       offset: const Offset(0, 4),
                     ),
@@ -1585,7 +1585,7 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w800,
-                      color: Colors.white.withOpacity(0.7),
+                      color: Colors.white.withValues(alpha: 0.7),
                       letterSpacing: 2.0,
                     ),
                   ),
@@ -1611,7 +1611,7 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
           padding: const EdgeInsets.only(right: 12.0, top: 4.0),
           child: Container(
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
+              color: Colors.white.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(14),
             ),
             child: IconButton(
@@ -1648,7 +1648,7 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
                   'WELCOME BACK',
                   style: TextStyle(
                     fontSize: 12,
-                    color: Theme.of(context).primaryColor.withOpacity(0.6),
+                    color: Theme.of(context).primaryColor.withValues(alpha: 0.6),
                     fontWeight: FontWeight.w900,
                     letterSpacing: 1.5,
                   ),
@@ -1800,7 +1800,7 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
         borderRadius: BorderRadius.circular(28),
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: 0.1),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -1820,7 +1820,7 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
+                    color: color.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Icon(icon, color: color, size: 28),
@@ -1876,7 +1876,7 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.5),
+        color: Colors.white.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: Colors.white, width: 2),
       ),
@@ -1884,7 +1884,7 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
         children: [
           Icon(
             icon,
-            color: Theme.of(context).primaryColor.withOpacity(0.4),
+            color: Theme.of(context).primaryColor.withValues(alpha: 0.4),
             size: 24,
           ),
           const SizedBox(height: 12),

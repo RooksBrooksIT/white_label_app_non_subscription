@@ -31,9 +31,9 @@ class ProfessionalTheme {
   static Color primaryDark(BuildContext context) =>
       Theme.of(context).primaryColor;
   static Color primaryLight(BuildContext context) =>
-      Theme.of(context).primaryColor.withOpacity(0.8);
+      Theme.of(context).primaryColor.withValues(alpha: 0.8);
   static Color primaryExtraLight(BuildContext context) =>
-      Theme.of(context).primaryColor.withOpacity(0.1);
+      Theme.of(context).primaryColor.withValues(alpha: 0.1);
 
   static Color background(BuildContext context) =>
       Theme.of(context).scaffoldBackgroundColor;
@@ -60,7 +60,7 @@ class ProfessionalTheme {
       Theme.of(context).colorScheme.onPrimary;
 
   static Color borderLight(BuildContext context) =>
-      Theme.of(context).dividerColor.withOpacity(0.5);
+      Theme.of(context).dividerColor.withValues(alpha: 0.5);
   static Color borderMedium(BuildContext context) =>
       Theme.of(context).dividerColor;
 
@@ -275,7 +275,7 @@ class ProfessionalLoadingSpinner extends StatelessWidget {
             height: 60,
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: ProfessionalTheme.primary(context).withOpacity(0.1),
+              color: ProfessionalTheme.primary(context).withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: CircularProgressIndicator(
@@ -419,7 +419,7 @@ class ProfessionalNavigationDrawer extends StatelessWidget {
                       radius: 32,
                       backgroundColor: ProfessionalTheme.textInverse(
                         context,
-                      ).withOpacity(0.2),
+                      ).withValues(alpha: 0.2),
                       backgroundImage: photoUrl != null
                           ? NetworkImage(photoUrl)
                           : null,
@@ -449,7 +449,7 @@ class ProfessionalNavigationDrawer extends StatelessWidget {
                     fontSize: 14,
                     color: ProfessionalTheme.textInverse(
                       context,
-                    ).withOpacity(0.8),
+                    ).withValues(alpha: 0.8),
                   ),
                 ),
               ],
@@ -557,7 +557,7 @@ class ProfessionalNavigationDrawer extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
         color: isSelected
-            ? ProfessionalTheme.primary(context).withOpacity(0.1)
+            ? ProfessionalTheme.primary(context).withValues(alpha: 0.1)
             : Colors.transparent,
         borderRadius: BorderRadius.circular(8),
       ),
@@ -925,7 +925,7 @@ class _EngineerPageState extends State<EngineerPage> {
                 width: 60,
                 height: 60,
                 decoration: BoxDecoration(
-                  color: ProfessionalTheme.primary(context).withOpacity(0.1),
+                  color: ProfessionalTheme.primary(context).withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
@@ -1026,7 +1026,7 @@ class _EngineerPageState extends State<EngineerPage> {
                 width: 60,
                 height: 60,
                 decoration: BoxDecoration(
-                  color: ProfessionalTheme.error.withOpacity(0.1),
+                  color: ProfessionalTheme.error.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
@@ -1175,7 +1175,7 @@ class _EngineerPageState extends State<EngineerPage> {
         color: ProfessionalTheme.surface(context),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -1249,13 +1249,13 @@ class _EngineerPageState extends State<EngineerPage> {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: _isOnline
-            ? ProfessionalTheme.success.withOpacity(0.1)
-            : Colors.grey.withOpacity(0.1),
+            ? ProfessionalTheme.success.withValues(alpha: 0.1)
+            : Colors.grey.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: _isOnline
-              ? ProfessionalTheme.success.withOpacity(0.2)
-              : Colors.grey.withOpacity(0.2),
+              ? ProfessionalTheme.success.withValues(alpha: 0.2)
+              : Colors.grey.withValues(alpha: 0.2),
         ),
       ),
       child: Row(
@@ -1284,7 +1284,7 @@ class _EngineerPageState extends State<EngineerPage> {
               child: Switch(
                 value: _isOnline,
                 onChanged: _toggleOnlineStatus,
-                activeColor: ProfessionalTheme.success,
+                activeThumbColor: ProfessionalTheme.success,
               ),
             ),
           ),
@@ -1387,7 +1387,7 @@ class _EngineerPageState extends State<EngineerPage> {
             'We need your location to assign nearby tasks and track your active hours.',
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: ProfessionalTheme.textInverse(context).withOpacity(0.8),
+              color: ProfessionalTheme.textInverse(context).withValues(alpha: 0.8),
             ),
           ),
           const SizedBox(height: 24),
@@ -1627,7 +1627,7 @@ class _EngineerPageState extends State<EngineerPage> {
         color: ProfessionalTheme.surface(context),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 20,
             offset: const Offset(0, -5),
           ),
@@ -1877,7 +1877,7 @@ class _EngineerPageState extends State<EngineerPage> {
                     color: ProfessionalTheme.successLight,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: ProfessionalTheme.success.withOpacity(0.3),
+                      color: ProfessionalTheme.success.withValues(alpha: 0.3),
                     ),
                   ),
                   child: Row(
@@ -1904,8 +1904,8 @@ class _EngineerPageState extends State<EngineerPage> {
                               'View all successfully completed service tickets',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: ProfessionalTheme.success.withOpacity(
-                                  0.8,
+                                color: ProfessionalTheme.success.withValues(
+                                  alpha: 0.8,
                                 ),
                               ),
                             ),
@@ -2051,7 +2051,7 @@ class _EngineerPageState extends State<EngineerPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -2163,7 +2163,7 @@ class _EngineerPageState extends State<EngineerPage> {
               backgroundColor: ProfessionalTheme.surface(context),
               selectedColor: ProfessionalTheme.primary(
                 context,
-              ).withOpacity(0.1),
+              ).withValues(alpha: 0.1),
               checkmarkColor: ProfessionalTheme.primary(context),
               labelStyle: TextStyle(
                 color: isSelected
@@ -2503,7 +2503,7 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
                 width: 60,
                 height: 60,
                 decoration: BoxDecoration(
-                  color: ProfessionalTheme.primary(context).withOpacity(0.1),
+                  color: ProfessionalTheme.primary(context).withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
@@ -2754,7 +2754,7 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
                         BoxShadow(
                           color: ProfessionalTheme.primary(
                             context,
-                          ).withOpacity(0.3),
+                          ).withValues(alpha: 0.3),
                           blurRadius: 8,
                           offset: const Offset(0, 4),
                         ),
@@ -2837,7 +2837,7 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
                     color: ProfessionalTheme.errorLight,
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
-                      color: ProfessionalTheme.error.withOpacity(0.3),
+                      color: ProfessionalTheme.error.withValues(alpha: 0.3),
                     ),
                   ),
                   child: Row(
@@ -2938,7 +2938,7 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
         color: ProfessionalTheme.infoLight,
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
-          color: ProfessionalTheme.info(context).withOpacity(0.3),
+          color: ProfessionalTheme.info(context).withValues(alpha: 0.3),
         ),
       ),
       child: Row(
@@ -3021,9 +3021,9 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.2), width: 1.5),
+        border: Border.all(color: color.withValues(alpha: 0.2), width: 1.5),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -3050,7 +3050,7 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
         color: ProfessionalTheme.surface(context),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: ProfessionalTheme.borderLight(context).withOpacity(0.5),
+          color: ProfessionalTheme.borderLight(context).withValues(alpha: 0.5),
         ),
       ),
       child: Column(
@@ -3100,7 +3100,7 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
               padding: const EdgeInsets.all(12),
               margin: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: ProfessionalTheme.success.withOpacity(0.1),
+                color: ProfessionalTheme.success.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
@@ -3144,7 +3144,7 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: ProfessionalTheme.primary(context).withOpacity(0.1),
+              color: ProfessionalTheme.primary(context).withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(
@@ -3222,7 +3222,7 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
             border: Border.all(color: ProfessionalTheme.borderLight(context)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.02),
+                color: Colors.black.withValues(alpha: 0.02),
                 blurRadius: 10,
                 offset: const Offset(0, 4),
               ),
@@ -3926,7 +3926,7 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
+                            color: Colors.black.withValues(alpha: 0.1),
                             blurRadius: 8,
                             offset: const Offset(0, 2),
                           ),
@@ -3970,7 +3970,7 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
               color: ProfessionalTheme.surface(context),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: ProfessionalTheme.borderLight(context).withOpacity(0.3),
+                color: ProfessionalTheme.borderLight(context).withValues(alpha: 0.3),
                 style: BorderStyle.solid,
               ),
             ),
@@ -4000,10 +4000,10 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
               width: double.infinity,
               padding: const EdgeInsets.all(32),
               decoration: BoxDecoration(
-                color: ProfessionalTheme.primary(context).withOpacity(0.04),
+                color: ProfessionalTheme.primary(context).withValues(alpha: 0.04),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: ProfessionalTheme.primary(context).withOpacity(0.2),
+                  color: ProfessionalTheme.primary(context).withValues(alpha: 0.2),
                   style: BorderStyle.solid,
                 ),
               ),

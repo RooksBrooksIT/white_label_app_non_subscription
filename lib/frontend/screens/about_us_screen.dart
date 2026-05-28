@@ -40,7 +40,7 @@ class AboutUsScreen extends StatelessWidget {
                     end: Alignment.bottomRight,
                     colors: [
                       primaryColor,
-                      primaryColor.withOpacity(0.7),
+                      primaryColor.withValues(alpha: 0.7),
                     ],
                   ),
                   borderRadius: const BorderRadius.only(
@@ -60,7 +60,7 @@ class AboutUsScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(25),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.2),
+                              color: Colors.black.withValues(alpha: 0.2),
                               blurRadius: 15,
                               offset: const Offset(0, 5),
                             ),
@@ -114,7 +114,7 @@ class AboutUsScreen extends StatelessWidget {
                         borderRadius: BorderRadius.circular(24),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
+                            color: Colors.black.withValues(alpha: 0.05),
                             blurRadius: 15,
                             offset: const Offset(0, 5),
                           ),
@@ -128,7 +128,7 @@ class AboutUsScreen extends StatelessWidget {
                               Container(
                                 padding: const EdgeInsets.all(10),
                                 decoration: BoxDecoration(
-                                  color: primaryColor.withOpacity(0.1),
+                                  color: primaryColor.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(16),
                                 ),
                                 child: Icon(
@@ -153,7 +153,7 @@ class AboutUsScreen extends StatelessWidget {
                             'ServNex is a smart IT service platform designed to make service booking, tracking, and management simple and efficient. Our goal is to provide users with a seamless experience when accessing IT-related services.',
                             style: TextStyle(
                               fontSize: 15,
-                              color: textColor.withOpacity(0.8),
+                              color: textColor.withValues(alpha: 0.8),
                               height: 1.6,
                             ),
                           ),
@@ -175,7 +175,7 @@ class AboutUsScreen extends StatelessWidget {
                         borderRadius: BorderRadius.circular(24),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
+                            color: Colors.black.withValues(alpha: 0.05),
                             blurRadius: 15,
                             offset: const Offset(0, 5),
                           ),
@@ -189,7 +189,7 @@ class AboutUsScreen extends StatelessWidget {
                               Container(
                                 padding: const EdgeInsets.all(10),
                                 decoration: BoxDecoration(
-                                  color: primaryColor.withOpacity(0.1),
+                                  color: primaryColor.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(16),
                                 ),
                                 child: Icon(
@@ -248,7 +248,7 @@ class AboutUsScreen extends StatelessWidget {
                         borderRadius: BorderRadius.circular(24),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
+                            color: Colors.black.withValues(alpha: 0.05),
                             blurRadius: 15,
                             offset: const Offset(0, 5),
                           ),
@@ -262,7 +262,7 @@ class AboutUsScreen extends StatelessWidget {
                               Container(
                                 padding: const EdgeInsets.all(10),
                                 decoration: BoxDecoration(
-                                  color: primaryColor.withOpacity(0.1),
+                                  color: primaryColor.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(16),
                                 ),
                                 child: Icon(
@@ -323,13 +323,13 @@ class AboutUsScreen extends StatelessWidget {
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                           colors: [
-                            primaryColor.withOpacity(0.1),
-                            primaryColor.withOpacity(0.05),
+                            primaryColor.withValues(alpha: 0.1),
+                            primaryColor.withValues(alpha: 0.05),
                           ],
                         ),
                         borderRadius: BorderRadius.circular(24),
                         border: Border.all(
-                          color: primaryColor.withOpacity(0.2),
+                          color: primaryColor.withValues(alpha: 0.2),
                           width: 1,
                         ),
                       ),
@@ -382,8 +382,8 @@ class AboutUsScreen extends StatelessWidget {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                iconColor.withOpacity(0.15),
-                iconColor.withOpacity(0.05),
+                iconColor.withValues(alpha: 0.15),
+                iconColor.withValues(alpha: 0.05),
               ],
             ),
             borderRadius: BorderRadius.circular(14),
@@ -407,7 +407,7 @@ class AboutUsScreen extends StatelessWidget {
                 description,
                 style: TextStyle(
                   fontSize: 14,
-                  color: iconColor.withOpacity(0.7),
+                  color: iconColor.withValues(alpha: 0.7),
                 ),
               ),
             ],
@@ -430,7 +430,7 @@ class AboutUsScreen extends StatelessWidget {
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: iconColor.withOpacity(0.1),
+            color: iconColor.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Icon(icon, color: iconColor, size: 20),
@@ -445,7 +445,7 @@ class AboutUsScreen extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: iconColor.withOpacity(0.8),
+                  color: iconColor.withValues(alpha: 0.8),
                   letterSpacing: 0.5,
                 ),
               ),

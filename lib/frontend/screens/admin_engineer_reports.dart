@@ -113,7 +113,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                       top: -40,
                       child: CircleAvatar(
                         radius: 90,
-                        backgroundColor: Colors.white.withOpacity(0.05),
+                        backgroundColor: Colors.white.withValues(alpha: 0.05),
                       ),
                     ),
                     SafeArea(
@@ -127,7 +127,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                               children: [
                                 Container(
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.2),
+                                    color: Colors.white.withValues(alpha: 0.2),
                                     shape: BoxShape.circle,
                                   ),
                                   child: IconButton(
@@ -143,7 +143,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                                 Container(
                                   padding: const EdgeInsets.all(10),
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.15),
+                                    color: Colors.white.withValues(alpha: 0.15),
                                     borderRadius: BorderRadius.circular(14),
                                   ),
                                   child: const Icon(
@@ -171,7 +171,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                                       Text(
                                         'Real-time analytics & metrics',
                                         style: TextStyle(
-                                          color: Colors.white.withOpacity(0.75),
+                                          color: Colors.white.withValues(alpha: 0.75),
                                           fontSize: 12,
                                           fontWeight: FontWeight.w500,
                                         ),
@@ -309,7 +309,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -323,7 +323,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).primaryColor.withOpacity(0.1),
+                  color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
@@ -380,7 +380,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
-            color: Theme.of(context).primaryColor.withOpacity(0.05),
+            color: Theme.of(context).primaryColor.withValues(alpha: 0.05),
             borderRadius: BorderRadius.circular(16),
           ),
           child: Row(
@@ -433,7 +433,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                 style: TextStyle(
                   color: _getContrastColor(
                     Theme.of(context).cardColor,
-                  ).withOpacity(0.6),
+                  ).withValues(alpha: 0.6),
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
@@ -522,7 +522,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
           style: TextStyle(
             color: _getContrastColor(
               Theme.of(context).cardColor,
-            ).withOpacity(0.7),
+            ).withValues(alpha: 0.7),
             fontSize: 14,
             fontWeight: FontWeight.w600,
           ),
@@ -554,12 +554,12 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
             return Container(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
-                color: Theme.of(context).primaryColor.withOpacity(0.05),
+                color: Theme.of(context).primaryColor.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: isDropdownDisabled
-                      ? Colors.grey.withOpacity(0.2)
-                      : Theme.of(context).primaryColor.withOpacity(0.1),
+                      ? Colors.grey.withValues(alpha: 0.2)
+                      : Theme.of(context).primaryColor.withValues(alpha: 0.1),
                 ),
               ),
               child: DropdownButtonHideUnderline(
@@ -665,10 +665,10 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: Theme.of(context).primaryColor.withOpacity(0.1),
+              color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: Theme.of(context).primaryColor.withOpacity(0.2),
+                color: Theme.of(context).primaryColor.withValues(alpha: 0.2),
               ),
             ),
             child: Row(
@@ -726,7 +726,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).primaryColor.withOpacity(0.1),
+                    color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
@@ -864,12 +864,12 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(0.08),
+            color: color.withValues(alpha: 0.08),
             blurRadius: 24,
             offset: const Offset(0, 8),
           ),
         ],
-        border: Border.all(color: color.withOpacity(0.15)),
+        border: Border.all(color: color.withValues(alpha: 0.15)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -878,7 +878,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(icon, color: color, size: 24),
@@ -897,7 +897,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
           Text(
             title,
             style: TextStyle(
-              color: _getContrastColor(Theme.of(context).cardColor).withOpacity(0.6),
+              color: _getContrastColor(Theme.of(context).cardColor).withValues(alpha: 0.6),
               fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
@@ -936,12 +936,12 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
             borderRadius: BorderRadius.circular(24),
             boxShadow: [
               BoxShadow(
-                color: color.withOpacity(0.08),
+                color: color.withValues(alpha: 0.08),
                 blurRadius: 24,
                 offset: const Offset(0, 8),
               ),
             ],
-            border: Border.all(color: color.withOpacity(0.15)),
+            border: Border.all(color: color.withValues(alpha: 0.15)),
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -949,7 +949,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
+                  color: color.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(icon, color: color, size: 28),
@@ -972,7 +972,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: _getContrastColor(Theme.of(context).cardColor).withOpacity(0.7),
+                    color: _getContrastColor(Theme.of(context).cardColor).withValues(alpha: 0.7),
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.5,
@@ -1151,7 +1151,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.orange.withOpacity(0.1),
+              color: Colors.orange.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(
@@ -1196,13 +1196,13 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Theme.of(context).primaryColor.withOpacity(0.1),
+              color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(
               Icons.analytics_outlined,
               size: 64,
-              color: Theme.of(context).primaryColor.withOpacity(0.5),
+              color: Theme.of(context).primaryColor.withValues(alpha: 0.5),
             ),
           ),
           const SizedBox(height: 24),

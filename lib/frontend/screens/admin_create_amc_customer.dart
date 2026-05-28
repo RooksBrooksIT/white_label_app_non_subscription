@@ -381,7 +381,7 @@ class _AMCCreatePageState extends State<AMCCreatePage>
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: Colors.black.withValues(alpha: 0.1),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -696,7 +696,7 @@ class _AMCCreatePageState extends State<AMCCreatePage>
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: Colors.black.withValues(alpha: 0.1),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -795,7 +795,7 @@ class _AMCCreatePageState extends State<AMCCreatePage>
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: Colors.black.withValues(alpha: 0.1),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -889,7 +889,7 @@ class _AMCCreatePageState extends State<AMCCreatePage>
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withValues(alpha: 0.05),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
@@ -933,7 +933,7 @@ class _AMCCreatePageState extends State<AMCCreatePage>
           color: Colors.white,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.08),
+              color: Colors.black.withValues(alpha: 0.08),
               blurRadius: 20,
               offset: const Offset(0, -5),
             ),
@@ -944,7 +944,7 @@ class _AMCCreatePageState extends State<AMCCreatePage>
             controller: _tabController,
             indicator: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
-              color: primaryColor.withOpacity(0.1),
+              color: primaryColor.withValues(alpha: 0.1),
             ),
             indicatorSize: TabBarIndicatorSize.tab,
             dividerColor: Colors.transparent,
@@ -983,7 +983,7 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                 gradient: LinearGradient(
                   colors: [
                     primaryColor,
-                    primaryColor.withOpacity(0.7),
+                    primaryColor.withValues(alpha: 0.7),
                   ],
                 ),
                 borderRadius: BorderRadius.circular(20),
@@ -1015,7 +1015,7 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                               : 'Create a new AMC customer account',
                           style: TextStyle(
                             fontSize: 12,
-                            color: Colors.white.withOpacity(0.85),
+                            color: Colors.white.withValues(alpha: 0.85),
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -1034,7 +1034,7 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                 borderRadius: BorderRadius.circular(24),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
+                    color: Colors.black.withValues(alpha: 0.04),
                     blurRadius: 15,
                     offset: const Offset(0, 5),
                   ),
@@ -1176,7 +1176,7 @@ class _AMCCreatePageState extends State<AMCCreatePage>
         const SizedBox(height: 8),
         Container(
           decoration: BoxDecoration(
-            color: enabled ? Colors.white : backgroundColor.withOpacity(0.3),
+            color: enabled ? Colors.white : backgroundColor.withValues(alpha: 0.3),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: Colors.grey.shade200,
@@ -1190,7 +1190,7 @@ class _AMCCreatePageState extends State<AMCCreatePage>
             decoration: InputDecoration(
               hintText: hint,
               hintStyle: TextStyle(
-                color: textLightColor.withOpacity(0.6),
+                color: textLightColor.withValues(alpha: 0.6),
                 fontSize: 13,
               ),
               prefixIcon: Icon(icon, color: primaryColor, size: 20),
@@ -1241,7 +1241,7 @@ class _AMCCreatePageState extends State<AMCCreatePage>
         const SizedBox(height: 8),
         Container(
           decoration: BoxDecoration(
-            color: !_isEditMode ? Colors.white : backgroundColor.withOpacity(0.3),
+            color: !_isEditMode ? Colors.white : backgroundColor.withValues(alpha: 0.3),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: _emailError != null ? errorColor : Colors.grey.shade200,
@@ -1255,7 +1255,7 @@ class _AMCCreatePageState extends State<AMCCreatePage>
             decoration: InputDecoration(
               hintText: 'customer@example.com',
               hintStyle: TextStyle(
-                color: textLightColor.withOpacity(0.6),
+                color: textLightColor.withValues(alpha: 0.6),
                 fontSize: 13,
               ),
               prefixIcon: Icon(Icons.email_outlined, color: primaryColor, size: 20),
@@ -1326,7 +1326,7 @@ class _AMCCreatePageState extends State<AMCCreatePage>
         const SizedBox(height: 8),
         Container(
           decoration: BoxDecoration(
-            color: !_isEditMode ? Colors.white : backgroundColor.withOpacity(0.3),
+            color: !_isEditMode ? Colors.white : backgroundColor.withValues(alpha: 0.3),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: _phoneError != null ? errorColor : Colors.grey.shade200,
@@ -1344,7 +1344,7 @@ class _AMCCreatePageState extends State<AMCCreatePage>
             decoration: InputDecoration(
               hintText: 'Enter 10-digit mobile number',
               hintStyle: TextStyle(
-                color: textLightColor.withOpacity(0.6),
+                color: textLightColor.withValues(alpha: 0.6),
                 fontSize: 13,
               ),
               prefixIcon: Icon(Icons.phone_android_rounded, color: primaryColor, size: 20),
@@ -1415,7 +1415,7 @@ class _AMCCreatePageState extends State<AMCCreatePage>
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.04),
+                color: Colors.black.withValues(alpha: 0.04),
                 blurRadius: 10,
                 offset: const Offset(0, 2),
               ),
@@ -1454,7 +1454,7 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                   onChanged: _filterCustomers,
                   decoration: InputDecoration(
                     hintText: 'Search by name, email or AMC ID...',
-                    hintStyle: TextStyle(color: textLightColor.withOpacity(0.6)),
+                    hintStyle: TextStyle(color: textLightColor.withValues(alpha: 0.6)),
                     prefixIcon: Icon(Icons.search_rounded, color: primaryColor),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(20),
@@ -1485,7 +1485,7 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
+                              color: Colors.black.withValues(alpha: 0.05),
                               blurRadius: 10,
                             ),
                           ],
@@ -1493,7 +1493,7 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                         child: Icon(
                           Icons.person_search_rounded,
                           size: 48,
-                          color: textLightColor.withOpacity(0.5),
+                          color: textLightColor.withValues(alpha: 0.5),
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -1510,7 +1510,7 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                         'Try adjusting your search',
                         style: TextStyle(
                           fontSize: 14,
-                          color: textLightColor.withOpacity(0.7),
+                          color: textLightColor.withValues(alpha: 0.7),
                         ),
                       ),
                     ],
@@ -1533,7 +1533,7 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.04),
+                            color: Colors.black.withValues(alpha: 0.04),
                             blurRadius: 10,
                             offset: const Offset(0, 2),
                           ),
@@ -1554,7 +1554,7 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                                     gradient: LinearGradient(
                                       colors: [
                                         primaryColor,
-                                        primaryColor.withOpacity(0.7),
+                                        primaryColor.withValues(alpha: 0.7),
                                       ],
                                     ),
                                     shape: BoxShape.circle,
@@ -1594,7 +1594,7 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                                           vertical: 2,
                                         ),
                                         decoration: BoxDecoration(
-                                          color: primaryColor.withOpacity(0.1),
+                                          color: primaryColor.withValues(alpha: 0.1),
                                           borderRadius: BorderRadius.circular(6),
                                         ),
                                         child: Text(
@@ -1653,7 +1653,7 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                                   children: [
                                     Container(
                                       decoration: BoxDecoration(
-                                        color: editModeColor.withOpacity(0.1),
+                                        color: editModeColor.withValues(alpha: 0.1),
                                         borderRadius: BorderRadius.circular(12),
                                       ),
                                       child: IconButton(
@@ -1671,7 +1671,7 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                                     const SizedBox(width: 8),
                                     Container(
                                       decoration: BoxDecoration(
-                                        color: errorColor.withOpacity(0.1),
+                                        color: errorColor.withValues(alpha: 0.1),
                                         borderRadius: BorderRadius.circular(12),
                                       ),
                                       child: IconButton(

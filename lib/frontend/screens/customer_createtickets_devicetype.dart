@@ -44,7 +44,7 @@ class Device {
       iconData: data['icon']?.toString() ?? 'devices',
       color: parseColor(
         data['color'] ??
-            ThemeService.instance.primaryColor.value
+            ThemeService.instance.primaryColor.toARGB32()
                 .toRadixString(16)
                 .padLeft(8, '0'),
       ),
@@ -205,7 +205,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
 
               boxShadow: [
                 BoxShadow(
-                  color: Theme.of(context).primaryColor.withOpacity(0.2),
+                  color: Theme.of(context).primaryColor.withValues(alpha: 0.2),
                   blurRadius: 16,
                   offset: const Offset(0, 4),
                 ),
@@ -231,7 +231,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                       width: ResponsiveHelper.getResponsiveWidth(9),
                       height: ResponsiveHelper.getResponsiveWidth(9),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.15),
+                        color: Colors.white.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Icon(
@@ -264,7 +264,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                             : 'What service do you need today?',
                         style: TextStyle(
                           fontSize: 14,
-                          color: Colors.white.withOpacity(0.8),
+                          color: Colors.white.withValues(alpha: 0.8),
                           fontWeight: FontWeight.w400,
                           fontFamily: 'Inter',
                         ),
@@ -276,7 +276,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                   width: ResponsiveHelper.getResponsiveWidth(11),
                   height: ResponsiveHelper.getResponsiveWidth(11),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.15),
+                    color: Colors.white.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
@@ -330,7 +330,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
             color:
                 Theme.of(
                   context,
-                ).textTheme.bodyMedium?.color?.withOpacity(0.7) ??
+                ).textTheme.bodyMedium?.color?.withValues(alpha: 0.7) ??
                 const Color(0xFF64748B),
             fontWeight: FontWeight.w400,
             fontFamily: 'Inter',
@@ -394,12 +394,12 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
               end: Alignment.bottomRight,
               colors: [
                 Theme.of(context).primaryColor,
-                Theme.of(context).primaryColor.withOpacity(0.8),
+                Theme.of(context).primaryColor.withValues(alpha: 0.8),
               ],
             ),
             boxShadow: [
               BoxShadow(
-                color: Theme.of(context).primaryColor.withOpacity(0.2),
+                color: Theme.of(context).primaryColor.withValues(alpha: 0.2),
                 blurRadius: 12,
                 offset: const Offset(0, 4),
               ),
@@ -412,7 +412,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.15),
+                  color: Colors.white.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(
@@ -440,7 +440,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                       'Certified technicians • 90-day warranty • Same-day service',
                       style: TextStyle(
                         fontSize: 13,
-                        color: Colors.white.withOpacity(0.8),
+                        color: Colors.white.withValues(alpha: 0.8),
                         fontFamily: 'Inter',
                       ),
                     ),
@@ -473,7 +473,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: Theme.of(context).primaryColor.withOpacity(0.1),
+                  color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
@@ -550,7 +550,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                   width: 64,
                   height: 64,
                   decoration: BoxDecoration(
-                    color: Theme.of(context).primaryColor.withOpacity(0.1),
+                    color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: CircularProgressIndicator(
@@ -595,7 +595,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha: 0.05),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
@@ -608,7 +608,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                      color: Theme.of(context).primaryColor.withOpacity(0.1),
+                      color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(
@@ -649,7 +649,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF10B981).withOpacity(0.1),
+                        color: const Color(0xFF10B981).withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: const Text(
@@ -712,7 +712,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                     duration: const Duration(milliseconds: 200),
                     decoration: BoxDecoration(
                       color: isOtherSelected
-                          ? Theme.of(context).primaryColor.withOpacity(0.1)
+                          ? Theme.of(context).primaryColor.withValues(alpha: 0.1)
                           : Theme.of(context).cardColor,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
@@ -723,8 +723,8 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(
-                            isOtherSelected ? 0.1 : 0.05,
+                          color: Colors.black.withValues(
+                            alpha: isOtherSelected ? 0.1 : 0.05,
                           ),
                           blurRadius: 8,
                           offset: const Offset(0, 2),
@@ -792,7 +792,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
+                      color: Colors.black.withValues(alpha: 0.05),
                       blurRadius: 8,
                       offset: const Offset(0, 2),
                     ),
@@ -810,7 +810,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                           decoration: BoxDecoration(
                             color: Theme.of(
                               context,
-                            ).primaryColor.withOpacity(0.1),
+                            ).primaryColor.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Icon(
@@ -938,7 +938,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         decoration: BoxDecoration(
-          color: isSelected ? device.color.withOpacity(0.1) : Colors.white,
+          color: isSelected ? device.color.withValues(alpha: 0.1) : Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isSelected ? device.color : Colors.grey.shade200,
@@ -946,7 +946,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(isSelected ? 0.1 : 0.05),
+              color: Colors.black.withValues(alpha: isSelected ? 0.1 : 0.05),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -962,7 +962,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                 height: 36,
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: device.color.withOpacity(0.1),
+                  color: device.color.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(device.icon, size: 20, color: device.color),
@@ -991,7 +991,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                     fontSize: 10,
                     fontWeight: FontWeight.w500,
                     color: (isSelected ? device.color : Colors.grey.shade500)
-                        .withOpacity(0.8),
+                        .withValues(alpha: 0.8),
                     fontFamily: 'Inter',
                   ),
                 ),
@@ -1033,7 +1033,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                 width: 64,
                 height: 64,
                 decoration: BoxDecoration(
-                  color: Theme.of(context).primaryColor.withOpacity(0.1),
+                  color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Icon(

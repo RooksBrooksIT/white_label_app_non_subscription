@@ -443,7 +443,7 @@ class _EngineerUpdatesState extends State<EngineerUpdates> {
             ? null
             : PreferredSize(
                 preferredSize: const Size.fromHeight(1),
-                child: Divider(height: 1, color: Colors.grey.withOpacity(0.1)),
+                child: Divider(height: 1, color: Colors.grey.withValues(alpha: 0.1)),
               ),
       ),
       body: Column(
@@ -571,7 +571,7 @@ class _EngineerUpdatesState extends State<EngineerUpdates> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -584,7 +584,7 @@ class _EngineerUpdatesState extends State<EngineerUpdates> {
         decoration: InputDecoration(
           hintText: 'Search Booking ID or Customer...',
           hintStyle: TextStyle(
-            color: bodyTextColor.withOpacity(0.5),
+            color: bodyTextColor.withValues(alpha: 0.5),
             fontSize: 14,
           ),
           prefixIcon: Icon(Icons.search_rounded, color: primaryBlue, size: 20),
@@ -621,7 +621,7 @@ class _EngineerUpdatesState extends State<EngineerUpdates> {
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border(bottom: BorderSide(color: Colors.grey.withOpacity(0.1))),
+        border: Border(bottom: BorderSide(color: Colors.grey.withValues(alpha: 0.1))),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -715,9 +715,9 @@ class _EngineerUpdatesState extends State<EngineerUpdates> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: chipColor.withOpacity(0.06),
+        color: chipColor.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: chipColor.withOpacity(0.1)),
+        border: Border.all(color: chipColor.withValues(alpha: 0.1)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -905,14 +905,14 @@ class _EngineerUpdatesState extends State<EngineerUpdates> {
       decoration: BoxDecoration(
         color: surfaceColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.withOpacity(0.1)),
+        border: Border.all(color: Colors.grey.withValues(alpha: 0.1)),
       ),
       child: TextField(
         controller: controller,
         decoration: InputDecoration(
           hintText: hint,
           hintStyle: TextStyle(
-            color: bodyTextColor.withOpacity(0.4),
+            color: bodyTextColor.withValues(alpha: 0.4),
             fontSize: 13,
           ),
           prefixIcon: Icon(icon, size: 18, color: primaryBlue),
@@ -933,7 +933,7 @@ class _EngineerUpdatesState extends State<EngineerUpdates> {
       decoration: BoxDecoration(
         color: surfaceColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.withOpacity(0.1)),
+        border: Border.all(color: Colors.grey.withValues(alpha: 0.1)),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
@@ -990,7 +990,7 @@ class _EngineerUpdatesState extends State<EngineerUpdates> {
         decoration: BoxDecoration(
           color: surfaceColor,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.withOpacity(0.1)),
+          border: Border.all(color: Colors.grey.withValues(alpha: 0.1)),
         ),
         child: Row(
           children: [
@@ -1001,7 +1001,7 @@ class _EngineerUpdatesState extends State<EngineerUpdates> {
               style: TextStyle(
                 color: date != null
                     ? headerTextColor
-                    : bodyTextColor.withOpacity(0.4),
+                    : bodyTextColor.withValues(alpha: 0.4),
                 fontSize: 13,
               ),
             ),
@@ -1451,7 +1451,7 @@ class _EngineerUpdateCardState extends State<EngineerUpdateCard> {
             GestureDetector(
               onTap: () => Navigator.of(context).pop(),
               child: Container(
-                color: Theme.of(context).primaryColor.withOpacity(0.05),
+                color: Theme.of(context).primaryColor.withValues(alpha: 0.05),
                 child: Center(
                   child: InteractiveViewer(
                     child: Image.network(
@@ -1519,7 +1519,7 @@ class _EngineerUpdateCardState extends State<EngineerUpdateCard> {
             border: Border.all(color: Colors.grey[300]!),
             boxShadow: [
               BoxShadow(
-                color: Colors.grey.withOpacity(0.1),
+                color: Colors.grey.withValues(alpha: 0.1),
                 blurRadius: 4,
                 offset: const Offset(0, 2),
               ),
@@ -1935,7 +1935,7 @@ class _EngineerUpdateCardState extends State<EngineerUpdateCard> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -1957,7 +1957,7 @@ class _EngineerUpdateCardState extends State<EngineerUpdateCard> {
                       width: 44,
                       height: 44,
                       decoration: BoxDecoration(
-                        color: statusColor.withOpacity(0.1),
+                        color: statusColor.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
                       ),
                       child: Center(
@@ -2008,7 +2008,7 @@ class _EngineerUpdateCardState extends State<EngineerUpdateCard> {
                             vertical: 6,
                           ),
                           decoration: BoxDecoration(
-                            color: statusColor.withOpacity(0.12),
+                            color: statusColor.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Text(
@@ -2077,7 +2077,7 @@ class _EngineerUpdateCardState extends State<EngineerUpdateCard> {
                         color: const Color(0xFFF8FAFC),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: Colors.grey.withOpacity(0.05),
+                          color: Colors.grey.withValues(alpha: 0.05),
                         ),
                       ),
                       child: Text(
@@ -2127,7 +2127,7 @@ class _EngineerUpdateCardState extends State<EngineerUpdateCard> {
                       decoration: BoxDecoration(
                         color: const Color(0xFFF8FAFC),
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: Colors.grey.withOpacity(0.1)),
+                        border: Border.all(color: Colors.grey.withValues(alpha: 0.1)),
                       ),
                       child: DropdownButtonHideUnderline(
                         child: DropdownButtonFormField<String>(
@@ -2181,13 +2181,13 @@ class _EngineerUpdateCardState extends State<EngineerUpdateCard> {
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(14),
                           borderSide: BorderSide(
-                            color: Colors.grey.withOpacity(0.1),
+                            color: Colors.grey.withValues(alpha: 0.1),
                           ),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(14),
                           borderSide: BorderSide(
-                            color: Colors.grey.withOpacity(0.1),
+                            color: Colors.grey.withValues(alpha: 0.1),
                           ),
                         ),
                         focusedBorder: OutlineInputBorder(
@@ -2252,7 +2252,7 @@ class _EngineerUpdateCardState extends State<EngineerUpdateCard> {
       style: TextStyle(
         fontSize: 15,
         fontWeight: FontWeight.w700,
-        color: ThemeService.instance.primaryColor.withOpacity(0.9),
+        color: ThemeService.instance.primaryColor.withValues(alpha: 0.9),
         letterSpacing: 0.2,
       ),
     );

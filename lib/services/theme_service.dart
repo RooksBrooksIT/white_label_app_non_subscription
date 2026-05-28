@@ -108,9 +108,9 @@ class ThemeService extends ChangeNotifier {
 
   Future<void> saveToLocal() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('primaryColor', _primaryColor.value);
-    await prefs.setInt('secondaryColor', _secondaryColor.value);
-    await prefs.setInt('backgroundColor', _backgroundColor.value);
+    await prefs.setInt('primaryColor', _primaryColor.toARGB32());
+    await prefs.setInt('secondaryColor', _secondaryColor.toARGB32());
+    await prefs.setInt('backgroundColor', _backgroundColor.toARGB32());
     await prefs.setBool('isDarkMode', _isDarkMode);
     await prefs.setString('fontFamily', _fontFamily);
     await prefs.setString('appName', _appName);

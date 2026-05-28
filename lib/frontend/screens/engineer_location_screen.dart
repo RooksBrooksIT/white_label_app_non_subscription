@@ -5,6 +5,8 @@ import 'package:latlong2/latlong.dart' as latlong;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
+import 'package:subscription_rooks_app/services/attendance_service.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:subscription_rooks_app/frontend/screens/engineer_dashboard_page.dart';
 
 class EngineerLocationScreen extends StatefulWidget {
@@ -149,7 +151,7 @@ class _EngineerLocationScreenState extends State<EngineerLocationScreen> {
             color: ProfessionalTheme.surface(context),
             borderRadius: BorderRadius.circular(20),
             boxShadow: ProfessionalTheme.elevatedShadow,
-            border: Border.all(color: ProfessionalTheme.primary(context).withOpacity(0.2)),
+            border: Border.all(color: ProfessionalTheme.primary(context).withValues(alpha: 0.2)),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -176,7 +178,7 @@ class _EngineerLocationScreenState extends State<EngineerLocationScreen> {
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: ProfessionalTheme.primary(context).withOpacity(0.15),
+            color: ProfessionalTheme.primary(context).withValues(alpha: 0.15),
             shape: BoxShape.circle,
           ),
           child: Center(
@@ -189,7 +191,7 @@ class _EngineerLocationScreenState extends State<EngineerLocationScreen> {
                 border: Border.all(color: Colors.white, width: 2),
                 boxShadow: [
                   BoxShadow(
-                    color: ProfessionalTheme.primary(context).withOpacity(0.5),
+                    color: ProfessionalTheme.primary(context).withValues(alpha: 0.5),
                     blurRadius: 8,
                     spreadRadius: 2,
                   ),
@@ -211,62 +213,167 @@ class _EngineerLocationScreenState extends State<EngineerLocationScreen> {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: ProfessionalTheme.cardDecoration(context),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: ProfessionalTheme.primaryExtraLight(context),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(Icons.speed, color: ProfessionalTheme.primary(context)),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _isCheckedIn ? 'Checked In' : 'Not Checked In',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                        color: ProfessionalTheme.textPrimary(context),
+              // Action Buttons Row
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _refreshLocation,
+                      icon: Icon(Icons.refresh),
+                      label: Text('Refresh'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: ProfessionalTheme.primary(context),
+                        foregroundColor: ProfessionalTheme.textInverse(context),
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _specialization,
-                      style: TextStyle(
-                        color: ProfessionalTheme.textSecondary(context),
-                        fontSize: 14,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        // Placeholder for Nearby functionality
+                        _showSnackBar('Nearby action', ProfessionalTheme.primary(context));
+                      },
+                      icon: Icon(Icons.near_me),
+                      label: Text('Nearby'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: ProfessionalTheme.primary(context).withValues(alpha: 0.8),
+                        foregroundColor: ProfessionalTheme.textInverse(context),
                       ),
                     ),
-                  ],
-                ),
-              ),
-              if (_isOnline)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: ProfessionalTheme.success.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: ProfessionalTheme.success.withOpacity(0.2)),
                   ),
-                  child: Text(
-                    'ON',
-                    style: TextStyle(
-                      color: ProfessionalTheme.success,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        // Perform check-in by invoking AttendanceService
+                        try {
+                          await AttendanceService.instance.checkIn(widget.engineerName);
+                          setState(() {
+                            _isCheckedIn = true;
+                            _isOnline = true;
+                          });
+                          _showSnackBar('Checked in successfully', ProfessionalTheme.success);
+                        } catch (e) {
+                          _showSnackBar('Check-in failed: $e', ProfessionalTheme.error);
+                        }
+                      },
+                      icon: Icon(Icons.check_circle),
+                      label: Text('Check In'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: ProfessionalTheme.success,
+                        foregroundColor: ProfessionalTheme.textInverse(context),
+                      ),
                     ),
                   ),
-                ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              // Existing status info row
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: ProfessionalTheme.primaryExtraLight(context),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.speed, color: ProfessionalTheme.primary(context)),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _isCheckedIn ? 'Checked In' : 'Not Checked In',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            color: ProfessionalTheme.textPrimary(context),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _specialization,
+                          style: TextStyle(
+                            color: ProfessionalTheme.textSecondary(context),
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (_isOnline)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: ProfessionalTheme.success.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: ProfessionalTheme.success.withValues(alpha: 0.2)),
+                      ),
+                      child: Text(
+                        'ON',
+                        style: TextStyle(
+                          color: ProfessionalTheme.success,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  // Refresh location and update Firestore fields
+  Future<void> _refreshLocation() async {
+    try {
+      Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      final tenantId = ThemeService.instance.databaseName;
+      final tenantCollection = FirestoreService.instance
+          .collection('EngineerLogin', tenantId: tenantId);
+      final query = await tenantCollection
+          .where('Username', isEqualTo: widget.engineerName)
+          .limit(1)
+          .get();
+      if (query.docs.isEmpty) {
+        _showSnackBar('Engineer record not found', ProfessionalTheme.error);
+        return;
+      }
+      final docId = query.docs.first.id;
+      final now = FieldValue.serverTimestamp();
+      // Use the same tenant-namespaced collection for the update (matches query path)
+      await tenantCollection.doc(docId).update({
+        'latitude': position.latitude,
+        'longitude': position.longitude,
+        'lastUpdatedTime': now,
+        'lastStatusUpdate': now,
+        'isLocationEnabled': true,
+        'isOnline': true,
+      });
+      _showSnackBar('Location refreshed', ProfessionalTheme.success);
+    } catch (e) {
+      _showSnackBar('Refresh failed: $e', ProfessionalTheme.error);
+    }
+  }
+
+  // Helper method to display snackbars
+  void _showSnackBar(String message, Color backgroundColor) {
+    final snackBar = SnackBar(
+      content: Text(message),
+      backgroundColor: backgroundColor,
+      behavior: SnackBarBehavior.floating,
+    );
+    ScaffoldMessenger.of(context).showSnackBar(snackBar);
   }
 
   Widget _buildFloatingControls() {

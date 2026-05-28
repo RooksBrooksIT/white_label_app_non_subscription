@@ -79,7 +79,7 @@ class Customer {
       problem: problem ?? this.problem,
       assignedEngineer: assignedEngineer ?? this.assignedEngineer,
       timestamp: timestamp ?? this.timestamp,
-      customerid: customerid ?? this.customerid,
+      customerid: customerid ?? customerid,
       customerFileUrl: customerFileUrl ?? this.customerFileUrl,
       fileName: fileName ?? this.fileName,
     );

@@ -138,7 +138,7 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                                   borderRadius: BorderRadius.circular(28),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withOpacity(0.04),
+                                      color: Colors.black.withValues(alpha: 0.04),
                                       blurRadius: 20,
                                       offset: const Offset(0, 10),
                                     ),
@@ -196,7 +196,7 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                               },
                             ),
                           );
-                        }).toList(),
+                        }),
                       ],
                     ),
                   ),
@@ -209,7 +209,7 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                     color: theme.scaffoldBackgroundColor,
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.03),
+                        color: Colors.black.withValues(alpha: 0.03),
                         blurRadius: 10,
                         offset: const Offset(0, -5),
                       ),
@@ -230,7 +230,7 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(18),
                             ),
-                            shadowColor: primaryColor.withOpacity(0.4),
+                            shadowColor: primaryColor.withValues(alpha: 0.4),
                           ),
                           child: Text(
                             "Continue",
@@ -282,24 +282,24 @@ class _RoleCard extends StatelessWidget {
         curve: Curves.easeInOut,
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: isSelected ? primaryColor.withOpacity(0.05) : theme.cardColor,
+          color: isSelected ? primaryColor.withValues(alpha: 0.05) : theme.cardColor,
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
             color: isSelected
                 ? primaryColor
-                : theme.dividerColor.withOpacity(0.1),
+                : theme.dividerColor.withValues(alpha: 0.1),
             width: 2,
           ),
           boxShadow: [
             if (isSelected)
               BoxShadow(
-                color: primaryColor.withOpacity(0.1),
+                color: primaryColor.withValues(alpha: 0.1),
                 blurRadius: 20,
                 offset: const Offset(0, 10),
               )
             else
               BoxShadow(
-                color: Colors.black.withOpacity(0.02),
+                color: Colors.black.withValues(alpha: 0.02),
                 blurRadius: 10,
                 offset: const Offset(0, 4),
               ),
@@ -311,7 +311,7 @@ class _RoleCard extends StatelessWidget {
               width: 56,
               height: 56,
               decoration: BoxDecoration(
-                color: isSelected ? primaryColor : color.withOpacity(0.1),
+                color: isSelected ? primaryColor : color.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Icon(

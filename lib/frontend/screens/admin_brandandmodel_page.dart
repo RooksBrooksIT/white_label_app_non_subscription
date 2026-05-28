@@ -449,12 +449,12 @@ class _BrandModelPageState extends State<BrandModelPage> with RouteAware {
                         gradient: LinearGradient(
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
-                          colors: [primaryColor.withOpacity(0.8), primaryColor],
+                          colors: [primaryColor.withValues(alpha: 0.8), primaryColor],
                         ),
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: [
                           BoxShadow(
-                            color: primaryColor.withOpacity(0.3),
+                            color: primaryColor.withValues(alpha: 0.3),
                             blurRadius: 8,
                             offset: const Offset(0, 4),
                           ),
@@ -470,7 +470,7 @@ class _BrandModelPageState extends State<BrandModelPage> with RouteAware {
                                 Container(
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.2),
+                                    color: Colors.white.withValues(alpha: 0.2),
                                     shape: BoxShape.circle,
                                   ),
                                   child: Icon(
@@ -495,7 +495,7 @@ class _BrandModelPageState extends State<BrandModelPage> with RouteAware {
                               'Select a device type and provide the required details to add a new device to your inventory',
                               style: TextStyle(
                                 fontSize: isSmallScreen ? 12 : 14,
-                                color: Colors.white.withOpacity(0.9),
+                                color: Colors.white.withValues(alpha: 0.9),
                               ),
                             ),
                           ],
@@ -543,7 +543,7 @@ class _BrandModelPageState extends State<BrandModelPage> with RouteAware {
                                   borderRadius: BorderRadius.circular(16),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.grey.withOpacity(0.2),
+                                      color: Colors.grey.withValues(alpha: 0.2),
                                       blurRadius: 8,
                                       offset: const Offset(0, 2),
                                     ),
@@ -565,7 +565,7 @@ class _BrandModelPageState extends State<BrandModelPage> with RouteAware {
                                     ),
                                   ),
                                   color: _selecteddevicesbrand == devicesbrand
-                                      ? primaryColor.withOpacity(0.08)
+                                      ? primaryColor.withValues(alpha: 0.08)
                                       : surfaceColor,
                                   child: InkWell(
                                     onTap: () {
@@ -593,7 +593,7 @@ class _BrandModelPageState extends State<BrandModelPage> with RouteAware {
                                                           devicesbrand
                                                       ? primaryColor
                                                       : primaryColor
-                                                            .withOpacity(0.1),
+                                                            .withValues(alpha: 0.1),
                                                   shape: BoxShape.circle,
                                                 ),
                                                 child: Icon(
@@ -660,8 +660,8 @@ class _BrandModelPageState extends State<BrandModelPage> with RouteAware {
                                             icon: Icon(
                                               Icons.delete_outline,
                                               size: isSmallScreen ? 16 : 18,
-                                              color: errorColor.withOpacity(
-                                                0.7,
+                                              color: errorColor.withValues(
+                                                alpha: 0.7,
                                               ),
                                             ),
                                             onPressed: () =>
@@ -682,7 +682,7 @@ class _BrandModelPageState extends State<BrandModelPage> with RouteAware {
                                 borderRadius: BorderRadius.circular(16),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.grey.withOpacity(0.2),
+                                    color: Colors.grey.withValues(alpha: 0.2),
                                     blurRadius: 8,
                                     offset: const Offset(0, 2),
                                   ),
@@ -693,7 +693,7 @@ class _BrandModelPageState extends State<BrandModelPage> with RouteAware {
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(16),
                                   side: BorderSide(
-                                    color: primaryColor.withOpacity(0.3),
+                                    color: primaryColor.withValues(alpha: 0.3),
                                     width: 1,
                                   ),
                                 ),
@@ -707,8 +707,8 @@ class _BrandModelPageState extends State<BrandModelPage> with RouteAware {
                                         begin: Alignment.topLeft,
                                         end: Alignment.bottomRight,
                                         colors: [
-                                          primaryColor.withOpacity(0.05),
-                                          primaryColor.withOpacity(0.1),
+                                          primaryColor.withValues(alpha: 0.05),
+                                          primaryColor.withValues(alpha: 0.1),
                                         ],
                                       ),
                                     ),
@@ -770,7 +770,7 @@ class _BrandModelPageState extends State<BrandModelPage> with RouteAware {
                           color: surfaceColor,
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.grey.withOpacity(0.1),
+                              color: Colors.grey.withValues(alpha: 0.1),
                               blurRadius: 4,
                               offset: const Offset(0, 2),
                             ),
@@ -805,7 +805,7 @@ class _BrandModelPageState extends State<BrandModelPage> with RouteAware {
                                   });
                                 },
                                 activeThumbColor: primaryColor,
-                                activeTrackColor: primaryColor.withOpacity(0.3),
+                                activeTrackColor: primaryColor.withValues(alpha: 0.3),
                               ),
                             ],
                           ),
@@ -832,7 +832,7 @@ class _BrandModelPageState extends State<BrandModelPage> with RouteAware {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.2),
+            color: Colors.grey.withValues(alpha: 0.2),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),
@@ -851,7 +851,7 @@ class _BrandModelPageState extends State<BrandModelPage> with RouteAware {
                   Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                      color: primaryColor.withOpacity(0.1),
+                      color: primaryColor.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
@@ -897,7 +897,7 @@ class _BrandModelPageState extends State<BrandModelPage> with RouteAware {
                   ),
                   prefixIcon: Icon(
                     Icons.branding_watermark,
-                    color: primaryColor.withOpacity(0.7),
+                    color: primaryColor.withValues(alpha: 0.7),
                   ),
                 ),
                 validator: (value) {
@@ -931,7 +931,7 @@ class _BrandModelPageState extends State<BrandModelPage> with RouteAware {
                   ),
                   prefixIcon: Icon(
                     Icons.model_training,
-                    color: primaryColor.withOpacity(0.7),
+                    color: primaryColor.withValues(alpha: 0.7),
                   ),
                 ),
                 validator: (value) {
@@ -965,7 +965,7 @@ class _BrandModelPageState extends State<BrandModelPage> with RouteAware {
                   ),
                   prefixIcon: Icon(
                     Icons.list_alt,
-                    color: primaryColor.withOpacity(0.7),
+                    color: primaryColor.withValues(alpha: 0.7),
                   ),
                 ),
                 maxLines: 3,
@@ -1000,7 +1000,7 @@ class _BrandModelPageState extends State<BrandModelPage> with RouteAware {
                   ),
                   prefixIcon: Icon(
                     Icons.description,
-                    color: primaryColor.withOpacity(0.7),
+                    color: primaryColor.withValues(alpha: 0.7),
                   ),
                 ),
                 maxLines: 3,
@@ -1023,7 +1023,7 @@ class _BrandModelPageState extends State<BrandModelPage> with RouteAware {
                             borderRadius: BorderRadius.circular(12),
                             boxShadow: [
                               BoxShadow(
-                                color: primaryColor.withOpacity(0.3),
+                                color: primaryColor.withValues(alpha: 0.3),
                                 blurRadius: 6,
                                 offset: const Offset(0, 3),
                               ),
@@ -1107,7 +1107,7 @@ class _BrandModelPageState extends State<BrandModelPage> with RouteAware {
                               borderRadius: BorderRadius.circular(12),
                               boxShadow: [
                                 BoxShadow(
-                                  color: primaryColor.withOpacity(0.3),
+                                  color: primaryColor.withValues(alpha: 0.3),
                                   blurRadius: 6,
                                   offset: const Offset(0, 3),
                                 ),
@@ -1284,7 +1284,7 @@ class _BrandModelPageState extends State<BrandModelPage> with RouteAware {
             color: surfaceColor,
             boxShadow: [
               BoxShadow(
-                color: Colors.grey.withOpacity(0.1),
+                color: Colors.grey.withValues(alpha: 0.1),
                 blurRadius: 4,
                 offset: const Offset(0, 2),
               ),
@@ -1326,7 +1326,7 @@ class _BrandModelPageState extends State<BrandModelPage> with RouteAware {
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                        color: primaryColor.withOpacity(0.1),
+                        color: primaryColor.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
@@ -1525,7 +1525,7 @@ class _AddDeviceDialogState extends State<AddDeviceDialog> {
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                color: primaryColor.withOpacity(0.2),
+                color: primaryColor.withValues(alpha: 0.2),
                 blurRadius: 16,
                 offset: const Offset(0, 8),
               ),
@@ -1541,7 +1541,7 @@ class _AddDeviceDialogState extends State<AddDeviceDialog> {
                   child: Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: primaryColor.withOpacity(0.1),
+                      color: primaryColor.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
@@ -1587,7 +1587,7 @@ class _AddDeviceDialogState extends State<AddDeviceDialog> {
                     ),
                     prefixIcon: Icon(
                       Icons.devices,
-                      color: primaryColor.withOpacity(0.7),
+                      color: primaryColor.withValues(alpha: 0.7),
                     ),
                   ),
                 ),
@@ -1626,7 +1626,7 @@ class _AddDeviceDialogState extends State<AddDeviceDialog> {
                           borderRadius: BorderRadius.circular(12),
                           boxShadow: [
                             BoxShadow(
-                              color: primaryColor.withOpacity(0.3),
+                              color: primaryColor.withValues(alpha: 0.3),
                               blurRadius: 6,
                               offset: const Offset(0, 3),
                             ),

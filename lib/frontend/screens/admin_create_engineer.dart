@@ -125,7 +125,7 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -169,7 +169,7 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
             color: Colors.white,
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.08),
+                color: Colors.black.withValues(alpha: 0.08),
                 blurRadius: 20,
                 offset: const Offset(0, -5),
               ),
@@ -180,7 +180,7 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
               controller: _tabController,
               indicator: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
-                color: primaryColor.withOpacity(0.1),
+                color: primaryColor.withValues(alpha: 0.1),
               ),
               indicatorSize: TabBarIndicatorSize.tab,
               dividerColor: Colors.transparent,
@@ -221,7 +221,7 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
                 gradient: LinearGradient(
                   colors: [
                     primaryColor,
-                    primaryColor.withOpacity(0.7),
+                    primaryColor.withValues(alpha: 0.7),
                   ],
                 ),
                 borderRadius: BorderRadius.circular(20),
@@ -253,7 +253,7 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
                               : 'Create a new account for your service team',
                           style: TextStyle(
                             fontSize: 12,
-                            color: Colors.white.withOpacity(0.85),
+                            color: Colors.white.withValues(alpha: 0.85),
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -272,7 +272,7 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
                 borderRadius: BorderRadius.circular(24),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
+                    color: Colors.black.withValues(alpha: 0.04),
                     blurRadius: 15,
                     offset: const Offset(0, 5),
                   ),
@@ -533,7 +533,7 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
             decoration: InputDecoration(
               hintText: hint,
               hintStyle: TextStyle(
-                color: textLightColor.withOpacity(0.6),
+                color: textLightColor.withValues(alpha: 0.6),
                 fontSize: 13,
               ),
               prefixIcon: Icon(
@@ -588,7 +588,7 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.04),
+                color: Colors.black.withValues(alpha: 0.04),
                 blurRadius: 10,
                 offset: const Offset(0, 2),
               ),
@@ -627,7 +627,7 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
                   onChanged: _filterEngineers,
                   decoration: InputDecoration(
                     hintText: 'Search by name or specialization...',
-                    hintStyle: TextStyle(color: textLightColor.withOpacity(0.6)),
+                    hintStyle: TextStyle(color: textLightColor.withValues(alpha: 0.6)),
                     prefixIcon: Icon(Icons.search_rounded, color: primaryColor),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(20),
@@ -658,7 +658,7 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
+                              color: Colors.black.withValues(alpha: 0.05),
                               blurRadius: 10,
                             ),
                           ],
@@ -666,7 +666,7 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
                         child: Icon(
                           Icons.person_search_rounded,
                           size: 48,
-                          color: textLightColor.withOpacity(0.5),
+                          color: textLightColor.withValues(alpha: 0.5),
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -685,7 +685,7 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
                         'Try adjusting your search',
                         style: TextStyle(
                           fontSize: 14,
-                          color: textLightColor.withOpacity(0.7),
+                          color: textLightColor.withValues(alpha: 0.7),
                         ),
                       ),
                     ],
@@ -704,7 +704,7 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.04),
+                            color: Colors.black.withValues(alpha: 0.04),
                             blurRadius: 10,
                             offset: const Offset(0, 2),
                           ),
@@ -726,7 +726,7 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
                                     gradient: LinearGradient(
                                       colors: [
                                         primaryColor,
-                                        primaryColor.withOpacity(0.7),
+                                        primaryColor.withValues(alpha: 0.7),
                                       ],
                                     ),
                                     shape: BoxShape.circle,
@@ -766,7 +766,7 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
                                           vertical: 4,
                                         ),
                                         decoration: BoxDecoration(
-                                          color: primaryColor.withOpacity(0.1),
+                                          color: primaryColor.withValues(alpha: 0.1),
                                           borderRadius: BorderRadius.circular(6),
                                         ),
                                         child: Text(
@@ -825,7 +825,7 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
                                   children: [
                                     Container(
                                       decoration: BoxDecoration(
-                                        color: primaryColor.withOpacity(0.1),
+                                        color: primaryColor.withValues(alpha: 0.1),
                                         borderRadius: BorderRadius.circular(12),
                                       ),
                                       child: IconButton(
@@ -840,7 +840,7 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
                                     const SizedBox(width: 8),
                                     Container(
                                       decoration: BoxDecoration(
-                                        color: errorColor.withOpacity(0.1),
+                                        color: errorColor.withValues(alpha: 0.1),
                                         borderRadius: BorderRadius.circular(12),
                                       ),
                                       child: IconButton(

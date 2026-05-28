@@ -86,7 +86,7 @@ class _PlanExpiredScreenState extends State<PlanExpiredScreen>
               end: Alignment.bottomCenter,
               colors: [
                 Colors.white,
-                Colors.red.shade50.withOpacity(0.3),
+                Colors.red.shade50.withValues(alpha: 0.3),
                 Colors.white,
               ],
             ),
@@ -113,7 +113,7 @@ class _PlanExpiredScreenState extends State<PlanExpiredScreen>
                               shape: BoxShape.circle,
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.red.withOpacity(0.1),
+                                  color: Colors.red.withValues(alpha: 0.1),
                                   blurRadius: 20,
                                   spreadRadius: 5,
                                 ),

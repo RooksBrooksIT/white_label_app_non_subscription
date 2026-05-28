@@ -440,8 +440,9 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                 _pathHistory.add(point);
               }
             }
-            if (_pathHistory.length > 300)
+            if (_pathHistory.length > 300) {
               _pathHistory.removeRange(0, _pathHistory.length - 300);
+            }
 
             // Update specific job update points
             _jobUpdatePoints.clear();
@@ -458,7 +459,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
               _updateCount++;
 
               if (_autoFollow) {
-                _mapController.move(latestPos!, _mapController.camera.zoom);
+                _mapController.move(latestPos, _mapController.camera.zoom);
               }
               _lastUpdateTime = latestTimestamp?.toDate() ?? DateTime.now();
             }
@@ -597,7 +598,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: Colors.black.withValues(alpha: 0.1),
               blurRadius: 10,
               offset: const Offset(0, 5),
             ),
@@ -697,7 +698,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                         borderRadius: BorderRadius.circular(12),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.15),
+                            color: Colors.black.withValues(alpha: 0.15),
                             blurRadius: 8,
                             offset: const Offset(0, 2),
                           ),
@@ -1211,7 +1212,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                           _buildInfoStat(
                             Icons.speed_rounded,
                             "Speed",
-                            "${(_currentSpeed * 3.6).toStringAsFixed(1)}",
+                            (_currentSpeed * 3.6).toStringAsFixed(1),
                             "km/h",
                             Colors.orange,
                           ),
@@ -1227,7 +1228,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                           _buildInfoStat(
                             Icons.timeline_rounded,
                             "Distance",
-                            "${(_pathHistory.length * 0.01).toStringAsFixed(2)}",
+                            (_pathHistory.length * 0.01).toStringAsFixed(2),
                             "km",
                             Colors.green,
                           ),

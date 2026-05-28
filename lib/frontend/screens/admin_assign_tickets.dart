@@ -825,7 +825,7 @@ class _CreateTicketsState extends State<CreateTickets> {
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: Theme.of(context).primaryColor.withOpacity(0.3),
+                    color: Theme.of(context).primaryColor.withValues(alpha: 0.3),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
@@ -893,7 +893,7 @@ class _CreateTicketsState extends State<CreateTickets> {
               gradient: LinearGradient(
                 colors: [
                   Theme.of(context).primaryColor,
-                  Theme.of(context).primaryColor.withOpacity(0.7),
+                  Theme.of(context).primaryColor.withValues(alpha: 0.7),
                 ],
               ),
               borderRadius: BorderRadius.circular(10),
@@ -933,12 +933,12 @@ class _CreateTicketsState extends State<CreateTickets> {
         color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: Theme.of(context).dividerColor.withOpacity(0.1),
+          color: Theme.of(context).dividerColor.withValues(alpha: 0.1),
           width: 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -950,7 +950,7 @@ class _CreateTicketsState extends State<CreateTickets> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.1),
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(16),
                 topRight: Radius.circular(16),
@@ -1036,7 +1036,7 @@ class _CreateTicketsState extends State<CreateTickets> {
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(
-                color: Theme.of(context).dividerColor.withOpacity(0.3),
+                color: Theme.of(context).dividerColor.withValues(alpha: 0.3),
                 width: 1,
               ),
             ),
@@ -1114,7 +1114,7 @@ class _CreateTicketsState extends State<CreateTickets> {
             border: Border.all(
               color: _mobileNumberError.isNotEmpty
                   ? Colors.red.shade400
-                  : Theme.of(context).dividerColor.withOpacity(0.3),
+                  : Theme.of(context).dividerColor.withValues(alpha: 0.3),
               width: 1,
             ),
           ),
@@ -1199,7 +1199,7 @@ class _CreateTicketsState extends State<CreateTickets> {
               children: [
                 Icon(
                   Icons.info_outline,
-                  color: Theme.of(context).primaryColor.withOpacity(0.6),
+                  color: Theme.of(context).primaryColor.withValues(alpha: 0.6),
                   size: 14,
                 ),
                 const SizedBox(width: 6),
@@ -1259,12 +1259,12 @@ class _CreateTicketsState extends State<CreateTickets> {
             color: Theme.of(context).scaffoldBackgroundColor,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: Theme.of(context).dividerColor.withOpacity(0.3),
+              color: Theme.of(context).dividerColor.withValues(alpha: 0.3),
               width: 1,
             ),
           ),
           child: DropdownButtonFormField<String>(
-            value: value,
+            initialValue: value,
             isExpanded: true,
             decoration: InputDecoration(
               border: InputBorder.none,
@@ -1333,7 +1333,7 @@ class _CreateTicketsState extends State<CreateTickets> {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Theme.of(context).primaryColor.withOpacity(0.05),
+              Theme.of(context).primaryColor.withValues(alpha: 0.05),
               Theme.of(context).scaffoldBackgroundColor,
             ],
           ),
@@ -1587,11 +1587,11 @@ class _CreateTicketsState extends State<CreateTickets> {
         Container(
           decoration: BoxDecoration(
             color: _customerType == 'new'
-                ? Theme.of(context).primaryColor.withOpacity(0.05)
+                ? Theme.of(context).primaryColor.withValues(alpha: 0.05)
                 : Theme.of(context).scaffoldBackgroundColor,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: Theme.of(context).dividerColor.withOpacity(0.3),
+              color: Theme.of(context).dividerColor.withValues(alpha: 0.3),
               width: 1,
             ),
           ),
@@ -1653,7 +1653,7 @@ class _CreateTicketsState extends State<CreateTickets> {
               children: [
                 Icon(
                   Icons.lock_outline,
-                  color: Theme.of(context).primaryColor.withOpacity(0.6),
+                  color: Theme.of(context).primaryColor.withValues(alpha: 0.6),
                   size: 14,
                 ),
                 const SizedBox(width: 6),
@@ -1693,7 +1693,7 @@ class GradientButton extends StatelessWidget {
         gradient: LinearGradient(
           colors: [
             Theme.of(context).primaryColor,
-            Theme.of(context).primaryColor.withOpacity(0.8),
+            Theme.of(context).primaryColor.withValues(alpha: 0.8),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -1701,7 +1701,7 @@ class GradientButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color: Theme.of(context).primaryColor.withOpacity(0.4),
+            color: Theme.of(context).primaryColor.withValues(alpha: 0.4),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),

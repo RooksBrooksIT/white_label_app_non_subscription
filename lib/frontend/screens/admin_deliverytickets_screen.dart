@@ -410,7 +410,7 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
           borderRadius: BorderRadius.circular(screenWidth * 0.032),
           boxShadow: [
             BoxShadow(
-              color: Theme.of(context).shadowColor.withOpacity(0.1),
+              color: Theme.of(context).shadowColor.withValues(alpha: 0.1),
               blurRadius: screenWidth * 0.016,
               offset: Offset(0, screenWidth * 0.01),
             ),
@@ -683,7 +683,7 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
           borderRadius: BorderRadius.circular(screenWidth * 0.032),
           boxShadow: [
             BoxShadow(
-              color: Theme.of(context).shadowColor.withOpacity(0.1),
+              color: Theme.of(context).shadowColor.withValues(alpha: 0.1),
               blurRadius: screenWidth * 0.016,
               offset: Offset(screenWidth * 0.005, screenWidth * 0.01),
             ),
@@ -1416,7 +1416,7 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
                                 BoxShadow(
                                   color: Theme.of(
                                     context,
-                                  ).shadowColor.withOpacity(0.1),
+                                  ).shadowColor.withValues(alpha: 0.1),
                                   blurRadius: screenWidth * 0.016,
                                   offset: Offset(
                                     screenWidth * 0.005,
@@ -2194,11 +2194,11 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
       icon = Icon(Icons.check, color: Colors.white, size: 24);
     } else if (isAssigned) {
       statusColor = Theme.of(context).primaryColor;
-      backgroundColor = Theme.of(context).primaryColor.withOpacity(0.1);
+      backgroundColor = Theme.of(context).primaryColor.withValues(alpha: 0.1);
       iconColor = Theme.of(context).primaryColor;
     } else {
       statusColor = Theme.of(context).disabledColor;
-      backgroundColor = Theme.of(context).disabledColor.withOpacity(0.1);
+      backgroundColor = Theme.of(context).disabledColor.withValues(alpha: 0.1);
       iconColor = Theme.of(context).disabledColor;
     }
 

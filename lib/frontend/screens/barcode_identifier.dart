@@ -138,9 +138,9 @@ class _BarcodeIdentifierScreenState extends State<BarcodeIdentifierScreen> {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Theme.of(context).primaryColor.withOpacity(0.95),
-              Theme.of(context).primaryColor.withOpacity(0.7),
-              Theme.of(context).primaryColor.withOpacity(0.95),
+              Theme.of(context).primaryColor.withValues(alpha: 0.95),
+              Theme.of(context).primaryColor.withValues(alpha: 0.7),
+              Theme.of(context).primaryColor.withValues(alpha: 0.95),
             ],
           ),
         ),
@@ -165,10 +165,10 @@ class _BarcodeIdentifierScreenState extends State<BarcodeIdentifierScreen> {
                     child: Container(
                       height: 350,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.08),
+                        color: Colors.white.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color: Colors.white.withOpacity(0.2),
+                          color: Colors.white.withValues(alpha: 0.2),
                         ),
                       ),
                       child: Column(
@@ -213,15 +213,15 @@ class _BarcodeIdentifierScreenState extends State<BarcodeIdentifierScreen> {
   Widget _buildGlassAppBar() {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
+        color: Colors.white.withValues(alpha: 0.1),
         borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(20),
           bottomRight: Radius.circular(20),
         ),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),
@@ -269,9 +269,9 @@ class _BarcodeIdentifierScreenState extends State<BarcodeIdentifierScreen> {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
+                color: Colors.white.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
-                border: Border.all(color: Colors.white.withOpacity(0.3)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
               ),
               child: const CircularProgressIndicator(
                 color: Colors.white,
@@ -282,9 +282,9 @@ class _BarcodeIdentifierScreenState extends State<BarcodeIdentifierScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
+                color: Colors.white.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(15),
-                border: Border.all(color: Colors.white.withOpacity(0.2)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
               ),
               child: Text(
                 'Searching for product: ${_scannedBarcode ?? ''}',
@@ -351,7 +351,7 @@ class _BarcodeIdentifierScreenState extends State<BarcodeIdentifierScreen> {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
+                      color: Colors.white.withValues(alpha: 0.2),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(Icons.qr_code, color: Colors.white),
@@ -605,12 +605,12 @@ class _BarcodeIdentifierScreenState extends State<BarcodeIdentifierScreen> {
   Widget _buildGlassCard({required Widget child}) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
+        color: Colors.white.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
+            color: Colors.black.withValues(alpha: 0.2),
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),
@@ -641,8 +641,8 @@ class _BarcodeIdentifierScreenState extends State<BarcodeIdentifierScreen> {
         gradient: isPrimary
             ? LinearGradient(
                 colors: [
-                  Colors.white.withOpacity(0.3),
-                  Colors.white.withOpacity(0.1),
+                  Colors.white.withValues(alpha: 0.3),
+                  Colors.white.withValues(alpha: 0.1),
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -650,11 +650,11 @@ class _BarcodeIdentifierScreenState extends State<BarcodeIdentifierScreen> {
             : null,
         borderRadius: BorderRadius.circular(15),
         border: Border.all(
-          color: Colors.white.withOpacity(isPrimary ? 0.3 : 0.2),
+          color: Colors.white.withValues(alpha: isPrimary ? 0.3 : 0.2),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
+            color: Colors.black.withValues(alpha: 0.2),
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),
@@ -665,7 +665,7 @@ class _BarcodeIdentifierScreenState extends State<BarcodeIdentifierScreen> {
         style: ElevatedButton.styleFrom(
           backgroundColor: isPrimary
               ? Colors.transparent
-              : Colors.white.withOpacity(0.1),
+              : Colors.white.withValues(alpha: 0.1),
           shadowColor: Colors.transparent,
           padding: const EdgeInsets.symmetric(vertical: 18),
           shape: RoundedRectangleBorder(
