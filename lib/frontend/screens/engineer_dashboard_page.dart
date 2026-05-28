@@ -656,7 +656,9 @@ class _EngineerPageState extends State<EngineerPage> {
   }
 
   Future<void> _checkAttendanceStatus() async {
-    bool checkedIn = await AttendanceService.instance.hasCheckedInToday(widget.userName);
+    bool checkedIn = await AttendanceService.instance.hasCheckedInToday(
+      widget.userName,
+    );
     if (mounted) {
       setState(() {
         _isCheckedIn = checkedIn;
@@ -923,7 +925,9 @@ class _EngineerPageState extends State<EngineerPage> {
                 width: 60,
                 height: 60,
                 decoration: BoxDecoration(
-                  color: ProfessionalTheme.primary(context).withValues(alpha: 0.1),
+                  color: ProfessionalTheme.primary(
+                    context,
+                  ).withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
@@ -1128,52 +1132,71 @@ class _EngineerPageState extends State<EngineerPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      key: _scaffoldKey,
-      backgroundColor: ProfessionalTheme.background(context),
-      endDrawer: ProfessionalNavigationDrawer(
-        userName: widget.userName,
-        userEmail: widget.userEmail,
-        onLogout: _showLogoutConfirmation,
-        currentSection: _currentSection,
-        onSectionChange: (section) {
-          setState(() {
-            _currentSection = section;
-            _selectedIndex = 0; // Go back to dashboard tab when section changes
-          });
-        },
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle(
+        statusBarColor: ProfessionalTheme.primary(context),
+        statusBarIconBrightness: Brightness.light,
+        statusBarBrightness: Brightness.dark,
       ),
-      body: SafeArea(
-        child: Column(
+      child: Scaffold(
+        key: _scaffoldKey,
+        backgroundColor: ProfessionalTheme.background(context),
+        endDrawer: ProfessionalNavigationDrawer(
+          userName: widget.userName,
+          userEmail: widget.userEmail,
+          onLogout: _showLogoutConfirmation,
+          currentSection: _currentSection,
+          onSectionChange: (section) {
+            setState(() {
+              _currentSection = section;
+              _selectedIndex =
+                  0; // Go back to dashboard tab when section changes
+            });
+          },
+        ),
+        body: Column(
           children: [
-            _buildTopSection(),
+            // Status bar background (time/battery area)
+            Container(
+              height: MediaQuery.of(context).padding.top,
+              color: ProfessionalTheme.primary(context),
+            ),
             Expanded(
-              child: IndexedStack(
-                index: _selectedIndex,
-                children: [
-                  _buildDashboardView(),
-                  _buildBookingsView(),
-                  _buildLocationView(),
-                  _buildProfileView(),
-                ],
+              child: SafeArea(
+                top: false,
+                child: Column(
+                  children: [
+                    _buildTopSection(),
+                    Expanded(
+                      child: IndexedStack(
+                        index: _selectedIndex,
+                        children: [
+                          _buildDashboardView(),
+                          _buildBookingsView(),
+                          _buildLocationView(),
+                          _buildProfileView(),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
         ),
+        bottomNavigationBar: _buildBottomNavigationBar(),
       ),
-      bottomNavigationBar: _buildBottomNavigationBar(),
     );
   }
 
   Widget _buildTopSection() {
-    final theme = Theme.of(context);
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 16, 16, 16),
       decoration: BoxDecoration(
-        color: ProfessionalTheme.surface(context),
+        color: ProfessionalTheme.primary(context),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -1185,7 +1208,7 @@ class _EngineerPageState extends State<EngineerPage> {
           if (ThemeService.instance.logoUrl != null)
             CircleAvatar(
               radius: 20,
-              backgroundColor: Colors.white,
+              backgroundColor: Colors.white.withValues(alpha: 0.9),
               backgroundImage: NetworkImage(ThemeService.instance.logoUrl!),
             ),
           if (ThemeService.instance.logoUrl != null) const SizedBox(width: 12),
@@ -1200,7 +1223,9 @@ class _EngineerPageState extends State<EngineerPage> {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w800,
-                    color: ProfessionalTheme.primary(context),
+                    color: ProfessionalTheme.textInverse(
+                      context,
+                    ).withValues(alpha: 0.9),
                     letterSpacing: 1.0,
                   ),
                 ),
@@ -1209,7 +1234,7 @@ class _EngineerPageState extends State<EngineerPage> {
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
-                    color: ProfessionalTheme.textPrimary(context),
+                    color: ProfessionalTheme.textInverse(context),
                     letterSpacing: -0.5,
                   ),
                   maxLines: 1,
@@ -1227,14 +1252,10 @@ class _EngineerPageState extends State<EngineerPage> {
             child: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: ProfessionalTheme.primaryExtraLight(context),
+                color: Colors.white.withValues(alpha: 0.18),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(
-                Icons.menu_rounded,
-                color: ProfessionalTheme.primary(context),
-                size: 24,
-              ),
+              child: Icon(Icons.menu_rounded, color: Colors.white, size: 24),
             ),
           ),
         ],
@@ -1246,15 +1267,9 @@ class _EngineerPageState extends State<EngineerPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: _isOnline
-            ? ProfessionalTheme.success.withValues(alpha: 0.1)
-            : Colors.grey.withValues(alpha: 0.1),
+        color: Colors.white.withValues(alpha: 0.18),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: _isOnline
-              ? ProfessionalTheme.success.withValues(alpha: 0.2)
-              : Colors.grey.withValues(alpha: 0.2),
-        ),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1262,7 +1277,7 @@ class _EngineerPageState extends State<EngineerPage> {
           Icon(
             _isOnline ? Icons.circle : Icons.circle_outlined,
             size: 8,
-            color: _isOnline ? ProfessionalTheme.success : Colors.grey,
+            color: Colors.white,
           ),
           const SizedBox(width: 6),
           Text(
@@ -1270,7 +1285,7 @@ class _EngineerPageState extends State<EngineerPage> {
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: _isOnline ? ProfessionalTheme.success : Colors.grey,
+              color: Colors.white,
             ),
           ),
           const SizedBox(width: 4),
@@ -1283,6 +1298,11 @@ class _EngineerPageState extends State<EngineerPage> {
                 value: _isOnline,
                 onChanged: _toggleOnlineStatus,
                 activeThumbColor: ProfessionalTheme.success,
+                activeTrackColor: ProfessionalTheme.success.withValues(
+                  alpha: 0.5,
+                ),
+                inactiveThumbColor: Colors.white,
+                inactiveTrackColor: Colors.white.withValues(alpha: 0.35),
               ),
             ),
           ),
@@ -1292,6 +1312,34 @@ class _EngineerPageState extends State<EngineerPage> {
   }
 
   // Replacing _buildSelectedTab with _buildDashboardView and helpers
+  EdgeInsets _pagePadding(BuildContext context) {
+    final w = MediaQuery.of(context).size.width;
+    final horizontal = w >= 420 ? 20.0 : 16.0;
+    return EdgeInsets.fromLTRB(horizontal, 16, horizontal, 24);
+  }
+
+  double _sectionTitleSize(BuildContext context) {
+    final w = MediaQuery.of(context).size.width;
+    return w >= 420 ? 20 : 18;
+  }
+
+  Widget _sectionHeader(String title, {Widget? trailing}) {
+    final titleStyle = Theme.of(context).textTheme.titleLarge?.copyWith(
+      fontSize: _sectionTitleSize(context),
+      fontWeight: FontWeight.w800,
+      color: ProfessionalTheme.textPrimary(context),
+      letterSpacing: -0.2,
+    );
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(title, style: titleStyle),
+        if (trailing != null) trailing,
+      ],
+    );
+  }
+
   Widget _buildDashboardView() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -1354,7 +1402,10 @@ class _EngineerPageState extends State<EngineerPage> {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [ProfessionalTheme.primary(context), ProfessionalTheme.primaryDark(context)],
+          colors: [
+            ProfessionalTheme.primary(context),
+            ProfessionalTheme.primaryDark(context),
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -1363,7 +1414,11 @@ class _EngineerPageState extends State<EngineerPage> {
       ),
       child: Column(
         children: [
-          Icon(Icons.location_on, color: ProfessionalTheme.textInverse(context), size: 48),
+          Icon(
+            Icons.location_on,
+            color: ProfessionalTheme.textInverse(context),
+            size: 48,
+          ),
           const SizedBox(height: 16),
           Text(
             'Check In to Start Your Day',
@@ -1378,7 +1433,9 @@ class _EngineerPageState extends State<EngineerPage> {
             'We need your location to assign nearby tasks and track your active hours.',
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: ProfessionalTheme.textInverse(context).withValues(alpha: 0.8),
+              color: ProfessionalTheme.textInverse(
+                context,
+              ).withValues(alpha: 0.8),
             ),
           ),
           const SizedBox(height: 24),
@@ -1390,11 +1447,23 @@ class _EngineerPageState extends State<EngineerPage> {
                 backgroundColor: ProfessionalTheme.textInverse(context),
                 foregroundColor: ProfessionalTheme.primary(context),
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
-              child: _isCheckingIn 
-                ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator())
-                : const Text('Check In Now', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              child: _isCheckingIn
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(),
+                    )
+                  : const Text(
+                      'Check In Now',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
             ),
           ),
         ],
@@ -1404,16 +1473,20 @@ class _EngineerPageState extends State<EngineerPage> {
 
   Widget _buildStatsCards() {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirestoreService.instance.collection('Admin_details').where('assignedEmployee', isEqualTo: widget.userName).snapshots(),
+      stream: FirestoreService.instance
+          .collection('Admin_details')
+          .where('assignedEmployee', isEqualTo: widget.userName)
+          .snapshots(),
       builder: (context, snapshot) {
         int totalCompleted = 0;
         int activeTasks = 0;
         int newlyAssigned = 0;
-        
+
         if (snapshot.hasData) {
           for (var doc in snapshot.data!.docs) {
             final data = doc.data() as Map<String, dynamic>;
-            final status = data['engineerStatus']?.toString().toLowerCase() ?? '';
+            final status =
+                data['engineerStatus']?.toString().toLowerCase() ?? '';
             if (status == 'completed') {
               totalCompleted++;
             } else if (status == 'assigned') {
@@ -1423,21 +1496,47 @@ class _EngineerPageState extends State<EngineerPage> {
             }
           }
         }
-        
+
         return Row(
           children: [
-            Expanded(child: _buildStatCard('Completed', totalCompleted.toString(), Icons.check_circle_outline, ProfessionalTheme.success)),
+            Expanded(
+              child: _buildStatCard(
+                'Completed',
+                totalCompleted.toString(),
+                Icons.check_circle_outline,
+                ProfessionalTheme.success,
+              ),
+            ),
             const SizedBox(width: 12),
-            Expanded(child: _buildStatCard('Active', activeTasks.toString(), Icons.run_circle_outlined, ProfessionalTheme.warning)),
+            Expanded(
+              child: _buildStatCard(
+                'Active',
+                activeTasks.toString(),
+                Icons.run_circle_outlined,
+                ProfessionalTheme.warning,
+              ),
+            ),
             const SizedBox(width: 12),
-            Expanded(child: _buildStatCard('New', newlyAssigned.toString(), Icons.new_releases_outlined, ProfessionalTheme.primary(context))),
+            Expanded(
+              child: _buildStatCard(
+                'New',
+                newlyAssigned.toString(),
+                Icons.new_releases_outlined,
+                ProfessionalTheme.primary(context),
+              ),
+            ),
           ],
         );
-      }
+      },
     );
   }
 
-  Widget _buildStatCard(String title, String value, IconData icon, Color color) {
+  Widget _buildStatCard(
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: ProfessionalTheme.cardDecoration(context),
@@ -1446,9 +1545,18 @@ class _EngineerPageState extends State<EngineerPage> {
         children: [
           Icon(icon, color: color, size: 28),
           const SizedBox(height: 12),
-          Text(value, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 4),
-          Text(title, style: TextStyle(color: ProfessionalTheme.textSecondary(context), fontSize: 12)),
+          Text(
+            title,
+            style: TextStyle(
+              color: ProfessionalTheme.textSecondary(context),
+              fontSize: 12,
+            ),
+          ),
         ],
       ),
     );
@@ -1461,19 +1569,27 @@ class _EngineerPageState extends State<EngineerPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Task Completion Rate', style: TextStyle(color: ProfessionalTheme.textSecondary(context))),
+          Text(
+            'Task Completion Rate',
+            style: TextStyle(color: ProfessionalTheme.textSecondary(context)),
+          ),
           const SizedBox(height: 16),
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: LinearProgressIndicator(
-              value: 0.75, 
+              value: 0.75,
               minHeight: 12,
               backgroundColor: ProfessionalTheme.borderLight(context),
-              valueColor: AlwaysStoppedAnimation<Color>(ProfessionalTheme.success),
+              valueColor: AlwaysStoppedAnimation<Color>(
+                ProfessionalTheme.success,
+              ),
             ),
           ),
           const SizedBox(height: 8),
-          const Text('75% tasks completed this week', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+          const Text(
+            '75% tasks completed this week',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+          ),
         ],
       ),
     );
@@ -1481,15 +1597,22 @@ class _EngineerPageState extends State<EngineerPage> {
 
   Widget _buildRecentTasks() {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirestoreService.instance.collection('Admin_details').where('assignedEmployee', isEqualTo: widget.userName).where('engineerStatus', isEqualTo: 'Assigned').limit(3).snapshots(),
+      stream: FirestoreService.instance
+          .collection('Admin_details')
+          .where('assignedEmployee', isEqualTo: widget.userName)
+          .where('engineerStatus', isEqualTo: 'Assigned')
+          .limit(3)
+          .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const Center(child: Padding(
-            padding: EdgeInsets.all(24),
-            child: Text('No recent tasks assigned.'),
-          ));
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: Text('No recent tasks assigned.'),
+            ),
+          );
         }
-        
+
         return Column(
           children: snapshot.data!.docs.map((doc) {
             final data = doc.data() as Map<String, dynamic>;
@@ -1505,26 +1628,44 @@ class _EngineerPageState extends State<EngineerPage> {
                       color: ProfessionalTheme.primaryExtraLight(context),
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(Icons.assignment, color: ProfessionalTheme.primary(context)),
+                    child: Icon(
+                      Icons.assignment,
+                      color: ProfessionalTheme.primary(context),
+                    ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(data['deviceBrand'] ?? 'Task', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                        Text(
+                          data['deviceBrand'] ?? 'Task',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
                         const SizedBox(height: 4),
-                        Text(data['customerName'] ?? 'Customer', style: TextStyle(color: ProfessionalTheme.textSecondary(context), fontSize: 14)),
+                        Text(
+                          data['customerName'] ?? 'Customer',
+                          style: TextStyle(
+                            color: ProfessionalTheme.textSecondary(context),
+                            fontSize: 14,
+                          ),
+                        ),
                       ],
                     ),
                   ),
-                  Icon(Icons.chevron_right, color: ProfessionalTheme.textTertiary(context)),
+                  Icon(
+                    Icons.chevron_right,
+                    color: ProfessionalTheme.textTertiary(context),
+                  ),
                 ],
               ),
             );
           }).toList(),
         );
-      }
+      },
     );
   }
 
@@ -1728,6 +1869,9 @@ class _EngineerPageState extends State<EngineerPage> {
           return _buildEmptyState();
         }
 
+        int assignedCount = 0;
+        int completedCount = 0;
+
         // Process data based on current section
         if (_isLoading ||
             snapshot.data!.docs.length != _allBookings.length ||
@@ -1736,6 +1880,13 @@ class _EngineerPageState extends State<EngineerPage> {
           var allBookings = snapshot.data!.docs
               .map((doc) => AdminDetails.fromFirestore(doc))
               .toList();
+
+          assignedCount = allBookings
+              .where((b) => b.selectedStatus.toLowerCase() != 'completed')
+              .length;
+          completedCount = allBookings
+              .where((b) => b.selectedStatus.toLowerCase() == 'completed')
+              .length;
 
           // Filter based on current section
           if (_currentSection == 'completed') {
@@ -1758,96 +1909,236 @@ class _EngineerPageState extends State<EngineerPage> {
           _allBookings.sort((a, b) => b.bookingId.compareTo(a.bookingId));
           _applyFilters();
           _isLoading = false;
+        } else {
+          // If we didn't rebuild _allBookings, still derive header counts
+          // from latest snapshot for accuracy.
+          final allBookings = snapshot.data!.docs
+              .map((doc) => AdminDetails.fromFirestore(doc))
+              .toList();
+          assignedCount = allBookings
+              .where((b) => b.selectedStatus.toLowerCase() != 'completed')
+              .length;
+          completedCount = allBookings
+              .where((b) => b.selectedStatus.toLowerCase() == 'completed')
+              .length;
         }
 
         return Column(
           children: [
-            // Search and Filter Section (only show in dashboard)
-            if (_currentSection == 'dashboard') ...[
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    _buildSearchField(),
+            Padding(
+              padding: _pagePadding(context).copyWith(bottom: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _sectionHeader('Bookings'),
+                  const SizedBox(height: 12),
+                  _buildBookingSectionSwitcher(
+                    assignedCount: assignedCount,
+                    completedCount: completedCount,
+                  ),
+                  const SizedBox(height: 12),
+                  _buildSearchField(),
+                  if (_currentSection == 'dashboard') ...[
                     const SizedBox(height: 12),
                     _buildStatusFilterChips(),
                   ],
-                ),
-              ),
-            ] else ...[
-              // Completed Tickets Header
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: ProfessionalTheme.successLight,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: ProfessionalTheme.success.withValues(alpha: 0.3),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.assignment_turned_in,
-                        color: ProfessionalTheme.success,
-                        size: 24,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Completed Tickets',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                                color: ProfessionalTheme.success,
-                              ),
-                            ),
-                            Text(
-                              'View all successfully completed service tickets',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: ProfessionalTheme.success.withValues(
-                                  alpha: 0.8,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-
-            // Results Count
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  Text(
-                    '${_filteredBookings.length} ${_filteredBookings.length == 1 ? 'ticket' : 'tickets'} ${_currentSection == 'completed' ? 'completed' : 'assigned'}',
-                    style: TextStyle(
-                      color: ProfessionalTheme.textSecondary(context),
-                      fontSize: 14,
-                    ),
-                  ),
+                  const SizedBox(height: 12),
+                  _buildResultsMeta(),
                 ],
               ),
             ),
-
-            const SizedBox(height: 8),
 
             // Bookings List
             Expanded(child: _buildSearchResults()),
           ],
         );
       },
+    );
+  }
+
+  Widget _buildResultsMeta() {
+    final label = _currentSection == 'completed' ? 'completed' : 'assigned';
+    final count = _filteredBookings.length;
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: ProfessionalTheme.surface(context),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: ProfessionalTheme.borderLight(context)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                _currentSection == 'completed'
+                    ? Icons.verified_rounded
+                    : Icons.assignment_rounded,
+                size: 16,
+                color: ProfessionalTheme.primary(context),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '$count ${count == 1 ? 'ticket' : 'tickets'} $label',
+                style: TextStyle(
+                  color: ProfessionalTheme.textSecondary(context),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const Spacer(),
+        if (_searchQuery.isNotEmpty || _statusFilter != null)
+          TextButton(
+            onPressed: () {
+              _clearSearch();
+              setState(() {
+                _statusFilter = null;
+                _applyFilters();
+              });
+            },
+            style: TextButton.styleFrom(
+              foregroundColor: ProfessionalTheme.primary(context),
+              textStyle: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+            child: const Text('Clear filters'),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildBookingSectionSwitcher({
+    required int assignedCount,
+    required int completedCount,
+  }) {
+    final isCompleted = _currentSection == 'completed';
+
+    Widget chip({
+      required bool selected,
+      required String title,
+      required String count,
+      required IconData icon,
+      required VoidCallback onTap,
+    }) {
+      return Expanded(
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeInOut,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            decoration: BoxDecoration(
+              color: selected
+                  ? ProfessionalTheme.primary(context)
+                  : ProfessionalTheme.surface(context),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: selected
+                    ? ProfessionalTheme.primary(context)
+                    : ProfessionalTheme.borderLight(context),
+              ),
+              boxShadow: selected
+                  ? [
+                      BoxShadow(
+                        color: ProfessionalTheme.primary(
+                          context,
+                        ).withValues(alpha: 0.22),
+                        blurRadius: 16,
+                        offset: const Offset(0, 8),
+                      ),
+                    ]
+                  : const [
+                      BoxShadow(
+                        color: Color(0x08000000),
+                        blurRadius: 10,
+                        offset: Offset(0, 4),
+                      ),
+                    ],
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  icon,
+                  size: 18,
+                  color: selected
+                      ? ProfessionalTheme.textInverse(context)
+                      : ProfessionalTheme.primary(context),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      color: selected
+                          ? ProfessionalTheme.textInverse(context)
+                          : ProfessionalTheme.textPrimary(context),
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? Colors.white.withValues(alpha: 0.18)
+                        : ProfessionalTheme.primaryExtraLight(context),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    count,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      color: selected
+                          ? ProfessionalTheme.textInverse(context)
+                          : ProfessionalTheme.primary(context),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        chip(
+          selected: !isCompleted,
+          title: 'Assigned',
+          count: assignedCount.toString(),
+          icon: Icons.assignment_rounded,
+          onTap: () {
+            if (_currentSection == 'dashboard') return;
+            setState(() {
+              _currentSection = 'dashboard';
+              _statusFilter = null;
+              _applyFilters();
+            });
+          },
+        ),
+        const SizedBox(width: 12),
+        chip(
+          selected: isCompleted,
+          title: 'Completed',
+          count: completedCount.toString(),
+          icon: Icons.verified_rounded,
+          onTap: () {
+            if (_currentSection == 'completed') return;
+            setState(() {
+              _currentSection = 'completed';
+              _statusFilter = null;
+              _applyFilters();
+            });
+          },
+        ),
+      ],
     );
   }
 
@@ -1929,7 +2220,7 @@ class _EngineerPageState extends State<EngineerPage> {
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.all(16),
+      padding: _pagePadding(context),
       itemCount: _filteredBookings.length,
       itemBuilder: (context, index) {
         var booking = _filteredBookings[index];
@@ -2171,7 +2462,6 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
   List<Map<String, dynamic>> _payments = [];
   double? _capturedLat;
   double? _capturedLng;
-  DateTime? _capturedTimestamp;
   bool _isLoadingLocation = false;
 
   Future<void> _logManualLocation() async {
@@ -2183,7 +2473,6 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
       setState(() {
         _capturedLat = position.latitude;
         _capturedLng = position.longitude;
-        _capturedTimestamp = DateTime.now();
       });
       _showSnackBar('Location captured!', ProfessionalTheme.success);
     } catch (e) {
@@ -2410,7 +2699,9 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
                 width: 60,
                 height: 60,
                 decoration: BoxDecoration(
-                  color: ProfessionalTheme.primary(context).withValues(alpha: 0.1),
+                  color: ProfessionalTheme.primary(
+                    context,
+                  ).withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
@@ -3865,7 +4156,9 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
               color: ProfessionalTheme.surface(context),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: ProfessionalTheme.borderLight(context).withValues(alpha: 0.3),
+                color: ProfessionalTheme.borderLight(
+                  context,
+                ).withValues(alpha: 0.3),
                 style: BorderStyle.solid,
               ),
             ),
@@ -3895,10 +4188,14 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
               width: double.infinity,
               padding: const EdgeInsets.all(32),
               decoration: BoxDecoration(
-                color: ProfessionalTheme.primary(context).withValues(alpha: 0.04),
+                color: ProfessionalTheme.primary(
+                  context,
+                ).withValues(alpha: 0.04),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: ProfessionalTheme.primary(context).withValues(alpha: 0.2),
+                  color: ProfessionalTheme.primary(
+                    context,
+                  ).withValues(alpha: 0.2),
                   style: BorderStyle.solid,
                 ),
               ),

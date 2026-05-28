@@ -7,7 +7,6 @@ import 'package:geocoding/geocoding.dart' as geo;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/foundation.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
-import 'package:subscription_rooks_app/services/firestore_service.dart';
 
 class LocationService {
   static final LocationService instance = LocationService._internal();

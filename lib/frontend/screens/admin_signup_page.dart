@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:subscription_rooks_app/services/auth_state_service.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/subscription/subscription_plans_screen.dart';
 
