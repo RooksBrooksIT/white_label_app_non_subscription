@@ -729,9 +729,8 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                           customer.customerName,
                           style: TextStyle(
                             fontSize: getProportionalSize(14),
-                            color: Theme.of(
-                              context,
-                            ).textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
+                            color: Theme.of(context).textTheme.bodyMedium?.color
+                                ?.withValues(alpha: 0.7),
                             fontWeight: FontWeight.w500,
                           ),
                           maxLines: 1,
@@ -878,14 +877,17 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                     color: Theme.of(context).hintColor,
                   ),
                   SizedBox(width: getProportionalSize(6)),
-                  Text(
-                    DateFormat(
-                      'dd MMM yyyy',
-                    ).format(customer.timestamp.toDate()),
-                    style: TextStyle(
-                      fontSize: getProportionalSize(12),
-                      color: Theme.of(context).hintColor,
-                      fontWeight: FontWeight.w500,
+                  Flexible(
+                    child: Text(
+                      DateFormat(
+                        'dd MMM yyyy',
+                      ).format(customer.timestamp.toDate()),
+                      style: TextStyle(
+                        fontSize: getProportionalSize(12),
+                        color: Theme.of(context).hintColor,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   const Spacer(),
@@ -898,14 +900,17 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                           Theme.of(context).primaryColor,
                     ),
                     SizedBox(width: getProportionalSize(6)),
-                    Text(
-                      (durationInfo['label'] as String?) ?? '',
-                      style: TextStyle(
-                        fontSize: getProportionalSize(12),
-                        color:
-                            (durationInfo['color'] as Color?) ??
-                            Theme.of(context).primaryColor,
-                        fontWeight: FontWeight.bold,
+                    Flexible(
+                      child: Text(
+                        (durationInfo['label'] as String?) ?? '',
+                        style: TextStyle(
+                          fontSize: getProportionalSize(12),
+                          color:
+                              (durationInfo['color'] as Color?) ??
+                              Theme.of(context).primaryColor,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
@@ -1172,6 +1177,29 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                     ],
                                   ),
                                   SizedBox(height: screenHeight * 0.004),
+                                  if (isCompleted &&
+                                      assignedEmployee.isNotEmpty &&
+                                      assignedEmployee != 'Unassigned' &&
+                                      assignedEmployee != 'Not Assigned')
+                                    Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.check_circle,
+                                          color: Colors.green,
+                                          size: 14,
+                                        ),
+                                        SizedBox(width: getProportionalSize(4)),
+                                        Text(
+                                          'Service completed by: $assignedEmployee',
+                                          style: TextStyle(
+                                            color: Colors.green,
+                                            fontSize: getProportionalSize(12),
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  SizedBox(height: screenHeight * 0.004),
                                   // Customer row
                                   Row(
                                     children: [
@@ -1393,6 +1421,69 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                           ],
                         ),
                       ),
+                      // Service completion message in detail sheet
+                      if (isCompleted &&
+                          assignedEmployee.isNotEmpty &&
+                          assignedEmployee != 'Unassigned' &&
+                          assignedEmployee != 'Not Assigned')
+                        Padding(
+                          padding: EdgeInsets.only(
+                            top: screenHeight * 0.015,
+                            left: screenWidth * 0.06,
+                            right: screenWidth * 0.06,
+                          ),
+                          child: Container(
+                            width: double.infinity,
+                            padding: EdgeInsets.symmetric(
+                              horizontal: screenWidth * 0.04,
+                              vertical: screenHeight * 0.012,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(
+                                getProportionalSize(8),
+                              ),
+                              border: Border.all(
+                                color: Colors.green,
+                                width: 1.5,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.check_circle,
+                                  color: Colors.green,
+                                  size: getProportionalSize(20),
+                                ),
+                                SizedBox(width: screenWidth * 0.02),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Service Completed',
+                                        style: TextStyle(
+                                          color: Colors.green,
+                                          fontSize: getProportionalSize(14),
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      SizedBox(height: getProportionalSize(2)),
+                                      Text(
+                                        'Service completed by: $assignedEmployee',
+                                        style: TextStyle(
+                                          color: Colors.green.shade700,
+                                          fontSize: getProportionalSize(12),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       // Customer cancellation message in detail sheet
                       if (isCanceledByCustomer)
                         Padding(
@@ -1615,6 +1706,16 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                           customerLat: customerLat,
                                           customerLng: customerLng,
                                           customerAddress: customer.address,
+                                          bookingId: customer.bookingId,
+                                          customerName: customer.customerName,
+                                          jobType: customer.jobType,
+                                          deviceType: customer.deviceType,
+                                          deviceBrand: customer.deviceBrand,
+                                          assignedEmployee:
+                                              assignedEmployee != 'Not Assigned'
+                                              ? assignedEmployee
+                                              : null,
+                                          customerStatus: displayStatus,
                                         ),
                                   ),
                                 );
@@ -1695,7 +1796,9 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                       Divider(
                         height: screenHeight * 0.033,
                         thickness: 1,
-                        color: Theme.of(context).primaryColor.withValues(alpha: 0.5),
+                        color: Theme.of(
+                          context,
+                        ).primaryColor.withValues(alpha: 0.5),
                       ),
                       Padding(
                         padding: EdgeInsets.symmetric(
