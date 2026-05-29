@@ -28,13 +28,19 @@ class LocationService {
     try {
       final user = _auth.currentUser;
       if (user == null) {
-        debugPrint('LocationService: No session found. Attempting Anonymous Auth...');
+        debugPrint(
+          'LocationService: No session found. Attempting Anonymous Auth...',
+        );
         try {
           final cred = await _auth.signInAnonymously();
-          debugPrint('LocationService: Anonymous Auth successful. UID: ${cred.user?.uid}');
+          debugPrint(
+            'LocationService: Anonymous Auth successful. UID: ${cred.user?.uid}',
+          );
         } catch (e) {
           // If Anonymous provider is disabled, log and continue without auth.
-          debugPrint('LocationService: Anonymous Auth failed (likely disabled): $e');
+          debugPrint(
+            'LocationService: Anonymous Auth failed (likely disabled): $e',
+          );
           // Proceed; Realtime Database/Firestore rules must allow unauthenticated writes.
         }
       } else {
@@ -152,7 +158,8 @@ class LocationService {
 
       // 5-minute Firestore heartbeat
       final now = DateTime.now();
-      if (_lastFirestoreUpdate == null || now.difference(_lastFirestoreUpdate!).inMinutes >= 5) {
+      if (_lastFirestoreUpdate == null ||
+          now.difference(_lastFirestoreUpdate!).inMinutes >= 5) {
         _lastFirestoreUpdate = now;
         _updateFirestoreHeartbeat(engineerId, position);
       }
@@ -175,7 +182,10 @@ class LocationService {
     }
   }
 
-  Future<void> _updateFirestoreHeartbeat(String engineerId, Position position) async {
+  Future<void> _updateFirestoreHeartbeat(
+    String engineerId,
+    Position position,
+  ) async {
     try {
       final querySnapshot = await FirebaseFirestore.instance
           .collection('EngineerLogin')
@@ -189,10 +199,10 @@ class LocationService {
             .collection('EngineerLogin')
             .doc(docId)
             .update({
-          'latitude': position.latitude,
-          'longitude': position.longitude,
-          'lastUpdatedTime': FieldValue.serverTimestamp(),
-        });
+              'latitude': position.latitude,
+              'longitude': position.longitude,
+              'lastUpdatedTime': FieldValue.serverTimestamp(),
+            });
       }
     } catch (e) {
       debugPrint('Firestore Heartbeat Error: $e');
@@ -219,9 +229,7 @@ class LocationService {
         await FirebaseFirestore.instance
             .collection('EngineerLogin')
             .doc(docId)
-            .update({
-          'activeBookingId': bookingId,
-        });
+            .update({'activeBookingId': bookingId});
       }
     } catch (e) {
       debugPrint('Error updating active booking: $e');
