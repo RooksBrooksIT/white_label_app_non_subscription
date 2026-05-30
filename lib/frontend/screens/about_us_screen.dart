@@ -38,10 +38,7 @@ class AboutUsScreen extends StatelessWidget {
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [
-                      primaryColor,
-                      primaryColor.withValues(alpha: 0.7),
-                    ],
+                    colors: [primaryColor, primaryColor.withValues(alpha: 0.7)],
                   ),
                   borderRadius: const BorderRadius.only(
                     bottomLeft: Radius.circular(40),
@@ -108,7 +105,10 @@ class AboutUsScreen extends StatelessWidget {
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                           colors: isDark
-                              ? [const Color(0xFF2D2D44), const Color(0xFF1E1E2E)]
+                              ? [
+                                  const Color(0xFF2D2D44),
+                                  const Color(0xFF1E1E2E),
+                                ]
                               : [Colors.white, const Color(0xFFFEFEFE)],
                         ),
                         borderRadius: BorderRadius.circular(24),
@@ -169,7 +169,10 @@ class AboutUsScreen extends StatelessWidget {
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                           colors: isDark
-                              ? [const Color(0xFF2D2D44), const Color(0xFF1E1E2E)]
+                              ? [
+                                  const Color(0xFF2D2D44),
+                                  const Color(0xFF1E1E2E),
+                                ]
                               : [Colors.white, const Color(0xFFFEFEFE)],
                         ),
                         borderRadius: BorderRadius.circular(24),
@@ -213,7 +216,8 @@ class AboutUsScreen extends StatelessWidget {
                           _buildFeatureItem(
                             icon: Icons.book_online_rounded,
                             title: 'Easy Service Booking',
-                            description: 'Book IT services with just a few taps',
+                            description:
+                                'Book IT services with just a few taps',
                             iconColor: primaryColor,
                           ),
                           const SizedBox(height: 20),
@@ -227,7 +231,8 @@ class AboutUsScreen extends StatelessWidget {
                           _buildFeatureItem(
                             icon: Icons.manage_accounts_rounded,
                             title: 'Efficient Management',
-                            description: 'Manage all service requests in one place',
+                            description:
+                                'Manage all service requests in one place',
                             iconColor: primaryColor,
                           ),
                         ],
@@ -242,7 +247,10 @@ class AboutUsScreen extends StatelessWidget {
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                           colors: isDark
-                              ? [const Color(0xFF2D2D44), const Color(0xFF1E1E2E)]
+                              ? [
+                                  const Color(0xFF2D2D44),
+                                  const Color(0xFF1E1E2E),
+                                ]
                               : [Colors.white, const Color(0xFFFEFEFE)],
                         ),
                         borderRadius: BorderRadius.circular(24),
@@ -290,14 +298,14 @@ class AboutUsScreen extends StatelessWidget {
                             iconColor: primaryColor,
                           ),
                           const SizedBox(height: 16),
-                          _buildCompanyDetailCard(
-                            icon: Icons.location_on_rounded,
-                            title: 'Address',
-                            value:
-                                'No:17, Jawahar Street, Ramavarmapuram, Nagercoil - 629001',
-                            iconColor: primaryColor,
-                          ),
-                          const SizedBox(height: 16),
+                          // _buildCompanyDetailCard(-
+                          //   icon: Icons.location_on_rounded,
+                          //   title: 'Address',
+                          //   value:
+                          //       'No:17, Jawahar Street, Ramavarmapuram, Nagercoil - 629001',
+                          //   iconColor: primaryColor,
+                          // ),
+                          // const SizedBox(height: 16),
                           _buildCompanyDetailCard(
                             icon: Icons.email_rounded,
                             title: 'Email',
@@ -335,15 +343,10 @@ class AboutUsScreen extends StatelessWidget {
                       ),
                       child: Row(
                         children: [
-                          Icon(
-                            Icons.favorite_rounded,
-                            color: primaryColor,
-                            size: 24,
-                          ),
-                          const SizedBox(width: 12),
                           Expanded(
                             child: Text(
                               'Thank you for choosing ServNex',
+                              textAlign: TextAlign.center,
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
