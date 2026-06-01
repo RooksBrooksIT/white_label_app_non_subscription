@@ -11,6 +11,7 @@ import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/services/attendance_service.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:subscription_rooks_app/frontend/screens/engineer_dashboard_page.dart';
+import 'package:subscription_rooks_app/frontend/screens/assigned_tickets_screen.dart';
 
 class EngineerLocationScreen extends StatefulWidget {
   final String engineerName;
@@ -118,19 +119,8 @@ class _EngineerLocationScreenState extends State<EngineerLocationScreen> {
         body: Stack(
           children: [
             _buildMap(),
-            // Status bar background (time/battery area)
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: Container(
-                height: MediaQuery.of(context).padding.top,
-                color: ProfessionalTheme.primary(context),
-              ),
-            ),
             _buildTopOverlay(),
             _buildNavigationInfoOverlay(),
-            _buildAssignedTicketsSheet(),
             _buildFloatingControls(),
           ],
         ),
@@ -292,117 +282,41 @@ class _EngineerLocationScreenState extends State<EngineerLocationScreen> {
 
   Widget _buildTopOverlay() {
     return Positioned(
-      top: 16,
+      top: 12,
       left: 16,
       right: 16,
-      child: SafeArea(
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: ProfessionalTheme.cardDecoration(context),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Action Buttons Row
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: _isOnline ? _refreshLocation : null,
-                      icon: Icon(Icons.refresh),
-                      label: Text('Refresh'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: ProfessionalTheme.primary(context),
-                        foregroundColor: ProfessionalTheme.textInverse(context),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: _isTogglingStatus ? null : _toggleOnlineStatus,
-                      icon: Icon(_isOnline ? Icons.logout : Icons.check_circle),
-                      label: Text(_isOnline ? 'Check Out' : 'Check In'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _isOnline
-                            ? Colors.red
-                            : ProfessionalTheme.success,
-                        foregroundColor: ProfessionalTheme.textInverse(context),
-                      ),
-                    ),
-                  ),
-                ],
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: ProfessionalTheme.cardDecoration(context),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: _isOnline ? _refreshLocation : null,
+                icon: Icon(Icons.refresh),
+                label: Text('Refresh'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: ProfessionalTheme.primary(context),
+                  foregroundColor: ProfessionalTheme.textInverse(context),
+                ),
               ),
-              const SizedBox(height: 12),
-              // Existing status info row
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: ProfessionalTheme.primaryExtraLight(context),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.speed,
-                      color: ProfessionalTheme.primary(context),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _isOnline ? 'Online' : 'Offline',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                            color: ProfessionalTheme.textPrimary(context),
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _specialization,
-                          style: TextStyle(
-                            color: ProfessionalTheme.textSecondary(context),
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color:
-                          (_isOnline ? ProfessionalTheme.success : Colors.red)
-                              .withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color:
-                            (_isOnline ? ProfessionalTheme.success : Colors.red)
-                                .withValues(alpha: 0.2),
-                      ),
-                    ),
-                    child: Text(
-                      _isOnline ? 'ONLINE' : 'OFFLINE',
-                      style: TextStyle(
-                        color: _isOnline
-                            ? ProfessionalTheme.success
-                            : Colors.red,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                ],
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: _isTogglingStatus ? null : _toggleOnlineStatus,
+                icon: Icon(_isOnline ? Icons.logout : Icons.check_circle),
+                label: Text(_isOnline ? 'Check Out' : 'Check In'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _isOnline
+                      ? Colors.red
+                      : ProfessionalTheme.success,
+                  foregroundColor: ProfessionalTheme.textInverse(context),
+                ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -510,6 +424,8 @@ class _EngineerLocationScreenState extends State<EngineerLocationScreen> {
     }
   }
 
+
+
   // Helper method to display snackbars
   void _showSnackBar(String message, Color backgroundColor) {
     final snackBar = SnackBar(
@@ -526,18 +442,25 @@ class _EngineerLocationScreenState extends State<EngineerLocationScreen> {
       right: 16,
       child: Column(
         children: [
-          FloatingActionButton(
-            heroTag: 'center_map',
-            onPressed: _centerOnMe,
-            backgroundColor: _autoFollow
-                ? ProfessionalTheme.primary(context)
-                : ProfessionalTheme.surface(context),
-            foregroundColor: _autoFollow
-                ? ProfessionalTheme.textInverse(context)
-                : ProfessionalTheme.primary(context),
+          FloatingActionButton.extended(
+            heroTag: 'assigned_tickets',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => AssignedTicketsScreen(
+                    engineerName: widget.engineerName,
+                  ),
+                ),
+              );
+            },
+            backgroundColor: ProfessionalTheme.primary(context),
+            foregroundColor: ProfessionalTheme.textInverse(context),
             elevation: 4,
-            child: Icon(
-              _autoFollow ? Icons.my_location : Icons.location_searching,
+            icon: const Icon(Icons.assignment_rounded),
+            label: const Text(
+              'Assigned Tickets',
+              style: TextStyle(fontWeight: FontWeight.bold),
             ),
           ),
         ],
@@ -623,361 +546,6 @@ class _EngineerLocationScreenState extends State<EngineerLocationScreen> {
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildAssignedTicketsSheet() {
-    final stream = FirestoreService.instance
-        .collection('Admin_details')
-        .where('assignedEmployee', isEqualTo: widget.engineerName)
-        .snapshots();
-
-    return DraggableScrollableSheet(
-      initialChildSize: 0.22,
-      minChildSize: 0.16,
-      maxChildSize: 0.58,
-      builder: (context, scrollController) {
-        return Container(
-          decoration: BoxDecoration(
-            color: ProfessionalTheme.surface(context),
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(20),
-              topRight: Radius.circular(20),
-            ),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x14000000),
-                blurRadius: 18,
-                offset: Offset(0, -6),
-              ),
-            ],
-          ),
-          child: StreamBuilder<QuerySnapshot>(
-            stream: stream,
-            builder: (context, snapshot) {
-              if (!snapshot.hasData) {
-                return ListView(
-                  controller: scrollController,
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    _sheetHandle(),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Assigned Tickets',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w900,
-                        color: ProfessionalTheme.textPrimary(context),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(16),
-                        child: CircularProgressIndicator(),
-                      ),
-                    ),
-                  ],
-                );
-              }
-
-              final docs = snapshot.data!.docs;
-              final assignedDocs = docs.where((d) {
-                final data = d.data() as Map<String, dynamic>;
-                final status = (data['engineerStatus'] ?? '')
-                    .toString()
-                    .toLowerCase();
-                return status != 'completed';
-              }).toList();
-
-              return ListView.builder(
-                controller: scrollController,
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
-                itemCount: assignedDocs.isEmpty ? 1 : (assignedDocs.length + 1),
-                itemBuilder: (context, index) {
-                  if (index == 0) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _sheetHandle(),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Text(
-                              'Assigned Tickets',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w900,
-                                color: ProfessionalTheme.textPrimary(context),
-                              ),
-                            ),
-                            const Spacer(),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: ProfessionalTheme.primaryExtraLight(
-                                  context,
-                                ),
-                                borderRadius: BorderRadius.circular(999),
-                                border: Border.all(
-                                  color: ProfessionalTheme.borderLight(context),
-                                ),
-                              ),
-                              child: Text(
-                                '${assignedDocs.length}',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w900,
-                                  color: ProfessionalTheme.primary(context),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        if (assignedDocs.isEmpty)
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: ProfessionalTheme.primaryExtraLight(
-                                context,
-                              ),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: ProfessionalTheme.borderLight(context),
-                              ),
-                            ),
-                            child: Text(
-                              'No assigned tickets right now.',
-                              style: TextStyle(
-                                color: ProfessionalTheme.textSecondary(context),
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                      ],
-                    );
-                  }
-
-                  final doc = assignedDocs[index - 1];
-                  final data = doc.data() as Map<String, dynamic>;
-                  return _buildTicketCard(data);
-                },
-              );
-            },
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _sheetHandle() {
-    return Center(
-      child: Container(
-        width: 46,
-        height: 5,
-        decoration: BoxDecoration(
-          color: ProfessionalTheme.borderMedium(context).withValues(alpha: 0.5),
-          borderRadius: BorderRadius.circular(999),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTicketCard(Map<String, dynamic> data) {
-    final customerName = (data['customerName'] ?? 'Customer').toString();
-    final serviceName =
-        (data['deviceBrand'] ??
-                data['serviceName'] ??
-                data['workName'] ??
-                data['deviceType'] ??
-                'Service')
-            .toString();
-    final address = (data['address'] ?? 'Address not available').toString();
-    final status = (data['engineerStatus'] ?? data['adminStatus'] ?? 'Assigned')
-        .toString();
-    final bookingId = (data['bookingId'] ?? '').toString();
-
-    final lat = (data['lat'] as num?)?.toDouble();
-    final lng = (data['lng'] as num?)?.toDouble();
-    final hasDest = lat != null && lng != null;
-    final isThisNavigating = _navigatingBookingId == bookingId;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: ProfessionalTheme.surface(context),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: ProfessionalTheme.borderLight(context)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0A000000),
-            blurRadius: 14,
-            offset: Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: ProfessionalTheme.primaryExtraLight(context),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(
-                  Icons.assignment_rounded,
-                  color: ProfessionalTheme.primary(context),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      customerName,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w900,
-                        fontSize: 15,
-                        color: ProfessionalTheme.textPrimary(context),
-                        letterSpacing: -0.2,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      serviceName,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: ProfessionalTheme.textSecondary(context),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: ProfessionalTheme.primaryExtraLight(context),
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(
-                    color: ProfessionalTheme.borderLight(context),
-                  ),
-                ),
-                child: Text(
-                  status,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 12,
-                    color: ProfessionalTheme.primary(context),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(
-                Icons.place_rounded,
-                size: 18,
-                color: ProfessionalTheme.textTertiary(context),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  address,
-                  style: TextStyle(
-                    color: ProfessionalTheme.textSecondary(context),
-                    fontWeight: FontWeight.w600,
-                    height: 1.25,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          if (!hasDest) ...[
-            const SizedBox(height: 10),
-            Text(
-              'Destination location not available for this ticket.',
-              style: TextStyle(
-                color: ProfessionalTheme.error,
-                fontWeight: FontWeight.w700,
-                fontSize: 12,
-              ),
-            ),
-          ],
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: hasDest
-                      ? () => _previewDestination(latlong.LatLng(lat, lng))
-                      : null,
-                  icon: const Icon(Icons.map_outlined),
-                  label: const Text('View'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: ProfessionalTheme.primary(context),
-                    side: BorderSide(
-                      color: ProfessionalTheme.borderLight(context),
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: (!_isOnline || !hasDest)
-                      ? null
-                      : () => _startNavigation(
-                          bookingId: bookingId,
-                          destination: latlong.LatLng(lat, lng),
-                        ),
-                  icon: Icon(
-                    isThisNavigating
-                        ? Icons.navigation_rounded
-                        : Icons.directions_rounded,
-                  ),
-                  label: Text(
-                    isThisNavigating ? 'Navigating' : 'Start Navigation',
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: ProfessionalTheme.primary(context),
-                    foregroundColor: ProfessionalTheme.textInverse(context),
-                    disabledBackgroundColor: ProfessionalTheme.borderLight(
-                      context,
-                    ).withValues(alpha: 0.7),
-                    disabledForegroundColor: ProfessionalTheme.textSecondary(
-                      context,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
       ),
     );
   }
