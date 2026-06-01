@@ -1560,6 +1560,7 @@ class _BrandingCustomizationScreenState
                 price: widget.price!,
                 originalPrice: widget.originalPrice,
                 paymentMethod: widget.paymentMethod!,
+                gstNumber: widget.pendingUserData?['gstNumber'],
                 brandingData: brandingData,
                 limits: widget.limits,
                 geoLocation: widget.geoLocation,

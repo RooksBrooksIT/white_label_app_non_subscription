@@ -112,29 +112,28 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
     final screenWidth = mediaQuery.size.width;
     final screenHeight = mediaQuery.size.height;
 
+    final appBarForegroundColor = Theme.of(context).colorScheme.onPrimary;
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
         elevation: 0,
+        foregroundColor: appBarForegroundColor,
         title: Text(
           'Delivery Tickets',
           style: TextStyle(
             fontWeight: FontWeight.bold,
-            color:
-                Theme.of(context).appBarTheme.foregroundColor ?? Colors.white,
             fontSize: screenWidth * 0.05,
           ),
         ),
 
         backgroundColor: Theme.of(context).primaryColor,
         centerTitle: false,
-        iconTheme: IconThemeData(
-          color: Theme.of(context).appBarTheme.foregroundColor ?? Colors.white,
-        ),
+        iconTheme: IconThemeData(color: appBarForegroundColor),
         actions: [
           Padding(
             padding: EdgeInsets.only(right: screenWidth * 0.04),
-            child: _buildFilterButton(screenWidth),
+            child: _buildFilterButton(screenWidth, appBarForegroundColor),
           ),
         ],
       ),
@@ -159,13 +158,13 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
     );
   }
 
-  Widget _buildFilterButton(double screenWidth) {
+  Widget _buildFilterButton(double screenWidth, Color iconColor) {
     return IconButton(
       icon: Stack(
         children: [
           Icon(
             Icons.filter_list,
-            color: Theme.of(context).iconTheme.color,
+            color: iconColor,
             size: screenWidth * 0.064,
           ),
           if (_selectedFilter != 'All')

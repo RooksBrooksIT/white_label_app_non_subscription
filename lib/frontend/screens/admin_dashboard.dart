@@ -583,202 +583,438 @@ class _admindashboardState extends State<admindashboard> {
     );
   }
 
-  Widget _buildAppBar() {
-    return SliverAppBar(
-      expandedHeight: 180,
-      floating: false,
-      pinned: true,
-      elevation: 0,
-      backgroundColor: primaryColor,
-      automaticallyImplyLeading: false,
-      actions: [
-        StreamBuilder<int>(
-          stream: NotificationService.instance
-              .getUnreadAdminNotificationsCountStream(
-                ThemeService.instance.databaseName,
-              ),
-          builder: (context, snapshot) {
-            final unreadCount = snapshot.data ?? 0;
-            return Stack(
-              children: [
-                IconButton(
-                  icon: const Icon(
-                    Icons.notifications_rounded,
-                    color: Colors.white,
-                    size: 28,
+  double _appBarExpandedHeight(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    if (size.width > size.height) {
+      return 150;
+    }
+    if (size.height < 640) {
+      return 180;
+    }
+    return 200;
+  }
+
+  /// 1.0 = fully expanded, 0.0 = fully collapsed.
+  double _appBarExpandRatio(BuildContext context) {
+    final settings =
+        context.dependOnInheritedWidgetOfExactType<FlexibleSpaceBarSettings>();
+    if (settings == null || settings.maxExtent <= settings.minExtent) {
+      return 1;
+    }
+    return ((settings.currentExtent - settings.minExtent) /
+            (settings.maxExtent - settings.minExtent))
+        .clamp(0.0, 1.0);
+  }
+
+  double _expandedHeaderOpacity(double expandRatio) {
+    if (expandRatio >= 0.35) return 1;
+    if (expandRatio <= 0.15) return 0;
+    return (expandRatio - 0.15) / 0.2;
+  }
+
+  double _collapsedTitleOpacity(double expandRatio) {
+    if (expandRatio >= 0.35) return 0;
+    if (expandRatio <= 0.1) return 1;
+    return (0.35 - expandRatio) / 0.25;
+  }
+
+  String? _profileImageUrl() {
+    final photoUrl = FirebaseAuth.instance.currentUser?.photoURL;
+    if (photoUrl != null && photoUrl.isNotEmpty) {
+      return photoUrl;
+    }
+    final logoUrl = ThemeService.instance.logoUrl;
+    if (logoUrl != null && logoUrl.isNotEmpty) {
+      return logoUrl;
+    }
+    return null;
+  }
+
+  Widget _profileImagePlaceholder({
+    required double size,
+    required IconData icon,
+  }) {
+    return Icon(icon, color: Colors.white, size: size * 0.55);
+  }
+
+  Widget _buildNetworkAvatar({
+    required double radius,
+    required String? imageUrl,
+    required IconData fallbackIcon,
+    Color borderColor = Colors.white,
+    double borderWidth = 2,
+    Color? backgroundColor,
+  }) {
+    final diameter = radius * 2;
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: borderColor.withValues(alpha: 0.55),
+          width: borderWidth,
+        ),
+      ),
+      child: CircleAvatar(
+        radius: radius,
+        backgroundColor:
+            backgroundColor ?? Colors.white.withValues(alpha: 0.2),
+        child: ClipOval(
+          child: imageUrl != null && imageUrl.isNotEmpty
+              ? Image.network(
+                  imageUrl,
+                  width: diameter,
+                  height: diameter,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => _profileImagePlaceholder(
+                    size: diameter,
+                    icon: fallbackIcon,
                   ),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const AdminNotificationsPage(),
+                  loadingBuilder: (context, child, progress) {
+                    if (progress == null) return child;
+                    return SizedBox(
+                      width: diameter,
+                      height: diameter,
+                      child: Center(
+                        child: SizedBox(
+                          width: radius * 0.6,
+                          height: radius * 0.6,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white.withValues(alpha: 0.8),
+                          ),
+                        ),
                       ),
                     );
                   },
+                )
+              : _profileImagePlaceholder(
+                  size: diameter,
+                  icon: fallbackIcon,
                 ),
-                if (unreadCount > 0)
-                  Positioned(
-                    right: 8,
-                    top: 8,
-                    child: Container(
-                      padding: const EdgeInsets.all(2),
-                      decoration: BoxDecoration(
-                        color: Colors.red,
-                        borderRadius: BorderRadius.circular(10),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAppBarBrandMark({required double radius}) {
+    return ListenableBuilder(
+      listenable: ThemeService.instance,
+      builder: (context, _) {
+        return Container(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.12),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: _buildNetworkAvatar(
+            radius: radius,
+            imageUrl: ThemeService.instance.logoUrl,
+            fallbackIcon: Icons.business_rounded,
+            borderColor: Colors.white,
+            backgroundColor: Colors.white,
+          ),
+        );
+      },
+    );
+  }
+
+  List<Widget> _buildAppBarActions() {
+    return [
+      StreamBuilder<int>(
+        stream: NotificationService.instance
+            .getUnreadAdminNotificationsCountStream(
+              ThemeService.instance.databaseName,
+            ),
+        builder: (context, snapshot) {
+          final unreadCount = snapshot.data ?? 0;
+          return Stack(
+            clipBehavior: Clip.none,
+            children: [
+              IconButton(
+                icon: const Icon(
+                  Icons.notifications_rounded,
+                  color: Colors.white,
+                  size: 26,
+                ),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const AdminNotificationsPage(),
+                    ),
+                  );
+                },
+              ),
+              if (unreadCount > 0)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white, width: 1.5),
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 16,
+                      minHeight: 16,
+                    ),
+                    child: Text(
+                      unreadCount > 9 ? '9+' : unreadCount.toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
                       ),
-                      constraints: const BoxConstraints(
-                        minWidth: 16,
-                        minHeight: 16,
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
+      IconButton(
+        icon: const Icon(Icons.menu_rounded, color: Colors.white, size: 26),
+        onPressed: () => _scaffoldKey.currentState?.openEndDrawer(),
+      ),
+      const SizedBox(width: 4),
+    ];
+  }
+
+  Widget _buildAppBarGradientBackground() {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [primaryColor, secondaryColor],
+            ),
+          ),
+        ),
+        Positioned(
+          right: -50,
+          top: -50,
+          child: CircleAvatar(
+            radius: 100,
+            backgroundColor: Colors.white.withValues(alpha: 0.05),
+          ),
+        ),
+        Positioned(
+          left: -30,
+          bottom: -40,
+          child: CircleAvatar(
+            radius: 70,
+            backgroundColor: Colors.white.withValues(alpha: 0.04),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildExpandedProfileHeader() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          ListenableBuilder(
+            listenable: ThemeService.instance,
+            builder: (context, _) {
+              return _buildNetworkAvatar(
+                radius: 32,
+                imageUrl: _profileImageUrl(),
+                fallbackIcon: Icons.person_rounded,
+              );
+            },
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListenableBuilder(
+                  listenable: ThemeService.instance,
+                  builder: (context, _) {
+                    return Text(
+                      ThemeService.instance.appName,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.85),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
                       ),
-                      child: Text(
-                        unreadCount > 9 ? '9+' : unreadCount.toString(),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    );
+                  },
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  adminName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                    height: 1.1,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        currentPlanName == null ||
+                                subscriptionStatus == 'expired' ||
+                                (remainingDays != null && remainingDays! < 0)
+                            ? Icons.info_outline_rounded
+                            : Icons.workspace_premium_rounded,
+                        color: _appBarSubscriptionColor,
+                        size: 14,
+                      ),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          _appBarSubscriptionText,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCollapsedAppBarTitle() {
+    return ListenableBuilder(
+      listenable: ThemeService.instance,
+      builder: (context, _) {
+        final appName = ThemeService.instance.appName;
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildAppBarBrandMark(radius: 14),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Text(
+                appName,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.3,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildAppBar() {
+    final expandedHeight = _appBarExpandedHeight(context);
+    final actionWidth = MediaQuery.sizeOf(context).width < 360 ? 108.0 : 120.0;
+    final topInset = MediaQuery.paddingOf(context).top;
+
+    return SliverAppBar(
+      expandedHeight: expandedHeight,
+      floating: false,
+      pinned: true,
+      snap: false,
+      stretch: false,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      surfaceTintColor: Colors.transparent,
+      backgroundColor: primaryColor,
+      automaticallyImplyLeading: false,
+      actions: _buildAppBarActions(),
+      flexibleSpace: LayoutBuilder(
+        builder: (context, constraints) {
+          final expandRatio = _appBarExpandRatio(context);
+          final expandedOpacity = _expandedHeaderOpacity(expandRatio);
+          final collapsedOpacity = _collapsedTitleOpacity(expandRatio);
+
+          return ClipRect(
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                _buildAppBarGradientBackground(),
+                if (expandedOpacity > 0.01)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 8,
+                    child: Opacity(
+                      opacity: expandedOpacity,
+                      child: IgnorePointer(
+                        ignoring: expandedOpacity < 0.5,
+                        child: _buildExpandedProfileHeader(),
+                      ),
+                    ),
+                  ),
+                if (collapsedOpacity > 0.01)
+                  Positioned(
+                    left: 0,
+                    right: actionWidth,
+                    top: topInset,
+                    height: kToolbarHeight,
+                    child: Opacity(
+                      opacity: collapsedOpacity,
+                      child: IgnorePointer(
+                        ignoring: collapsedOpacity < 0.5,
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Padding(
+                            padding: const EdgeInsets.only(left: 16),
+                            child: _buildCollapsedAppBarTitle(),
+                          ),
+                        ),
                       ),
                     ),
                   ),
               ],
-            );
-          },
-        ),
-        IconButton(
-          icon: const Icon(Icons.menu_rounded, color: Colors.white, size: 28),
-          onPressed: () => _scaffoldKey.currentState?.openEndDrawer(),
-        ),
-        const SizedBox(width: 8),
-      ],
-      flexibleSpace: FlexibleSpaceBar(
-        background: Stack(
-          children: [
-            Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [primaryColor, secondaryColor],
-                ),
-              ),
             ),
-            Positioned(
-              right: -50,
-              top: -50,
-              child: CircleAvatar(
-                radius: 100,
-                backgroundColor: Colors.white.withValues(alpha: 0.05),
-              ),
-            ),
-            SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 60, 20, 20),
-                child: Row(
-                  children: [
-                    ListenableBuilder(
-                      listenable: ThemeService.instance,
-                      builder: (context, _) {
-                        return Container(
-                          padding: const EdgeInsets.all(3),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.5),
-                              width: 2,
-                            ),
-                          ),
-                          child: CircleAvatar(
-                            radius: 30,
-                            backgroundColor: Colors.white.withValues(
-                              alpha: 0.2,
-                            ),
-                            backgroundImage:
-                                ThemeService.instance.logoUrl != null
-                                ? NetworkImage(ThemeService.instance.logoUrl!)
-                                : null,
-                            child: ThemeService.instance.logoUrl == null
-                                ? const Icon(
-                                    Icons.person_rounded,
-                                    color: Colors.white,
-                                    size: 35,
-                                  )
-                                : null,
-                          ),
-                        );
-                      },
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            ThemeService.instance.appName,
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.8),
-                              fontSize: 14,
-                              fontWeight: FontWeight.w400,
-                            ),
-                          ),
-                          Text(
-                            adminName,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 24,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -0.5,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.3),
-                                width: 1,
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  currentPlanName == null ||
-                                          subscriptionStatus == 'expired' ||
-                                          (remainingDays != null &&
-                                              remainingDays! < 0)
-                                      ? Icons.info_outline_rounded
-                                      : Icons.workspace_premium_rounded,
-                                  color: _appBarSubscriptionColor,
-                                  size: 14,
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  _appBarSubscriptionText,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }

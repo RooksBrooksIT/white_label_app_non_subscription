@@ -4,11 +4,12 @@ import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:open_file/open_file.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:subscription_rooks_app/utils/pdf_utils.dart';
+import 'package:intl/intl.dart';
 import 'dart:io';
-// import 'package:open_file/open_file';
 
 class CustomerReportGenerator extends StatefulWidget {
   const CustomerReportGenerator({super.key});
@@ -23,7 +24,11 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator> {
   Map<String, dynamic>? resultData;
   List<Map<String, dynamic>>? multipleResults;
   bool _loading = false;
+  bool _isPdfViewing = false;
+  bool _isPdfDownloading = false;
   String _debugInfo = '';
+
+  static const Color _reportBrand = Color(0xFF0B3470);
 
   @override
   void initState() {
@@ -208,277 +213,599 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator> {
     return _selectedRows.values.where((isSelected) => isSelected).length;
   }
 
-  Future<void> _generatePdf() async {
-    final selectedRecords = _getSelectedRecords();
+  bool get _canExportReport {
+    if (resultData != null) return true;
+    if (multipleResults != null && multipleResults!.isNotEmpty) {
+      return _selectedCount > 0;
+    }
+    return false;
+  }
 
-    if (selectedRecords.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Please select at least one record to generate PDF'),
-          backgroundColor: Colors.orange,
+  List<Map<String, dynamic>> get _displayRecords {
+    if (multipleResults != null) {
+      return multipleResults!;
+    }
+    if (resultData != null) {
+      return [resultData!];
+    }
+    return [];
+  }
+
+  String _formatDisplayAmount(dynamic amount) {
+    if (amount == null) return 'N/A';
+    final parsed = double.tryParse(amount.toString());
+    if (parsed == null) return amount.toString();
+    if (parsed == parsed.roundToDouble()) {
+      return '₹${parsed.toInt()}';
+    }
+    return '₹${parsed.toStringAsFixed(2)}';
+  }
+
+  double _totalDisplayAmount(List<Map<String, dynamic>> records) {
+    var total = 0.0;
+    for (final record in records) {
+      total += double.tryParse(record['amount']?.toString() ?? '') ?? 0;
+    }
+    return total;
+  }
+
+  String _fieldValue(dynamic value) {
+    final text = value?.toString().trim();
+    if (text == null || text.isEmpty) return 'N/A';
+    return text;
+  }
+
+  String _reportPdfName(List<Map<String, dynamic>> records) {
+    final stamp = DateFormat('yyyyMMdd_HHmm').format(DateTime.now());
+    String name;
+    if (records.length == 1) {
+      final id = _fieldValue(records.first['bookingId']);
+      name = id != 'N/A' ? 'Customer_Report_$id' : 'Customer_Report_$stamp';
+    } else {
+      name = 'Customer_Report_${records.length}_$stamp';
+    }
+    return name.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+  }
+
+  void _showPdfMessage(String message, {bool isError = false, String? openPath}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        backgroundColor: isError ? Colors.red.shade700 : Colors.green.shade700,
+        content: Text(message),
+        action: openPath != null
+            ? SnackBarAction(
+                label: 'Open',
+                textColor: Colors.white,
+                onPressed: () => OpenFile.open(openPath),
+              )
+            : null,
+      ),
+    );
+  }
+
+  static final PdfColor _pdfBrand = PdfColor.fromInt(0xFF0B3470);
+  static final PdfColor _pdfBrandLight = PdfColor.fromInt(0xFFE8EEF5);
+
+  String _pdfFieldValue(dynamic value) {
+    final text = value?.toString().trim();
+    if (text == null || text.isEmpty) return 'N/A';
+    return text;
+  }
+
+  String _pdfFormatAmount(dynamic amount) {
+    if (amount == null) return 'N/A';
+    final parsed = double.tryParse(amount.toString());
+    if (parsed == null) return amount.toString();
+    if (parsed == parsed.roundToDouble()) {
+      return '₹${parsed.toInt()}';
+    }
+    return '₹${parsed.toStringAsFixed(2)}';
+  }
+
+  double _pdfTotalAmount(List<Map<String, dynamic>> records) {
+    var total = 0.0;
+    for (final record in records) {
+      total += double.tryParse(record['amount']?.toString() ?? '') ?? 0;
+    }
+    return total;
+  }
+
+  pw.Widget _pdfPageHeader(
+    pw.MemoryImage? logoImage,
+    String appName,
+    String generatedAt,
+  ) {
+    return pw.Container(
+      margin: const pw.EdgeInsets.only(bottom: 16),
+      padding: const pw.EdgeInsets.only(bottom: 12),
+      decoration: const pw.BoxDecoration(
+        border: pw.Border(
+          bottom: pw.BorderSide(color: PdfColors.grey300, width: 1),
         ),
+      ),
+      child: pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.center,
+        children: [
+          if (logoImage != null)
+            pw.Container(
+              width: 48,
+              height: 48,
+              margin: const pw.EdgeInsets.only(right: 14),
+              child: pw.Image(logoImage, fit: pw.BoxFit.contain),
+            ),
+          pw.Expanded(
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  'CUSTOMER SERVICE REPORT',
+                  style: pw.TextStyle(
+                    fontSize: 15,
+                    fontWeight: pw.FontWeight.bold,
+                    color: _pdfBrand,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                pw.SizedBox(height: 3),
+                pw.Text(
+                  appName,
+                  style: const pw.TextStyle(
+                    fontSize: 10,
+                    color: PdfColors.grey700,
+                  ),
+                ),
+                pw.SizedBox(height: 2),
+                pw.Text(
+                  'Generated: $generatedAt',
+                  style: const pw.TextStyle(
+                    fontSize: 8,
+                    color: PdfColors.grey600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          pw.Container(
+            padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            decoration: pw.BoxDecoration(
+              color: _pdfBrand,
+              borderRadius: pw.BorderRadius.circular(4),
+            ),
+            child: pw.Text(
+              'INTERNAL',
+              style: pw.TextStyle(
+                fontSize: 7,
+                fontWeight: pw.FontWeight.bold,
+                color: PdfColors.white,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _pdfPageFooter(pw.Context context, String appName) {
+    return pw.Container(
+      margin: const pw.EdgeInsets.only(top: 12),
+      padding: const pw.EdgeInsets.only(top: 8),
+      decoration: const pw.BoxDecoration(
+        border: pw.Border(
+          top: pw.BorderSide(color: PdfColors.grey300, width: 0.5),
+        ),
+      ),
+      child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        children: [
+          pw.Text(
+            appName,
+            style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600),
+          ),
+          pw.Text(
+            'Page ${context.pageNumber} of ${context.pagesCount}',
+            style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600),
+          ),
+          pw.Text(
+            'Confidential — internal use only',
+            style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600),
+          ),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _pdfSectionHeading(String title) {
+    return pw.Container(
+      width: double.infinity,
+      margin: const pw.EdgeInsets.only(bottom: 8),
+      padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: pw.BoxDecoration(
+        color: _pdfBrandLight,
+        borderRadius: pw.BorderRadius.circular(4),
+        border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
+      ),
+      child: pw.Text(
+        title,
+        style: pw.TextStyle(
+          fontSize: 10,
+          fontWeight: pw.FontWeight.bold,
+          color: _pdfBrand,
+        ),
+      ),
+    );
+  }
+
+  pw.Widget _pdfDetailRow(String label, String value, {bool emphasize = false}) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.only(bottom: 6),
+      child: pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.SizedBox(
+            width: 118,
+            child: pw.Text(
+              label,
+              style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700),
+            ),
+          ),
+          pw.Expanded(
+            child: pw.Text(
+              value,
+              style: pw.TextStyle(
+                fontSize: 9,
+                fontWeight:
+                    emphasize ? pw.FontWeight.bold : pw.FontWeight.normal,
+                color: emphasize ? _pdfBrand : PdfColors.black,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _pdfSummaryBox(
+    List<Map<String, dynamic>> records,
+    int? totalInSearch,
+  ) {
+    final totalAmount = _pdfTotalAmount(records);
+    return pw.Container(
+      width: double.infinity,
+      padding: const pw.EdgeInsets.all(14),
+      decoration: pw.BoxDecoration(
+        color: _pdfBrandLight,
+        borderRadius: pw.BorderRadius.circular(6),
+        border: pw.Border.all(color: _pdfBrand, width: 0.8),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(
+            'Report summary',
+            style: pw.TextStyle(
+              fontSize: 11,
+              fontWeight: pw.FontWeight.bold,
+              color: _pdfBrand,
+            ),
+          ),
+          pw.SizedBox(height: 10),
+          pw.Row(
+            children: [
+              pw.Expanded(
+                child: _pdfSummaryMetric(
+                  'Records in report',
+                  records.length.toString(),
+                ),
+              ),
+              pw.Expanded(
+                child: _pdfSummaryMetric(
+                  'Combined amount',
+                  _pdfFormatAmount(totalAmount),
+                ),
+              ),
+              if (totalInSearch != null)
+                pw.Expanded(
+                  child: _pdfSummaryMetric(
+                    'From search results',
+                    '$totalInSearch total',
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _pdfSummaryMetric(String label, String value) {
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Text(
+          label,
+          style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
+        ),
+        pw.SizedBox(height: 3),
+        pw.Text(
+          value,
+          style: pw.TextStyle(
+            fontSize: 11,
+            fontWeight: pw.FontWeight.bold,
+            color: _pdfBrand,
+          ),
+        ),
+      ],
+    );
+  }
+
+  pw.Widget _pdfQuickIndex(List<Map<String, dynamic>> records) {
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        _pdfSectionHeading('Quick reference — find a record'),
+        pw.Table(
+          border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.5),
+          columnWidths: {
+            0: const pw.FixedColumnWidth(28),
+            1: const pw.FlexColumnWidth(1.2),
+            2: const pw.FlexColumnWidth(2),
+            3: const pw.FlexColumnWidth(1.5),
+            4: const pw.FlexColumnWidth(1.2),
+          },
+          children: [
+            pw.TableRow(
+              decoration: pw.BoxDecoration(color: _pdfBrand),
+              children: [
+                _pdfIndexCell('#', header: true),
+                _pdfIndexCell('ID', header: true),
+                _pdfIndexCell('Customer', header: true),
+                _pdfIndexCell('Booking ID', header: true),
+                _pdfIndexCell('Status', header: true),
+              ],
+            ),
+            ...List.generate(records.length, (i) {
+              final record = records[i];
+              final shaded = i.isOdd;
+              return pw.TableRow(
+                decoration: pw.BoxDecoration(
+                  color: shaded ? PdfColors.grey100 : PdfColors.white,
+                ),
+                children: [
+                  _pdfIndexCell('${i + 1}'),
+                  _pdfIndexCell(_pdfFieldValue(record['id'])),
+                  _pdfIndexCell(_pdfFieldValue(record['customerName'])),
+                  _pdfIndexCell(_pdfFieldValue(record['bookingId'])),
+                  _pdfIndexCell(_pdfFieldValue(record['adminStatus'])),
+                ],
+              );
+            }),
+          ],
+        ),
+        pw.SizedBox(height: 4),
+        pw.Text(
+          'Full details for each record are listed in the sections below.',
+          style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600),
+        ),
+      ],
+    );
+  }
+
+  pw.Widget _pdfIndexCell(String text, {bool header = false}) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 7),
+      child: pw.Text(
+        text,
+        style: pw.TextStyle(
+          fontSize: header ? 8 : 8,
+          fontWeight: header ? pw.FontWeight.bold : pw.FontWeight.normal,
+          color: header ? PdfColors.white : PdfColors.black,
+        ),
+        maxLines: 2,
+      ),
+    );
+  }
+
+  pw.Widget _pdfRecordCard(
+    Map<String, dynamic> record,
+    int index,
+    int total,
+  ) {
+    return pw.Container(
+      width: double.infinity,
+      padding: const pw.EdgeInsets.all(14),
+      decoration: pw.BoxDecoration(
+        border: pw.Border.all(color: PdfColors.grey400, width: 0.8),
+        borderRadius: pw.BorderRadius.circular(6),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text(
+                'Record $index of $total',
+                style: pw.TextStyle(
+                  fontSize: 12,
+                  fontWeight: pw.FontWeight.bold,
+                  color: _pdfBrand,
+                ),
+              ),
+              pw.Container(
+                padding: const pw.EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: pw.BoxDecoration(
+                  color: _pdfBrand,
+                  borderRadius: pw.BorderRadius.circular(12),
+                ),
+                child: pw.Text(
+                  _pdfFieldValue(record['adminStatus']),
+                  style: pw.TextStyle(
+                    fontSize: 8,
+                    fontWeight: pw.FontWeight.bold,
+                    color: PdfColors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          pw.SizedBox(height: 4),
+          pw.Text(
+            'Booking: ${_pdfFieldValue(record['bookingId'])}',
+            style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700),
+          ),
+          pw.SizedBox(height: 12),
+          pw.Divider(color: PdfColors.grey300, height: 1),
+          pw.SizedBox(height: 10),
+          _pdfSectionHeading('Customer details'),
+          _pdfDetailRow('Customer ID', _pdfFieldValue(record['id'])),
+          _pdfDetailRow('Name', _pdfFieldValue(record['customerName'])),
+          _pdfDetailRow('Mobile', _pdfFieldValue(record['mobileNumber'])),
+          _pdfDetailRow('Booking ID', _pdfFieldValue(record['bookingId'])),
+          pw.SizedBox(height: 6),
+          _pdfSectionHeading('Device details'),
+          pw.Row(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Expanded(
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    _pdfDetailRow('Brand', _pdfFieldValue(record['deviceBrand'])),
+                    _pdfDetailRow('Type', _pdfFieldValue(record['deviceType'])),
+                  ],
+                ),
+              ),
+              pw.Expanded(
+                child: _pdfDetailRow(
+                  'Condition',
+                  _pdfFieldValue(record['deviceCondition']),
+                ),
+              ),
+            ],
+          ),
+          pw.SizedBox(height: 6),
+          _pdfSectionHeading('Service & billing'),
+          _pdfDetailRow(
+            'Amount',
+            _pdfFormatAmount(record['amount']),
+            emphasize: true,
+          ),
+          _pdfDetailRow('Service address', _pdfFieldValue(record['address'])),
+        ],
+      ),
+    );
+  }
+
+  Future<pw.Document> _buildPdfDocument(
+    List<Map<String, dynamic>> selectedRecords,
+  ) async {
+    final pdf = pw.Document();
+    final appName = ThemeService.instance.appName;
+    final generatedAt = DateFormat('dd MMM yyyy, HH:mm').format(DateTime.now());
+
+    pw.MemoryImage? logoImage;
+    final logoUrl = ThemeService.instance.logoUrl;
+    if (logoUrl != null && logoUrl.isNotEmpty) {
+      logoImage = await PdfUtils.fetchNetworkImage(logoUrl);
+    }
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.symmetric(horizontal: 32, vertical: 28),
+        header: (context) => _pdfPageHeader(logoImage, appName, generatedAt),
+        footer: (context) => _pdfPageFooter(context, appName),
+        build: (context) {
+          final sections = <pw.Widget>[
+            _pdfSummaryBox(selectedRecords, multipleResults?.length),
+          ];
+
+          if (selectedRecords.length > 1) {
+            sections.add(pw.SizedBox(height: 18));
+            sections.add(_pdfQuickIndex(selectedRecords));
+          }
+
+          for (var i = 0; i < selectedRecords.length; i++) {
+            sections.add(pw.SizedBox(height: 18));
+            sections.add(
+              _pdfRecordCard(selectedRecords[i], i + 1, selectedRecords.length),
+            );
+          }
+
+          return sections;
+        },
+      ),
+    );
+
+    return pdf;
+  }
+
+  Future<void> _viewReportPdf() async {
+    final selectedRecords = _getSelectedRecords();
+    if (selectedRecords.isEmpty) {
+      _showPdfMessage(
+        'Please select at least one record to view the report',
+        isError: true,
       );
       return;
     }
 
+    setState(() => _isPdfViewing = true);
     try {
-      setState(() {
-        _loading = true;
-      });
-
-      final pdf = pw.Document();
-
-      // Load and embed the logo
-      pw.MemoryImage? logoImage;
-      final logoUrl = ThemeService.instance.logoUrl;
-      if (logoUrl != null && logoUrl.isNotEmpty) {
-        logoImage = await PdfUtils.fetchNetworkImage(logoUrl);
-      }
-
-      pdf.addPage(
-        pw.Page(
-          margin: pw.EdgeInsets.all(20),
-          build: (context) {
-            return pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                // Header with Logo
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        pw.Text(
-                          'CUSTOMER SERVICE REPORT',
-                          style: pw.TextStyle(
-                            fontSize: 20,
-                            fontWeight: pw.FontWeight.bold,
-                            color: PdfColors.blue800,
-                          ),
-                        ),
-                        pw.SizedBox(height: 5),
-                        pw.Text(
-                          ThemeService.instance.appName,
-                          style: pw.TextStyle(
-                            fontSize: 14,
-                            fontWeight: pw.FontWeight.normal,
-                            color: PdfColors.grey700,
-                          ),
-                        ),
-                        pw.SizedBox(height: 5),
-                        pw.Text(
-                          'Generated on: ${DateTime.now().toString().split(' ')[0]}',
-                          style: pw.TextStyle(
-                            fontSize: 10,
-                            color: PdfColors.grey600,
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (logoImage != null)
-                      pw.Container(
-                        height: 60,
-                        width: 60,
-                        child: pw.Image(logoImage),
-                      ),
-                  ],
-                ),
-
-                pw.SizedBox(height: 20),
-                pw.Divider(thickness: 2, color: PdfColors.blue400),
-                pw.SizedBox(height: 20),
-
-                // Report Summary
-                pw.Container(
-                  width: double.infinity,
-                  padding: pw.EdgeInsets.all(12),
-                  decoration: pw.BoxDecoration(
-                    color: PdfColors.blue50,
-                    borderRadius: pw.BorderRadius.circular(8),
-                  ),
-                  child: pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      pw.Text(
-                        'REPORT SUMMARY',
-                        style: pw.TextStyle(
-                          fontSize: 12,
-                          fontWeight: pw.FontWeight.bold,
-                          color: PdfColors.blue800,
-                        ),
-                      ),
-                      pw.SizedBox(height: 5),
-                      pw.Text(
-                        'Total Selected Records: ${selectedRecords.length}',
-                        style: pw.TextStyle(
-                          fontSize: 10,
-                          color: PdfColors.blue700,
-                        ),
-                      ),
-                      if (multipleResults != null)
-                        pw.Text(
-                          'Filtered from ${multipleResults!.length} total records',
-                          style: pw.TextStyle(
-                            fontSize: 9,
-                            color: PdfColors.grey600,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-
-                pw.SizedBox(height: 15),
-
-                // Customer Details Table Title
-                pw.Container(
-                  width: double.infinity,
-                  padding: pw.EdgeInsets.all(10),
-                  decoration: pw.BoxDecoration(
-                    color: PdfColors.grey200,
-                    borderRadius: pw.BorderRadius.circular(6),
-                  ),
-                  child: pw.Text(
-                    'SELECTED CUSTOMER SERVICE DETAILS',
-                    style: pw.TextStyle(
-                      fontSize: 14,
-                      fontWeight: pw.FontWeight.bold,
-                      color: PdfColors.blue900,
-                    ),
-                  ),
-                ),
-                pw.SizedBox(height: 10),
-
-                // Table with selected details only
-                pw.TableHelper.fromTextArray(
-                  context: context,
-                  border: pw.TableBorder.all(
-                    color: PdfColors.grey400,
-                    width: 0.5,
-                  ),
-                  headerStyle: pw.TextStyle(
-                    fontWeight: pw.FontWeight.bold,
-                    fontSize: 10,
-                    color: PdfColors.white,
-                  ),
-                  cellStyle: pw.TextStyle(fontSize: 9),
-                  headerDecoration: pw.BoxDecoration(
-                    color: PdfColors.blue700,
-                    borderRadius: pw.BorderRadius.only(
-                      topLeft: pw.Radius.circular(4),
-                      topRight: pw.Radius.circular(4),
-                    ),
-                  ),
-                  cellHeight: 25,
-                  cellAlignments: {
-                    0: pw.Alignment.centerLeft,
-                    1: pw.Alignment.centerLeft,
-                    2: pw.Alignment.centerLeft,
-                    3: pw.Alignment.centerLeft,
-                    4: pw.Alignment.centerLeft,
-                    5: pw.Alignment.centerLeft,
-                    6: pw.Alignment.centerLeft,
-                    7: pw.Alignment.centerLeft,
-                    8: pw.Alignment.centerRight,
-                  },
-                  headers: [
-                    'ID',
-                    'CUSTOMER NAME',
-                    'BOOKING ID',
-                    'DEVICE BRAND',
-                    'DEVICE TYPE',
-                    'DEVICE CONDITION',
-                    'ADMIN STATUS',
-                    'ADDRESS',
-                    'AMOUNT',
-                  ],
-                  data: _getPdfTableData(selectedRecords),
-                ),
-
-                pw.SizedBox(height: 25),
-                pw.Divider(thickness: 1, color: PdfColors.grey300),
-
-                // Footer
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Text(
-                      'Page 1 of 1',
-                      style: pw.TextStyle(
-                        fontSize: 8,
-                        color: PdfColors.grey600,
-                      ),
-                    ),
-                    pw.Text(
-                      'Confidential - For Internal Use Only',
-                      style: pw.TextStyle(
-                        fontSize: 8,
-                        color: PdfColors.grey600,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            );
-          },
-        ),
-      );
-
-      // Save PDF to file
-      final output = await getTemporaryDirectory();
-      final file = File(
-        "${output.path}/customer_report_${DateTime.now().millisecondsSinceEpoch}.pdf",
-      );
-      await file.writeAsBytes(await pdf.save());
-
-      // Open the PDF file
-      await OpenFile.open(file.path);
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('PDF generated with $_selectedCount selected records!'),
-          backgroundColor: Colors.green,
-        ),
+      final pdf = await _buildPdfDocument(selectedRecords);
+      if (!mounted) return;
+      await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) async => pdf.save(),
+        name: _reportPdfName(selectedRecords),
       );
     } catch (e) {
-      print('PDF Generation Error: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error generating PDF: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        _showPdfMessage('Unable to open report: $e', isError: true);
+      }
     } finally {
-      setState(() {
-        _loading = false;
-      });
+      if (mounted) setState(() => _isPdfViewing = false);
     }
   }
 
-  List<List<String>> _getPdfTableData(List<Map<String, dynamic>> records) {
-    final fields = [
-      'id',
-      'customerName',
-      'bookingId',
-      'deviceBrand',
-      'deviceType',
-      'deviceCondition',
-      'adminStatus',
-      'address',
-      'amount',
-    ];
-
-    List<List<String>> data = [];
-
-    for (var record in records) {
-      List<String> row = [];
-      for (var key in fields) {
-        row.add(record[key]?.toString() ?? 'N/A');
-      }
-      data.add(row);
+  Future<void> _downloadReportPdf() async {
+    final selectedRecords = _getSelectedRecords();
+    if (selectedRecords.isEmpty) {
+      _showPdfMessage(
+        'Please select at least one record to download',
+        isError: true,
+      );
+      return;
     }
 
-    return data;
+    setState(() => _isPdfDownloading = true);
+    try {
+      final pdf = await _buildPdfDocument(selectedRecords);
+      final directory =
+          await getDownloadsDirectory() ??
+          await getApplicationDocumentsDirectory();
+      final file = File(
+        '${directory.path}/${_reportPdfName(selectedRecords)}.pdf',
+      );
+      await file.writeAsBytes(await pdf.save());
+
+      if (!mounted) return;
+      _showPdfMessage(
+        'Report saved to Downloads',
+        openPath: file.path,
+      );
+    } catch (e) {
+      if (mounted) {
+        _showPdfMessage('Download failed: $e', isError: true);
+      }
+    } finally {
+      if (mounted) setState(() => _isPdfDownloading = false);
+    }
   }
 
   @override
@@ -649,193 +976,571 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator> {
 
                     SizedBox(height: 20),
 
-                    // Debug Info
-                    if (_debugInfo.isNotEmpty)
-                      Container(
-                        width: double.infinity,
-                        padding: EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).cardColor,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: Theme.of(context).dividerColor,
-                          ),
-                        ),
-                        child: Text(
-                          _debugInfo,
-                          style: TextStyle(
-                            color: Theme.of(context).hintColor,
-                            fontSize: 12,
-                            fontFamily: 'Monospace',
-                          ),
-                        ),
-                      ),
-
-                    SizedBox(height: 20),
-
-                    // Selection Info Bar (when multiple results)
-                    if (multipleResults != null && multipleResults!.isNotEmpty)
-                      Container(
-                        width: double.infinity,
-                        padding: EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: _selectedCount > 0
-                              ? Theme.of(
-                                  context,
-                                ).primaryColorLight.withValues(alpha: 0.2)
-                              : Theme.of(context).cardColor,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: _selectedCount > 0
-                                ? Theme.of(context).primaryColorLight
-                                : Theme.of(context).dividerColor,
-                          ),
-                        ),
-                        child: isNarrow
-                            ? Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    '$_selectedCount of ${multipleResults!.length} selected',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      color: _selectedCount > 0
-                                          ? primaryColor
-                                          : Theme.of(context).hintColor,
-                                    ),
-                                  ),
-                                  SizedBox(height: 8),
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(
-                                        'Select All',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: primaryColor,
-                                        ),
-                                      ),
-                                      Checkbox(
-                                        value: _allSelected,
-                                        onChanged: (value) =>
-                                            _toggleAllSelection(),
-                                        activeColor: primaryColor,
-                                        visualDensity: VisualDensity.compact,
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              )
-                            : Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    '$_selectedCount of ${multipleResults!.length} records selected',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      color: _selectedCount > 0
-                                          ? primaryColor
-                                          : Theme.of(context).hintColor,
-                                    ),
-                                  ),
-                                  if (multipleResults!.isNotEmpty)
-                                    Row(
-                                      children: [
-                                        Text(
-                                          'Select All',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: primaryColor,
-                                          ),
-                                        ),
-                                        SizedBox(width: 8),
-                                        Checkbox(
-                                          value: _allSelected,
-                                          onChanged: (value) =>
-                                              _toggleAllSelection(),
-                                          activeColor: primaryColor,
-                                        ),
-                                      ],
-                                    ),
-                                ],
-                              ),
-                      ),
-
-                    SizedBox(height: 10),
-
-                    // Results Section
-                    multipleResults != null && multipleResults!.isNotEmpty
-                        ? _buildMultipleResultsTable()
-                        : resultData == null
-                        ? _buildEmptyState()
-                        : _buildSingleResultTable(),
-
-                    SizedBox(height: 12),
-
-                    // PDF Generation Button
-                    if ((resultData != null) ||
-                        (multipleResults != null &&
-                            multipleResults!.isNotEmpty))
-                      SafeArea(
-                        top: false,
-                        child: Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: SizedBox(
-                            width: double.infinity,
-                            height: 52,
-                            child: ElevatedButton.icon(
-                              onPressed: _loading ? null : _generatePdf,
-                              icon: _loading
-                                  ? SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Colors.white,
-                                      ),
-                                    )
-                                  : Icon(Icons.picture_as_pdf, size: 22),
-                              label: Text(
-                                _loading
-                                    ? 'Generating PDF...'
-                                    : multipleResults != null
-                                    ? 'Generate PDF ($_selectedCount selected)'
-                                    : 'Generate PDF Report',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor:
-                                    _selectedCount > 0 || resultData != null
-                                    ? Colors.red[600]
-                                    : Theme.of(context).disabledColor,
-                                foregroundColor: Colors.white,
-                                elevation: 4,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(15),
-                                ),
-                                shadowColor:
-                                    (_selectedCount > 0 || resultData != null)
-                                    ? Theme.of(
-                                        context,
-                                      ).colorScheme.error.withValues(alpha: 0.3)
-                                    : Theme.of(context).disabledColor,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
+                    if (_displayRecords.isNotEmpty)
+                      _buildReportSection(isNarrow)
+                    else if (resultData == null &&
+                        (multipleResults == null || multipleResults!.isEmpty))
+                      _buildEmptyState(),
                   ],
                 ),
               ),
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildReportSection(bool isNarrow) {
+    final exportRecords = _getSelectedRecords();
+    final exportCount = exportRecords.length;
+    final totalAmount = _totalDisplayAmount(exportRecords);
+
+    return Card(
+      elevation: 4,
+      shadowColor: _reportBrand.withValues(alpha: 0.15),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
+            decoration: BoxDecoration(
+              color: _reportBrand,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(16),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.summarize_rounded,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Customer Service Report',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        multipleResults != null
+                            ? '${_displayRecords.length} records found'
+                            : '1 record found',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.85),
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _buildSummaryChip(
+                    icon: Icons.description_outlined,
+                    label: 'In report',
+                    value: exportCount.toString(),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _buildSummaryChip(
+                    icon: Icons.currency_rupee_rounded,
+                    label: 'Total amount',
+                    value: _formatDisplayAmount(totalAmount),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (multipleResults != null) ...[
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: _selectedCount > 0
+                      ? primaryColor.withValues(alpha: 0.08)
+                      : Theme.of(context).colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: _selectedCount > 0
+                        ? primaryColor.withValues(alpha: 0.35)
+                        : Theme.of(context).dividerColor,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.checklist_rounded,
+                      size: 20,
+                      color: _selectedCount > 0
+                          ? primaryColor
+                          : Theme.of(context).hintColor,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        '$_selectedCount of ${multipleResults!.length} selected for export',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: _selectedCount > 0
+                              ? primaryColor
+                              : Theme.of(context).hintColor,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      'All',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: primaryColor,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Checkbox(
+                      value: _allSelected,
+                      onChanged: (_) => _toggleAllSelection(),
+                      activeColor: primaryColor,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 14),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text(
+              'Record details',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: _reportBrand,
+                letterSpacing: -0.2,
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            itemCount: _displayRecords.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 12),
+            itemBuilder: (context, index) {
+              final record = _displayRecords[index];
+              final isMulti = multipleResults != null;
+              final isSelected = isMulti ? (_selectedRows[index] ?? false) : true;
+              return _buildRecordReportCard(
+                record: record,
+                index: index,
+                isSelectable: isMulti,
+                isSelected: isSelected,
+                onSelectionChanged: isMulti
+                    ? () => _toggleRowSelection(index)
+                    : null,
+              );
+            },
+          ),
+          Container(
+            padding: EdgeInsets.fromLTRB(16, 0, 16, isNarrow ? 16 : 20),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest
+                  .withValues(alpha: 0.5),
+              borderRadius: const BorderRadius.vertical(
+                bottom: Radius.circular(16),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 16),
+                Text(
+                  'Export report',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).hintColor,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                if (isNarrow)
+                  Column(
+                    children: [
+                      _buildReportActionButton(
+                        label: 'View PDF',
+                        icon: Icons.visibility_rounded,
+                        isLoading: _isPdfViewing,
+                        isPrimary: true,
+                        enabled: _canExportReport &&
+                            !_isPdfDownloading &&
+                            !_isPdfViewing,
+                        onPressed: _viewReportPdf,
+                      ),
+                      const SizedBox(height: 10),
+                      _buildReportActionButton(
+                        label: 'Download PDF',
+                        icon: Icons.download_rounded,
+                        isLoading: _isPdfDownloading,
+                        isPrimary: false,
+                        enabled: _canExportReport &&
+                            !_isPdfDownloading &&
+                            !_isPdfViewing,
+                        onPressed: _downloadReportPdf,
+                      ),
+                    ],
+                  )
+                else
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildReportActionButton(
+                          label: 'View PDF',
+                          icon: Icons.visibility_rounded,
+                          isLoading: _isPdfViewing,
+                          isPrimary: true,
+                          enabled: _canExportReport &&
+                              !_isPdfDownloading &&
+                              !_isPdfViewing,
+                          onPressed: _viewReportPdf,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildReportActionButton(
+                          label: 'Download PDF',
+                          icon: Icons.download_rounded,
+                          isLoading: _isPdfDownloading,
+                          isPrimary: false,
+                          enabled: _canExportReport &&
+                              !_isPdfDownloading &&
+                              !_isPdfViewing,
+                          onPressed: _downloadReportPdf,
+                        ),
+                      ),
+                    ],
+                  ),
+                if (!_canExportReport && multipleResults != null) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    'Select one or more records above to view or download',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).hintColor,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 4),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryChip({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      decoration: BoxDecoration(
+        color: _reportBrand.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _reportBrand.withValues(alpha: 0.12)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 22, color: _reportBrand),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Theme.of(context).hintColor,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: _reportBrand,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReportActionButton({
+    required String label,
+    required IconData icon,
+    required bool isLoading,
+    required bool isPrimary,
+    required bool enabled,
+    required VoidCallback onPressed,
+  }) {
+    return SizedBox(
+      height: 48,
+      child: ElevatedButton.icon(
+        onPressed: enabled && !isLoading ? onPressed : null,
+        icon: isLoading
+            ? SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: isPrimary ? Colors.white : _reportBrand,
+                ),
+              )
+            : Icon(icon, size: 20),
+        label: Text(
+          isLoading ? 'Please wait...' : label,
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: isPrimary ? _reportBrand : Colors.white,
+          foregroundColor: isPrimary ? Colors.white : _reportBrand,
+          disabledBackgroundColor: Theme.of(context).disabledColor,
+          disabledForegroundColor: Colors.white,
+          elevation: isPrimary ? 2 : 0,
+          side: isPrimary
+              ? null
+              : BorderSide(color: _reportBrand.withValues(alpha: 0.4)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRecordReportCard({
+    required Map<String, dynamic> record,
+    required int index,
+    required bool isSelectable,
+    required bool isSelected,
+    VoidCallback? onSelectionChanged,
+  }) {
+    final status = record['adminStatus']?.toString();
+    return Material(
+      color: isSelected
+          ? primaryColor.withValues(alpha: 0.04)
+          : Theme.of(context).cardColor,
+      elevation: isSelected ? 2 : 0,
+      shadowColor: _reportBrand.withValues(alpha: 0.1),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: isSelectable ? onSelectionChanged : null,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isSelected
+                  ? primaryColor.withValues(alpha: 0.45)
+                  : Theme.of(context).dividerColor,
+              width: isSelected ? 1.5 : 1,
+            ),
+          ),
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (isSelectable)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8, top: 2),
+                      child: Checkbox(
+                        value: isSelected,
+                        onChanged: (_) => onSelectionChanged?.call(),
+                        activeColor: primaryColor,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _fieldValue(record['customerName']),
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: _reportBrand,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Booking ${_fieldValue(record['bookingId'])}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Theme.of(context).hintColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _getStatusColor(status),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      status ?? 'N/A',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              const Divider(height: 1),
+              const SizedBox(height: 12),
+              _buildReportDetailGrid(record),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReportDetailGrid(Map<String, dynamic> record) {
+    Widget rowPair(Widget left, Widget right) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: left),
+          const SizedBox(width: 10),
+          Expanded(child: right),
+        ],
+      );
+    }
+
+    return Column(
+      children: [
+        rowPair(
+          _buildReportDetailTile('Customer ID', _fieldValue(record['id'])),
+          _buildReportDetailTile('Mobile', _fieldValue(record['mobileNumber'])),
+        ),
+        const SizedBox(height: 10),
+        rowPair(
+          _buildReportDetailTile(
+            'Device brand',
+            _fieldValue(record['deviceBrand']),
+          ),
+          _buildReportDetailTile(
+            'Device type',
+            _fieldValue(record['deviceType']),
+          ),
+        ),
+        const SizedBox(height: 10),
+        rowPair(
+          _buildReportDetailTile(
+            'Condition',
+            _fieldValue(record['deviceCondition']),
+          ),
+          _buildReportDetailTile(
+            'Amount',
+            _formatDisplayAmount(record['amount']),
+            emphasize: true,
+          ),
+        ),
+        const SizedBox(height: 10),
+        _buildReportDetailTile('Address', _fieldValue(record['address'])),
+      ],
+    );
+  }
+
+  Widget _buildReportDetailTile(
+    String label,
+    String value, {
+    bool emphasize = false,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest
+            .withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label.toUpperCase(),
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: Theme.of(context).hintColor,
+              letterSpacing: 0.4,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: emphasize ? FontWeight.w700 : FontWeight.w500,
+              color: emphasize ? Colors.green.shade800 : _reportBrand,
+            ),
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
   }
@@ -887,309 +1592,6 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator> {
           ),
         );
       },
-    );
-  }
-
-  Widget _buildMultipleResultsTable() {
-    return Card(
-      elevation: 6,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Icon(Icons.list_alt, color: Colors.green, size: 24),
-                SizedBox(width: 10),
-                Flexible(
-                  child: Text(
-                    'Multiple Records Found (${multipleResults!.length})',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.green[700],
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 16),
-            Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Theme.of(context).dividerColor),
-                ),
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: SingleChildScrollView(
-                    child: DataTable(
-                      headingRowColor: WidgetStateProperty.all(
-                        Color(0xFF0B3470),
-                      ),
-                      headingTextStyle: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 12,
-                      ),
-                      dataRowColor: WidgetStateProperty.resolveWith<Color?>((
-                        Set<WidgetState> states,
-                      ) {
-                        if (states.contains(WidgetState.selected)) {
-                          return Colors.blue[100];
-                        }
-                        return Colors.white;
-                      }),
-                      border: TableBorder.all(
-                        color: Colors.grey[300]!,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      columns: [
-                        DataColumn(
-                          label: SizedBox(width: 40, child: Text('SELECT')),
-                        ),
-                        DataColumn(label: Text('ID')),
-                        DataColumn(label: Text('CUSTOMER NAME')),
-                        DataColumn(label: Text('BOOKING ID')),
-                        DataColumn(label: Text('DEVICE BRAND')),
-                        DataColumn(label: Text('DEVICE TYPE')),
-                        DataColumn(label: Text('CONDITION')),
-                        DataColumn(label: Text('STATUS')),
-                        DataColumn(label: Text('ADDRESS')),
-                        DataColumn(label: Text('AMOUNT'), numeric: true),
-                      ],
-                      rows: multipleResults!.asMap().entries.map((entry) {
-                        int index = entry.key;
-                        Map<String, dynamic> record = entry.value;
-                        bool isSelected = _selectedRows[index] ?? false;
-
-                        return DataRow(
-                          selected: isSelected,
-                          onSelectChanged: (selected) {
-                            _toggleRowSelection(index);
-                          },
-                          cells: [
-                            DataCell(
-                              Checkbox(
-                                value: isSelected,
-                                onChanged: (value) {
-                                  _toggleRowSelection(index);
-                                },
-                                activeColor: primaryColor,
-                              ),
-                            ),
-                            DataCell(Text(record['id']?.toString() ?? 'N/A')),
-                            DataCell(
-                              Text(record['customerName']?.toString() ?? 'N/A'),
-                            ),
-                            DataCell(
-                              Text(record['bookingId']?.toString() ?? 'N/A'),
-                            ),
-                            DataCell(
-                              Text(record['deviceBrand']?.toString() ?? 'N/A'),
-                            ),
-                            DataCell(
-                              Text(record['deviceType']?.toString() ?? 'N/A'),
-                            ),
-                            DataCell(
-                              Text(
-                                record['deviceCondition']?.toString() ?? 'N/A',
-                              ),
-                            ),
-                            DataCell(
-                              Container(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: _getStatusColor(
-                                    record['adminStatus']?.toString(),
-                                  ),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
-                                  record['adminStatus']?.toString() ?? 'N/A',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            DataCell(
-                              SizedBox(
-                                width: 150,
-                                child: Text(
-                                  record['address']?.toString() ?? 'N/A',
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ),
-                            DataCell(
-                              Text(
-                                record['amount']?.toString() ?? 'N/A',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.green[700],
-                                ),
-                              ),
-                            ),
-                          ],
-                        );
-                      }).toList(),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSingleResultTable() {
-    return Card(
-      elevation: 6,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Icon(Icons.verified, color: Colors.green, size: 24),
-                SizedBox(width: 10),
-                Flexible(
-                  child: Text(
-                    'Customer Record Found',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.green[700],
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 16),
-            Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Theme.of(context).dividerColor),
-                ),
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: DataTable(
-                    headingRowColor: WidgetStateProperty.all(Color(0xFF0B3470)),
-                    headingTextStyle: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12,
-                    ),
-                    border: TableBorder.all(
-                      color: Colors.grey[300]!,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    columns: [
-                      DataColumn(label: Text('ID')),
-                      DataColumn(label: Text('CUSTOMER NAME')),
-                      DataColumn(label: Text('BOOKING ID')),
-                      DataColumn(label: Text('DEVICE BRAND')),
-                      DataColumn(label: Text('DEVICE TYPE')),
-                      DataColumn(label: Text('CONDITION')),
-                      DataColumn(label: Text('STATUS')),
-                      DataColumn(label: Text('ADDRESS')),
-                      DataColumn(label: Text('AMOUNT'), numeric: true),
-                    ],
-                    rows: [
-                      DataRow(
-                        cells: [
-                          DataCell(
-                            Text(resultData?['id']?.toString() ?? 'N/A'),
-                          ),
-                          DataCell(
-                            Text(
-                              resultData?['customerName']?.toString() ?? 'N/A',
-                            ),
-                          ),
-                          DataCell(
-                            Text(resultData?['bookingId']?.toString() ?? 'N/A'),
-                          ),
-                          DataCell(
-                            Text(
-                              resultData?['deviceBrand']?.toString() ?? 'N/A',
-                            ),
-                          ),
-                          DataCell(
-                            Text(
-                              resultData?['deviceType']?.toString() ?? 'N/A',
-                            ),
-                          ),
-                          DataCell(
-                            Text(
-                              resultData?['deviceCondition']?.toString() ??
-                                  'N/A',
-                            ),
-                          ),
-                          DataCell(
-                            Container(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: _getStatusColor(
-                                  resultData?['adminStatus']?.toString(),
-                                ),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                resultData?['adminStatus']?.toString() ?? 'N/A',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                          ),
-                          DataCell(
-                            SizedBox(
-                              width: 150,
-                              child: Text(
-                                resultData?['address']?.toString() ?? 'N/A',
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ),
-                          DataCell(
-                            Text(
-                              resultData?['amount']?.toString() ?? 'N/A',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                color: Colors.green[700],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
