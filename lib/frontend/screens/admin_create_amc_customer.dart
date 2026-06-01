@@ -643,13 +643,18 @@ class _AMCCreatePageState extends State<AMCCreatePage>
               ),
             );
 
+            // Store values before clearing the form
+            final userName = _usernameController.text;
+            final email = _emailController.text;
+            final password = _passwordController.text;
+
             showDialog(
               context: context,
               builder: (BuildContext context) {
                 return _buildAccountCreatedDialog(
-                  _usernameController.text,
-                  _emailController.text,
-                  _passwordController.text,
+                  userName,
+                  email,
+                  password,
                   newAmcId,
                 );
               },

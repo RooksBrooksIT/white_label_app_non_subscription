@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:lottie/lottie.dart';
+import 'package:subscription_rooks_app/services/notification_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -140,6 +141,17 @@ class _AmcCustomerHomePageState extends State<AmcCustomerHomePage> {
     // Fetch mobile number and device types
     _fetchMobileNumber();
     _fetchDeviceTypes();
+
+    // Register FCM token for real-time notifications
+    if (widget.customerId.isNotEmpty) {
+      final user = FirebaseAuth.instance.currentUser;
+      final email = user?.email ?? '';
+      NotificationService.instance.registerToken(
+        role: 'customer',
+        userId: widget.customerId,
+        email: email,
+      );
+    }
   }
 
   Future<void> _fetchMobileNumber() async {
@@ -369,6 +381,17 @@ class _AmcCustomerHomePageState extends State<AmcCustomerHomePage> {
             .collection('Admin_details')
             .doc(docId)
             .set(adminData);
+
+        // Add real-time notification for Admin
+        await NotificationService.sendNotificationToFirestore(
+          audience: 'admin',
+          title: 'New Ticket Received',
+          body:
+              'A new ticket ($bookingId) has been raised by ${_customerNameController.text}',
+          type: 'new_ticket',
+          bookingId: bookingId,
+          customerName: _customerNameController.text,
+        );
 
         if (!mounted) return;
         showDialog(

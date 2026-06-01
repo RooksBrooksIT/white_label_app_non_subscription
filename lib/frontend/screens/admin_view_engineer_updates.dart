@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
+import 'package:subscription_rooks_app/services/notification_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 
 class EngineerUpdates extends StatefulWidget {
@@ -1284,15 +1285,15 @@ class _EngineerUpdateCardState extends State<EngineerUpdateCard> {
 
       // Trigger in-app notification entry for customer
       try {
-        await FirestoreService.instance.collection('notifications').add({
-          'customerId': customerId,
-          'customerName': customerName,
-          'bookingId': bookingId,
-          'title': 'Ticket Update',
-          'body': 'Your ticket $bookingId status has been updated to $action.',
-          'timestamp': FieldValue.serverTimestamp(),
-          'seen': false,
-        });
+        await NotificationService.sendNotificationToFirestore(
+          audience: 'customer',
+          customerId: customerId,
+          customerName: customerName,
+          bookingId: bookingId,
+          title: 'Ticket Update',
+          body: 'Your ticket $bookingId status has been updated to $action.',
+          type: 'status_update',
+        );
       } catch (e) {
         // Log but do not block UI
         debugPrint('Failed to create notification doc: $e');

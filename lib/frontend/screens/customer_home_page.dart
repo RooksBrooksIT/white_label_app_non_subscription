@@ -897,6 +897,17 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
             .doc(docId)
             .set(adminData);
 
+        // Add real-time notification for Admin
+        await NotificationService.sendNotificationToFirestore(
+          audience: 'admin',
+          title: 'New Ticket Received',
+          body:
+              'A new ticket ($bookingId) has been raised by ${_customerNameController.text}',
+          type: 'new_ticket',
+          bookingId: bookingId,
+          customerName: _customerNameController.text,
+        );
+
         if (!mounted) return;
 
         showDialog(

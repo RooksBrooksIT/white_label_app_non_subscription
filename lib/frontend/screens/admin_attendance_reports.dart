@@ -253,6 +253,69 @@ class _AdminAttendanceReportsPageState
     );
   }
 
+  Widget _buildAttendanceErrorState(Object error) {
+    final message = error.toString();
+    final isIndexError = message.contains('failed-precondition') ||
+        message.contains('COLLECTION_GROUP') ||
+        message.contains('index');
+    final indexUrl = RegExp(
+      r'https://console\.firebase\.google\.com[^\s)]+',
+    ).firstMatch(message)?.group(0);
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.cloud_off_rounded,
+              size: 56,
+              color: Theme.of(context).colorScheme.error.withValues(alpha: 0.8),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              isIndexError
+                  ? 'Database index required'
+                  : 'Unable to load attendance',
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              isIndexError
+                  ? 'A Firestore index is missing for attendance queries. '
+                      'The full error and index link are printed in the debug terminal.'
+                  : 'Something went wrong while loading records. '
+                      'Check the debug terminal for details.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                color: Theme.of(context).hintColor,
+                height: 1.4,
+              ),
+            ),
+            if (indexUrl != null) ...[
+              const SizedBox(height: 16),
+              Text(
+                'Ask your admin to create the Firestore index, or open the link from the terminal output.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).hintColor,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildAttendanceList() {
     Stream<List<Map<String, dynamic>>> stream;
     if (_selectedEngineerId != null) {
@@ -280,7 +343,12 @@ class _AdminAttendanceReportsPageState
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
+          AttendanceBackend.logFirestoreError(
+            'AdminAttendanceReportsPage._buildAttendanceList',
+            snapshot.error!,
+            snapshot.stackTrace,
+          );
+          return _buildAttendanceErrorState(snapshot.error!);
         }
 
         var list = snapshot.data ?? [];

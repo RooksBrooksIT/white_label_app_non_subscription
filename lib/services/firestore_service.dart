@@ -156,6 +156,7 @@ class FirestoreService {
     Map<String, dynamic>? brandingData,
     String? appId,
     String? customerMobile, // stored for future payment lookups
+    String? gstNumber, // optional GST number
     Map<String, dynamic>? limits,
     bool? geoLocation,
     bool? attendance,
@@ -191,11 +192,13 @@ class FirestoreService {
       'updatedAt': FieldValue.serverTimestamp(),
       if (customerMobile != null && customerMobile.isNotEmpty)
         'customerMobile': customerMobile,
-      'limits': ?limits,
-      'geoLocation': ?geoLocation,
-      'attendance': ?attendance,
-      'barcode': ?barcode,
-      'reportExport': ?reportExport,
+      if (gstNumber != null && gstNumber.isNotEmpty)
+        'gstNumber': gstNumber,
+      'limits': limits,
+      'geoLocation': geoLocation,
+      'attendance': attendance,
+      'barcode': barcode,
+      'reportExport': reportExport,
     };
 
     if (brandingData != null) {

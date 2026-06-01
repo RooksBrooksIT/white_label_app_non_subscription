@@ -2853,6 +2853,18 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
 
         _showSnackBar('Job updated successfully!', ProfessionalTheme.success);
 
+        // Add real-time notification for Admin
+        await NotificationService.sendNotificationToFirestore(
+          audience: 'admin',
+          title: 'Engineer Job Update',
+          body:
+              'Engineer ${widget.userName} updated ticket ${widget.booking.bookingId} to: $_currentStatus',
+          type: 'engineer_status_update',
+          bookingId: widget.booking.bookingId,
+          engineerName: widget.userName,
+          customerName: widget.booking.customerName,
+        );
+
         setState(() {
           _imageFiles = [];
           widget.booking.imageUrls = allImageUrls;

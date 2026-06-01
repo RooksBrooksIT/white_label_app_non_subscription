@@ -15,10 +15,7 @@ import 'package:subscription_rooks_app/frontend/screens/engineer_dashboard_page.
 class EngineerLocationScreen extends StatefulWidget {
   final String engineerName;
 
-  const EngineerLocationScreen({
-    super.key,
-    required this.engineerName,
-  });
+  const EngineerLocationScreen({super.key, required this.engineerName});
 
   @override
   State<EngineerLocationScreen> createState() => _EngineerLocationScreenState();
@@ -28,7 +25,7 @@ class _EngineerLocationScreenState extends State<EngineerLocationScreen> {
   final MapController _mapController = MapController();
   StreamSubscription<QuerySnapshot>? _locationSubscription;
   StreamSubscription<Position>? _navPositionSubscription;
-  
+
   latlong.LatLng? _currentLocation;
   latlong.LatLng? _navDestination;
   List<latlong.LatLng> _routePoints = [];
@@ -52,45 +49,45 @@ class _EngineerLocationScreenState extends State<EngineerLocationScreen> {
 
   void _listenToLocation() {
     final tenantId = ThemeService.instance.databaseName;
-    
+
     _locationSubscription = FirestoreService.instance
         .collection('EngineerLogin', tenantId: tenantId)
         .where('Username', isEqualTo: widget.engineerName)
         .limit(1)
         .snapshots()
         .listen((snapshot) {
-      if (snapshot.docs.isEmpty) return;
+          if (snapshot.docs.isEmpty) return;
 
-      final data = snapshot.docs.first.data();
-      
-      if (mounted) {
-        setState(() {
-          _isOnline = data['isOnline'] ?? false;
-          _specialization = data['Specialization'] ?? 'Engineer';
-          
-          if (!_isOnline) {
-            _currentLocation = null;
-            _autoFollow = false;
-            return;
-          }
+          final data = snapshot.docs.first.data();
 
-          if (data['latitude'] != null && data['longitude'] != null) {
-            final lat = (data['latitude'] as num).toDouble();
-            final lng = (data['longitude'] as num).toDouble();
-            final newPos = latlong.LatLng(lat, lng);
-            
-            // Only move if significantly changed or first time
-            if (_currentLocation == null || _currentLocation != newPos) {
-              _currentLocation = newPos;
-              
-              if (_autoFollow) {
-                _mapController.move(newPos, _mapController.camera.zoom);
+          if (mounted) {
+            setState(() {
+              _isOnline = data['isOnline'] ?? false;
+              _specialization = data['Specialization'] ?? 'Engineer';
+
+              if (!_isOnline) {
+                _currentLocation = null;
+                _autoFollow = false;
+                return;
               }
-            }
+
+              if (data['latitude'] != null && data['longitude'] != null) {
+                final lat = (data['latitude'] as num).toDouble();
+                final lng = (data['longitude'] as num).toDouble();
+                final newPos = latlong.LatLng(lat, lng);
+
+                // Only move if significantly changed or first time
+                if (_currentLocation == null || _currentLocation != newPos) {
+                  _currentLocation = newPos;
+
+                  if (_autoFollow) {
+                    _mapController.move(newPos, _mapController.camera.zoom);
+                  }
+                }
+              }
+            });
           }
         });
-      }
-    });
   }
 
   void _centerOnMe() {
@@ -142,7 +139,9 @@ class _EngineerLocationScreenState extends State<EngineerLocationScreen> {
   }
 
   Widget _buildMap() {
-    final center = _currentLocation ?? const latlong.LatLng(12.9716, 77.5946); // Fallback to Bangalore if null
+    final center =
+        _currentLocation ??
+        const latlong.LatLng(12.9716, 77.5946); // Fallback to Bangalore if null
 
     return FlutterMap(
       mapController: _mapController,
@@ -166,7 +165,9 @@ class _EngineerLocationScreenState extends State<EngineerLocationScreen> {
               Polyline(
                 points: _routePoints,
                 strokeWidth: 5,
-                color: ProfessionalTheme.primary(context).withValues(alpha: 0.7),
+                color: ProfessionalTheme.primary(
+                  context,
+                ).withValues(alpha: 0.7),
               ),
             ],
           ),
@@ -181,7 +182,10 @@ class _EngineerLocationScreenState extends State<EngineerLocationScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.red.shade50,
                         borderRadius: BorderRadius.circular(12),
@@ -229,7 +233,9 @@ class _EngineerLocationScreenState extends State<EngineerLocationScreen> {
             color: ProfessionalTheme.surface(context),
             borderRadius: BorderRadius.circular(20),
             boxShadow: ProfessionalTheme.elevatedShadow,
-            border: Border.all(color: ProfessionalTheme.primary(context).withValues(alpha: 0.2)),
+            border: Border.all(
+              color: ProfessionalTheme.primary(context).withValues(alpha: 0.2),
+            ),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -269,7 +275,9 @@ class _EngineerLocationScreenState extends State<EngineerLocationScreen> {
                 border: Border.all(color: Colors.white, width: 2),
                 boxShadow: [
                   BoxShadow(
-                    color: ProfessionalTheme.primary(context).withValues(alpha: 0.5),
+                    color: ProfessionalTheme.primary(
+                      context,
+                    ).withValues(alpha: 0.5),
                     blurRadius: 8,
                     spreadRadius: 2,
                   ),
@@ -316,7 +324,9 @@ class _EngineerLocationScreenState extends State<EngineerLocationScreen> {
                       icon: Icon(_isOnline ? Icons.logout : Icons.check_circle),
                       label: Text(_isOnline ? 'Check Out' : 'Check In'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: _isOnline ? Colors.red : ProfessionalTheme.success,
+                        backgroundColor: _isOnline
+                            ? Colors.red
+                            : ProfessionalTheme.success,
                         foregroundColor: ProfessionalTheme.textInverse(context),
                       ),
                     ),
@@ -333,7 +343,10 @@ class _EngineerLocationScreenState extends State<EngineerLocationScreen> {
                       color: ProfessionalTheme.primaryExtraLight(context),
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(Icons.speed, color: ProfessionalTheme.primary(context)),
+                    child: Icon(
+                      Icons.speed,
+                      color: ProfessionalTheme.primary(context),
+                    ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -360,18 +373,27 @@ class _EngineerLocationScreenState extends State<EngineerLocationScreen> {
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
-                      color: (_isOnline ? ProfessionalTheme.success : Colors.red).withValues(alpha: 0.1),
+                      color:
+                          (_isOnline ? ProfessionalTheme.success : Colors.red)
+                              .withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: (_isOnline ? ProfessionalTheme.success : Colors.red).withValues(alpha: 0.2),
+                        color:
+                            (_isOnline ? ProfessionalTheme.success : Colors.red)
+                                .withValues(alpha: 0.2),
                       ),
                     ),
                     child: Text(
                       _isOnline ? 'ONLINE' : 'OFFLINE',
                       style: TextStyle(
-                        color: _isOnline ? ProfessionalTheme.success : Colors.red,
+                        color: _isOnline
+                            ? ProfessionalTheme.success
+                            : Colors.red,
                         fontWeight: FontWeight.bold,
                         fontSize: 12,
                       ),
@@ -455,10 +477,14 @@ class _EngineerLocationScreenState extends State<EngineerLocationScreen> {
   // Refresh location and update Firestore fields
   Future<void> _refreshLocation() async {
     try {
-      Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
       final tenantId = ThemeService.instance.databaseName;
-      final tenantCollection = FirestoreService.instance
-          .collection('EngineerLogin', tenantId: tenantId);
+      final tenantCollection = FirestoreService.instance.collection(
+        'EngineerLogin',
+        tenantId: tenantId,
+      );
       final query = await tenantCollection
           .where('Username', isEqualTo: widget.engineerName)
           .limit(1)
@@ -503,14 +529,16 @@ class _EngineerLocationScreenState extends State<EngineerLocationScreen> {
           FloatingActionButton(
             heroTag: 'center_map',
             onPressed: _centerOnMe,
-            backgroundColor: _autoFollow 
-                ? ProfessionalTheme.primary(context) 
+            backgroundColor: _autoFollow
+                ? ProfessionalTheme.primary(context)
                 : ProfessionalTheme.surface(context),
-            foregroundColor: _autoFollow 
-                ? ProfessionalTheme.textInverse(context) 
+            foregroundColor: _autoFollow
+                ? ProfessionalTheme.textInverse(context)
                 : ProfessionalTheme.primary(context),
             elevation: 4,
-            child: Icon(_autoFollow ? Icons.my_location : Icons.location_searching),
+            child: Icon(
+              _autoFollow ? Icons.my_location : Icons.location_searching,
+            ),
           ),
         ],
       ),
@@ -569,8 +597,10 @@ class _EngineerLocationScreenState extends State<EngineerLocationScreen> {
                     const SizedBox(height: 4),
                     Text(
                       [
-                        if (distanceKm != null) '${distanceKm.toStringAsFixed(1)} km',
-                        if (durationMin != null) '${durationMin.round()} min ETA',
+                        if (distanceKm != null)
+                          '${distanceKm.toStringAsFixed(1)} km',
+                        if (durationMin != null)
+                          '${durationMin.round()} min ETA',
                         if (_isFetchingRoute) 'Updating route…',
                       ].join(' • '),
                       style: TextStyle(
@@ -712,8 +742,9 @@ class _EngineerLocationScreenState extends State<EngineerLocationScreen> {
                           Container(
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
-                              color:
-                                  ProfessionalTheme.primaryExtraLight(context),
+                              color: ProfessionalTheme.primaryExtraLight(
+                                context,
+                              ),
                               borderRadius: BorderRadius.circular(16),
                               border: Border.all(
                                 color: ProfessionalTheme.borderLight(context),
@@ -758,15 +789,16 @@ class _EngineerLocationScreenState extends State<EngineerLocationScreen> {
 
   Widget _buildTicketCard(Map<String, dynamic> data) {
     final customerName = (data['customerName'] ?? 'Customer').toString();
-    final serviceName = (data['deviceBrand'] ??
-            data['serviceName'] ??
-            data['workName'] ??
-            data['deviceType'] ??
-            'Service')
-        .toString();
+    final serviceName =
+        (data['deviceBrand'] ??
+                data['serviceName'] ??
+                data['workName'] ??
+                data['deviceType'] ??
+                'Service')
+            .toString();
     final address = (data['address'] ?? 'Address not available').toString();
-    final status =
-        (data['engineerStatus'] ?? data['adminStatus'] ?? 'Assigned').toString();
+    final status = (data['engineerStatus'] ?? data['adminStatus'] ?? 'Assigned')
+        .toString();
     final bookingId = (data['bookingId'] ?? '').toString();
 
     final lat = (data['lat'] as num?)?.toDouble();
@@ -835,12 +867,16 @@ class _EngineerLocationScreenState extends State<EngineerLocationScreen> {
                 ),
               ),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: ProfessionalTheme.primaryExtraLight(context),
                   borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: ProfessionalTheme.borderLight(context)),
+                  border: Border.all(
+                    color: ProfessionalTheme.borderLight(context),
+                  ),
                 ),
                 child: Text(
                   status,
@@ -892,14 +928,15 @@ class _EngineerLocationScreenState extends State<EngineerLocationScreen> {
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: hasDest
-                      ? () =>
-                          _previewDestination(latlong.LatLng(lat, lng))
+                      ? () => _previewDestination(latlong.LatLng(lat, lng))
                       : null,
                   icon: const Icon(Icons.map_outlined),
                   label: const Text('View'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: ProfessionalTheme.primary(context),
-                    side: BorderSide(color: ProfessionalTheme.borderLight(context)),
+                    side: BorderSide(
+                      color: ProfessionalTheme.borderLight(context),
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
                     ),
@@ -912,9 +949,9 @@ class _EngineerLocationScreenState extends State<EngineerLocationScreen> {
                   onPressed: (!_isOnline || !hasDest)
                       ? null
                       : () => _startNavigation(
-                            bookingId: bookingId,
-                            destination: latlong.LatLng(lat, lng),
-                          ),
+                          bookingId: bookingId,
+                          destination: latlong.LatLng(lat, lng),
+                        ),
                   icon: Icon(
                     isThisNavigating
                         ? Icons.navigation_rounded
@@ -926,10 +963,12 @@ class _EngineerLocationScreenState extends State<EngineerLocationScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: ProfessionalTheme.primary(context),
                     foregroundColor: ProfessionalTheme.textInverse(context),
-                    disabledBackgroundColor: ProfessionalTheme.borderLight(context)
-                        .withValues(alpha: 0.7),
-                    disabledForegroundColor:
-                        ProfessionalTheme.textSecondary(context),
+                    disabledBackgroundColor: ProfessionalTheme.borderLight(
+                      context,
+                    ).withValues(alpha: 0.7),
+                    disabledForegroundColor: ProfessionalTheme.textSecondary(
+                      context,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
                     ),
@@ -979,25 +1018,26 @@ class _EngineerLocationScreenState extends State<EngineerLocationScreen> {
     });
 
     await _navPositionSubscription?.cancel();
-    _navPositionSubscription = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.bestForNavigation,
-        distanceFilter: 8,
-      ),
-    ).listen((pos) async {
-      final origin = latlong.LatLng(pos.latitude, pos.longitude);
-      if (!mounted) return;
+    _navPositionSubscription =
+        Geolocator.getPositionStream(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.bestForNavigation,
+            distanceFilter: 8,
+          ),
+        ).listen((pos) async {
+          final origin = latlong.LatLng(pos.latitude, pos.longitude);
+          if (!mounted) return;
 
-      setState(() {
-        _currentLocation = origin;
-      });
+          setState(() {
+            _currentLocation = origin;
+          });
 
-      if (_autoFollow) {
-        _mapController.move(origin, _mapController.camera.zoom);
-      }
+          if (_autoFollow) {
+            _mapController.move(origin, _mapController.camera.zoom);
+          }
 
-      await _maybeRefreshRoute(origin: origin, destination: destination);
-    });
+          await _maybeRefreshRoute(origin: origin, destination: destination);
+        });
 
     // immediate route fetch
     final pos = await Geolocator.getCurrentPosition(
@@ -1041,11 +1081,11 @@ class _EngineerLocationScreenState extends State<EngineerLocationScreen> {
     final movedEnough = lastOrigin == null
         ? true
         : const latlong.Distance().as(
-              latlong.LengthUnit.Meter,
-              lastOrigin,
-              origin,
-            ) >=
-            25;
+                latlong.LengthUnit.Meter,
+                lastOrigin,
+                origin,
+              ) >=
+              25;
 
     if (shouldTimeRefresh && movedEnough) {
       await _refreshRoute(origin: origin, destination: destination);

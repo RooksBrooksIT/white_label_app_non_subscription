@@ -5,16 +5,19 @@ import 'package:intl/intl.dart';
 import 'dart:math';
 import 'package:subscription_rooks_app/frontend/screens/admin_assign_engineer_page.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_geo_location_screen.dart';
+import 'package:subscription_rooks_app/services/notification_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:subscription_rooks_app/frontend/screens/customer_var_data_screen.dart'
     as customer_var;
 
 class AdminPage_CusDetails extends StatefulWidget {
   final customer_var.Customer? newCustomer;
+  final String? searchQuery;
   const AdminPage_CusDetails({
     super.key,
     this.newCustomer,
     required String statusFilter,
+    this.searchQuery,
   });
 
   @override
@@ -29,6 +32,10 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
   @override
   void initState() {
     super.initState();
+    if (widget.searchQuery != null) {
+      searchQuery = widget.searchQuery!;
+      _searchController.text = widget.searchQuery!;
+    }
   }
 
   // Calculate working days between two dates (excludes Sat/Sun)
@@ -722,9 +729,8 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                           customer.customerName,
                           style: TextStyle(
                             fontSize: getProportionalSize(14),
-                            color: Theme.of(
-                              context,
-                            ).textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
+                            color: Theme.of(context).textTheme.bodyMedium?.color
+                                ?.withValues(alpha: 0.7),
                             fontWeight: FontWeight.w500,
                           ),
                           maxLines: 1,
@@ -871,14 +877,17 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                     color: Theme.of(context).hintColor,
                   ),
                   SizedBox(width: getProportionalSize(6)),
-                  Text(
-                    DateFormat(
-                      'dd MMM yyyy',
-                    ).format(customer.timestamp.toDate()),
-                    style: TextStyle(
-                      fontSize: getProportionalSize(12),
-                      color: Theme.of(context).hintColor,
-                      fontWeight: FontWeight.w500,
+                  Flexible(
+                    child: Text(
+                      DateFormat(
+                        'dd MMM yyyy',
+                      ).format(customer.timestamp.toDate()),
+                      style: TextStyle(
+                        fontSize: getProportionalSize(12),
+                        color: Theme.of(context).hintColor,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   const Spacer(),
@@ -891,14 +900,17 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                           Theme.of(context).primaryColor,
                     ),
                     SizedBox(width: getProportionalSize(6)),
-                    Text(
-                      (durationInfo['label'] as String?) ?? '',
-                      style: TextStyle(
-                        fontSize: getProportionalSize(12),
-                        color:
-                            (durationInfo['color'] as Color?) ??
-                            Theme.of(context).primaryColor,
-                        fontWeight: FontWeight.bold,
+                    Flexible(
+                      child: Text(
+                        (durationInfo['label'] as String?) ?? '',
+                        style: TextStyle(
+                          fontSize: getProportionalSize(12),
+                          color:
+                              (durationInfo['color'] as Color?) ??
+                              Theme.of(context).primaryColor,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
@@ -1165,6 +1177,29 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                     ],
                                   ),
                                   SizedBox(height: screenHeight * 0.004),
+                                  if (isCompleted &&
+                                      assignedEmployee.isNotEmpty &&
+                                      assignedEmployee != 'Unassigned' &&
+                                      assignedEmployee != 'Not Assigned')
+                                    Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.check_circle,
+                                          color: Colors.green,
+                                          size: 14,
+                                        ),
+                                        SizedBox(width: getProportionalSize(4)),
+                                        Text(
+                                          'Service completed by: $assignedEmployee',
+                                          style: TextStyle(
+                                            color: Colors.green,
+                                            fontSize: getProportionalSize(12),
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  SizedBox(height: screenHeight * 0.004),
                                   // Customer row
                                   Row(
                                     children: [
@@ -1386,6 +1421,69 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                           ],
                         ),
                       ),
+                      // Service completion message in detail sheet
+                      if (isCompleted &&
+                          assignedEmployee.isNotEmpty &&
+                          assignedEmployee != 'Unassigned' &&
+                          assignedEmployee != 'Not Assigned')
+                        Padding(
+                          padding: EdgeInsets.only(
+                            top: screenHeight * 0.015,
+                            left: screenWidth * 0.06,
+                            right: screenWidth * 0.06,
+                          ),
+                          child: Container(
+                            width: double.infinity,
+                            padding: EdgeInsets.symmetric(
+                              horizontal: screenWidth * 0.04,
+                              vertical: screenHeight * 0.012,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(
+                                getProportionalSize(8),
+                              ),
+                              border: Border.all(
+                                color: Colors.green,
+                                width: 1.5,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.check_circle,
+                                  color: Colors.green,
+                                  size: getProportionalSize(20),
+                                ),
+                                SizedBox(width: screenWidth * 0.02),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Service Completed',
+                                        style: TextStyle(
+                                          color: Colors.green,
+                                          fontSize: getProportionalSize(14),
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      SizedBox(height: getProportionalSize(2)),
+                                      Text(
+                                        'Service completed by: $assignedEmployee',
+                                        style: TextStyle(
+                                          color: Colors.green.shade700,
+                                          fontSize: getProportionalSize(12),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       // Customer cancellation message in detail sheet
                       if (isCanceledByCustomer)
                         Padding(
@@ -1608,6 +1706,16 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                           customerLat: customerLat,
                                           customerLng: customerLng,
                                           customerAddress: customer.address,
+                                          bookingId: customer.bookingId,
+                                          customerName: customer.customerName,
+                                          jobType: customer.jobType,
+                                          deviceType: customer.deviceType,
+                                          deviceBrand: customer.deviceBrand,
+                                          assignedEmployee:
+                                              assignedEmployee != 'Not Assigned'
+                                              ? assignedEmployee
+                                              : null,
+                                          customerStatus: displayStatus,
                                         ),
                                   ),
                                 );
@@ -1688,7 +1796,9 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                       Divider(
                         height: screenHeight * 0.033,
                         thickness: 1,
-                        color: Theme.of(context).primaryColor.withValues(alpha: 0.5),
+                        color: Theme.of(
+                          context,
+                        ).primaryColor.withValues(alpha: 0.5),
                       ),
                       Padding(
                         padding: EdgeInsets.symmetric(
@@ -2224,6 +2334,17 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                                   FieldValue.serverTimestamp(),
                                             });
 
+                                        // Add notification for Admin (Acknowledged)
+                                        await NotificationService.sendNotificationToFirestore(
+                                          audience: 'admin',
+                                          title: 'Ticket Acknowledged',
+                                          body:
+                                              'You have scheduled an appointment for ticket ${customer.bookingId} (${customer.customerName})',
+                                          type: 'ticket_acknowledged',
+                                          bookingId: customer.bookingId,
+                                          customerName: customer.customerName,
+                                        );
+
                                         // Show success message
                                         ScaffoldMessenger.of(
                                           context,
@@ -2411,6 +2532,29 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                       .collection('Admin_details')
                                       .doc(docId)
                                       .update({'adminStatus': 'Canceled'});
+
+                                  // Add notifications for Admin and Customer
+                                  await NotificationService.sendNotificationToFirestore(
+                                    audience: 'customer',
+                                    customerId: customer.customerid,
+                                    title: 'Ticket Canceled',
+                                    body:
+                                        'Your ticket ${customer.bookingId} has been canceled by the administrator.',
+                                    type: 'ticket_canceled',
+                                    bookingId: customer.bookingId,
+                                    customerName: customer.customerName,
+                                  );
+
+                                  await NotificationService.sendNotificationToFirestore(
+                                    audience: 'admin',
+                                    title: 'Ticket Canceled',
+                                    body:
+                                        'You have canceled ticket ${customer.bookingId} (${customer.customerName})',
+                                    type: 'ticket_canceled',
+                                    bookingId: customer.bookingId,
+                                    customerName: customer.customerName,
+                                  );
+
                                   Navigator.pop(context);
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
