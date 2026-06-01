@@ -22,6 +22,7 @@ import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:subscription_rooks_app/services/storage_service.dart';
 import 'package:subscription_rooks_app/services/attendance_service.dart';
 import 'package:subscription_rooks_app/frontend/screens/engineer_location_screen.dart';
+import 'package:subscription_rooks_app/frontend/screens/engineer_edit_profile_screen.dart';
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
@@ -1349,7 +1350,7 @@ class _EngineerPageState extends State<EngineerPage> {
           if (!_isCheckedIn) _buildCheckInCard(),
           const SizedBox(height: 24),
           Text(
-            'Overview',
+            'Work Summary Dashboard',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -1357,18 +1358,7 @@ class _EngineerPageState extends State<EngineerPage> {
             ),
           ),
           const SizedBox(height: 16),
-          _buildStatsCards(),
-          const SizedBox(height: 24),
-          Text(
-            'Performance',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: ProfessionalTheme.textPrimary(context),
-            ),
-          ),
-          const SizedBox(height: 16),
-          _buildPerformanceChart(),
+          _buildWorkSummaryDashboard(),
           const SizedBox(height: 24),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1562,33 +1552,252 @@ class _EngineerPageState extends State<EngineerPage> {
     );
   }
 
-  Widget _buildPerformanceChart() {
+  Widget _buildWorkSummaryDashboard() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirestoreService.instance
+          .collection('Admin_details')
+          .where('assignedEmployee', isEqualTo: widget.userName)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final docs = snapshot.data!.docs;
+        final now = DateTime.now();
+        int currentMonthAssigned = 0;
+        int currentMonthCompleted = 0;
+        int pendingTickets = 0;
+        int inProgressTickets = 0;
+        
+        Map<int, int> assignedPerMonth = {};
+        Map<int, int> completedPerMonth = {};
+
+        for (var doc in docs) {
+          final data = doc.data() as Map<String, dynamic>;
+          // Match the same logic as AdminDetails.fromFirestore
+          final status = (data['engineerStatus'] ?? data['adminStatus'] ?? '')
+              .toString()
+              .toLowerCase();
+
+          // 'AssignedTimestamp' is the correct Firestore field (capital A)
+          DateTime? assignedDate;
+          if (data['AssignedTimestamp'] != null) {
+            assignedDate = (data['AssignedTimestamp'] as Timestamp).toDate();
+          }
+
+          DateTime? completedDate;
+          if (data['completedAt'] != null) {
+            completedDate = (data['completedAt'] as Timestamp).toDate();
+          } else if (status == 'completed') {
+            completedDate = assignedDate;
+          }
+
+          if (status != 'completed') {
+            if (status == 'assigned') {
+              pendingTickets++;
+            } else {
+              inProgressTickets++;
+            }
+          }
+
+          if (assignedDate != null && assignedDate.year == now.year) {
+            assignedPerMonth[assignedDate.month] =
+                (assignedPerMonth[assignedDate.month] ?? 0) + 1;
+            if (assignedDate.month == now.month) {
+              currentMonthAssigned++;
+            }
+          }
+
+          if (status == 'completed' &&
+              completedDate != null &&
+              completedDate.year == now.year) {
+            completedPerMonth[completedDate.month] =
+                (completedPerMonth[completedDate.month] ?? 0) + 1;
+            if (completedDate.month == now.month) {
+              currentMonthCompleted++;
+            }
+          }
+        }
+        
+        final completionPercentage = currentMonthAssigned > 0 
+           ? (currentMonthCompleted / currentMonthAssigned).clamp(0.0, 1.0) 
+           : 0.0;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: ProfessionalTheme.cardDecoration(context),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Current Month Stats',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: ProfessionalTheme.textPrimary(context),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                           color: ProfessionalTheme.primaryExtraLight(context),
+                           borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          DateFormat('MMMM yyyy').format(now),
+                          style: TextStyle(
+                             fontSize: 12,
+                             fontWeight: FontWeight.w700,
+                             color: ProfessionalTheme.primary(context),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(child: _buildMiniStat('Assigned', currentMonthAssigned.toString(), Colors.blue)),
+                      const SizedBox(width: 12),
+                      Expanded(child: _buildMiniStat('Completed', currentMonthCompleted.toString(), ProfessionalTheme.success)),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(child: _buildMiniStat('Pending', pendingTickets.toString(), Colors.orange)),
+                      const SizedBox(width: 12),
+                      Expanded(child: _buildMiniStat('In Progress', inProgressTickets.toString(), Colors.purple)),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'Completion Rate (Current Month)',
+                    style: TextStyle(color: ProfessionalTheme.textSecondary(context), fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: LinearProgressIndicator(
+                            value: completionPercentage,
+                            minHeight: 12,
+                            backgroundColor: ProfessionalTheme.borderLight(context),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              ProfessionalTheme.success,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        '${(completionPercentage * 100).toInt()}%',
+                        style: TextStyle(fontWeight: FontWeight.w800, color: ProfessionalTheme.success, fontSize: 16),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            
+            const SizedBox(height: 24),
+            Text(
+              'Monthly Summary (${now.year})',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: ProfessionalTheme.textPrimary(context),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              decoration: ProfessionalTheme.cardDecoration(context),
+              child: ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: now.month,
+                separatorBuilder: (context, index) => Divider(height: 1, color: ProfessionalTheme.borderLight(context)),
+                itemBuilder: (context, index) {
+                   int month = now.month - index;
+                   int assigned = assignedPerMonth[month] ?? 0;
+                   int completed = completedPerMonth[month] ?? 0;
+                   String monthName = DateFormat('MMMM').format(DateTime(now.year, month));
+                   return Padding(
+                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                     child: Row(
+                       children: [
+                         SizedBox(
+                           width: 90, 
+                           child: Text(monthName, style: TextStyle(fontWeight: FontWeight.w700, color: ProfessionalTheme.textPrimary(context)))
+                         ),
+                         Expanded(
+                           child: Row(
+                             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                             children: [
+                                Column(
+                                  children: [
+                                    Text(assigned.toString(), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                                    Text('Assigned', style: TextStyle(fontSize: 10, color: ProfessionalTheme.textSecondary(context))),
+                                  ]
+                                ),
+                                Container(width: 1, height: 30, color: ProfessionalTheme.borderLight(context)),
+                                Column(
+                                  children: [
+                                    Text(completed.toString(), style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: ProfessionalTheme.success)),
+                                    Text('Completed', style: TextStyle(fontSize: 10, color: ProfessionalTheme.textSecondary(context))),
+                                  ]
+                                ),
+                             ],
+                           )
+                         )
+                       ]
+                     )
+                   );
+                }
+              )
+            )
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildMiniStat(String title, String value, Color color) {
     return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: ProfessionalTheme.cardDecoration(context),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Task Completion Rate',
-            style: TextStyle(color: ProfessionalTheme.textSecondary(context)),
-          ),
-          const SizedBox(height: 16),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: LinearProgressIndicator(
-              value: 0.75,
-              minHeight: 12,
-              backgroundColor: ProfessionalTheme.borderLight(context),
-              valueColor: AlwaysStoppedAnimation<Color>(
-                ProfessionalTheme.success,
-              ),
+            value,
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w900,
+              color: color,
             ),
           ),
-          const SizedBox(height: 8),
-          const Text(
-            '75% tasks completed this week',
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+          const SizedBox(height: 2),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: color.withValues(alpha: 0.8),
+            ),
           ),
         ],
       ),
@@ -1732,122 +1941,191 @@ class _EngineerPageState extends State<EngineerPage> {
   }
 
   Widget _buildProfileView() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        children: [
-          const SizedBox(height: 20),
-          FutureBuilder<DocumentSnapshot>(
-            future: FirestoreService.instance
-                .collection('users')
-                .doc(FirebaseAuth.instance.currentUser?.uid)
-                .get(),
-            builder: (context, snapshot) {
-              String? photoUrl;
-              if (snapshot.hasData &&
-                  snapshot.data != null &&
-                  snapshot.data!.exists) {
-                final data = snapshot.data!.data() as Map<String, dynamic>?;
-                photoUrl = data?['photoUrl'] ?? data?['profileImage'];
-              }
-              photoUrl ??= FirebaseAuth.instance.currentUser?.photoURL;
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirestoreService.instance
+          .collection('EngineerLogin', tenantId: ThemeService.instance.databaseName)
+          .where('Username', isEqualTo: widget.userName)
+          .limit(1)
+          .snapshots(),
+      builder: (context, snapshot) {
+        Map<String, dynamic> data = {};
+        if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
+          data = snapshot.data!.docs.first.data() as Map<String, dynamic>;
+        }
 
-              return Column(
-                children: [
-                  CircleAvatar(
-                    radius: 50,
-                    backgroundColor: ProfessionalTheme.primaryExtraLight(
-                      context,
-                    ),
-                    backgroundImage: photoUrl != null
-                        ? NetworkImage(photoUrl)
-                        : null,
-                    child: photoUrl == null
-                        ? Icon(
-                            Icons.person_rounded,
-                            size: 50,
-                            color: ProfessionalTheme.primary(context),
-                          )
-                        : null,
+        final email = data['Email'] ?? widget.userEmail;
+        final phone = data['Phone'] ?? 'Not provided';
+        final specialization = data['Specialization'] ?? 'Not provided';
+        final address = data['Address'] ?? 'Not provided';
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            children: [
+              const SizedBox(height: 16),
+
+              // Profile avatar
+              Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: ProfessionalTheme.primary(context),
+                    width: 3,
                   ),
-                  const SizedBox(height: 16),
-                  Text(
-                    widget.userName,
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Text(
-                    widget.userEmail,
+                  boxShadow: ProfessionalTheme.elevatedShadow,
+                ),
+                child: CircleAvatar(
+                  radius: 52,
+                  backgroundColor: ProfessionalTheme.primaryExtraLight(context),
+                  child: Text(
+                    (widget.userName.isNotEmpty ? widget.userName[0] : 'E')
+                        .toUpperCase(),
                     style: TextStyle(
-                      color: ProfessionalTheme.textSecondary(context),
+                      fontSize: 40,
+                      fontWeight: FontWeight.w900,
+                      color: ProfessionalTheme.primary(context),
                     ),
                   ),
-                ],
-              );
-            },
-          ),
-          const SizedBox(height: 40),
-          _buildProfileItem(
-            Icons.badge_rounded,
-            'Employee ID',
-            'ENG-${widget.userName.hashCode.toString().substring(0, 4)}',
-          ),
-          _buildProfileItem(Icons.email_rounded, 'Email', widget.userEmail),
-          _buildProfileItem(Icons.phone_rounded, 'Phone', 'Not provided'),
-          const SizedBox(height: 40),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _showLogoutConfirmation,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: ProfessionalTheme.error,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: const Text(
-                'Logout Account',
-                style: TextStyle(fontWeight: FontWeight.bold),
+              const SizedBox(height: 16),
+
+              Text(
+                widget.userName,
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: ProfessionalTheme.textPrimary(context),
+                ),
               ),
-            ),
+              const SizedBox(height: 4),
+              if (specialization != 'Not provided')
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: ProfessionalTheme.primaryExtraLight(context),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    specialization,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: ProfessionalTheme.primary(context),
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 32),
+
+              // Info cards
+              _buildProfileItem(Icons.email_rounded, 'Email', email),
+              _buildProfileItem(Icons.phone_rounded, 'Mobile Number', phone),
+              _buildProfileItem(Icons.architecture_rounded, 'Specialization', specialization),
+              _buildProfileItem(Icons.place_rounded, 'Address', address),
+
+              const SizedBox(height: 32),
+
+              // Edit Profile button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    final updated = await Navigator.push<bool>(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => EngineerEditProfileScreen(
+                          engineerName: widget.userName,
+                        ),
+                      ),
+                    );
+                    if (updated == true && mounted) {
+                      setState(() {}); // trigger StreamBuilder refresh
+                    }
+                  },
+                  icon: const Icon(Icons.edit_rounded),
+                  label: const Text(
+                    'Edit Profile',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: ProfessionalTheme.primary(context),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Logout button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _showLogoutConfirmation,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: ProfessionalTheme.error,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  child: const Text(
+                    'Logout Account',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
   Widget _buildProfileItem(IconData icon, String label, String value) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.only(bottom: 12),
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: ProfessionalTheme.cardDecoration(context),
         child: Row(
           children: [
-            Icon(icon, color: ProfessionalTheme.primary(context)),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: ProfessionalTheme.primaryExtraLight(context),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: ProfessionalTheme.primary(context), size: 20),
+            ),
             const SizedBox(width: 16),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: ProfessionalTheme.textSecondary(context),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: ProfessionalTheme.textSecondary(context),
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
+                  const SizedBox(height: 2),
+                  Text(
+                    value,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: ProfessionalTheme.textPrimary(context),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ),
@@ -1931,11 +2209,6 @@ class _EngineerPageState extends State<EngineerPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _sectionHeader('Bookings'),
-                  const SizedBox(height: 12),
-                  _buildBookingSectionSwitcher(
-                    assignedCount: assignedCount,
-                    completedCount: completedCount,
-                  ),
                   const SizedBox(height: 12),
                   _buildSearchField(),
                   if (_currentSection == 'dashboard') ...[

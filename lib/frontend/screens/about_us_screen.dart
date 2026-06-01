@@ -15,6 +15,7 @@ class AboutUsScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('About Us'),
         backgroundColor: primaryColor,
+        foregroundColor: Colors.white,
         elevation: 0,
       ),
       body: Container(
@@ -240,89 +241,7 @@ class AboutUsScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 24),
                     // Company Details Card
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: isDark
-                              ? [
-                                  const Color(0xFF2D2D44),
-                                  const Color(0xFF1E1E2E),
-                                ]
-                              : [Colors.white, const Color(0xFFFEFEFE)],
-                        ),
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.05),
-                            blurRadius: 15,
-                            offset: const Offset(0, 5),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: primaryColor.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                child: Icon(
-                                  Icons.info_rounded,
-                                  color: primaryColor,
-                                  size: 28,
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Text(
-                                'Company Details',
-                                style: TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w800,
-                                  color: textColor,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 20),
-                          _buildCompanyDetailCard(
-                            icon: Icons.business_rounded,
-                            title: 'Organization Name',
-                            value: 'Rooks & Brooks Technologies',
-                            iconColor: primaryColor,
-                          ),
-                          const SizedBox(height: 16),
-                          // _buildCompanyDetailCard(-
-                          //   icon: Icons.location_on_rounded,
-                          //   title: 'Address',
-                          //   value:
-                          //       'No:17, Jawahar Street, Ramavarmapuram, Nagercoil - 629001',
-                          //   iconColor: primaryColor,
-                          // ),
-                          // const SizedBox(height: 16),
-                          _buildCompanyDetailCard(
-                            icon: Icons.email_rounded,
-                            title: 'Email',
-                            value: 'support@rookstechnologies.com',
-                            iconColor: primaryColor,
-                          ),
-                          const SizedBox(height: 16),
-                          _buildCompanyDetailCard(
-                            icon: Icons.phone_rounded,
-                            title: 'Phone',
-                            value: '+91 73586 77670',
-                            iconColor: primaryColor,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 24),
+
                     // Footer Message
                     Container(
                       padding: const EdgeInsets.all(20),

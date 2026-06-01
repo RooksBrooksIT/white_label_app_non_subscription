@@ -249,6 +249,7 @@ class _PaymentScreenState extends State<PaymentScreen>
             originalPrice: widget.originalPrice,
             paymentMethod: selectedPaymentMethod,
             status: 'active',
+            gstNumber: widget.pendingUserData?['gstNumber'],
             limits: widget.limits,
             geoLocation: widget.geoLocation,
             attendance: widget.attendance,
@@ -303,6 +304,7 @@ class _PaymentScreenState extends State<PaymentScreen>
             originalPrice: widget.originalPrice,
             paymentMethod: selectedPaymentMethod,
             status: 'failed', // Mark as failed
+            gstNumber: widget.pendingUserData?['gstNumber'],
             limits: widget.limits,
             geoLocation: widget.geoLocation,
             attendance: widget.attendance,

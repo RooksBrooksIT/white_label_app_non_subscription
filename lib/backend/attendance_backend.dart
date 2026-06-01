@@ -3,6 +3,37 @@ import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:intl/intl.dart';
 
 class AttendanceBackend {
+  static void logFirestoreError(
+    String source,
+    Object error, [
+    StackTrace? stackTrace,
+  ]) {
+    print('══════════════════════════════════════════════════');
+    print('ATTENDANCE REPORTS — Firestore Error');
+    print('Source: $source');
+    print('Error: $error');
+    if (stackTrace != null) {
+      print('Stack trace:\n$stackTrace');
+    }
+    final message = error.toString();
+    final urlMatch = RegExp(
+      r'https://console\.firebase\.google\.com[^\s)]+',
+    ).firstMatch(message);
+    if (urlMatch != null) {
+      print('Create index URL:\n${urlMatch.group(0)}');
+    }
+    print('══════════════════════════════════════════════════');
+  }
+
+  static Stream<List<Map<String, dynamic>>> _withErrorLogging(
+    Stream<List<Map<String, dynamic>>> stream,
+    String source,
+  ) {
+    return stream.handleError((Object error, StackTrace stackTrace) {
+      logFirestoreError(source, error, stackTrace);
+      throw error;
+    });
+  }
   /// Fetches the list of all users from the tenant's 'users' collection.
   /// Used for the Admin Dropdown.
   static Future<List<Map<String, dynamic>>> getUsers() async {
@@ -130,33 +161,35 @@ class AttendanceBackend {
       query = query.where('date', isLessThanOrEqualTo: toStr);
     }
 
-    return query.snapshots().asyncMap((snapshot) async {
-      String username = 'Unknown';
-      try {
-        final userDoc = await FirestoreService.instance
-            .collection('EngineerLogin')
-            .doc(engineerId)
-            .get();
-        if (userDoc.exists) {
-          username = userDoc.data()?['Username'] ?? 'Unknown';
+    return _withErrorLogging(
+      query.snapshots().asyncMap((snapshot) async {
+        String username = 'Unknown';
+        try {
+          final userDoc = await FirestoreService.instance
+              .collection('EngineerLogin')
+              .doc(engineerId)
+              .get();
+          if (userDoc.exists) {
+            username = userDoc.data()?['Username'] ?? 'Unknown';
+          }
+        } catch (e) {
+          print('Error fetching user name: $e');
         }
-      } catch (e) {
-        print('Error fetching user name: $e');
-      }
 
-      return snapshot.docs.map((doc) {
-        final data = doc.data();
-        return {...data, 'engineerUsername': username};
-      }).toList();
-    });
+        return snapshot.docs.map((doc) {
+          final data = doc.data();
+          return {...data, 'engineerUsername': username};
+        }).toList();
+      }),
+      'getEngineerAttendanceHistory(engineerId: $engineerId)',
+    );
   }
 
   /// Gets all attendance history
   static Stream<List<Map<String, dynamic>>> getAllAttendanceHistory() {
-    return FirestoreService.instance
-        .collectionGroup('daily')
-        .snapshots()
-        .asyncMap((snapshot) async {
+    return _withErrorLogging(
+      FirestoreService.instance.collectionGroup('daily').snapshots().asyncMap(
+        (snapshot) async {
           final usersMap = <String, String>{};
           try {
             final engineers = await getEngineers();
@@ -190,7 +223,10 @@ class AttendanceBackend {
 
             return {...data, 'engineerUsername': username};
           }).toList();
-        });
+        },
+      ),
+      'getAllAttendanceHistory',
+    );
   }
 
   /// Marks the engineer's attendance as Present/Accepted.
@@ -312,8 +348,8 @@ class AttendanceBackend {
           .get();
 
       return snapshot.docs.map((doc) => doc.data()).toList();
-    } catch (e) {
-      print('Error fetching daily attendance: $e');
+    } catch (e, stackTrace) {
+      logFirestoreError('getDailyAttendance', e, stackTrace);
       return [];
     }
   }

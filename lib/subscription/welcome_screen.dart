@@ -25,9 +25,11 @@ class _WelcomeScreenState extends State<WelcomeScreen>
   final _confirmPasswordController = TextEditingController();
   final _phoneController = TextEditingController();
   final _referralCodeController = TextEditingController();
+  final _gstNumberController = TextEditingController();
   final String _selectedRole = 'admin';
   bool _isLoading = false;
   bool _obscurePassword = true;
+  bool _hasGST = false;
 
   late final AnimationController _transitionController;
   late final Animation<double> _fadeAnimation;
@@ -62,6 +64,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     _referralCodeController.dispose();
+    _gstNumberController.dispose();
     _transitionController.dispose();
     super.dispose();
   }
@@ -94,11 +97,15 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     }
 
     final phone = _phoneController.text.trim();
+    final gstValue = _hasGST
+        ? _gstNumberController.text.trim().toUpperCase()
+        : '';
     final Map<String, dynamic> extraData = {
       if (phone.isNotEmpty) 'phone': phone,
       'linkedAppName': linkedAppName,
       if (linkedAppName != null)
         'referralCode': _referralCodeController.text.trim(),
+      if (_hasGST && gstValue.isNotEmpty) 'gstNumber': gstValue,
     };
 
     if (_selectedRole == 'admin') {
@@ -685,6 +692,82 @@ class _WelcomeScreenState extends State<WelcomeScreen>
             validator: (v) =>
                 v != _passwordController.text ? 'Passwords do not match' : null,
           ),
+          const SizedBox(height: 24),
+          // GST Section
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    SizedBox(
+                      height: 24,
+                      width: 24,
+                      child: Checkbox(
+                        value: _hasGST,
+                        onChanged: (value) {
+                          setState(() {
+                            _hasGST = value ?? false;
+                          });
+                        },
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      'Do you have GST?',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade800,
+                      ),
+                    ),
+                  ],
+                ),
+                if (_hasGST) ...[
+                  const SizedBox(height: 16),
+                  _buildFormTextField(
+                    label: 'GST Number',
+                    controller: _gstNumberController,
+                    icon: Icons.receipt_long_outlined,
+                    hint: 'e.g., 29ABCDE1234F1Z5',
+                    textCapitalization: TextCapitalization.characters,
+                    keyboardType: TextInputType.text,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.deny(RegExp(r'[^\dA-Za-z]')),
+                      LengthLimitingTextInputFormatter(15),
+                    ],
+                    validator: (v) {
+                      if (!_hasGST) return null;
+                      if (v == null || v.trim().isEmpty) {
+                        return 'GST number is required';
+                      }
+                      final trimmedValue = v.trim().toUpperCase();
+                      // Indian GST format breakdown:
+                      // 1-2: State code (01-38)
+                      // 3-12: PAN (AAAAA9999A)
+                      // 13: Entity number (1-9 or A-Z)
+                      // 14: Always Z
+                      // 15: Checksum (A-Z 0-9)
+                      final gstRegExp = RegExp(
+                        r'^([0-2][0-9]|3[0-8])[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$',
+                      );
+                      if (!gstRegExp.hasMatch(trimmedValue)) {
+                        return 'Please enter a valid GSTIN (e.g., 29ABCDE1234F1Z5)';
+                      }
+                      return null;
+                    },
+                  ),
+                ],
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -699,6 +782,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     Widget? suffixIcon,
     TextInputType? keyboardType,
     List<TextInputFormatter>? inputFormatters,
+    TextCapitalization textCapitalization = TextCapitalization.none,
     String? Function(String?)? validator,
   }) {
     return Column(
@@ -718,6 +802,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
           obscureText: obscureText,
           keyboardType: keyboardType,
           inputFormatters: inputFormatters,
+          textCapitalization: textCapitalization,
           validator: validator,
           style: GoogleFonts.inter(fontSize: 16),
           decoration: InputDecoration(

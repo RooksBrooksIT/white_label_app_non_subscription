@@ -1,5 +1,10 @@
+import 'dart:io';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:open_file/open_file.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -16,6 +21,8 @@ class AdminEngineerReports extends StatefulWidget {
 
 class _AdminEngineerReportsState extends State<AdminEngineerReports>
     with SingleTickerProviderStateMixin {
+  static const int _pageSize = 15;
+
   String? selectedEngineer;
   bool isDateFilterEnabled = false;
   DateTime? selectedDate;
@@ -23,9 +30,21 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
   DateTime? toDate;
   bool isDateRangeMode = false;
 
-  // Animation controller for smooth transitions
+  final TextEditingController _searchController = TextEditingController();
+  String searchQuery = '';
+  String _selectedStatusFilter = 'All';
+  String _selectedLocationFilter = 'All';
+  bool _showAdvancedFilters = false;
+  bool _showAnalytics = true;
+  int _currentPage = 1;
+  String? _loadingPdfId;
+  String? _downloadingPdfId;
+
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
+
+  Map<String, Map<String, int>> engineerStatusCounts = {};
+  Set<String> allStatuses = {};
 
   @override
   void initState() {
@@ -39,16 +58,20 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
       curve: Curves.easeInOut,
     );
     _animationController.forward();
+    _searchController.addListener(() {
+      setState(() {
+        searchQuery = _searchController.text;
+        _currentPage = 1;
+      });
+    });
   }
 
   @override
   void dispose() {
+    _searchController.dispose();
     _animationController.dispose();
     super.dispose();
   }
-
-  Map<String, Map<String, int>> engineerStatusCounts = {};
-  Set<String> allStatuses = {};
 
   Stream<List<String>> getEngineerUsernames() {
     return FirestoreService.instance
@@ -62,6 +85,266 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
               )
               .toList();
         });
+  }
+
+  Stream<List<Map<String, dynamic>>> getEngineerProfiles() {
+    return FirestoreService.instance
+        .collection('EngineerLogin')
+        .snapshots()
+        .map((snapshot) {
+          final profiles = snapshot.docs.map((doc) {
+            final data = doc.data();
+            final username = (data['Username'] ?? '').toString().trim();
+            return {
+              'id': doc.id,
+              'username': username.toLowerCase(),
+              'displayName': _capitalizeName(username),
+              'email': (data['Email'] ?? '').toString().trim(),
+              'phone': (data['Phone'] ?? '').toString().trim(),
+            };
+          }).where((p) => p['username'].toString().isNotEmpty).toList();
+          profiles.sort(
+            (a, b) => a['displayName'].toString().compareTo(
+              b['displayName'].toString(),
+            ),
+          );
+          return profiles;
+        });
+  }
+
+  String _capitalizeName(String name) {
+    if (name.isEmpty) return name;
+    return name[0].toUpperCase() + (name.length > 1 ? name.substring(1) : '');
+  }
+
+  Map<String, dynamic>? _findEngineerProfile(
+    List<Map<String, dynamic>> profiles,
+    String assignedEmployee,
+  ) {
+    final key = assignedEmployee.trim().toLowerCase();
+    for (final profile in profiles) {
+      if (profile['username'] == key) return profile;
+    }
+    return null;
+  }
+
+  String _extractLocation(Map<String, dynamic> data) {
+    for (final field in ['city', 'location', 'address', 'customerAddress']) {
+      final value = data[field]?.toString().trim();
+      if (value != null && value.isNotEmpty) return value;
+    }
+    return 'Unknown';
+  }
+
+  String _reportTitle(Map<String, dynamic> data) {
+    final bookingId = data['bookingId']?.toString();
+    final customer = data['customerName']?.toString();
+    final device = data['deviceType']?.toString();
+    if (bookingId != null && bookingId.isNotEmpty) {
+      return 'Ticket #$bookingId';
+    }
+    if (customer != null && customer.isNotEmpty) {
+      return device != null && device.isNotEmpty
+          ? '$customer · $device'
+          : customer;
+    }
+    return 'Service Report';
+  }
+
+  List<QueryDocumentSnapshot> _filterReports(
+    List<QueryDocumentSnapshot> docs,
+    List<Map<String, dynamic>> engineerProfiles,
+  ) {
+    final query = searchQuery.trim().toLowerCase();
+
+    final filtered = docs.where((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      final assignedEmployee =
+          data['assignedEmployee']?.toString().trim().toLowerCase() ?? '';
+      if (assignedEmployee.isEmpty) return false;
+
+      if (selectedEngineer != null &&
+          assignedEmployee != selectedEngineer!.toLowerCase()) {
+        return false;
+      }
+
+      if (_selectedStatusFilter != 'All') {
+        final status = _normalizeStatusKey(
+          data['adminStatus']?.toString() ?? '',
+        );
+        if (status != _selectedStatusFilter) return false;
+      }
+
+      if (_selectedLocationFilter != 'All') {
+        if (_extractLocation(data) != _selectedLocationFilter) return false;
+      }
+
+      final timestamp = _parseTimestamp(data['timestamp']);
+      if (!_matchesDateFilter(timestamp)) return false;
+
+      if (query.isNotEmpty) {
+        final profile = _findEngineerProfile(engineerProfiles, assignedEmployee);
+        final matchesEngineer =
+            assignedEmployee.contains(query) ||
+            (profile?['id']?.toString().toLowerCase().contains(query) ??
+                false) ||
+            (profile?['email']?.toString().toLowerCase().contains(query) ??
+                false) ||
+            (profile?['phone']?.toString().contains(query) ?? false) ||
+            (profile?['displayName']?.toString().toLowerCase().contains(
+                  query,
+                ) ??
+                false);
+        final matchesTicket =
+            (data['bookingId']?.toString().toLowerCase().contains(query) ??
+                false) ||
+            (data['customerName']?.toString().toLowerCase().contains(query) ??
+                false) ||
+            (data['id']?.toString().toLowerCase().contains(query) ?? false);
+        if (!matchesEngineer && !matchesTicket) return false;
+      }
+
+      return true;
+    }).toList();
+
+    filtered.sort((a, b) {
+      final ta = _parseTimestamp((a.data() as Map)['timestamp']);
+      final tb = _parseTimestamp((b.data() as Map)['timestamp']);
+      return tb.compareTo(ta);
+    });
+
+    return filtered;
+  }
+
+  Set<String> _collectLocations(List<QueryDocumentSnapshot> docs) {
+    return docs
+        .map((doc) => _extractLocation(doc.data() as Map<String, dynamic>))
+        .where((loc) => loc != 'Unknown')
+        .toSet();
+  }
+
+  Future<void> _onRefresh() async {
+    setState(() => _currentPage = 1);
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+  }
+
+  Future<void> _viewReportPdf(
+    String engineerName,
+    Map<String, dynamic> ticket,
+    String rowId,
+  ) async {
+    setState(() => _loadingPdfId = rowId);
+    if (!mounted) return;
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(
+                Theme.of(context).primaryColor,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Opening PDF viewer...',
+              style: TextStyle(
+                color: Theme.of(context).primaryColor,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      final pdf = await _generatePdf(engineerName, [ticket]);
+      if (mounted) Navigator.of(context).pop();
+      await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) async => pdf.save(),
+        name:
+            'Engineer_Report_${ticket['bookingId'] ?? DateTime.now().millisecondsSinceEpoch}',
+      );
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        _showPdfError('Unable to open PDF: $e');
+      }
+    } finally {
+      if (mounted) setState(() => _loadingPdfId = null);
+    }
+  }
+
+  Future<void> _downloadReportPdf(
+    String engineerName,
+    Map<String, dynamic> ticket,
+    String rowId,
+  ) async {
+    setState(() => _downloadingPdfId = rowId);
+    try {
+      final pdf = await _generatePdf(engineerName, [ticket]);
+      final bookingId =
+          ticket['bookingId']?.toString() ??
+          DateTime.now().millisecondsSinceEpoch.toString();
+      final directory =
+          await getDownloadsDirectory() ??
+          await getApplicationDocumentsDirectory();
+      final file = File(
+        '${directory.path}/Engineer_Report_${bookingId}_${DateTime.now().millisecondsSinceEpoch}.pdf',
+      );
+      await file.writeAsBytes(await pdf.save());
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          backgroundColor: Colors.green.shade700,
+          content: const Text('PDF downloaded successfully'),
+          action: SnackBarAction(
+            label: 'Open',
+            textColor: Colors.white,
+            onPressed: () => OpenFile.open(file.path),
+          ),
+        ),
+      );
+    } catch (e) {
+      if (mounted) _showPdfError('Download failed: $e');
+    } finally {
+      if (mounted) setState(() => _downloadingPdfId = null);
+    }
+  }
+
+  void _showPdfError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red.shade700,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
+  void _resetFilters() {
+    setState(() {
+      selectedEngineer = null;
+      searchQuery = '';
+      _searchController.clear();
+      _selectedStatusFilter = 'All';
+      _selectedLocationFilter = 'All';
+      isDateFilterEnabled = false;
+      isDateRangeMode = false;
+      selectedDate = null;
+      fromDate = null;
+      toDate = null;
+      _currentPage = 1;
+    });
   }
 
   Timestamp _parseTimestamp(dynamic v) {
@@ -79,224 +362,388 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
     final isMobile = screenSize.width < 600;
     final isTablet = screenSize.width >= 600 && screenSize.width < 1200;
     final isDesktop = screenSize.width >= 1200;
-
     final adminDetailsStream = _buildAdminDetailsStream();
+    final appBarForeground = Theme.of(context).colorScheme.onPrimary;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: CustomScrollView(
-        slivers: [
-          // Modern App Bar with gradient
-          SliverAppBar(
-            expandedHeight: isMobile ? 130 : 160,
-            floating: false,
-            pinned: true,
-            elevation: 0,
-            backgroundColor: Theme.of(context).primaryColor,
-            automaticallyImplyLeading: false,
-            flexibleSpace: FlexibleSpaceBar(
-              background: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Theme.of(context).primaryColor,
-                      ThemeService.instance.secondaryColor,
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                ),
-                child: Stack(
-                  children: [
-                    Positioned(
-                      right: -40,
-                      top: -40,
-                      child: CircleAvatar(
-                        radius: 90,
-                        backgroundColor: Colors.white.withValues(alpha: 0.05),
-                      ),
+      body: RefreshIndicator(
+        color: Theme.of(context).primaryColor,
+        onRefresh: _onRefresh,
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            SliverAppBar(
+              expandedHeight: isMobile ? 140 : 168,
+              floating: false,
+              pinned: true,
+              elevation: 0,
+              backgroundColor: Theme.of(context).primaryColor,
+              foregroundColor: appBarForeground,
+              automaticallyImplyLeading: false,
+              flexibleSpace: FlexibleSpaceBar(
+                background: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Theme.of(context).primaryColor,
+                        ThemeService.instance.secondaryColor,
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
-                    SafeArea(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Container(
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.2),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: IconButton(
-                                    icon: const Icon(
-                                      Icons.arrow_back_ios_new_rounded,
-                                      color: Colors.white,
-                                      size: 18,
-                                    ),
-                                    onPressed: () => Navigator.of(context).pop(),
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                Container(
-                                  padding: const EdgeInsets.all(10),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.15),
-                                    borderRadius: BorderRadius.circular(14),
-                                  ),
-                                  child: const Icon(
-                                    Icons.analytics_rounded,
-                                    color: Colors.white,
-                                    size: 24,
-                                  ),
-                                ),
-                                const SizedBox(width: 14),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        'Engineer Performance',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: isMobile ? 20 : 24,
-                                          fontWeight: FontWeight.w800,
-                                          letterSpacing: -0.3,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        'Real-time analytics & metrics',
-                                        style: TextStyle(
-                                          color: Colors.white.withValues(alpha: 0.75),
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
+                  ),
+                  child: Stack(
+                    children: [
+                      Positioned(
+                        right: -40,
+                        top: -40,
+                        child: CircleAvatar(
+                          radius: 90,
+                          backgroundColor: Colors.white.withValues(alpha: 0.05),
                         ),
                       ),
-                    ),
-                  ],
+                      SafeArea(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(alpha: 0.2),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: IconButton(
+                                      icon: Icon(
+                                        Icons.arrow_back_ios_new_rounded,
+                                        color: appBarForeground,
+                                        size: 18,
+                                      ),
+                                      onPressed: () =>
+                                          Navigator.of(context).pop(),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Container(
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                    child: Icon(
+                                      Icons.assignment_ind_rounded,
+                                      color: appBarForeground,
+                                      size: 24,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 14),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          'Engineer Reports',
+                                          style: TextStyle(
+                                            color: appBarForeground,
+                                            fontSize: isMobile ? 20 : 24,
+                                            fontWeight: FontWeight.w800,
+                                            letterSpacing: -0.3,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          'Search, filter & manage report PDFs',
+                                          style: TextStyle(
+                                            color: appBarForeground.withValues(
+                                              alpha: 0.75,
+                                            ),
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
+            SliverPadding(
+              padding: EdgeInsets.fromLTRB(
+                isMobile ? 16 : 24,
+                16,
+                isMobile ? 16 : 24,
+                24,
+              ),
+              sliver: SliverList(
+                delegate: SliverChildListDelegate([
+                  FadeTransition(
+                    opacity: _fadeAnimation,
+                    child: _buildSearchBar(isMobile),
+                  ),
+                  const SizedBox(height: 20),
+                  StreamBuilder<List<Map<String, dynamic>>>(
+                    stream: getEngineerProfiles(),
+                    builder: (context, engineerSnapshot) {
+                      final engineerProfiles = engineerSnapshot.data ?? [];
+                      return StreamBuilder<QuerySnapshot>(
+                        stream: adminDetailsStream,
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return _buildLoadingState(isMobile);
+                          }
+                          if (snapshot.hasError) {
+                            return _buildErrorState(
+                              snapshot.error.toString(),
+                            );
+                          }
 
-          // Main Content
-          SliverPadding(
-            padding: EdgeInsets.all(isMobile ? 16 : 24),
-            sliver: SliverList(
-              delegate: SliverChildListDelegate([
-                // Filter Section
-                FadeTransition(
-                  opacity: _fadeAnimation,
-                  child: _buildFilterSection(isMobile, isTablet, isDesktop),
-                ),
+                          engineerStatusCounts.clear();
+                          allStatuses.clear();
 
-                const SizedBox(height: 24),
+                          final docs = snapshot.data?.docs ?? [];
+                          for (final doc in docs) {
+                            final data = doc.data() as Map<String, dynamic>;
+                            final rawEngineerName =
+                                data['assignedEmployee']?.toString();
+                            if (rawEngineerName != null) {
+                              final engineerName = rawEngineerName
+                                  .trim()
+                                  .toLowerCase();
+                              final normalizedStatus = _normalizeStatusKey(
+                                data['adminStatus']?.toString() ?? '',
+                              );
+                              allStatuses.add(normalizedStatus);
+                              engineerStatusCounts.putIfAbsent(
+                                engineerName,
+                                () => {},
+                              );
+                              engineerStatusCounts[engineerName]![
+                                      normalizedStatus] =
+                                  (engineerStatusCounts[engineerName]![
+                                          normalizedStatus] ??
+                                      0) +
+                                  1;
+                            }
+                          }
 
-                // Results Section
-                FadeTransition(
-                  opacity: _fadeAnimation,
-                  child: StreamBuilder<QuerySnapshot>(
-                    stream: adminDetailsStream,
-                    builder: (context, snapshot) {
-                      if (!snapshot.hasData) {
-                        return _buildLoadingState(isMobile);
-                      }
-                      if (snapshot.hasError) {
-                        return _buildErrorState(snapshot.error.toString());
-                      }
-
-                      engineerStatusCounts.clear();
-                      allStatuses.clear();
-
-                      final docs = snapshot.data!.docs;
-                      for (var doc in docs) {
-                        final data = doc.data() as Map<String, dynamic>;
-                        String? rawEngineerName = data['assignedEmployee']
-                            ?.toString();
-                        if (rawEngineerName != null) {
-                          final engineerName = rawEngineerName
-                              .trim()
-                              .toLowerCase();
-                          final rawStatus =
-                              data['adminStatus']?.toString() ?? '';
-                          final normalizedStatus = _normalizeStatusKey(
-                            rawStatus,
+                          final filteredReports = _filterReports(
+                            docs,
+                            engineerProfiles,
                           );
+                          final locations = _collectLocations(docs).toList()
+                            ..sort();
+                          final statusOptions = allStatuses.toList()..sort();
+                          final visibleCount =
+                              (_currentPage * _pageSize) > filteredReports.length
+                              ? filteredReports.length
+                              : _currentPage * _pageSize;
+                          final paginatedReports = filteredReports
+                              .take(visibleCount)
+                              .toList();
+                          final hasMore =
+                              visibleCount < filteredReports.length;
 
-                          allStatuses.add(normalizedStatus);
+                          if (filteredReports.isEmpty) {
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                FadeTransition(
+                                  opacity: _fadeAnimation,
+                                  child: _buildFilterSection(
+                                    isMobile,
+                                    isTablet,
+                                    isDesktop,
+                                    statusOptions: statusOptions,
+                                    locationOptions: locations,
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+                                _buildEmptyState(isMobile),
+                              ],
+                            );
+                          }
 
-                          engineerStatusCounts.putIfAbsent(
-                            engineerName,
-                            () => {},
+                          final selectedCounts = selectedEngineer != null
+                              ? engineerStatusCounts[selectedEngineer!
+                                    .toLowerCase()]
+                              : null;
+
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              FadeTransition(
+                                opacity: _fadeAnimation,
+                                child: _buildFilterSection(
+                                  isMobile,
+                                  isTablet,
+                                  isDesktop,
+                                  statusOptions: statusOptions,
+                                  locationOptions: locations,
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                              _buildReportsSummaryHeader(
+                                filteredReports.length,
+                                isMobile,
+                                isDesktop,
+                              ),
+                              if (_showAnalytics &&
+                                  selectedEngineer != null &&
+                                  selectedCounts != null &&
+                                  selectedCounts.isNotEmpty) ...[
+                                const SizedBox(height: 20),
+                                _buildDashboard(
+                                  context,
+                                  selectedCounts,
+                                  filteredReports.length,
+                                  docs,
+                                  isMobile,
+                                  isTablet,
+                                  isDesktop,
+                                ),
+                              ],
+                              const SizedBox(height: 20),
+                              _buildReportsListHeader(
+                                filteredReports.length,
+                                isMobile,
+                                docs,
+                              ),
+                              const SizedBox(height: 12),
+                              if (isDesktop)
+                                _buildReportsTable(
+                                  paginatedReports,
+                                  engineerProfiles,
+                                )
+                              else
+                                ...paginatedReports.map(
+                                  (doc) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 12),
+                                    child: _buildReportCard(
+                                      doc,
+                                      engineerProfiles,
+                                      isMobile,
+                                    ),
+                                  ),
+                                ),
+                              if (hasMore)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: Center(
+                                    child: OutlinedButton.icon(
+                                      onPressed: () => setState(
+                                        () => _currentPage += 1,
+                                      ),
+                                      icon: const Icon(Icons.expand_more),
+                                      label: Text(
+                                        'Load more (${filteredReports.length - visibleCount} remaining)',
+                                      ),
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor:
+                                            Theme.of(context).primaryColor,
+                                        side: BorderSide(
+                                          color: Theme.of(context)
+                                              .primaryColor
+                                              .withValues(alpha: 0.4),
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 24,
+                                          vertical: 14,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            14,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
                           );
-                          final engineerMap =
-                              engineerStatusCounts[engineerName]!;
-                          engineerMap[normalizedStatus] =
-                              (engineerMap[normalizedStatus] ?? 0) + 1;
-                        }
-                      }
-
-                      if (selectedEngineer != null) {
-                        final selectedCounts =
-                            engineerStatusCounts[selectedEngineer!
-                                .toLowerCase()];
-
-                        if (selectedCounts == null || selectedCounts.isEmpty) {
-                          return _buildEmptyState(isMobile);
-                        }
-
-                        final totalTickets = docs.where((doc) {
-                          final data = doc.data() as Map<String, dynamic>;
-                          final assignedEmployee = data['assignedEmployee']
-                              ?.toString()
-                              .trim()
-                              .toLowerCase();
-                          final timestamp = _parseTimestamp(data['timestamp']);
-                          if (selectedEngineer == null) return false;
-                          bool matchesEngineer =
-                              assignedEmployee ==
-                              selectedEngineer!.toLowerCase();
-                          bool matchesDate = _matchesDateFilter(timestamp);
-                          return matchesEngineer && matchesDate;
-                        }).length;
-
-                        return _buildDashboard(
-                          context,
-                          selectedCounts,
-                          totalTickets,
-                          docs,
-                          isMobile,
-                          isTablet,
-                          isDesktop,
-                        );
-                      } else {
-                        return _buildWelcomeState(isMobile);
-                      }
+                        },
+                      );
                     },
                   ),
-                ),
-              ]),
+                ]),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildFilterSection(bool isMobile, bool isTablet, bool isDesktop) {
-    bool isDropdownDisabled =
+  Widget _buildSearchBar(bool isMobile) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: TextField(
+        controller: _searchController,
+        decoration: InputDecoration(
+          hintText:
+              'Search by engineer name, ID, mobile, email, or booking ID...',
+          hintStyle: TextStyle(
+            color: Colors.grey.shade500,
+            fontSize: isMobile ? 13 : 14,
+          ),
+          prefixIcon: Icon(
+            Icons.search_rounded,
+            color: Theme.of(context).primaryColor,
+          ),
+          suffixIcon: searchQuery.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.clear_rounded),
+                  onPressed: () {
+                    _searchController.clear();
+                    setState(() {
+                      searchQuery = '';
+                      _currentPage = 1;
+                    });
+                  },
+                )
+              : null,
+          border: InputBorder.none,
+          contentPadding: EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: isMobile ? 14 : 16,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilterSection(
+    bool isMobile,
+    bool isTablet,
+    bool isDesktop, {
+    List<String> statusOptions = const [],
+    List<String> locationOptions = const [],
+  }) {
+    final isDropdownDisabled =
         isDateFilterEnabled &&
         ((!isDateRangeMode && selectedDate == null) ||
             (isDateRangeMode && (fromDate == null || toDate == null)));
@@ -327,48 +774,223 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
-                  Icons.filter_alt_rounded,
+                  Icons.tune_rounded,
                   color: Theme.of(context).primaryColor,
                   size: 20,
                 ),
               ),
               const SizedBox(width: 12),
-              Text(
-                'Filter Performance Metrics',
-                style: TextStyle(
-                  color: Theme.of(context).primaryColor,
-                  fontSize: isMobile ? 16 : 18,
-                  fontWeight: FontWeight.w700,
+              Expanded(
+                child: Text(
+                  'Filters & Refinement',
+                  style: TextStyle(
+                    color: Theme.of(context).primaryColor,
+                    fontSize: isMobile ? 16 : 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: _resetFilters,
+                icon: const Icon(Icons.restart_alt_rounded, size: 18),
+                label: const Text('Reset'),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.grey.shade600,
                 ),
               ),
             ],
           ),
-
-          const SizedBox(height: 20),
-
-          // Responsive filter layout
+          const SizedBox(height: 16),
           if (isDesktop)
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(flex: 2, child: _buildDateFilterControls(isMobile)),
-                const SizedBox(width: 20),
+                const SizedBox(width: 16),
                 Expanded(
-                  flex: 3,
+                  flex: 2,
                   child: _buildEngineerSelector(isDropdownDisabled, isMobile),
                 ),
+                const SizedBox(width: 16),
+                Expanded(
+                  flex: 2,
+                  child: _buildStatusFilter(statusOptions, isMobile),
+                ),
+                if (locationOptions.isNotEmpty) ...[
+                  const SizedBox(width: 16),
+                  Expanded(
+                    flex: 2,
+                    child: _buildLocationFilter(locationOptions, isMobile),
+                  ),
+                ],
               ],
             )
-          else
-            Column(
-              children: [
-                _buildDateFilterControls(isMobile),
-                const SizedBox(height: 20),
-                _buildEngineerSelector(isDropdownDisabled, isMobile),
+          else ...[
+            _buildDateFilterControls(isMobile),
+            const SizedBox(height: 16),
+            _buildEngineerSelector(isDropdownDisabled, isMobile),
+            if (_showAdvancedFilters) ...[
+              const SizedBox(height: 16),
+              _buildStatusFilter(statusOptions, isMobile),
+              if (locationOptions.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                _buildLocationFilter(locationOptions, isMobile),
               ],
-            ),
+            ],
+          ],
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (!isDesktop)
+                ActionChip(
+                  avatar: Icon(
+                    _showAdvancedFilters
+                        ? Icons.expand_less
+                        : Icons.expand_more,
+                    size: 18,
+                    color: Theme.of(context).primaryColor,
+                  ),
+                  label: Text(
+                    _showAdvancedFilters
+                        ? 'Hide advanced filters'
+                        : 'More filters',
+                  ),
+                  onPressed: () => setState(
+                    () => _showAdvancedFilters = !_showAdvancedFilters,
+                  ),
+                ),
+              ActionChip(
+                avatar: Icon(
+                  _showAnalytics ? Icons.visibility_off : Icons.insights,
+                  size: 18,
+                  color: Theme.of(context).primaryColor,
+                ),
+                label: Text(
+                  _showAnalytics ? 'Hide analytics' : 'Show analytics',
+                ),
+                onPressed: () =>
+                    setState(() => _showAnalytics = !_showAnalytics),
+              ),
+            ],
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _buildStatusFilter(List<String> statusOptions, bool isMobile) {
+    final options = ['All', ...statusOptions.toList()..sort()];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Report Status',
+          style: TextStyle(
+            color: _getContrastColor(
+              Theme.of(context).cardColor,
+            ).withValues(alpha: 0.7),
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: Theme.of(context).primaryColor.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
+            ),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              dropdownColor: Theme.of(context).cardColor,
+              value: options.contains(_selectedStatusFilter)
+                  ? _selectedStatusFilter
+                  : 'All',
+              isExpanded: true,
+              items: options
+                  .map(
+                    (status) => DropdownMenuItem(
+                      value: status,
+                      child: Text(
+                        status,
+                        style: TextStyle(
+                          color: _getContrastColor(Theme.of(context).cardColor),
+                        ),
+                      ),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (value) => setState(() {
+                _selectedStatusFilter = value ?? 'All';
+                _currentPage = 1;
+              }),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLocationFilter(List<String> locationOptions, bool isMobile) {
+    final options = ['All', ...locationOptions];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Location',
+          style: TextStyle(
+            color: _getContrastColor(
+              Theme.of(context).cardColor,
+            ).withValues(alpha: 0.7),
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: Theme.of(context).primaryColor.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
+            ),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              dropdownColor: Theme.of(context).cardColor,
+              value: options.contains(_selectedLocationFilter)
+                  ? _selectedLocationFilter
+                  : 'All',
+              isExpanded: true,
+              items: options
+                  .map(
+                    (location) => DropdownMenuItem(
+                      value: location,
+                      child: Text(
+                        location,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: _getContrastColor(Theme.of(context).cardColor),
+                        ),
+                      ),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (value) => setState(() {
+                _selectedLocationFilter = value ?? 'All';
+                _currentPage = 1;
+              }),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -411,8 +1033,8 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                       selectedDate = null;
                       fromDate = null;
                       toDate = null;
-                      selectedEngineer = null;
                     }
+                    _currentPage = 1;
                   });
                 },
                 activeColor: Theme.of(context).primaryColor,
@@ -449,7 +1071,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                       selectedDate = null;
                       fromDate = null;
                       toDate = null;
-                      selectedEngineer = null;
+                      _currentPage = 1;
                     });
                   },
                   activeColor: Theme.of(context).primaryColor,
@@ -465,7 +1087,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
             _buildDatePicker('Select Date', selectedDate, (pickedDate) {
               setState(() {
                 selectedDate = pickedDate;
-                selectedEngineer = null;
+                _currentPage = 1;
               });
             }, isMobile)
           else
@@ -478,7 +1100,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                       if (toDate != null && toDate!.isBefore(pickedDate)) {
                         toDate = null;
                       }
-                      selectedEngineer = null;
+                      _currentPage = 1;
                     });
                   }, isMobile),
                 ),
@@ -499,7 +1121,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                       }
                       setState(() {
                         toDate = pickedDate;
-                        selectedEngineer = null;
+                        _currentPage = 1;
                       });
                     },
                     isMobile,
@@ -518,7 +1140,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Select Engineer',
+          'Engineer',
           style: TextStyle(
             color: _getContrastColor(
               Theme.of(context).cardColor,
@@ -528,28 +1150,45 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
           ),
         ),
         const SizedBox(height: 8),
-        StreamBuilder<List<String>>(
-          stream: getEngineerUsernames(),
+        StreamBuilder<List<Map<String, dynamic>>>(
+          stream: getEngineerProfiles(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: LinearProgressIndicator());
             }
 
             final engineers = snapshot.data ?? [];
-            final items = engineers
-                .map(
-                  (eng) => DropdownMenuItem<String>(
-                    value: eng,
-                    child: Text(
-                      eng[0].toUpperCase() +
-                          (eng.length > 1 ? eng.substring(1) : ''),
-                      style: TextStyle(
-                        color: _getContrastColor(Theme.of(context).cardColor),
+            final items = [
+              const DropdownMenuItem<String>(
+                value: null,
+                child: Text('All Engineers'),
+              ),
+              ...engineers.map(
+                (engineer) => DropdownMenuItem<String>(
+                  value: engineer['username'] as String,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        engineer['displayName'] as String,
+                        style: TextStyle(
+                          color: _getContrastColor(Theme.of(context).cardColor),
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
+                      Text(
+                        'ID: ${engineer['id']} · ${engineer['phone']}',
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
                   ),
-                )
-                .toList();
+                ),
+              ),
+            ];
 
             return Container(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -563,7 +1202,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                 ),
               ),
               child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
+                child: DropdownButton<String?>(
                   dropdownColor: Theme.of(context).cardColor,
                   value: selectedEngineer?.toLowerCase(),
                   hint: Row(
@@ -580,7 +1219,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                         child: Text(
                           isDropdownDisabled
                               ? 'Select date range first'
-                              : 'Choose engineer',
+                              : 'All engineers',
                           style: TextStyle(
                             color: isDropdownDisabled
                                 ? Colors.grey.shade400
@@ -605,6 +1244,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                       : (newValue) {
                           setState(() {
                             selectedEngineer = newValue;
+                            _currentPage = 1;
                           });
                         },
                 ),
@@ -698,6 +1338,454 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
         ),
       ],
     );
+  }
+
+  Widget _buildReportsSummaryHeader(
+    int totalReports,
+    bool isMobile,
+    bool isDesktop,
+  ) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(isMobile ? 16 : 20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Theme.of(context).primaryColor.withValues(alpha: 0.08),
+            Theme.of(context).primaryColor.withValues(alpha: 0.02),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: Theme.of(context).primaryColor.withValues(alpha: 0.12),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Theme.of(context).primaryColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(
+              Icons.summarize_rounded,
+              color: Theme.of(context).primaryColor,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$totalReports report${totalReports == 1 ? '' : 's'} found',
+                  style: TextStyle(
+                    fontSize: isMobile ? 16 : 18,
+                    fontWeight: FontWeight.w800,
+                    color: _getContrastColor(Theme.of(context).cardColor),
+                  ),
+                ),
+                Text(
+                  'Showing ${(_currentPage * _pageSize).clamp(0, totalReports)} of $totalReports',
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReportsListHeader(
+    int totalReports,
+    bool isMobile,
+    List<QueryDocumentSnapshot> docs,
+  ) {
+    return Row(
+      children: [
+        Icon(
+          Icons.list_alt_rounded,
+          color: Theme.of(context).primaryColor,
+          size: 22,
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            'Report Records',
+            style: TextStyle(
+              color: Theme.of(context).primaryColor,
+              fontSize: isMobile ? 18 : 20,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+        if (selectedEngineer != null)
+          _buildExportButton(docs, isMobile),
+      ],
+    );
+  }
+
+  Widget _buildReportsTable(
+    List<QueryDocumentSnapshot> reports,
+    List<Map<String, dynamic>> engineerProfiles,
+  ) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: DataTable(
+            headingRowColor: WidgetStateProperty.all(
+              Theme.of(context).primaryColor.withValues(alpha: 0.08),
+            ),
+            columns: const [
+              DataColumn(label: Text('Engineer')),
+              DataColumn(label: Text('Engineer ID')),
+              DataColumn(label: Text('Report Title')),
+              DataColumn(label: Text('Created')),
+              DataColumn(label: Text('Status')),
+              DataColumn(label: Text('PDF')),
+              DataColumn(label: Text('Actions')),
+            ],
+            rows: reports.map((doc) {
+              final data = doc.data() as Map<String, dynamic>;
+              return _buildReportDataRow(doc.id, data, engineerProfiles);
+            }).toList(),
+          ),
+        ),
+      ),
+    );
+  }
+
+  DataRow _buildReportDataRow(
+    String rowId,
+    Map<String, dynamic> data,
+    List<Map<String, dynamic>> engineerProfiles,
+  ) {
+    final assignedEmployee =
+        data['assignedEmployee']?.toString().trim() ?? 'Unknown';
+    final profile = _findEngineerProfile(
+      engineerProfiles,
+      assignedEmployee,
+    );
+    final engineerName =
+        profile?['displayName']?.toString() ?? _capitalizeName(assignedEmployee);
+    final engineerId = profile?['id']?.toString() ?? '—';
+    final status = _normalizeStatusKey(data['adminStatus']?.toString() ?? '');
+    final statusColor = _getStatusColor(status);
+    final timestamp = _parseTimestamp(data['timestamp']);
+    final formattedDate = DateFormat('dd MMM yyyy · hh:mm a').format(
+      timestamp.toDate(),
+    );
+    final hasPdf = assignedEmployee.isNotEmpty;
+    final isViewLoading = _loadingPdfId == rowId;
+    final isDownloadLoading = _downloadingPdfId == rowId;
+
+    return DataRow(
+      cells: [
+        DataCell(Text(engineerName, style: const TextStyle(fontWeight: FontWeight.w600))),
+        DataCell(Text(engineerId)),
+        DataCell(
+          SizedBox(
+            width: 180,
+            child: Text(
+              _reportTitle(data),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ),
+        DataCell(Text(formattedDate)),
+        DataCell(
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: statusColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              status,
+              style: TextStyle(
+                color: statusColor,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ),
+        DataCell(
+          Icon(
+            hasPdf ? Icons.picture_as_pdf_rounded : Icons.error_outline,
+            color: hasPdf ? Colors.green.shade600 : Colors.orange.shade700,
+            size: 20,
+          ),
+        ),
+        DataCell(
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildPdfActionButton(
+                label: 'View',
+                icon: Icons.visibility_rounded,
+                isLoading: isViewLoading,
+                enabled: hasPdf && !isViewLoading && !isDownloadLoading,
+                onPressed: () => _viewReportPdf(
+                  assignedEmployee,
+                  data,
+                  rowId,
+                ),
+              ),
+              const SizedBox(width: 8),
+              _buildPdfActionButton(
+                label: 'Download',
+                icon: Icons.download_rounded,
+                isLoading: isDownloadLoading,
+                enabled: hasPdf && !isViewLoading && !isDownloadLoading,
+                onPressed: () => _downloadReportPdf(
+                  assignedEmployee,
+                  data,
+                  rowId,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildReportCard(
+    QueryDocumentSnapshot doc,
+    List<Map<String, dynamic>> engineerProfiles,
+    bool isMobile,
+  ) {
+    final data = doc.data() as Map<String, dynamic>;
+    final assignedEmployee =
+        data['assignedEmployee']?.toString().trim() ?? 'Unknown';
+    final profile = _findEngineerProfile(
+      engineerProfiles,
+      assignedEmployee,
+    );
+    final engineerName =
+        profile?['displayName']?.toString() ?? _capitalizeName(assignedEmployee);
+    final engineerId = profile?['id']?.toString() ?? '—';
+    final email = profile?['email']?.toString() ?? '';
+    final phone = profile?['phone']?.toString() ?? '';
+    final status = _normalizeStatusKey(data['adminStatus']?.toString() ?? '');
+    final statusColor = _getStatusColor(status);
+    final timestamp = _parseTimestamp(data['timestamp']);
+    final formattedDate = DateFormat('dd MMM yyyy · hh:mm a').format(
+      timestamp.toDate(),
+    );
+    final hasPdf = assignedEmployee.isNotEmpty;
+    final isViewLoading = _loadingPdfId == doc.id;
+    final isDownloadLoading = _downloadingPdfId == doc.id;
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                radius: 22,
+                backgroundColor:
+                    Theme.of(context).primaryColor.withValues(alpha: 0.12),
+                child: Text(
+                  engineerName.isNotEmpty ? engineerName[0].toUpperCase() : '?',
+                  style: TextStyle(
+                    color: Theme.of(context).primaryColor,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      engineerName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'ID: $engineerId',
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 12,
+                      ),
+                    ),
+                    if (phone.isNotEmpty || email.isNotEmpty)
+                      Text(
+                        [phone, email].where((v) => v.isNotEmpty).join(' · '),
+                        style: TextStyle(
+                          color: Colors.grey.shade500,
+                          fontSize: 11,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  status,
+                  style: TextStyle(
+                    color: statusColor,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text(
+            _reportTitle(data),
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(Icons.schedule_rounded, size: 14, color: Colors.grey.shade500),
+              const SizedBox(width: 6),
+              Text(
+                formattedDate,
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+              ),
+              const Spacer(),
+              Icon(
+                hasPdf ? Icons.picture_as_pdf_rounded : Icons.warning_amber_rounded,
+                size: 16,
+                color: hasPdf ? Colors.green.shade600 : Colors.orange.shade700,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                hasPdf ? 'PDF Ready' : 'No PDF',
+                style: TextStyle(
+                  color: hasPdf ? Colors.green.shade700 : Colors.orange.shade800,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _buildPdfActionButton(
+                  label: 'View PDF',
+                  icon: Icons.visibility_rounded,
+                  isLoading: isViewLoading,
+                  expanded: true,
+                  enabled: hasPdf && !isViewLoading && !isDownloadLoading,
+                  onPressed: () => _viewReportPdf(
+                    assignedEmployee,
+                    data,
+                    doc.id,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _buildPdfActionButton(
+                  label: 'Download',
+                  icon: Icons.download_rounded,
+                  isLoading: isDownloadLoading,
+                  expanded: true,
+                  enabled: hasPdf && !isViewLoading && !isDownloadLoading,
+                  onPressed: () => _downloadReportPdf(
+                    assignedEmployee,
+                    data,
+                    doc.id,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPdfActionButton({
+    required String label,
+    required IconData icon,
+    required bool isLoading,
+    required bool enabled,
+    required VoidCallback onPressed,
+    bool expanded = false,
+  }) {
+    final child = OutlinedButton.icon(
+      onPressed: enabled ? onPressed : null,
+      icon: isLoading
+          ? SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  Theme.of(context).primaryColor,
+                ),
+              ),
+            )
+          : Icon(icon, size: 16),
+      label: Text(label, style: const TextStyle(fontSize: 12)),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: Theme.of(context).primaryColor,
+        side: BorderSide(
+          color: Theme.of(context).primaryColor.withValues(alpha: 0.35),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+    return expanded ? SizedBox(width: double.infinity, child: child) : child;
   }
 
   Widget _buildDashboard(
@@ -919,7 +2007,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
         crossAxisCount: isMobile ? 2 : (isTablet ? 3 : 4),
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
-        childAspectRatio: 1.2,
+        childAspectRatio: isMobile ? 1.1 : (isTablet ? 1.15 : 1.2),
       ),
       itemCount: selectedCounts.length,
       itemBuilder: (context, index) {
@@ -947,25 +2035,25 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(icon, color: color, size: 28),
+                child: Icon(icon, color: color, size: 24),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 8),
               Text(
                 count.toString(),
                 style: TextStyle(
                   color: _getContrastColor(Theme.of(context).cardColor),
-                  fontSize: 26,
+                  fontSize: 24,
                   fontWeight: FontWeight.w800,
                   letterSpacing: -0.5,
                 ),
               ),
-              const SizedBox(height: 4),
-              Expanded(
+              const SizedBox(height: 2),
+              Flexible(
                 child: Text(
                   status,
                   textAlign: TextAlign.center,
@@ -1162,7 +2250,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
           ),
           const SizedBox(height: 24),
           Text(
-            'No Data Found',
+            'No Reports Found',
             style: TextStyle(
               fontSize: isMobile ? 18 : 20,
               fontWeight: FontWeight.w700,
@@ -1171,58 +2259,18 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
           ),
           const SizedBox(height: 8),
           Text(
-            'No tickets found for this engineer\nwith the selected filters',
+            'Try adjusting your search, filters, or date range',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: Colors.grey.shade600,
               fontSize: isMobile ? 14 : 16,
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildWelcomeState(bool isMobile) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(40),
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.analytics_outlined,
-              size: 64,
-              color: Theme.of(context).primaryColor.withValues(alpha: 0.5),
-            ),
-          ),
-          const SizedBox(height: 24),
-          Text(
-            'Welcome to Performance Analytics',
-            style: TextStyle(
-              fontSize: isMobile ? 20 : 24,
-              fontWeight: FontWeight.w800,
-              color: Theme.of(context).primaryColor,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Select an engineer and apply filters\nto view detailed performance metrics',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.grey.shade600,
-              fontSize: isMobile ? 14 : 16,
-              height: 1.5,
-            ),
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: _resetFilters,
+            icon: const Icon(Icons.restart_alt_rounded),
+            label: const Text('Clear all filters'),
           ),
         ],
       ),

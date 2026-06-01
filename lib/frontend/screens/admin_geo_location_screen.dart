@@ -97,6 +97,8 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
   @override
   void initState() {
     super.initState();
+    // Listen for ThemeService changes
+    ThemeService.instance.addListener(_onThemeChanged);
     _currentTrackingId = widget.engineerId;
     _currentTrackingName = widget.engineerName;
     _customerAddress = widget.customerAddress;
@@ -699,8 +701,15 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
     _mapController.camera.zoom - 1,
   );
 
+  void _onThemeChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
   @override
   void dispose() {
+    ThemeService.instance.removeListener(_onThemeChanged);
     _engineerFirestoreSubscription?.cancel();
     _engineersListSubscription?.cancel();
     _adminSubscription?.cancel();
@@ -720,9 +729,18 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
     final bool isCustomerLocationMode = _customerLocation != null;
     final bool showBothOverlays =
         isEngineerSelected && widget.customerAddress != null;
+    final primaryColor = ThemeService.instance.primaryColor;
+    final isDark = ThemeService.instance.isDarkMode;
+    // Determine if we need white or black foreground for AppBar
+    final appBarForegroundColor =
+        (isDark || primaryColor.computeLuminance() < 0.5)
+        ? Colors.white
+        : Colors.black;
 
     return Scaffold(
       appBar: AppBar(
+        foregroundColor: appBarForegroundColor,
+        backgroundColor: primaryColor,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -735,6 +753,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
               style: GoogleFonts.inter(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
+                color: appBarForegroundColor,
               ),
             ),
             if (!isCustomerLocationMode && isEngineerSelected)
@@ -742,33 +761,26 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                 _isOnline ? "Online" : "Offline (Last Known Location)",
                 style: TextStyle(
                   fontSize: 12,
-                  color: _isOnline ? Colors.greenAccent : Colors.white70,
+                  color: _isOnline
+                      ? Colors.greenAccent
+                      : appBarForegroundColor.withOpacity(0.7),
                   fontWeight: FontWeight.w500,
                 ),
               ),
           ],
         ),
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF1E3A8A), Color(0xFF3B82F6)],
-            ),
-          ),
-        ),
         elevation: 4,
         actions: [
           if (!isCustomerLocationMode) ...[
             IconButton(
-              icon: const Icon(Icons.refresh, color: Colors.white),
+              icon: Icon(Icons.refresh, color: appBarForegroundColor),
               onPressed: _loadEngineersList,
               tooltip: 'Refresh engineers list',
             ),
             IconButton(
               icon: Stack(
                 children: [
-                  const Icon(Icons.group_add_rounded, color: Colors.white),
+                  Icon(Icons.group_add_rounded, color: appBarForegroundColor),
                   if (_engineersList.isNotEmpty)
                     Positioned(
                       right: 0,
@@ -826,6 +838,17 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
   }
 
   Widget _buildCustomerAddressOverlay({double bottomPadding = 20}) {
+    final primaryColor = ThemeService.instance.primaryColor;
+    final isDark = ThemeService.instance.isDarkMode;
+    final surfaceColor = isDark ? Colors.grey.shade900 : Colors.white;
+    final borderColor = isDark ? Colors.grey.shade700 : const Color(0xFFE5E7EB);
+    final dividerColor = isDark
+        ? Colors.grey.shade700
+        : const Color(0xFFE5E7EB);
+    final labelColor = isDark ? Colors.grey.shade400 : const Color(0xFF6B7280);
+    final textColor = isDark ? Colors.white : const Color(0xFF111827);
+    final headerTextColor = isDark ? Colors.white : const Color(0xFF111827);
+
     return Positioned(
       bottom: bottomPadding,
       left: 20,
@@ -833,7 +856,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: surfaceColor,
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
@@ -842,7 +865,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
               offset: const Offset(0, 4),
             ),
           ],
-          border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
+          border: Border.all(color: borderColor, width: 1),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -853,13 +876,13 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
               children: [
                 Container(
                   padding: const EdgeInsets.all(12),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFFEE2E2),
+                  decoration: BoxDecoration(
+                    color: primaryColor.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.home_work_rounded,
-                    color: Color(0xFFDC2626),
+                    color: primaryColor,
                     size: 24,
                   ),
                 ),
@@ -870,7 +893,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                     style: GoogleFonts.inter(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: const Color(0xFF111827),
+                      color: headerTextColor,
                     ),
                   ),
                 ),
@@ -878,21 +901,56 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
             ),
             const SizedBox(height: 16),
             // Ticket details
-            _buildDetailRow("Booking ID", widget.bookingId),
-            _buildDetailRow("Customer", widget.customerName),
-            _buildDetailRow("Service Type", widget.jobType),
-            _buildDetailRow("Device Type", widget.deviceType),
-            _buildDetailRow("Device Brand", widget.deviceBrand),
-            _buildDetailRow("Assigned Engineer", widget.assignedEmployee),
-            _buildDetailRow("Status", widget.customerStatus),
-            const Divider(height: 24, color: Color(0xFFE5E7EB)),
+            _buildDetailRow(
+              "Booking ID",
+              widget.bookingId,
+              labelColor,
+              textColor,
+            ),
+            _buildDetailRow(
+              "Customer",
+              widget.customerName,
+              labelColor,
+              textColor,
+            ),
+            _buildDetailRow(
+              "Service Type",
+              widget.jobType,
+              labelColor,
+              textColor,
+            ),
+            _buildDetailRow(
+              "Device Type",
+              widget.deviceType,
+              labelColor,
+              textColor,
+            ),
+            _buildDetailRow(
+              "Device Brand",
+              widget.deviceBrand,
+              labelColor,
+              textColor,
+            ),
+            _buildDetailRow(
+              "Assigned Engineer",
+              widget.assignedEmployee,
+              labelColor,
+              textColor,
+            ),
+            _buildDetailRow(
+              "Status",
+              widget.customerStatus,
+              labelColor,
+              textColor,
+            ),
+            Divider(height: 24, color: dividerColor),
             // Address
             Text(
               "Address",
               style: GoogleFonts.inter(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
-                color: const Color(0xFF6B7280),
+                color: labelColor,
                 letterSpacing: 0.3,
               ),
             ),
@@ -901,7 +959,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
               widget.customerAddress ?? "N/A",
               style: GoogleFonts.inter(
                 fontSize: 14,
-                color: const Color(0xFF111827),
+                color: textColor,
                 height: 1.5,
               ),
               softWrap: true,
@@ -912,7 +970,12 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
     );
   }
 
-  Widget _buildDetailRow(String label, String? value) {
+  Widget _buildDetailRow(
+    String label,
+    String? value,
+    Color labelColor,
+    Color textColor,
+  ) {
     if (value == null || value.isEmpty || value == "N/A")
       return const SizedBox.shrink();
     return Padding(
@@ -927,7 +990,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
               style: GoogleFonts.inter(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
-                color: const Color(0xFF6B7280),
+                color: labelColor,
               ),
             ),
           ),
@@ -935,10 +998,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
           Expanded(
             child: Text(
               value,
-              style: GoogleFonts.inter(
-                fontSize: 13,
-                color: const Color(0xFF111827),
-              ),
+              style: GoogleFonts.inter(fontSize: 13, color: textColor),
             ),
           ),
         ],
@@ -951,6 +1011,9 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
     final center = isCustomerMode
         ? _customerLocation!
         : (_lastLocation ?? const latlong.LatLng(12.9716, 77.5946));
+    final primaryColor = ThemeService.instance.primaryColor;
+    final isDark = ThemeService.instance.isDarkMode;
+    final textColor = isDark ? Colors.white : const Color(0xFF333333);
 
     return FlutterMap(
       mapController: _mapController,
@@ -975,11 +1038,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                 point: _customerLocation!,
                 width: 80,
                 height: 80,
-                child: const Icon(
-                  Icons.location_pin,
-                  color: Colors.red,
-                  size: 50,
-                ),
+                child: Icon(Icons.location_pin, color: primaryColor, size: 50),
               ),
             ],
           ),
@@ -1010,7 +1069,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                             vertical: 5,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: isDark ? Colors.grey.shade900 : Colors.white,
                             borderRadius: BorderRadius.circular(12),
                             boxShadow: [
                               BoxShadow(
@@ -1025,9 +1084,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                             style: GoogleFonts.inter(
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
-                              color: isSelected
-                                  ? const Color(0xFF1E3A8A)
-                                  : const Color(0xFF333333),
+                              color: isSelected ? primaryColor : textColor,
                             ),
                             overflow: TextOverflow.ellipsis,
                             maxLines: 1,
@@ -1037,7 +1094,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                         Container(
                           padding: EdgeInsets.all(isSelected ? 8 : 4),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: isDark ? Colors.grey.shade900 : Colors.white,
                             shape: BoxShape.circle,
                             boxShadow: [
                               BoxShadow(
@@ -1047,12 +1104,12 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                               ),
                             ],
                             border: isSelected
-                                ? Border.all(color: Colors.blue, width: 3)
+                                ? Border.all(color: primaryColor, width: 3)
                                 : null,
                           ),
                           child: Icon(
                             Icons.location_pin,
-                            color: isOnline ? Colors.blue : Colors.grey,
+                            color: isOnline ? primaryColor : Colors.grey,
                             size: isSelected ? 30 : 24,
                           ),
                         ),
@@ -1069,7 +1126,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
               Polyline(
                 points: _pathHistory,
                 strokeWidth: 4,
-                color: Colors.blue.withValues(alpha: 0.6),
+                color: primaryColor.withValues(alpha: 0.6),
               ),
             ],
           ),
@@ -1111,6 +1168,9 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
   }
 
   Widget _buildFloatingControls() {
+    final primaryColor = ThemeService.instance.primaryColor;
+    final isDark = ThemeService.instance.isDarkMode;
+    final textColor = isDark ? Colors.white : const Color(0xFF374151);
     return Positioned(
       right: 16,
       top: 16,
@@ -1118,7 +1178,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
         children: [
           Container(
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: isDark ? Colors.grey.shade800 : Colors.white,
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
@@ -1130,9 +1190,9 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
             ),
             child: Column(
               children: [
-                _buildMapButton(Icons.add, _zoomIn),
-                Divider(height: 1, color: Colors.grey.shade200),
-                _buildMapButton(Icons.remove, _zoomOut),
+                _buildMapButton(Icons.add, _zoomIn, textColor: textColor),
+                Divider(height: 1, color: Colors.grey.shade300),
+                _buildMapButton(Icons.remove, _zoomOut, textColor: textColor),
               ],
             ),
           ),
@@ -1140,7 +1200,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
           if (_lastLocation != null)
             Container(
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: isDark ? Colors.grey.shade800 : Colors.white,
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
@@ -1153,7 +1213,8 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
               child: _buildMapButton(
                 Icons.my_location,
                 _centerOnEngineer,
-                color: _autoFollow ? const Color(0xFF3B82F6) : null,
+                color: _autoFollow ? primaryColor : null,
+                textColor: textColor,
               ),
             ),
         ],
@@ -1165,6 +1226,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
     IconData icon,
     VoidCallback onPressed, {
     Color? color,
+    required Color textColor,
   }) {
     return Material(
       color: Colors.transparent,
@@ -1173,13 +1235,25 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(12),
-          child: Icon(icon, color: color ?? const Color(0xFF374151), size: 24),
+          child: Icon(icon, color: color ?? textColor, size: 24),
         ),
       ),
     );
   }
 
   void _showEngineerSelectionSheet() {
+    final primaryColor = ThemeService.instance.primaryColor;
+    final isDark = ThemeService.instance.isDarkMode;
+    final textColor = isDark ? Colors.white : Colors.black;
+    final surfaceColor = isDark ? Colors.grey.shade900 : Colors.white;
+    final selectedColor = isDark
+        ? Colors.grey.shade800
+        : primaryColor.withValues(alpha: 0.1);
+    final borderColor = isDark ? Colors.grey.shade700 : Colors.grey.shade200;
+    final selectedBorderColor = isDark
+        ? primaryColor
+        : primaryColor.withValues(alpha: 0.4);
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1189,6 +1263,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
       builder: (context) {
         return Container(
           padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+          color: surfaceColor,
           constraints: BoxConstraints(
             maxHeight: MediaQuery.of(context).size.height * 0.8,
           ),
@@ -1204,16 +1279,20 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                     style: GoogleFonts.inter(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
+                      color: textColor,
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close),
+                    icon: Icon(
+                      Icons.close,
+                      color: isDark ? Colors.white : Colors.black,
+                    ),
                     onPressed: () => Navigator.pop(context),
                   ),
                 ],
               ),
               const SizedBox(height: 10),
-              const Divider(),
+              Divider(color: isDark ? Colors.grey.shade700 : null),
               if (_isLoadingEngineers)
                 const Padding(
                   padding: EdgeInsets.all(20),
@@ -1224,17 +1303,15 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                   padding: const EdgeInsets.all(20),
                   child: Column(
                     children: [
-                      const Icon(
-                        Icons.people_outline,
-                        size: 60,
-                        color: Colors.grey,
-                      ),
+                      Icon(Icons.people_outline, size: 60, color: Colors.grey),
                       const SizedBox(height: 16),
                       Text(
                         "No engineers found",
                         style: TextStyle(
                           fontSize: 16,
-                          color: Colors.grey.shade600,
+                          color: isDark
+                              ? Colors.grey.shade400
+                              : Colors.grey.shade600,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -1242,12 +1319,17 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                         "Make sure engineers have logged in",
                         style: TextStyle(
                           fontSize: 14,
-                          color: Colors.grey.shade500,
+                          color: isDark
+                              ? Colors.grey.shade400
+                              : Colors.grey.shade500,
                         ),
                       ),
                       const SizedBox(height: 16),
                       ElevatedButton(
                         onPressed: _loadEngineersList,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: primaryColor,
+                        ),
                         child: const Text("Retry"),
                       ),
                     ],
@@ -1270,18 +1352,18 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                         margin: const EdgeInsets.only(bottom: 12),
                         decoration: BoxDecoration(
                           color: _currentTrackingId == username
-                              ? Colors.blue.shade50
-                              : Colors.white,
+                              ? selectedColor
+                              : surfaceColor,
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
                             color: _currentTrackingId == username
-                                ? Colors.blue.shade200
-                                : Colors.grey.shade200,
+                                ? selectedBorderColor
+                                : borderColor,
                           ),
                           boxShadow: [
                             if (_currentTrackingId == username)
                               BoxShadow(
-                                color: Colors.blue.withValues(alpha: 0.05),
+                                color: primaryColor.withValues(alpha: 0.05),
                                 blurRadius: 10,
                                 offset: const Offset(0, 4),
                               ),
@@ -1298,8 +1380,8 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                             decoration: BoxDecoration(
                               gradient: LinearGradient(
                                 colors: [
-                                  Colors.blue.shade400,
-                                  Colors.blue.shade700,
+                                  primaryColor.withValues(alpha: 0.8),
+                                  primaryColor,
                                 ],
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
@@ -1325,7 +1407,11 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                                   style: GoogleFonts.inter(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 16,
-                                    color: const Color(0xFF1E3A8A),
+                                    color: _currentTrackingId == username
+                                        ? primaryColor
+                                        : (isDark
+                                              ? Colors.white
+                                              : const Color(0xFF1E3A8A)),
                                   ),
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -1364,7 +1450,9 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                                   "Specialization: $specialization",
                                   style: GoogleFonts.inter(
                                     fontSize: 11,
-                                    color: Colors.grey.shade600,
+                                    color: isDark
+                                        ? Colors.grey.shade400
+                                        : Colors.grey.shade600,
                                   ),
                                 ),
                               if (employeeId != null && employeeId.isNotEmpty)
@@ -1372,7 +1460,9 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                                   "Employee ID: $employeeId",
                                   style: GoogleFonts.inter(
                                     fontSize: 11,
-                                    color: Colors.grey.shade600,
+                                    color: isDark
+                                        ? Colors.grey.shade400
+                                        : Colors.grey.shade600,
                                   ),
                                 ),
                             ],
@@ -1388,7 +1478,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                                     vertical: 4,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: Colors.blue.shade600,
+                                    color: primaryColor,
                                     borderRadius: BorderRadius.circular(10),
                                   ),
                                   child: const Text(
@@ -1404,7 +1494,9 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                                 Icon(
                                   Icons.arrow_forward_ios_rounded,
                                   size: 14,
-                                  color: Colors.grey.shade400,
+                                  color: isDark
+                                      ? Colors.grey.shade500
+                                      : Colors.grey.shade400,
                                 ),
                             ],
                           ),
@@ -1426,7 +1518,9 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 12,
-                      color: Colors.grey.shade500,
+                      color: isDark
+                          ? Colors.grey.shade500
+                          : Colors.grey.shade500,
                       fontStyle: FontStyle.italic,
                     ),
                   ),
@@ -1439,6 +1533,13 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
   }
 
   Widget _buildEngineerOverlay() {
+    final primaryColor = ThemeService.instance.primaryColor;
+    final isDark = ThemeService.instance.isDarkMode;
+    final textColor = isDark ? Colors.white : Colors.black;
+    final surfaceColor = isDark
+        ? Colors.grey.shade900
+        : Colors.white.withValues(alpha: 0.95);
+
     return Positioned(
       bottom: 24,
       left: 16,
@@ -1446,7 +1547,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.95),
+          color: surfaceColor,
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
@@ -1455,7 +1556,11 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
               offset: const Offset(0, 4),
             ),
           ],
-          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+          border: Border.all(
+            color: isDark
+                ? Colors.grey.shade700
+                : Colors.white.withValues(alpha: 0.2),
+          ),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1465,12 +1570,12 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
+                    color: primaryColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: Icon(
                     Icons.engineering_rounded,
-                    color: Colors.blue.shade700,
+                    color: primaryColor,
                     size: 24,
                   ),
                 ),
@@ -1486,7 +1591,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                         style: GoogleFonts.inter(
                           fontWeight: FontWeight.w800,
                           fontSize: 18,
-                          color: const Color(0xFF1E3A8A),
+                          color: isDark ? Colors.white : primaryColor,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
