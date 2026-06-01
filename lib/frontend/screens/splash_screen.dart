@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:subscription_rooks_app/services/app_update_service.dart';
 import 'package:subscription_rooks_app/services/auth_state_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -51,6 +52,9 @@ class _SplashScreenState extends State<SplashScreen>
       await _requestPermissions();
       await prefs.setBool('is_first_launch', false);
     }
+
+    // Check for update
+    await AppUpdateService.instance.checkForUpdate(context);
 
     _navigateToNext();
   }

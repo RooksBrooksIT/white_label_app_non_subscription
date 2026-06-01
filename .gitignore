@@ -10,6 +10,7 @@ ios/Runner.app/
 
 # Logs
 *.log
+*.txt
 
 # Environment files
 .env
