@@ -579,7 +579,8 @@ class FirestoreService {
     return null;
   }
 
-  /// Logs payment transaction details to the centralized 'payment_logs' collection.
+  /// Logs payment transaction details to the centralized 'payment_logs' collection
+  /// and the user's tenant-specific 'payment_logs' subcollection.
   Future<void> logPaymentTransaction({
     required String txnId,
     required String uidOrMobile,
@@ -591,8 +592,14 @@ class FirestoreService {
     String? failureReason,
     bool registrationCompleted = false,
     bool firestoreSynced = false,
+    String? tenantId,
+    String? customerName,
+    String? customerEmail,
+    String? customerMobile,
+    Map<String, dynamic>? gatewayResponse,
   }) async {
     try {
+      // 1. Log to the centralized global collection
       final docRef = _db.collection('payment_logs').doc(txnId);
       final docSnapshot = await docRef.get();
       
@@ -617,6 +624,34 @@ class FirestoreService {
       }
 
       await docRef.set(data, SetOptions(merge: true));
+
+      // 2. Log to user's tenant-specific payment_logs subcollection
+      final effectiveTenant = tenantId ?? ThemeService.instance.databaseName;
+      if (effectiveTenant.isNotEmpty) {
+        final userLogRef = _db
+            .collection(effectiveTenant)
+            .doc('data')
+            .collection('payment_logs')
+            .doc(txnId);
+
+        final userLogData = {
+          'transactionId': txnId,
+          'orderId': txnId,
+          'amount': amount,
+          'currency': 'INR',
+          'paymentStatus': status,
+          'paymentMethod': gatewayResponse?['paymentMode'] ?? gatewayResponse?['paymentMethod'] ?? 'Unknown',
+          'customerName': customerName ?? 'Customer',
+          'customerEmail': customerEmail ?? '',
+          'customerMobile': customerMobile ?? '',
+          'gatewayResponse': gatewayResponse ?? {},
+          'createdAt': FieldValue.serverTimestamp(),
+          'planName': planName,
+          'userIdOrMobile': uidOrMobile,
+        };
+
+        await userLogRef.set(userLogData, SetOptions(merge: true));
+      }
     } catch (e) {
       debugPrint('Error logging payment transaction: $e');
     }

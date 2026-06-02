@@ -7,6 +7,18 @@ class InvoicePdfService {
   InvoicePdfService._();
   static final InvoicePdfService instance = InvoicePdfService._();
 
+  /// Generates a PDF invoice.
+  ///
+  /// [invoiceNumber] – Unique invoice identifier.
+  /// [transactionId] – Payment gateway transaction ID.
+  /// [customerName] – Name of the invoice recipient.
+  /// [customerEmail] – Email of the invoice recipient.
+  /// [planName] – Subscribed plan name.
+  /// [isYearly] / [isSixMonths] – Determines the subscription duration.
+  /// [amountPaid] – Total amount charged (including GST).
+  /// [paymentDate] – Date/time of the payment.
+  /// [gstNumber] – Optional GSTIN of the customer.
+  /// [gstPercentage] – GST rate to apply (e.g., 18.0 for 18%).
   Future<Uint8List> generateInvoicePdf({
     required String invoiceNumber,
     required String transactionId,
@@ -18,13 +30,23 @@ class InvoicePdfService {
     required int amountPaid,
     required DateTime paymentDate,
     String? gstNumber,
+    double? gstPercentage,
   }) async {
     final pdf = pw.Document();
 
-    final duration = isYearly ? '1 Year' : isSixMonths ? '6 Months' : '1 Month';
+    final duration = isYearly
+        ? '1 Year'
+        : isSixMonths
+            ? '6 Months'
+            : '1 Month';
     final formattedDate = DateFormat('dd MMM yyyy, hh:mm a').format(paymentDate);
 
-    // Use a primary color theme for the invoice
+    // GST calculations – default to 0% if not provided.
+    final double gstPercent = gstPercentage ?? 0.0;
+    final double gstAmount = (amountPaid * gstPercent) / 100.0;
+    final double subTotal = amountPaid - gstAmount;
+
+    // Primary brand colour.
     final primaryColor = PdfColor.fromInt(0xFF1A237E);
 
     pdf.addPage(
@@ -35,7 +57,7 @@ class InvoicePdfService {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              // Header Row
+              // Header with company branding.
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
@@ -67,27 +89,27 @@ class InvoicePdfService {
                       ),
                     ],
                   ),
-                  // Logo can go here if we fetch it, for now company name
+                  // Seller details with updated branding.
                   pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.end,
                     children: [
                       pw.Text(
-                        'Rooks Brooks IT Solutions',
+                        'Rooks & Brooks Technologies Pvt. Ltd.',
                         style: pw.TextStyle(
                           fontSize: 16,
                           fontWeight: pw.FontWeight.bold,
                         ),
                       ),
-                      pw.Text('support@servnex.com', style: const pw.TextStyle(fontSize: 10)),
-                      pw.Text('www.servnex.com', style: const pw.TextStyle(fontSize: 10)),
+                      pw.Text('GSTIN: 33AAMCR8640J1ZZ', style: const pw.TextStyle(fontSize: 10)),
+                      pw.Text('support@rookstechnologies@gmail.com', style: const pw.TextStyle(fontSize: 10)),
+                      pw.Text('www.rookstechnologies.com', style: const pw.TextStyle(fontSize: 10)),
+                      pw.Text('Registered Address: [Insert Address Here]', style: const pw.TextStyle(fontSize: 10)),
                     ],
                   ),
                 ],
               ),
-              
               pw.SizedBox(height: 32),
-              
-              // Bill To Row
+              // Customer billing information.
               pw.Row(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
@@ -99,8 +121,7 @@ class InvoicePdfService {
                         pw.SizedBox(height: 4),
                         pw.Text(customerName, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14)),
                         pw.Text(customerEmail),
-                        if (gstNumber != null && gstNumber.isNotEmpty)
-                          pw.Text('GSTIN: $gstNumber'),
+                        if (gstNumber != null && gstNumber.isNotEmpty) pw.Text('GSTIN: $gstNumber'),
                       ],
                     ),
                   ),
@@ -117,16 +138,12 @@ class InvoicePdfService {
                   ),
                 ],
               ),
-              
               pw.SizedBox(height: 32),
-              
-              // Items Table Header
+              // Item table header.
               pw.Container(
                 decoration: pw.BoxDecoration(
                   color: PdfColors.grey200,
-                  border: pw.Border(
-                    bottom: pw.BorderSide(color: primaryColor, width: 2),
-                  ),
+                  border: pw.Border(bottom: pw.BorderSide(color: primaryColor, width: 2)),
                 ),
                 padding: const pw.EdgeInsets.all(12),
                 child: pw.Row(
@@ -137,14 +154,11 @@ class InvoicePdfService {
                   ],
                 ),
               ),
-              
-              // Items Table Row
+              // Subscription line item.
               pw.Container(
                 padding: const pw.EdgeInsets.symmetric(vertical: 16, horizontal: 12),
                 decoration: const pw.BoxDecoration(
-                  border: pw.Border(
-                    bottom: pw.BorderSide(color: PdfColors.grey300, width: 1),
-                  ),
+                  border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey300, width: 1)),
                 ),
                 child: pw.Row(
                   children: [
@@ -154,10 +168,8 @@ class InvoicePdfService {
                   ],
                 ),
               ),
-              
               pw.SizedBox(height: 32),
-              
-              // Summary
+              // Summary with GST breakdown.
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.end,
                 children: [
@@ -166,6 +178,21 @@ class InvoicePdfService {
                     child: pw.Column(
                       crossAxisAlignment: pw.CrossAxisAlignment.stretch,
                       children: [
+                        pw.Row(
+                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                          children: [
+                            pw.Text('Subtotal:', style: pw.TextStyle(fontSize: 12)),
+                            pw.Text('Rs. ${subTotal.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 12)),
+                          ],
+                        ),
+                        pw.Row(
+                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                          children: [
+                            pw.Text('GST (${gstPercent.toStringAsFixed(2)}%):', style: pw.TextStyle(fontSize: 12)),
+                            pw.Text('Rs. ${gstAmount.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 12)),
+                          ],
+                        ),
+                        pw.Divider(thickness: 1, color: PdfColors.grey400),
                         pw.Row(
                           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                           children: [
@@ -178,10 +205,8 @@ class InvoicePdfService {
                   ),
                 ],
               ),
-              
               pw.Spacer(),
-              
-              // Footer
+              // Footer.
               pw.Center(
                 child: pw.Text(
                   'Thank you for your business!',

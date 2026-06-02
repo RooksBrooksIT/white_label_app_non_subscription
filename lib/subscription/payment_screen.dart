@@ -102,6 +102,7 @@ class _PaymentScreenState extends State<PaymentScreen>
 
     bool isSuccess = false;
     bool isPending = false;
+    Map<String, dynamic>? finalVerifyResult;
     String errorMessage = 'Payment failed or was cancelled.';
 
     final bool isHosted = selectedPaymentMethod != 'UPI';
@@ -134,6 +135,7 @@ class _PaymentScreenState extends State<PaymentScreen>
             if (status == 'SUCCESS') {
               isSuccess = true;
               isPending = false;
+              finalVerifyResult = doc.data();
               break;
             } else if (status == 'FAILED') {
               isSuccess = false;
@@ -160,6 +162,7 @@ class _PaymentScreenState extends State<PaymentScreen>
             if (status == 'SUCCESS') {
               isSuccess = true;
               isPending = false;
+              finalVerifyResult = verifyResult;
               break;
             } else if (status == 'FAILED') {
               isSuccess = false;
@@ -277,6 +280,16 @@ class _PaymentScreenState extends State<PaymentScreen>
             isSixMonths: widget.isSixMonths,
             registrationCompleted: true,
             firestoreSynced: true,
+            tenantId: tenantId,
+            customerName: widget.pendingUserData?['name'] ?? 'Customer',
+            customerEmail: widget.pendingUserData?['email'] ?? 'support@servnex.com',
+            customerMobile: widget.pendingUserData?['customerMobile'] ?? widget.pendingUserData?['phone'],
+            gatewayResponse: finalVerifyResult ?? {
+              'paymentMode': selectedPaymentMethod,
+              'amount': widget.price,
+              'status': 'SUCCESS',
+              'transactionId': txnId,
+            },
           );
 
           // Automatically send the invoice in the background

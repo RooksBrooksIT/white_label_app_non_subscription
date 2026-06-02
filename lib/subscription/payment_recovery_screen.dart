@@ -41,6 +41,7 @@ class _PaymentRecoveryScreenState extends State<PaymentRecoveryScreen> {
 
     bool isSuccess = false;
     bool isPending = false;
+    Map<String, dynamic>? finalVerifyResult;
     String errorMessage = 'Payment failed or was cancelled.';
 
     try {
@@ -60,6 +61,7 @@ class _PaymentRecoveryScreenState extends State<PaymentRecoveryScreen> {
           if (status == 'SUCCESS') {
             isSuccess = true;
             isPending = false;
+            finalVerifyResult = verifyResult;
             break;
           } else if (status == 'FAILED') {
             isSuccess = false;
