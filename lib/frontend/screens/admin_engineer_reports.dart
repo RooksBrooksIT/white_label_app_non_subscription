@@ -51,11 +51,11 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
     super.initState();
     _animationController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 400),
     );
     _fadeAnimation = CurvedAnimation(
       parent: _animationController,
-      curve: Curves.easeInOut,
+      curve: Curves.easeOutCubic,
     );
     _animationController.forward();
     _searchController.addListener(() {
@@ -92,17 +92,20 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
         .collection('EngineerLogin')
         .snapshots()
         .map((snapshot) {
-          final profiles = snapshot.docs.map((doc) {
-            final data = doc.data();
-            final username = (data['Username'] ?? '').toString().trim();
-            return {
-              'id': doc.id,
-              'username': username.toLowerCase(),
-              'displayName': _capitalizeName(username),
-              'email': (data['Email'] ?? '').toString().trim(),
-              'phone': (data['Phone'] ?? '').toString().trim(),
-            };
-          }).where((p) => p['username'].toString().isNotEmpty).toList();
+          final profiles = snapshot.docs
+              .map((doc) {
+                final data = doc.data();
+                final username = (data['Username'] ?? '').toString().trim();
+                return {
+                  'id': doc.id,
+                  'username': username.toLowerCase(),
+                  'displayName': _capitalizeName(username),
+                  'email': (data['Email'] ?? '').toString().trim(),
+                  'phone': (data['Phone'] ?? '').toString().trim(),
+                };
+              })
+              .where((p) => p['username'].toString().isNotEmpty)
+              .toList();
           profiles.sort(
             (a, b) => a['displayName'].toString().compareTo(
               b['displayName'].toString(),
@@ -183,7 +186,10 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
       if (!_matchesDateFilter(timestamp)) return false;
 
       if (query.isNotEmpty) {
-        final profile = _findEngineerProfile(engineerProfiles, assignedEmployee);
+        final profile = _findEngineerProfile(
+          engineerProfiles,
+          assignedEmployee,
+        );
         final matchesEngineer =
             assignedEmployee.contains(query) ||
             (profile?['id']?.toString().toLowerCase().contains(query) ??
@@ -240,7 +246,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -303,7 +309,9 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           backgroundColor: Colors.green.shade700,
           content: const Text('PDF downloaded successfully'),
           action: SnackBarAction(
@@ -326,7 +334,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
         content: Text(message),
         backgroundColor: Colors.red.shade700,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
@@ -363,10 +371,9 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
     final isTablet = screenSize.width >= 600 && screenSize.width < 1200;
     final isDesktop = screenSize.width >= 1200;
     final adminDetailsStream = _buildAdminDetailsStream();
-    final appBarForeground = Theme.of(context).colorScheme.onPrimary;
 
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: const Color(0xFFF8FAFF),
       body: RefreshIndicator(
         color: Theme.of(context).primaryColor,
         onRefresh: _onRefresh,
@@ -374,12 +381,12 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             SliverAppBar(
-              expandedHeight: isMobile ? 140 : 168,
+              expandedHeight: isMobile ? 130 : 160,
               floating: false,
               pinned: true,
               elevation: 0,
               backgroundColor: Theme.of(context).primaryColor,
-              foregroundColor: appBarForeground,
+              foregroundColor: Colors.white,
               automaticallyImplyLeading: false,
               flexibleSpace: FlexibleSpaceBar(
                 background: Container(
@@ -387,96 +394,80 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                     gradient: LinearGradient(
                       colors: [
                         Theme.of(context).primaryColor,
-                        ThemeService.instance.secondaryColor,
+                        Theme.of(context).primaryColor.withValues(alpha: 0.85),
                       ],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
                   ),
-                  child: Stack(
-                    children: [
-                      Positioned(
-                        right: -40,
-                        top: -40,
-                        child: CircleAvatar(
-                          radius: 90,
-                          backgroundColor: Colors.white.withValues(alpha: 0.05),
-                        ),
-                      ),
-                      SafeArea(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                  child: SafeArea(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
                             children: [
-                              Row(
-                                children: [
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withValues(alpha: 0.2),
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: IconButton(
-                                      icon: Icon(
-                                        Icons.arrow_back_ios_new_rounded,
-                                        color: appBarForeground,
-                                        size: 18,
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.2),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: IconButton(
+                                  icon: const Icon(
+                                    Icons.arrow_back_ios_new_rounded,
+                                    size: 18,
+                                  ),
+                                  onPressed: () => Navigator.of(context).pop(),
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: const Icon(
+                                  Icons.assignment_ind_rounded,
+                                  size: 26,
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      'Engineer Reports',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: isMobile ? 22 : 28,
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: -0.5,
                                       ),
-                                      onPressed: () =>
-                                          Navigator.of(context).pop(),
                                     ),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Container(
-                                    padding: const EdgeInsets.all(10),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withValues(alpha: 0.15),
-                                      borderRadius: BorderRadius.circular(14),
-                                    ),
-                                    child: Icon(
-                                      Icons.assignment_ind_rounded,
-                                      color: appBarForeground,
-                                      size: 24,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 14),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(
-                                          'Engineer Reports',
-                                          style: TextStyle(
-                                            color: appBarForeground,
-                                            fontSize: isMobile ? 20 : 24,
-                                            fontWeight: FontWeight.w800,
-                                            letterSpacing: -0.3,
-                                          ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Monitor performance & manage reports',
+                                      style: TextStyle(
+                                        color: Colors.white.withValues(
+                                          alpha: 0.8,
                                         ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          'Search, filter & manage report PDFs',
-                                          style: TextStyle(
-                                            color: appBarForeground.withValues(
-                                              alpha: 0.75,
-                                            ),
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ],
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500,
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ],
                           ),
-                        ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -484,9 +475,9 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
             SliverPadding(
               padding: EdgeInsets.fromLTRB(
                 isMobile ? 16 : 24,
-                16,
+                20,
                 isMobile ? 16 : 24,
-                24,
+                28,
               ),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
@@ -494,7 +485,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                     opacity: _fadeAnimation,
                     child: _buildSearchBar(isMobile),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 24),
                   StreamBuilder<List<Map<String, dynamic>>>(
                     stream: getEngineerProfiles(),
                     builder: (context, engineerSnapshot) {
@@ -507,9 +498,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                             return _buildLoadingState(isMobile);
                           }
                           if (snapshot.hasError) {
-                            return _buildErrorState(
-                              snapshot.error.toString(),
-                            );
+                            return _buildErrorState(snapshot.error.toString());
                           }
 
                           engineerStatusCounts.clear();
@@ -518,8 +507,8 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                           final docs = snapshot.data?.docs ?? [];
                           for (final doc in docs) {
                             final data = doc.data() as Map<String, dynamic>;
-                            final rawEngineerName =
-                                data['assignedEmployee']?.toString();
+                            final rawEngineerName = data['assignedEmployee']
+                                ?.toString();
                             if (rawEngineerName != null) {
                               final engineerName = rawEngineerName
                                   .trim()
@@ -532,10 +521,8 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                                 engineerName,
                                 () => {},
                               );
-                              engineerStatusCounts[engineerName]![
-                                      normalizedStatus] =
-                                  (engineerStatusCounts[engineerName]![
-                                          normalizedStatus] ??
+                              engineerStatusCounts[engineerName]![normalizedStatus] =
+                                  (engineerStatusCounts[engineerName]![normalizedStatus] ??
                                       0) +
                                   1;
                             }
@@ -549,14 +536,14 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                             ..sort();
                           final statusOptions = allStatuses.toList()..sort();
                           final visibleCount =
-                              (_currentPage * _pageSize) > filteredReports.length
+                              (_currentPage * _pageSize) >
+                                  filteredReports.length
                               ? filteredReports.length
                               : _currentPage * _pageSize;
                           final paginatedReports = filteredReports
                               .take(visibleCount)
                               .toList();
-                          final hasMore =
-                              visibleCount < filteredReports.length;
+                          final hasMore = visibleCount < filteredReports.length;
 
                           if (filteredReports.isEmpty) {
                             return Column(
@@ -572,7 +559,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                                     locationOptions: locations,
                                   ),
                                 ),
-                                const SizedBox(height: 20),
+                                const SizedBox(height: 24),
                                 _buildEmptyState(isMobile),
                               ],
                             );
@@ -596,7 +583,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                                   locationOptions: locations,
                                 ),
                               ),
-                              const SizedBox(height: 20),
+                              const SizedBox(height: 24),
                               _buildReportsSummaryHeader(
                                 filteredReports.length,
                                 isMobile,
@@ -606,7 +593,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                                   selectedEngineer != null &&
                                   selectedCounts != null &&
                                   selectedCounts.isNotEmpty) ...[
-                                const SizedBox(height: 20),
+                                const SizedBox(height: 24),
                                 _buildDashboard(
                                   context,
                                   selectedCounts,
@@ -617,13 +604,13 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                                   isDesktop,
                                 ),
                               ],
-                              const SizedBox(height: 20),
+                              const SizedBox(height: 28),
                               _buildReportsListHeader(
                                 filteredReports.length,
                                 isMobile,
                                 docs,
                               ),
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 16),
                               if (isDesktop)
                                 _buildReportsTable(
                                   paginatedReports,
@@ -632,7 +619,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                               else
                                 ...paginatedReports.map(
                                   (doc) => Padding(
-                                    padding: const EdgeInsets.only(bottom: 12),
+                                    padding: const EdgeInsets.only(bottom: 16),
                                     child: _buildReportCard(
                                       doc,
                                       engineerProfiles,
@@ -642,31 +629,31 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                                 ),
                               if (hasMore)
                                 Padding(
-                                  padding: const EdgeInsets.only(top: 8),
+                                  padding: const EdgeInsets.only(top: 16),
                                   child: Center(
                                     child: OutlinedButton.icon(
-                                      onPressed: () => setState(
-                                        () => _currentPage += 1,
-                                      ),
+                                      onPressed: () =>
+                                          setState(() => _currentPage += 1),
                                       icon: const Icon(Icons.expand_more),
                                       label: Text(
                                         'Load more (${filteredReports.length - visibleCount} remaining)',
                                       ),
                                       style: OutlinedButton.styleFrom(
-                                        foregroundColor:
-                                            Theme.of(context).primaryColor,
+                                        foregroundColor: Theme.of(
+                                          context,
+                                        ).primaryColor,
                                         side: BorderSide(
-                                          color: Theme.of(context)
-                                              .primaryColor
-                                              .withValues(alpha: 0.4),
+                                          color: Theme.of(
+                                            context,
+                                          ).primaryColor.withValues(alpha: 0.3),
                                         ),
                                         padding: const EdgeInsets.symmetric(
-                                          horizontal: 24,
+                                          horizontal: 28,
                                           vertical: 14,
                                         ),
                                         shape: RoundedRectangleBorder(
                                           borderRadius: BorderRadius.circular(
-                                            14,
+                                            16,
                                           ),
                                         ),
                                       ),
@@ -691,13 +678,13 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
   Widget _buildSearchBar(bool isMobile) {
     return Container(
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(20),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
@@ -707,12 +694,13 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
           hintText:
               'Search by engineer name, ID, mobile, email, or booking ID...',
           hintStyle: TextStyle(
-            color: Colors.grey.shade500,
+            color: Colors.grey.shade400,
             fontSize: isMobile ? 13 : 14,
           ),
           prefixIcon: Icon(
             Icons.search_rounded,
             color: Theme.of(context).primaryColor,
+            size: 22,
           ),
           suffixIcon: searchQuery.isNotEmpty
               ? IconButton(
@@ -728,8 +716,8 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
               : null,
           border: InputBorder.none,
           contentPadding: EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: isMobile ? 14 : 16,
+            horizontal: 20,
+            vertical: isMobile ? 16 : 18,
           ),
         ),
       ),
@@ -750,15 +738,15 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
 
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(isMobile ? 16 : 20),
+      padding: EdgeInsets.all(isMobile ? 20 : 24),
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(24),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
@@ -768,61 +756,59 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
+                  color: Theme.of(context).primaryColor.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(14),
                 ),
                 child: Icon(
-                  Icons.tune_rounded,
+                  Icons.filter_alt_rounded,
                   color: Theme.of(context).primaryColor,
-                  size: 20,
+                  size: 22,
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 14),
               Expanded(
                 child: Text(
-                  'Filters & Refinement',
+                  'Smart Filters',
                   style: TextStyle(
                     color: Theme.of(context).primaryColor,
-                    fontSize: isMobile ? 16 : 18,
+                    fontSize: isMobile ? 18 : 20,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
               TextButton.icon(
                 onPressed: _resetFilters,
-                icon: const Icon(Icons.restart_alt_rounded, size: 18),
-                label: const Text('Reset'),
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+                label: const Text('Reset all'),
                 style: TextButton.styleFrom(
                   foregroundColor: Colors.grey.shade600,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           if (isDesktop)
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            Wrap(
+              spacing: 20,
+              runSpacing: 20,
               children: [
-                Expanded(flex: 2, child: _buildDateFilterControls(isMobile)),
-                const SizedBox(width: 16),
-                Expanded(
-                  flex: 2,
+                SizedBox(width: 280, child: _buildDateFilterControls(isMobile)),
+                SizedBox(
+                  width: 260,
                   child: _buildEngineerSelector(isDropdownDisabled, isMobile),
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  flex: 2,
+                SizedBox(
+                  width: 200,
                   child: _buildStatusFilter(statusOptions, isMobile),
                 ),
-                if (locationOptions.isNotEmpty) ...[
-                  const SizedBox(width: 16),
-                  Expanded(
-                    flex: 2,
+                if (locationOptions.isNotEmpty)
+                  SizedBox(
+                    width: 200,
                     child: _buildLocationFilter(locationOptions, isMobile),
                   ),
-                ],
               ],
             )
           else ...[
@@ -838,10 +824,10 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
               ],
             ],
           ],
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: 12,
+            runSpacing: 12,
             children: [
               if (!isDesktop)
                 ActionChip(
@@ -860,6 +846,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                   onPressed: () => setState(
                     () => _showAdvancedFilters = !_showAdvancedFilters,
                   ),
+                  backgroundColor: Colors.grey.shade100,
                 ),
               ActionChip(
                 avatar: Icon(
@@ -872,6 +859,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                 ),
                 onPressed: () =>
                     setState(() => _showAnalytics = !_showAnalytics),
+                backgroundColor: Colors.grey.shade100,
               ),
             ],
           ),
@@ -886,12 +874,10 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Report Status',
+          'Status',
           style: TextStyle(
-            color: _getContrastColor(
-              Theme.of(context).cardColor,
-            ).withValues(alpha: 0.7),
-            fontSize: 14,
+            color: Colors.grey.shade700,
+            fontSize: 13,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -899,15 +885,13 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
-            color: Theme.of(context).primaryColor.withValues(alpha: 0.05),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
-            ),
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.grey.shade200),
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
-              dropdownColor: Theme.of(context).cardColor,
+              dropdownColor: Colors.white,
               value: options.contains(_selectedStatusFilter)
                   ? _selectedStatusFilter
                   : 'All',
@@ -918,9 +902,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                       value: status,
                       child: Text(
                         status,
-                        style: TextStyle(
-                          color: _getContrastColor(Theme.of(context).cardColor),
-                        ),
+                        style: const TextStyle(color: Colors.black87),
                       ),
                     ),
                   )
@@ -944,10 +926,8 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
         Text(
           'Location',
           style: TextStyle(
-            color: _getContrastColor(
-              Theme.of(context).cardColor,
-            ).withValues(alpha: 0.7),
-            fontSize: 14,
+            color: Colors.grey.shade700,
+            fontSize: 13,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -955,15 +935,13 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
-            color: Theme.of(context).primaryColor.withValues(alpha: 0.05),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
-            ),
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.grey.shade200),
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
-              dropdownColor: Theme.of(context).cardColor,
+              dropdownColor: Colors.white,
               value: options.contains(_selectedLocationFilter)
                   ? _selectedLocationFilter
                   : 'All',
@@ -976,9 +954,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                         location,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: _getContrastColor(Theme.of(context).cardColor),
-                        ),
+                        style: const TextStyle(color: Colors.black87),
                       ),
                     ),
                   )
@@ -998,42 +974,65 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Date filter toggle
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          decoration: BoxDecoration(
-            color: Theme.of(context).primaryColor.withValues(alpha: 0.05),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                Icons.calendar_today_outlined,
-                color: isDateFilterEnabled
-                    ? Theme.of(context).primaryColor
-                    : Colors.grey,
-                size: 20,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Filter by Date',
-                  style: TextStyle(
-                    color: _getContrastColor(Theme.of(context).cardColor),
-                    fontWeight: FontWeight.w600,
-                  ),
+        Row(
+          children: [
+            Icon(
+              Icons.calendar_today_outlined,
+              color: isDateFilterEnabled
+                  ? Theme.of(context).primaryColor
+                  : Colors.grey.shade500,
+              size: 18,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Date filter',
+                style: TextStyle(
+                  color: Colors.grey.shade800,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
                 ),
               ),
+            ),
+            Switch.adaptive(
+              value: isDateFilterEnabled,
+              onChanged: (bool? newValue) {
+                setState(() {
+                  isDateFilterEnabled = newValue ?? false;
+                  if (!isDateFilterEnabled) {
+                    selectedDate = null;
+                    fromDate = null;
+                    toDate = null;
+                  }
+                  _currentPage = 1;
+                });
+              },
+              activeColor: Theme.of(context).primaryColor,
+            ),
+          ],
+        ),
+        if (isDateFilterEnabled) ...[
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Text(
+                isDateRangeMode ? 'Date Range' : 'Single Date',
+                style: TextStyle(
+                  color: Colors.grey.shade600,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(width: 8),
               Switch.adaptive(
-                value: isDateFilterEnabled,
+                value: isDateRangeMode,
                 onChanged: (bool? newValue) {
                   setState(() {
-                    isDateFilterEnabled = newValue ?? false;
-                    if (!isDateFilterEnabled) {
-                      selectedDate = null;
-                      fromDate = null;
-                      toDate = null;
-                    }
+                    isDateRangeMode = newValue ?? false;
+                    selectedDate = null;
+                    fromDate = null;
+                    toDate = null;
                     _currentPage = 1;
                   });
                 },
@@ -1041,50 +1040,9 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
               ),
             ],
           ),
-        ),
-
-        if (isDateFilterEnabled) ...[
           const SizedBox(height: 12),
-
-          // Date range toggle
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              Text(
-                isDateRangeMode ? 'Date Range' : 'Single Date',
-                style: TextStyle(
-                  color: _getContrastColor(
-                    Theme.of(context).cardColor,
-                  ).withValues(alpha: 0.6),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(width: 8),
-              SizedBox(
-                height: 30,
-                child: Switch.adaptive(
-                  value: isDateRangeMode,
-                  onChanged: (bool? newValue) {
-                    setState(() {
-                      isDateRangeMode = newValue ?? false;
-                      selectedDate = null;
-                      fromDate = null;
-                      toDate = null;
-                      _currentPage = 1;
-                    });
-                  },
-                  activeColor: Theme.of(context).primaryColor,
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 12),
-
-          // Date pickers
           if (!isDateRangeMode)
-            _buildDatePicker('Select Date', selectedDate, (pickedDate) {
+            _buildDatePicker('Select date', selectedDate, (pickedDate) {
               setState(() {
                 selectedDate = pickedDate;
                 _currentPage = 1;
@@ -1142,10 +1100,8 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
         Text(
           'Engineer',
           style: TextStyle(
-            color: _getContrastColor(
-              Theme.of(context).cardColor,
-            ).withValues(alpha: 0.7),
-            fontSize: 14,
+            color: Colors.grey.shade700,
+            fontSize: 13,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -1154,7 +1110,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
           stream: getEngineerProfiles(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: LinearProgressIndicator());
+              return const LinearProgressIndicator();
             }
 
             final engineers = snapshot.data ?? [];
@@ -1172,9 +1128,9 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                     children: [
                       Text(
                         engineer['displayName'] as String,
-                        style: TextStyle(
-                          color: _getContrastColor(Theme.of(context).cardColor),
+                        style: const TextStyle(
                           fontWeight: FontWeight.w600,
+                          color: Colors.black87,
                         ),
                       ),
                       Text(
@@ -1193,17 +1149,13 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
             return Container(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
-                color: Theme.of(context).primaryColor.withValues(alpha: 0.05),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: isDropdownDisabled
-                      ? Colors.grey.withValues(alpha: 0.2)
-                      : Theme.of(context).primaryColor.withValues(alpha: 0.1),
-                ),
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.grey.shade200),
               ),
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<String?>(
-                  dropdownColor: Theme.of(context).cardColor,
+                  dropdownColor: Colors.white,
                   value: selectedEngineer?.toLowerCase(),
                   hint: Row(
                     children: [
@@ -1269,11 +1221,12 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
         Text(
           label,
           style: TextStyle(
-            color: _getContrastColor(Theme.of(context).cardColor),
-            fontSize: isMobile ? 14 : 16,
+            color: Colors.grey.shade600,
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         InkWell(
           onTap: () async {
             final pickedDate = await showDatePicker(
@@ -1286,11 +1239,9 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                   data: Theme.of(context).copyWith(
                     colorScheme: ColorScheme.light(
                       primary: Theme.of(context).primaryColor,
-                      onPrimary: _getContrastColor(
-                        Theme.of(context).primaryColor,
-                      ),
-                      surface: Theme.of(context).cardColor,
-                      onSurface: _getContrastColor(Theme.of(context).cardColor),
+                      onPrimary: Colors.white,
+                      surface: Colors.white,
+                      onSurface: Colors.black87,
                     ),
                   ),
                   child: child!,
@@ -1305,11 +1256,9 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: Theme.of(context).primaryColor.withValues(alpha: 0.2),
-              ),
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.grey.shade200),
             ),
             child: Row(
               children: [
@@ -1318,16 +1267,16 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                   size: 18,
                   color: Theme.of(context).primaryColor,
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     currentDate == null
                         ? 'Select date'
-                        : '${currentDate.day}/${currentDate.month}/${currentDate.year}',
+                        : DateFormat('dd MMM yyyy').format(currentDate),
                     style: TextStyle(
                       color: currentDate == null
                           ? Colors.grey.shade500
-                          : _getContrastColor(Theme.of(context).cardColor),
+                          : Colors.black87,
                       fontSize: 14,
                     ),
                   ),
@@ -1347,17 +1296,19 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
   ) {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(isMobile ? 16 : 20),
+      padding: EdgeInsets.all(isMobile ? 18 : 22),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            Theme.of(context).primaryColor.withValues(alpha: 0.08),
-            Theme.of(context).primaryColor.withValues(alpha: 0.02),
+            Theme.of(context).primaryColor.withValues(alpha: 0.06),
+            Colors.white,
           ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: Theme.of(context).primaryColor.withValues(alpha: 0.12),
+          color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
         ),
       ),
       child: Row(
@@ -1365,15 +1316,16 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Theme.of(context).primaryColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(14),
+              color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(16),
             ),
             child: Icon(
               Icons.summarize_rounded,
               color: Theme.of(context).primaryColor,
+              size: 26,
             ),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1381,17 +1333,15 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                 Text(
                   '$totalReports report${totalReports == 1 ? '' : 's'} found',
                   style: TextStyle(
-                    fontSize: isMobile ? 16 : 18,
+                    fontSize: isMobile ? 18 : 20,
                     fontWeight: FontWeight.w800,
-                    color: _getContrastColor(Theme.of(context).cardColor),
+                    color: Colors.black87,
                   ),
                 ),
+                const SizedBox(height: 4),
                 Text(
                   'Showing ${(_currentPage * _pageSize).clamp(0, totalReports)} of $totalReports',
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontSize: 13,
-                  ),
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
                 ),
               ],
             ),
@@ -1409,23 +1359,22 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
     return Row(
       children: [
         Icon(
-          Icons.list_alt_rounded,
+          Icons.receipt_long_rounded,
           color: Theme.of(context).primaryColor,
-          size: 22,
+          size: 26,
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: 12),
         Expanded(
           child: Text(
-            'Report Records',
+            'Ticket Reports',
             style: TextStyle(
-              color: Theme.of(context).primaryColor,
-              fontSize: isMobile ? 18 : 20,
+              color: Colors.black87,
+              fontSize: isMobile ? 20 : 22,
               fontWeight: FontWeight.w800,
             ),
           ),
         ),
-        if (selectedEngineer != null)
-          _buildExportButton(docs, isMobile),
+        if (selectedEngineer != null) _buildExportButton(docs, isMobile),
       ],
     );
   }
@@ -1436,28 +1385,36 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
   ) {
     return Container(
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade200),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.grey.shade100),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: DataTable(
             headingRowColor: WidgetStateProperty.all(
-              Theme.of(context).primaryColor.withValues(alpha: 0.08),
+              Theme.of(context).primaryColor.withValues(alpha: 0.05),
             ),
+            columnSpacing: 24,
+            horizontalMargin: 16,
+            headingTextStyle: const TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+              color: Colors.black87,
+            ),
+            dataTextStyle: const TextStyle(fontSize: 13, color: Colors.black87),
             columns: const [
               DataColumn(label: Text('Engineer')),
-              DataColumn(label: Text('Engineer ID')),
+              DataColumn(label: Text('ID')),
               DataColumn(label: Text('Report Title')),
               DataColumn(label: Text('Created')),
               DataColumn(label: Text('Status')),
@@ -1481,30 +1438,33 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
   ) {
     final assignedEmployee =
         data['assignedEmployee']?.toString().trim() ?? 'Unknown';
-    final profile = _findEngineerProfile(
-      engineerProfiles,
-      assignedEmployee,
-    );
+    final profile = _findEngineerProfile(engineerProfiles, assignedEmployee);
     final engineerName =
-        profile?['displayName']?.toString() ?? _capitalizeName(assignedEmployee);
+        profile?['displayName']?.toString() ??
+        _capitalizeName(assignedEmployee);
     final engineerId = profile?['id']?.toString() ?? '—';
     final status = _normalizeStatusKey(data['adminStatus']?.toString() ?? '');
     final statusColor = _getStatusColor(status);
     final timestamp = _parseTimestamp(data['timestamp']);
-    final formattedDate = DateFormat('dd MMM yyyy · hh:mm a').format(
-      timestamp.toDate(),
-    );
+    final formattedDate = DateFormat(
+      'dd MMM yyyy · hh:mm a',
+    ).format(timestamp.toDate());
     final hasPdf = assignedEmployee.isNotEmpty;
     final isViewLoading = _loadingPdfId == rowId;
     final isDownloadLoading = _downloadingPdfId == rowId;
 
     return DataRow(
       cells: [
-        DataCell(Text(engineerName, style: const TextStyle(fontWeight: FontWeight.w600))),
+        DataCell(
+          Text(
+            engineerName,
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+        ),
         DataCell(Text(engineerId)),
         DataCell(
           SizedBox(
-            width: 180,
+            width: 200,
             child: Text(
               _reportTitle(data),
               maxLines: 2,
@@ -1515,16 +1475,16 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
         DataCell(Text(formattedDate)),
         DataCell(
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
               color: statusColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(30),
             ),
             child: Text(
               status,
               style: TextStyle(
                 color: statusColor,
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -1546,23 +1506,16 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                 icon: Icons.visibility_rounded,
                 isLoading: isViewLoading,
                 enabled: hasPdf && !isViewLoading && !isDownloadLoading,
-                onPressed: () => _viewReportPdf(
-                  assignedEmployee,
-                  data,
-                  rowId,
-                ),
+                onPressed: () => _viewReportPdf(assignedEmployee, data, rowId),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 10),
               _buildPdfActionButton(
                 label: 'Download',
                 icon: Icons.download_rounded,
                 isLoading: isDownloadLoading,
                 enabled: hasPdf && !isViewLoading && !isDownloadLoading,
-                onPressed: () => _downloadReportPdf(
-                  assignedEmployee,
-                  data,
-                  rowId,
-                ),
+                onPressed: () =>
+                    _downloadReportPdf(assignedEmployee, data, rowId),
               ),
             ],
           ),
@@ -1579,35 +1532,33 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
     final data = doc.data() as Map<String, dynamic>;
     final assignedEmployee =
         data['assignedEmployee']?.toString().trim() ?? 'Unknown';
-    final profile = _findEngineerProfile(
-      engineerProfiles,
-      assignedEmployee,
-    );
+    final profile = _findEngineerProfile(engineerProfiles, assignedEmployee);
     final engineerName =
-        profile?['displayName']?.toString() ?? _capitalizeName(assignedEmployee);
+        profile?['displayName']?.toString() ??
+        _capitalizeName(assignedEmployee);
     final engineerId = profile?['id']?.toString() ?? '—';
     final email = profile?['email']?.toString() ?? '';
     final phone = profile?['phone']?.toString() ?? '';
     final status = _normalizeStatusKey(data['adminStatus']?.toString() ?? '');
     final statusColor = _getStatusColor(status);
     final timestamp = _parseTimestamp(data['timestamp']);
-    final formattedDate = DateFormat('dd MMM yyyy · hh:mm a').format(
-      timestamp.toDate(),
-    );
+    final formattedDate = DateFormat(
+      'dd MMM yyyy · hh:mm a',
+    ).format(timestamp.toDate());
     final hasPdf = assignedEmployee.isNotEmpty;
     final isViewLoading = _loadingPdfId == doc.id;
     final isDownloadLoading = _downloadingPdfId == doc.id;
 
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade200),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.grey.shade100),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 14,
+            blurRadius: 20,
             offset: const Offset(0, 6),
           ),
         ],
@@ -1619,18 +1570,20 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               CircleAvatar(
-                radius: 22,
-                backgroundColor:
-                    Theme.of(context).primaryColor.withValues(alpha: 0.12),
+                radius: 26,
+                backgroundColor: Theme.of(
+                  context,
+                ).primaryColor.withValues(alpha: 0.1),
                 child: Text(
                   engineerName.isNotEmpty ? engineerName[0].toUpperCase() : '?',
                   style: TextStyle(
                     color: Theme.of(context).primaryColor,
                     fontWeight: FontWeight.w800,
+                    fontSize: 18,
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1639,10 +1592,11 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                       engineerName,
                       style: const TextStyle(
                         fontWeight: FontWeight.w800,
-                        fontSize: 16,
+                        fontSize: 17,
+                        color: Colors.black87,
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 4),
                     Text(
                       'ID: $engineerId',
                       style: TextStyle(
@@ -1664,10 +1618,13 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: statusColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(30),
                 ),
                 child: Text(
                   status,
@@ -1680,18 +1637,23 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
           Text(
             _reportTitle(data),
             style: const TextStyle(
-              fontSize: 15,
+              fontSize: 16,
               fontWeight: FontWeight.w700,
+              color: Colors.black87,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           Row(
             children: [
-              Icon(Icons.schedule_rounded, size: 14, color: Colors.grey.shade500),
+              Icon(
+                Icons.schedule_rounded,
+                size: 14,
+                color: Colors.grey.shade500,
+              ),
               const SizedBox(width: 6),
               Text(
                 formattedDate,
@@ -1699,7 +1661,9 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
               ),
               const Spacer(),
               Icon(
-                hasPdf ? Icons.picture_as_pdf_rounded : Icons.warning_amber_rounded,
+                hasPdf
+                    ? Icons.picture_as_pdf_rounded
+                    : Icons.warning_amber_rounded,
                 size: 16,
                 color: hasPdf ? Colors.green.shade600 : Colors.orange.shade700,
               ),
@@ -1707,14 +1671,16 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
               Text(
                 hasPdf ? 'PDF Ready' : 'No PDF',
                 style: TextStyle(
-                  color: hasPdf ? Colors.green.shade700 : Colors.orange.shade800,
+                  color: hasPdf
+                      ? Colors.green.shade700
+                      : Colors.orange.shade800,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 18),
           Row(
             children: [
               Expanded(
@@ -1724,14 +1690,11 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                   isLoading: isViewLoading,
                   expanded: true,
                   enabled: hasPdf && !isViewLoading && !isDownloadLoading,
-                  onPressed: () => _viewReportPdf(
-                    assignedEmployee,
-                    data,
-                    doc.id,
-                  ),
+                  onPressed: () =>
+                      _viewReportPdf(assignedEmployee, data, doc.id),
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 12),
               Expanded(
                 child: _buildPdfActionButton(
                   label: 'Download',
@@ -1739,11 +1702,8 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                   isLoading: isDownloadLoading,
                   expanded: true,
                   enabled: hasPdf && !isViewLoading && !isDownloadLoading,
-                  onPressed: () => _downloadReportPdf(
-                    assignedEmployee,
-                    data,
-                    doc.id,
-                  ),
+                  onPressed: () =>
+                      _downloadReportPdf(assignedEmployee, data, doc.id),
                 ),
               ),
             ],
@@ -1765,8 +1725,8 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
       onPressed: enabled ? onPressed : null,
       icon: isLoading
           ? SizedBox(
-              width: 16,
-              height: 16,
+              width: 18,
+              height: 18,
               child: CircularProgressIndicator(
                 strokeWidth: 2,
                 valueColor: AlwaysStoppedAnimation<Color>(
@@ -1774,15 +1734,15 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                 ),
               ),
             )
-          : Icon(icon, size: 16),
-      label: Text(label, style: const TextStyle(fontSize: 12)),
+          : Icon(icon, size: 18),
+      label: Text(label, style: const TextStyle(fontSize: 13)),
       style: OutlinedButton.styleFrom(
         foregroundColor: Theme.of(context).primaryColor,
         side: BorderSide(
-          color: Theme.of(context).primaryColor.withValues(alpha: 0.35),
+          color: Theme.of(context).primaryColor.withValues(alpha: 0.3),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
     );
     return expanded ? SizedBox(width: double.infinity, child: child) : child;
@@ -1800,35 +1760,33 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // KPI Cards
         _buildKPICards(totalTickets, docs, isMobile),
-
         const SizedBox(height: 32),
-
-        // Status Breakdown Header with Export
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
+                    color: Theme.of(
+                      context,
+                    ).primaryColor.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(14),
                   ),
                   child: Icon(
                     Icons.pie_chart_rounded,
                     color: Theme.of(context).primaryColor,
-                    size: 20,
+                    size: 24,
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 14),
                 Text(
                   'Status Breakdown',
                   style: TextStyle(
-                    color: Theme.of(context).primaryColor,
-                    fontSize: isMobile ? 18 : 20,
+                    color: Colors.black87,
+                    fontSize: isMobile ? 20 : 22,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -1837,22 +1795,14 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
             if (!isMobile) _buildExportButton(docs, isMobile),
           ],
         ),
-
         const SizedBox(height: 24),
-
-        // Status Grid
         _buildStatusGrid(selectedCounts, isMobile, isTablet),
-
         const SizedBox(height: 24),
-
-        // Mobile Export Button
         if (isMobile)
           Padding(
             padding: const EdgeInsets.only(bottom: 16),
             child: _buildExportButton(docs, isMobile),
           ),
-
-        // Reset Button
         Center(
           child: TextButton.icon(
             onPressed: () {
@@ -1861,7 +1811,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
               });
             },
             icon: const Icon(Icons.refresh_rounded, size: 18),
-            label: const Text('Clear Selection'),
+            label: const Text('Clear selection'),
             style: TextButton.styleFrom(foregroundColor: Colors.grey.shade600),
           ),
         ),
@@ -1874,7 +1824,6 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
     List<QueryDocumentSnapshot> docs,
     bool isMobile,
   ) {
-    // Calculate metrics
     final tickets = docs
         .where((doc) {
           final data = doc.data() as Map<String, dynamic>;
@@ -1908,52 +1857,61 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
         ? (completedTickets / tickets.length * 100).toStringAsFixed(1)
         : '0.0';
 
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: isMobile ? 2 : 4,
-      crossAxisSpacing: 16,
-      mainAxisSpacing: 16,
-      childAspectRatio: isMobile ? 1.3 : 1.5,
-      children: [
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final crossAxisCount = isMobile ? 2 : 4;
+        final availableWidth = constraints.maxWidth;
+        final itemWidth = (availableWidth - (16.0 * (crossAxisCount - 1))) / crossAxisCount;
+        final childAspectRatio = itemWidth / 150.0;
+
+        return GridView.count(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: crossAxisCount,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+          childAspectRatio: childAspectRatio,
+          children: [
         _buildKPICard(
           'Total Tasks',
           totalTickets.toString(),
           Icons.assignment_rounded,
-          Colors.blue,
+          Colors.blue.shade600,
         ),
         _buildKPICard(
           'Completed',
           completedTickets.toString(),
           Icons.check_circle_rounded,
-          Colors.green,
+          Colors.green.shade600,
         ),
         _buildKPICard(
           'Completion Rate',
           '$completionRate%',
           Icons.trending_up_rounded,
-          Colors.orange,
+          Colors.orange.shade600,
         ),
         _buildKPICard(
           'Total Revenue',
           '₹${totalAmount.toStringAsFixed(0)}',
           Icons.currency_rupee_rounded,
-          Colors.purple,
+          Colors.purple.shade600,
         ),
       ],
+    );
+    },
     );
   }
 
   Widget _buildKPICard(String title, String value, IconData icon, Color color) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
             color: color.withValues(alpha: 0.08),
-            blurRadius: 24,
+            blurRadius: 20,
             offset: const Offset(0, 8),
           ),
         ],
@@ -1969,14 +1927,14 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
               color: color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(14),
             ),
-            child: Icon(icon, color: color, size: 24),
+            child: Icon(icon, color: color, size: 22),
           ),
           const Spacer(),
           Text(
             value,
-            style: TextStyle(
-              color: _getContrastColor(Theme.of(context).cardColor),
-              fontSize: 24,
+            style: const TextStyle(
+              color: Colors.black87,
+              fontSize: 26,
               fontWeight: FontWeight.w800,
               letterSpacing: -0.5,
             ),
@@ -1984,8 +1942,10 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
           const SizedBox(height: 4),
           Text(
             title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color: _getContrastColor(Theme.of(context).cardColor).withValues(alpha: 0.6),
+              color: Colors.grey.shade600,
               fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
@@ -2000,17 +1960,24 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
     bool isMobile,
     bool isTablet,
   ) {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: isMobile ? 2 : (isTablet ? 3 : 4),
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-        childAspectRatio: isMobile ? 1.1 : (isTablet ? 1.15 : 1.2),
-      ),
-      itemCount: selectedCounts.length,
-      itemBuilder: (context, index) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final crossAxisCount = isMobile ? 2 : (isTablet ? 3 : 4);
+        final availableWidth = constraints.maxWidth;
+        final itemWidth = (availableWidth - (16.0 * (crossAxisCount - 1))) / crossAxisCount;
+        final childAspectRatio = itemWidth / 165.0;
+
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+            childAspectRatio: childAspectRatio,
+          ),
+          itemCount: selectedCounts.length,
+          itemBuilder: (context, index) {
         final entry = selectedCounts.entries.elementAt(index);
         final status = entry.key;
         final count = entry.value;
@@ -2018,14 +1985,14 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
         final icon = _getStatusIcon(status);
 
         return Container(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Theme.of(context).cardColor,
+            color: Colors.white,
             borderRadius: BorderRadius.circular(24),
             boxShadow: [
               BoxShadow(
                 color: color.withValues(alpha: 0.08),
-                blurRadius: 24,
+                blurRadius: 20,
                 offset: const Offset(0, 8),
               ),
             ],
@@ -2040,37 +2007,36 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                   color: color.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(icon, color: color, size: 24),
+                child: Icon(icon, color: color, size: 26),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               Text(
                 count.toString(),
-                style: TextStyle(
-                  color: _getContrastColor(Theme.of(context).cardColor),
-                  fontSize: 24,
+                style: const TextStyle(
+                  color: Colors.black87,
+                  fontSize: 28,
                   fontWeight: FontWeight.w800,
                   letterSpacing: -0.5,
                 ),
               ),
-              const SizedBox(height: 2),
-              Flexible(
-                child: Text(
-                  status,
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: _getContrastColor(Theme.of(context).cardColor).withValues(alpha: 0.7),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.5,
-                  ),
+              const SizedBox(height: 4),
+              Text(
+                status,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: Colors.grey.shade700,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ],
           ),
         );
       },
+    );
+    },
     );
   }
 
@@ -2096,7 +2062,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
           barrierDismissible: false,
           builder: (context) => AlertDialog(
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(24),
             ),
             content: Column(
               mainAxisSize: MainAxisSize.min,
@@ -2138,24 +2104,24 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                 backgroundColor: Colors.red,
                 behavior: SnackBarBehavior.floating,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
             );
           }
         }
       },
-      icon: Icon(Icons.picture_as_pdf_rounded, size: isMobile ? 18 : 20),
+      icon: Icon(Icons.picture_as_pdf_rounded, size: isMobile ? 20 : 22),
       label: Text(isMobile ? 'PDF' : 'Export PDF Report'),
       style: ElevatedButton.styleFrom(
         backgroundColor: Theme.of(context).primaryColor,
         foregroundColor: Colors.white,
         padding: EdgeInsets.symmetric(
-          horizontal: isMobile ? 20 : 24,
-          vertical: isMobile ? 12 : 16,
+          horizontal: isMobile ? 22 : 28,
+          vertical: isMobile ? 14 : 16,
         ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        elevation: 4,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        elevation: 2,
       ),
     );
   }
@@ -2165,8 +2131,8 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
       width: double.infinity,
       height: 300,
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(24),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
       ),
       child: Center(
         child: Column(
@@ -2177,12 +2143,12 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                 Theme.of(context).primaryColor,
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             Text(
               'Loading performance data...',
               style: TextStyle(
                 color: Colors.grey.shade600,
-                fontSize: isMobile ? 14 : 16,
+                fontSize: isMobile ? 15 : 16,
               ),
             ),
           ],
@@ -2194,28 +2160,28 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
   Widget _buildErrorState(String error) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(32),
+      padding: const EdgeInsets.all(40),
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(24),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
       ),
       child: Column(
         children: [
           Icon(
             Icons.error_outline_rounded,
-            size: 48,
+            size: 56,
             color: Colors.red.shade300,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           Text(
             'Error loading data',
             style: TextStyle(
               color: Colors.red.shade700,
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           Text(
             error,
             textAlign: TextAlign.center,
@@ -2229,48 +2195,54 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
   Widget _buildEmptyState(bool isMobile) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(40),
+      padding: const EdgeInsets.all(48),
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(24),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
       ),
       child: Column(
         children: [
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: Colors.orange.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(
               Icons.inbox_rounded,
-              size: 48,
+              size: 56,
               color: Colors.orange.shade300,
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 28),
           Text(
             'No Reports Found',
             style: TextStyle(
-              fontSize: isMobile ? 18 : 20,
-              fontWeight: FontWeight.w700,
-              color: Colors.grey.shade800,
+              fontSize: isMobile ? 20 : 22,
+              fontWeight: FontWeight.w800,
+              color: Colors.black87,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           Text(
             'Try adjusting your search, filters, or date range',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: Colors.grey.shade600,
-              fontSize: isMobile ? 14 : 16,
+              fontSize: isMobile ? 15 : 16,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
           OutlinedButton.icon(
             onPressed: _resetFilters,
             icon: const Icon(Icons.restart_alt_rounded),
             label: const Text('Clear all filters'),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+            ),
           ),
         ],
       ),
@@ -2369,7 +2341,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
     }
   }
 
-  // Updated PDF Generation - Only Detailed Ticket Analysis section
+  // PDF generation unchanged (preserved functionality)
   Future<pw.Document> _generatePdf(
     String engineerName,
     List<Map<String, dynamic>> tickets,
@@ -2381,6 +2353,9 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
     if (logoUrl != null && logoUrl.isNotEmpty) {
       logoImage = await PdfUtils.fetchNetworkImage(logoUrl);
     }
+
+    final robotoRegular = await PdfGoogleFonts.robotoRegular();
+    final robotoBold = await PdfGoogleFonts.robotoBold();
 
     String formatTimestamp(Timestamp? timestamp) {
       if (timestamp == null) return 'N/A';
@@ -2406,6 +2381,10 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
 
     pdf.addPage(
       pw.MultiPage(
+        theme: pw.ThemeData.withFont(
+          base: robotoRegular,
+          bold: robotoBold,
+        ),
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(25),
         header: (context) {
@@ -2492,7 +2471,6 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
         },
         build: (context) {
           return [
-            // Engineer Information Header
             pw.Container(
               margin: const pw.EdgeInsets.only(bottom: 20),
               padding: const pw.EdgeInsets.all(15),
@@ -2585,8 +2563,6 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                 ],
               ),
             ),
-
-            // Detailed Ticket Analysis Header
             pw.Container(
               margin: const pw.EdgeInsets.only(bottom: 15),
               child: pw.Row(
@@ -2610,8 +2586,6 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                 ],
               ),
             ),
-
-            // Tickets Table
             if (tickets.isEmpty)
               pw.Center(
                 child: pw.Container(
@@ -2716,7 +2690,6 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
     return pdf;
   }
 
-  // Helper methods for PDF (kept for reference)
   String _getStatusAbbr(String status) {
     final lower = status.toLowerCase();
     if (lower.contains("complete")) return "COMP";
@@ -2756,11 +2729,5 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
     }
     if (lower.contains("hold")) return const Color(0xFF9E9E9E);
     return Colors.blueGrey;
-  }
-
-  Color _getContrastColor(Color backgroundColor) {
-    return backgroundColor.computeLuminance() > 0.5
-        ? Colors.black87
-        : Colors.white;
   }
 }
