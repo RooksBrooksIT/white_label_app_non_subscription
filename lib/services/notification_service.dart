@@ -4,7 +4,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/utils/logger_util.dart';
-import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform;
 
 // Top-level background message handler
 @pragma('vm:entry-point')
@@ -66,31 +66,36 @@ class NotificationService {
 
   Future<void> initialize() async {
     LoggerUtil.i("Initializing NotificationService...");
-    // 1. Request permissions (Skip on Windows)
-    if (!Platform.isWindows) {
-      NotificationSettings settings = await _fcm.requestPermission(
-        alert: true,
-        announcement: false,
-        badge: true,
-        carPlay: false,
-        criticalAlert: false,
-        provisional: false,
-        sound: true,
-      );
 
-      LoggerUtil.i('User granted permission: ${settings.authorizationStatus}');
+    // Skip FCM and local notifications on web - they're not supported
+    if (kIsWeb) {
+      LoggerUtil.i(
+        "Running on web, skipping FCM and local notifications initialization",
+      );
+      return;
     }
 
-    if (Platform.isAndroid) {
-      // Request Android 13+ notification permissions
-      final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
-          _localNotifications
-              .resolvePlatformSpecificImplementation<
-                AndroidFlutterLocalNotificationsPlugin
-              >();
-      if (androidImplementation != null) {
-        await androidImplementation.requestNotificationsPermission();
-      }
+    // 1. Request permissions
+    NotificationSettings settings = await _fcm.requestPermission(
+      alert: true,
+      announcement: false,
+      badge: true,
+      carPlay: false,
+      criticalAlert: false,
+      provisional: false,
+      sound: true,
+    );
+
+    LoggerUtil.i('User granted permission: ${settings.authorizationStatus}');
+
+    // Request Android 13+ notification permissions
+    final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
+        _localNotifications
+            .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin
+            >();
+    if (androidImplementation != null) {
+      await androidImplementation.requestNotificationsPermission();
     }
 
     // 2. Setup High Importance Channel for Android
@@ -102,12 +107,6 @@ class NotificationService {
       playSound: true,
       enableVibration: true,
     );
-
-    final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
-        _localNotifications
-            .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin
-            >();
 
     if (androidImplementation != null) {
       await androidImplementation.createNotificationChannel(channel);
@@ -141,46 +140,44 @@ class NotificationService {
     }
 
     // 4. Set up iOS Foreground Presentation Options, 5. Foreground handling, 6. App opened, 7. Get token
-    if (!Platform.isWindows) {
-      await _fcm.setForegroundNotificationPresentationOptions(
-        alert: true,
-        badge: true,
-        sound: true,
+    await _fcm.setForegroundNotificationPresentationOptions(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+
+    // 5. Set up Foreground handling
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      LoggerUtil.i(
+        "Foreground message received: ${message.notification?.title}",
       );
+      _showLocalNotification(message);
+    });
 
-      // 5. Set up Foreground handling
-      FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-        LoggerUtil.i(
-          "Foreground message received: ${message.notification?.title}",
-        );
-        _showLocalNotification(message);
-      });
+    // 6. Handle app opened from notification (Background state)
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      LoggerUtil.i(
+        "App opened from notification (background): ${message.notification?.title}",
+      );
+      _handleNotificationResponse(message.data.toString());
+    });
 
-      // 6. Handle app opened from notification (Background state)
-      FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+    // 7. Handle app opened from notification (Terminated state)
+    _fcm.getInitialMessage().then((RemoteMessage? message) {
+      if (message != null) {
         LoggerUtil.i(
-          "App opened from notification (background): ${message.notification?.title}",
+          "App opened from notification (terminated): ${message.notification?.title}",
         );
         _handleNotificationResponse(message.data.toString());
-      });
-
-      // 7. Handle app opened from notification (Terminated state)
-      _fcm.getInitialMessage().then((RemoteMessage? message) {
-        if (message != null) {
-          LoggerUtil.i(
-            "App opened from notification (terminated): ${message.notification?.title}",
-          );
-          _handleNotificationResponse(message.data.toString());
-        }
-      });
-
-      // 8. Get initial token
-      try {
-        String? token = await _fcm.getToken();
-        LoggerUtil.d("FCM Token on init: $token");
-      } catch (e) {
-        LoggerUtil.w("FCM token unavailable (will retry): $e");
       }
+    });
+
+    // 8. Get initial token
+    try {
+      String? token = await _fcm.getToken();
+      LoggerUtil.d("FCM Token on init: $token");
+    } catch (e) {
+      LoggerUtil.w("FCM token unavailable (will retry): $e");
     }
   }
 
@@ -376,10 +373,8 @@ class NotificationService {
     String email = '',
   }) async {
     try {
-      if (Platform.isWindows) {
-        LoggerUtil.i(
-          "Skipping FCM token registration on Windows (not supported).",
-        );
+      if (kIsWeb) {
+        LoggerUtil.i("Skipping FCM token registration on web (not supported).");
         return;
       }
 
@@ -405,6 +400,8 @@ class NotificationService {
           .path;
       LoggerUtil.d("Full Firestore Path: $docPath");
 
+      String platform = defaultTargetPlatform.name;
+
       await FirestoreService.instance
           .collection('notifications_tokens')
           .doc(role)
@@ -414,7 +411,7 @@ class NotificationService {
             'token': token,
             'email': email,
             'lastUpdated': FieldValue.serverTimestamp(),
-            'platform': Platform.operatingSystem,
+            'platform': platform,
           }, SetOptions(merge: true))
           .then(
             (_) => LoggerUtil.i("Token registered SUCCESSFULLY at $docPath"),

@@ -578,4 +578,108 @@ class FirestoreService {
     }
     return null;
   }
+
+  /// Logs payment transaction details to the centralized 'payment_logs' collection
+  /// and the user's tenant-specific 'payment_logs' subcollection.
+  Future<void> logPaymentTransaction({
+    required String txnId,
+    required String uidOrMobile,
+    required String planName,
+    required int amount,
+    required String status,
+    bool isYearly = false,
+    bool isSixMonths = false,
+    String? failureReason,
+    bool registrationCompleted = false,
+    bool firestoreSynced = false,
+    String? tenantId,
+    String? customerName,
+    String? customerEmail,
+    String? customerMobile,
+    Map<String, dynamic>? gatewayResponse,
+  }) async {
+    try {
+      // 1. Log to the centralized global collection
+      final docRef = _db.collection('payment_logs').doc(txnId);
+      final docSnapshot = await docRef.get();
+      
+      final data = {
+        'transactionId': txnId,
+        'userIdOrMobile': uidOrMobile,
+        'planName': planName,
+        'amount': amount,
+        'status': status,
+        'isYearly': isYearly,
+        'isSixMonths': isSixMonths,
+        if (failureReason != null) 'failureReason': failureReason,
+        'timestamp': FieldValue.serverTimestamp(),
+        'registrationCompleted': registrationCompleted,
+        'firestoreSynced': firestoreSynced,
+      };
+
+      if (!docSnapshot.exists) {
+        // Initialize invoice fields only on creation
+        data['invoiceSent'] = false;
+        data['invoiceStatus'] = 'Pending';
+      }
+
+      await docRef.set(data, SetOptions(merge: true));
+
+      // 2. Log to user's tenant-specific payment_logs subcollection
+      final effectiveTenant = tenantId ?? ThemeService.instance.databaseName;
+      if (effectiveTenant.isNotEmpty) {
+        final userLogRef = _db
+            .collection(effectiveTenant)
+            .doc('data')
+            .collection('payment_logs')
+            .doc(txnId);
+
+        final userLogData = {
+          'transactionId': txnId,
+          'orderId': txnId,
+          'amount': amount,
+          'currency': 'INR',
+          'paymentStatus': status,
+          'paymentMethod': gatewayResponse?['paymentMode'] ?? gatewayResponse?['paymentMethod'] ?? 'Unknown',
+          'customerName': customerName ?? 'Customer',
+          'customerEmail': customerEmail ?? '',
+          'customerMobile': customerMobile ?? '',
+          'gatewayResponse': gatewayResponse ?? {},
+          'createdAt': FieldValue.serverTimestamp(),
+          'planName': planName,
+          'userIdOrMobile': uidOrMobile,
+        };
+
+        await userLogRef.set(userLogData, SetOptions(merge: true));
+      }
+    } catch (e) {
+      debugPrint('Error logging payment transaction: $e');
+    }
+  }
+
+  /// Updates invoice delivery status in payment_logs.
+  Future<void> updateInvoiceStatus(
+    String txnId, {
+    String? invoiceNumber,
+    String? status,
+    bool? invoiceSent,
+    DateTime? invoiceSentAt,
+  }) async {
+    try {
+      final docRef = _db.collection('payment_logs').doc(txnId);
+      final updates = <String, dynamic>{};
+      
+      if (invoiceNumber != null) updates['invoiceNumber'] = invoiceNumber;
+      if (status != null) updates['invoiceStatus'] = status;
+      if (invoiceSent != null) updates['invoiceSent'] = invoiceSent;
+      if (invoiceSentAt != null) updates['invoiceSentAt'] = invoiceSentAt.toIso8601String();
+      
+      if (updates.isNotEmpty) {
+        await docRef.update(updates);
+      }
+    } catch (e) {
+      debugPrint('Error updating invoice status for $txnId: $e');
+    }
+  }
 }
+

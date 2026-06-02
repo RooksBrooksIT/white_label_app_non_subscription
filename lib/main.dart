@@ -9,6 +9,7 @@ import 'package:subscription_rooks_app/services/notification_service.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:subscription_rooks_app/services/subscription_expiry_service.dart';
+import 'package:subscription_rooks_app/services/invoice_email_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -40,6 +41,11 @@ Future<void> main() async {
 
   // Initialize Subscription Expiry Service
   SubscriptionExpiryService.instance.initialize();
+
+  // Retry any pending invoice emails in the background (fire-and-forget)
+  InvoiceEmailService.instance.retryPendingInvoices().catchError((e) {
+    debugPrint('Background invoice retry failed: $e');
+  });
 
   runApp(const MyApp());
 }

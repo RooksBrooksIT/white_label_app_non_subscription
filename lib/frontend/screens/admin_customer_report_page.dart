@@ -19,36 +19,54 @@ class CustomerReportGenerator extends StatefulWidget {
       _CustomerReportGeneratorState();
 }
 
-class _CustomerReportGeneratorState extends State<CustomerReportGenerator> {
+class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
+    with SingleTickerProviderStateMixin {
   final TextEditingController _controller = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
   Map<String, dynamic>? resultData;
   List<Map<String, dynamic>>? multipleResults;
   bool _loading = false;
   bool _isPdfViewing = false;
   bool _isPdfDownloading = false;
-  String _debugInfo = '';
+  late AnimationController _animController;
+  late Animation<double> _fadeAnim;
+  late Animation<Offset> _slideAnim;
 
-  static const Color _reportBrand = Color(0xFF0B3470);
+  Color get _brand => ThemeService.instance.primaryColor;
+  Color get _brandLight => ThemeService.instance.primaryColor.withOpacity(0.1);
+  Color get _accent => ThemeService.instance.secondaryColor;
 
   @override
   void initState() {
     super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+    _fadeAnim = CurvedAnimation(parent: _animController, curve: Curves.easeOut);
+    _slideAnim = Tween<Offset>(
+      begin: const Offset(0, 0.08),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _animController, curve: Curves.easeOut));
   }
 
-  // Track selected rows for multiple results
+  @override
+  void dispose() {
+    _animController.dispose();
+    _controller.dispose();
+    _searchFocusNode.dispose();
+    super.dispose();
+  }
+
   final Map<int, bool> _selectedRows = {};
   bool _allSelected = false;
 
-  Color get primaryColor => Theme.of(context).primaryColor;
+  Color get primaryColor => _brand;
 
   Future<void> _fetchData(String input) async {
     if (input.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Please enter Customer ID, Phone, or Booking ID'),
-          backgroundColor: Colors.orange,
-        ),
-      );
+      _showSnack('Please enter Customer ID, Phone, or Booking ID',
+          color: Colors.orange);
       return;
     }
 
@@ -58,13 +76,10 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator> {
       multipleResults = null;
       _selectedRows.clear();
       _allSelected = false;
-      _debugInfo = 'Searching for: "$input"';
     });
+    _animController.reset();
 
     try {
-      print('Searching for: $input');
-
-      // Try searching in all three fields
       final List<QuerySnapshot> snapshots = await Future.wait([
         FirestoreService.instance
             .collection('Admin_details')
@@ -81,95 +96,51 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator> {
       ]);
 
       if (snapshots[1].docs.isNotEmpty) {
-        // Found multiple entries by mobileNumber
         multipleResults = snapshots[1].docs
             .map((doc) => doc.data() as Map<String, dynamic>)
             .toList();
-
-        // Initialize all checkboxes as unselected
         for (int i = 0; i < multipleResults!.length; i++) {
           _selectedRows[i] = false;
         }
-
-        setState(() {
-          _debugInfo =
-              'Found ${multipleResults!.length} results for mobileNumber: $input';
-          resultData = null;
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Found ${multipleResults!.length} entries for Mobile Number',
-            ),
-            backgroundColor: Colors.green,
-          ),
-        );
+        setState(() {});
+        _animController.forward();
+        _showSnack(
+            'Found ${multipleResults!.length} entries for Mobile Number',
+            color: Colors.green);
       } else {
-        // Check for id or bookingId match (only single record)
         QuerySnapshot? foundSnapshot;
-        String foundInField = '';
-
         for (int i in [0, 2]) {
           if (snapshots[i].docs.isNotEmpty) {
             foundSnapshot = snapshots[i];
-            foundInField = (i == 0) ? 'Id' : 'BookingId';
             break;
           }
         }
-
         if (foundSnapshot != null) {
-          final data = foundSnapshot.docs.first.data() as Map<String, dynamic>;
-          setState(() {
-            resultData = data;
-            multipleResults = null;
-            _selectedRows.clear();
-            _allSelected = false;
-            // _debugInfo =
-            //     'Found in field: $foundInField\nTotal fields: ${data.length}';
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Data found successfully!'),
-              backgroundColor: Colors.green,
-            ),
-          );
+          final data =
+              foundSnapshot.docs.first.data() as Map<String, dynamic>;
+          setState(() => resultData = data);
+          _animController.forward();
+          _showSnack('Record found!', color: Colors.green);
         } else {
-          setState(() {
-            resultData = null;
-            multipleResults = null;
-            _selectedRows.clear();
-            _allSelected = false;
-            _debugInfo =
-                'No documents found in any field\nSearched: Id, MobileNumber, BookingId';
-          });
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('No data found for "$input"'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          setState(() {});
+          _showSnack('No data found for "$input"', color: Colors.red);
         }
       }
     } catch (e) {
-      print('Error: $e');
-      setState(() {
-        resultData = null;
-        multipleResults = null;
-        _selectedRows.clear();
-        _allSelected = false;
-        _debugInfo = 'Error: $e';
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-      );
+      _showSnack('Error: $e', color: Colors.red);
     } finally {
-      setState(() {
-        _loading = false;
-      });
+      setState(() => _loading = false);
     }
+  }
+
+  void _showSnack(String msg, {Color color = Colors.blueGrey}) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg),
+      backgroundColor: color,
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      margin: const EdgeInsets.all(16),
+    ));
   }
 
   void _toggleAllSelection() {
@@ -186,80 +157,58 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator> {
   void _toggleRowSelection(int index) {
     setState(() {
       _selectedRows[index] = !(_selectedRows[index] ?? false);
-
-      // Update "Select All" checkbox state
       if (multipleResults != null) {
-        _allSelected = _selectedRows.values.every((isSelected) => isSelected);
+        _allSelected = _selectedRows.values.every((v) => v);
       }
     });
   }
 
   List<Map<String, dynamic>> _getSelectedRecords() {
     if (multipleResults != null) {
-      List<Map<String, dynamic>> selected = [];
-      for (int i = 0; i < multipleResults!.length; i++) {
-        if (_selectedRows[i] == true) {
-          selected.add(multipleResults![i]);
-        }
-      }
-      return selected;
+      return [
+        for (int i = 0; i < multipleResults!.length; i++)
+          if (_selectedRows[i] == true) multipleResults![i]
+      ];
     } else if (resultData != null) {
       return [resultData!];
     }
     return [];
   }
 
-  int get _selectedCount {
-    return _selectedRows.values.where((isSelected) => isSelected).length;
-  }
+  int get _selectedCount =>
+      _selectedRows.values.where((v) => v).length;
 
   bool get _canExportReport {
     if (resultData != null) return true;
-    if (multipleResults != null && multipleResults!.isNotEmpty) {
-      return _selectedCount > 0;
-    }
-    return false;
+    return multipleResults != null && _selectedCount > 0;
   }
 
   List<Map<String, dynamic>> get _displayRecords {
-    if (multipleResults != null) {
-      return multipleResults!;
-    }
-    if (resultData != null) {
-      return [resultData!];
-    }
+    if (multipleResults != null) return multipleResults!;
+    if (resultData != null) return [resultData!];
     return [];
   }
 
-  String _formatDisplayAmount(dynamic amount) {
-    if (amount == null) return 'N/A';
-    final parsed = double.tryParse(amount.toString());
-    if (parsed == null) return amount.toString();
-    if (parsed == parsed.roundToDouble()) {
-      return '₹${parsed.toInt()}';
-    }
-    return '₹${parsed.toStringAsFixed(2)}';
+  String _fmt(dynamic v) {
+    final t = v?.toString().trim();
+    return (t == null || t.isEmpty) ? 'N/A' : t;
   }
 
-  double _totalDisplayAmount(List<Map<String, dynamic>> records) {
-    var total = 0.0;
-    for (final record in records) {
-      total += double.tryParse(record['amount']?.toString() ?? '') ?? 0;
-    }
-    return total;
+  String _fmtAmount(dynamic a) {
+    if (a == null) return 'N/A';
+    final p = double.tryParse(a.toString());
+    if (p == null) return a.toString();
+    return p == p.roundToDouble() ? '₹${p.toInt()}' : '₹${p.toStringAsFixed(2)}';
   }
 
-  String _fieldValue(dynamic value) {
-    final text = value?.toString().trim();
-    if (text == null || text.isEmpty) return 'N/A';
-    return text;
-  }
+  double _totalAmount(List<Map<String, dynamic>> records) =>
+      records.fold(0.0, (s, r) => s + (double.tryParse(r['amount']?.toString() ?? '') ?? 0));
 
   String _reportPdfName(List<Map<String, dynamic>> records) {
     final stamp = DateFormat('yyyyMMdd_HHmm').format(DateTime.now());
     String name;
     if (records.length == 1) {
-      final id = _fieldValue(records.first['bookingId']);
+      final id = _fmt(records.first['bookingId']);
       name = id != 'N/A' ? 'Customer_Report_$id' : 'Customer_Report_$stamp';
     } else {
       name = 'Customer_Report_${records.length}_$stamp';
@@ -267,444 +216,13 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator> {
     return name.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
   }
 
-  void _showPdfMessage(String message, {bool isError = false, String? openPath}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        backgroundColor: isError ? Colors.red.shade700 : Colors.green.shade700,
-        content: Text(message),
-        action: openPath != null
-            ? SnackBarAction(
-                label: 'Open',
-                textColor: Colors.white,
-                onPressed: () => OpenFile.open(openPath),
-              )
-            : null,
-      ),
-    );
-  }
+  // ─── PDF generation ────────────────────────────────────────────────────────
 
-  static final PdfColor _pdfBrand = PdfColor.fromInt(0xFF0B3470);
-  static final PdfColor _pdfBrandLight = PdfColor.fromInt(0xFFE8EEF5);
-
-  String _pdfFieldValue(dynamic value) {
-    final text = value?.toString().trim();
-    if (text == null || text.isEmpty) return 'N/A';
-    return text;
-  }
-
-  String _pdfFormatAmount(dynamic amount) {
-    if (amount == null) return 'N/A';
-    final parsed = double.tryParse(amount.toString());
-    if (parsed == null) return amount.toString();
-    if (parsed == parsed.roundToDouble()) {
-      return '₹${parsed.toInt()}';
-    }
-    return '₹${parsed.toStringAsFixed(2)}';
-  }
-
-  double _pdfTotalAmount(List<Map<String, dynamic>> records) {
-    var total = 0.0;
-    for (final record in records) {
-      total += double.tryParse(record['amount']?.toString() ?? '') ?? 0;
-    }
-    return total;
-  }
-
-  pw.Widget _pdfPageHeader(
-    pw.MemoryImage? logoImage,
-    String appName,
-    String generatedAt,
-  ) {
-    return pw.Container(
-      margin: const pw.EdgeInsets.only(bottom: 16),
-      padding: const pw.EdgeInsets.only(bottom: 12),
-      decoration: const pw.BoxDecoration(
-        border: pw.Border(
-          bottom: pw.BorderSide(color: PdfColors.grey300, width: 1),
-        ),
-      ),
-      child: pw.Row(
-        crossAxisAlignment: pw.CrossAxisAlignment.center,
-        children: [
-          if (logoImage != null)
-            pw.Container(
-              width: 48,
-              height: 48,
-              margin: const pw.EdgeInsets.only(right: 14),
-              child: pw.Image(logoImage, fit: pw.BoxFit.contain),
-            ),
-          pw.Expanded(
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                pw.Text(
-                  'CUSTOMER SERVICE REPORT',
-                  style: pw.TextStyle(
-                    fontSize: 15,
-                    fontWeight: pw.FontWeight.bold,
-                    color: _pdfBrand,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                pw.SizedBox(height: 3),
-                pw.Text(
-                  appName,
-                  style: const pw.TextStyle(
-                    fontSize: 10,
-                    color: PdfColors.grey700,
-                  ),
-                ),
-                pw.SizedBox(height: 2),
-                pw.Text(
-                  'Generated: $generatedAt',
-                  style: const pw.TextStyle(
-                    fontSize: 8,
-                    color: PdfColors.grey600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          pw.Container(
-            padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-            decoration: pw.BoxDecoration(
-              color: _pdfBrand,
-              borderRadius: pw.BorderRadius.circular(4),
-            ),
-            child: pw.Text(
-              'INTERNAL',
-              style: pw.TextStyle(
-                fontSize: 7,
-                fontWeight: pw.FontWeight.bold,
-                color: PdfColors.white,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  pw.Widget _pdfPageFooter(pw.Context context, String appName) {
-    return pw.Container(
-      margin: const pw.EdgeInsets.only(top: 12),
-      padding: const pw.EdgeInsets.only(top: 8),
-      decoration: const pw.BoxDecoration(
-        border: pw.Border(
-          top: pw.BorderSide(color: PdfColors.grey300, width: 0.5),
-        ),
-      ),
-      child: pw.Row(
-        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-        children: [
-          pw.Text(
-            appName,
-            style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600),
-          ),
-          pw.Text(
-            'Page ${context.pageNumber} of ${context.pagesCount}',
-            style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600),
-          ),
-          pw.Text(
-            'Confidential — internal use only',
-            style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600),
-          ),
-        ],
-      ),
-    );
-  }
-
-  pw.Widget _pdfSectionHeading(String title) {
-    return pw.Container(
-      width: double.infinity,
-      margin: const pw.EdgeInsets.only(bottom: 8),
-      padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: pw.BoxDecoration(
-        color: _pdfBrandLight,
-        borderRadius: pw.BorderRadius.circular(4),
-        border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
-      ),
-      child: pw.Text(
-        title,
-        style: pw.TextStyle(
-          fontSize: 10,
-          fontWeight: pw.FontWeight.bold,
-          color: _pdfBrand,
-        ),
-      ),
-    );
-  }
-
-  pw.Widget _pdfDetailRow(String label, String value, {bool emphasize = false}) {
-    return pw.Padding(
-      padding: const pw.EdgeInsets.only(bottom: 6),
-      child: pw.Row(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.SizedBox(
-            width: 118,
-            child: pw.Text(
-              label,
-              style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700),
-            ),
-          ),
-          pw.Expanded(
-            child: pw.Text(
-              value,
-              style: pw.TextStyle(
-                fontSize: 9,
-                fontWeight:
-                    emphasize ? pw.FontWeight.bold : pw.FontWeight.normal,
-                color: emphasize ? _pdfBrand : PdfColors.black,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  pw.Widget _pdfSummaryBox(
-    List<Map<String, dynamic>> records,
-    int? totalInSearch,
-  ) {
-    final totalAmount = _pdfTotalAmount(records);
-    return pw.Container(
-      width: double.infinity,
-      padding: const pw.EdgeInsets.all(14),
-      decoration: pw.BoxDecoration(
-        color: _pdfBrandLight,
-        borderRadius: pw.BorderRadius.circular(6),
-        border: pw.Border.all(color: _pdfBrand, width: 0.8),
-      ),
-      child: pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.Text(
-            'Report summary',
-            style: pw.TextStyle(
-              fontSize: 11,
-              fontWeight: pw.FontWeight.bold,
-              color: _pdfBrand,
-            ),
-          ),
-          pw.SizedBox(height: 10),
-          pw.Row(
-            children: [
-              pw.Expanded(
-                child: _pdfSummaryMetric(
-                  'Records in report',
-                  records.length.toString(),
-                ),
-              ),
-              pw.Expanded(
-                child: _pdfSummaryMetric(
-                  'Combined amount',
-                  _pdfFormatAmount(totalAmount),
-                ),
-              ),
-              if (totalInSearch != null)
-                pw.Expanded(
-                  child: _pdfSummaryMetric(
-                    'From search results',
-                    '$totalInSearch total',
-                  ),
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  pw.Widget _pdfSummaryMetric(String label, String value) {
-    return pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
-      children: [
-        pw.Text(
-          label,
-          style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
-        ),
-        pw.SizedBox(height: 3),
-        pw.Text(
-          value,
-          style: pw.TextStyle(
-            fontSize: 11,
-            fontWeight: pw.FontWeight.bold,
-            color: _pdfBrand,
-          ),
-        ),
-      ],
-    );
-  }
-
-  pw.Widget _pdfQuickIndex(List<Map<String, dynamic>> records) {
-    return pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
-      children: [
-        _pdfSectionHeading('Quick reference — find a record'),
-        pw.Table(
-          border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.5),
-          columnWidths: {
-            0: const pw.FixedColumnWidth(28),
-            1: const pw.FlexColumnWidth(1.2),
-            2: const pw.FlexColumnWidth(2),
-            3: const pw.FlexColumnWidth(1.5),
-            4: const pw.FlexColumnWidth(1.2),
-          },
-          children: [
-            pw.TableRow(
-              decoration: pw.BoxDecoration(color: _pdfBrand),
-              children: [
-                _pdfIndexCell('#', header: true),
-                _pdfIndexCell('ID', header: true),
-                _pdfIndexCell('Customer', header: true),
-                _pdfIndexCell('Booking ID', header: true),
-                _pdfIndexCell('Status', header: true),
-              ],
-            ),
-            ...List.generate(records.length, (i) {
-              final record = records[i];
-              final shaded = i.isOdd;
-              return pw.TableRow(
-                decoration: pw.BoxDecoration(
-                  color: shaded ? PdfColors.grey100 : PdfColors.white,
-                ),
-                children: [
-                  _pdfIndexCell('${i + 1}'),
-                  _pdfIndexCell(_pdfFieldValue(record['id'])),
-                  _pdfIndexCell(_pdfFieldValue(record['customerName'])),
-                  _pdfIndexCell(_pdfFieldValue(record['bookingId'])),
-                  _pdfIndexCell(_pdfFieldValue(record['adminStatus'])),
-                ],
-              );
-            }),
-          ],
-        ),
-        pw.SizedBox(height: 4),
-        pw.Text(
-          'Full details for each record are listed in the sections below.',
-          style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600),
-        ),
-      ],
-    );
-  }
-
-  pw.Widget _pdfIndexCell(String text, {bool header = false}) {
-    return pw.Padding(
-      padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 7),
-      child: pw.Text(
-        text,
-        style: pw.TextStyle(
-          fontSize: header ? 8 : 8,
-          fontWeight: header ? pw.FontWeight.bold : pw.FontWeight.normal,
-          color: header ? PdfColors.white : PdfColors.black,
-        ),
-        maxLines: 2,
-      ),
-    );
-  }
-
-  pw.Widget _pdfRecordCard(
-    Map<String, dynamic> record,
-    int index,
-    int total,
-  ) {
-    return pw.Container(
-      width: double.infinity,
-      padding: const pw.EdgeInsets.all(14),
-      decoration: pw.BoxDecoration(
-        border: pw.Border.all(color: PdfColors.grey400, width: 0.8),
-        borderRadius: pw.BorderRadius.circular(6),
-      ),
-      child: pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.Row(
-            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Text(
-                'Record $index of $total',
-                style: pw.TextStyle(
-                  fontSize: 12,
-                  fontWeight: pw.FontWeight.bold,
-                  color: _pdfBrand,
-                ),
-              ),
-              pw.Container(
-                padding: const pw.EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: pw.BoxDecoration(
-                  color: _pdfBrand,
-                  borderRadius: pw.BorderRadius.circular(12),
-                ),
-                child: pw.Text(
-                  _pdfFieldValue(record['adminStatus']),
-                  style: pw.TextStyle(
-                    fontSize: 8,
-                    fontWeight: pw.FontWeight.bold,
-                    color: PdfColors.white,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          pw.SizedBox(height: 4),
-          pw.Text(
-            'Booking: ${_pdfFieldValue(record['bookingId'])}',
-            style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700),
-          ),
-          pw.SizedBox(height: 12),
-          pw.Divider(color: PdfColors.grey300, height: 1),
-          pw.SizedBox(height: 10),
-          _pdfSectionHeading('Customer details'),
-          _pdfDetailRow('Customer ID', _pdfFieldValue(record['id'])),
-          _pdfDetailRow('Name', _pdfFieldValue(record['customerName'])),
-          _pdfDetailRow('Mobile', _pdfFieldValue(record['mobileNumber'])),
-          _pdfDetailRow('Booking ID', _pdfFieldValue(record['bookingId'])),
-          pw.SizedBox(height: 6),
-          _pdfSectionHeading('Device details'),
-          pw.Row(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Expanded(
-                child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    _pdfDetailRow('Brand', _pdfFieldValue(record['deviceBrand'])),
-                    _pdfDetailRow('Type', _pdfFieldValue(record['deviceType'])),
-                  ],
-                ),
-              ),
-              pw.Expanded(
-                child: _pdfDetailRow(
-                  'Condition',
-                  _pdfFieldValue(record['deviceCondition']),
-                ),
-              ),
-            ],
-          ),
-          pw.SizedBox(height: 6),
-          _pdfSectionHeading('Service & billing'),
-          _pdfDetailRow(
-            'Amount',
-            _pdfFormatAmount(record['amount']),
-            emphasize: true,
-          ),
-          _pdfDetailRow('Service address', _pdfFieldValue(record['address'])),
-        ],
-      ),
-    );
-  }
+  PdfColor get _pdfBrand => PdfColor.fromInt(ThemeService.instance.primaryColor.value);
+  PdfColor get _pdfBrandLight => PdfColor.fromInt(ThemeService.instance.primaryColor.withOpacity(0.1).value);
 
   Future<pw.Document> _buildPdfDocument(
-    List<Map<String, dynamic>> selectedRecords,
-  ) async {
+      List<Map<String, dynamic>> records) async {
     final pdf = pw.Document();
     final appName = ThemeService.instance.appName;
     final generatedAt = DateFormat('dd MMM yyyy, HH:mm').format(DateTime.now());
@@ -719,738 +237,437 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator> {
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.symmetric(horizontal: 32, vertical: 28),
-        header: (context) => _pdfPageHeader(logoImage, appName, generatedAt),
-        footer: (context) => _pdfPageFooter(context, appName),
-        build: (context) {
-          final sections = <pw.Widget>[
-            _pdfSummaryBox(selectedRecords, multipleResults?.length),
+        header: (ctx) => _pdfHeader(logoImage, appName, generatedAt),
+        footer: (ctx) => _pdfFooter(ctx, appName),
+        build: (ctx) {
+          final widgets = <pw.Widget>[
+            _pdfSummaryBox(records),
           ];
-
-          if (selectedRecords.length > 1) {
-            sections.add(pw.SizedBox(height: 18));
-            sections.add(_pdfQuickIndex(selectedRecords));
+          if (records.length > 1) {
+            widgets
+              ..add(pw.SizedBox(height: 18))
+              ..add(_pdfIndex(records));
           }
-
-          for (var i = 0; i < selectedRecords.length; i++) {
-            sections.add(pw.SizedBox(height: 18));
-            sections.add(
-              _pdfRecordCard(selectedRecords[i], i + 1, selectedRecords.length),
-            );
+          for (var i = 0; i < records.length; i++) {
+            widgets
+              ..add(pw.SizedBox(height: 18))
+              ..add(_pdfCard(records[i], i + 1, records.length));
           }
-
-          return sections;
+          return widgets;
         },
       ),
     );
-
     return pdf;
   }
 
-  Future<void> _viewReportPdf() async {
-    final selectedRecords = _getSelectedRecords();
-    if (selectedRecords.isEmpty) {
-      _showPdfMessage(
-        'Please select at least one record to view the report',
-        isError: true,
+  pw.Widget _pdfHeader(
+      pw.MemoryImage? logo, String appName, String generatedAt) {
+    return pw.Container(
+      margin: const pw.EdgeInsets.only(bottom: 16),
+      padding: const pw.EdgeInsets.only(bottom: 12),
+      decoration: const pw.BoxDecoration(
+        border: pw.Border(
+            bottom: pw.BorderSide(color: PdfColors.grey300, width: 1)),
+      ),
+      child: pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.center,
+        children: [
+          if (logo != null)
+            pw.Container(
+              width: 48,
+              height: 48,
+              margin: const pw.EdgeInsets.only(right: 14),
+              child: pw.Image(logo, fit: pw.BoxFit.contain),
+            ),
+          pw.Expanded(
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text('CUSTOMER SERVICE REPORT',
+                    style: pw.TextStyle(
+                        fontSize: 15,
+                        fontWeight: pw.FontWeight.bold,
+                        color: _pdfBrand,
+                        letterSpacing: 0.5)),
+                pw.SizedBox(height: 3),
+                pw.Text(appName,
+                    style: const pw.TextStyle(
+                        fontSize: 10, color: PdfColors.grey700)),
+                pw.SizedBox(height: 2),
+                pw.Text('Generated: $generatedAt',
+                    style: const pw.TextStyle(
+                        fontSize: 8, color: PdfColors.grey600)),
+              ],
+            ),
+          ),
+          pw.Container(
+            padding:
+                const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            decoration: pw.BoxDecoration(
+              color: _pdfBrand,
+              borderRadius: pw.BorderRadius.circular(4),
+            ),
+            child: pw.Text('INTERNAL',
+                style: pw.TextStyle(
+                    fontSize: 7,
+                    fontWeight: pw.FontWeight.bold,
+                    color: PdfColors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _pdfFooter(pw.Context ctx, String appName) {
+    return pw.Container(
+      margin: const pw.EdgeInsets.only(top: 12),
+      padding: const pw.EdgeInsets.only(top: 8),
+      decoration: const pw.BoxDecoration(
+        border: pw.Border(
+            top: pw.BorderSide(color: PdfColors.grey300, width: 0.5)),
+      ),
+      child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        children: [
+          pw.Text(appName,
+              style: const pw.TextStyle(
+                  fontSize: 8, color: PdfColors.grey600)),
+          pw.Text('Page ${ctx.pageNumber} of ${ctx.pagesCount}',
+              style: const pw.TextStyle(
+                  fontSize: 8, color: PdfColors.grey600)),
+          pw.Text('Confidential — internal use only',
+              style: const pw.TextStyle(
+                  fontSize: 8, color: PdfColors.grey600)),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _pdfSummaryBox(List<Map<String, dynamic>> records) {
+    final total = _totalAmount(records);
+    return pw.Container(
+      width: double.infinity,
+      padding: const pw.EdgeInsets.all(14),
+      decoration: pw.BoxDecoration(
+        color: _pdfBrandLight,
+        borderRadius: pw.BorderRadius.circular(6),
+        border: pw.Border.all(color: _pdfBrand, width: 0.8),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text('Report Summary',
+              style: pw.TextStyle(
+                  fontSize: 11,
+                  fontWeight: pw.FontWeight.bold,
+                  color: _pdfBrand)),
+          pw.SizedBox(height: 10),
+          pw.Row(
+            children: [
+              pw.Expanded(
+                  child: _pdfMetric('Records', records.length.toString())),
+              pw.Expanded(
+                  child: _pdfMetric('Combined Amount', _fmtAmount(total))),
+              if (multipleResults != null)
+                pw.Expanded(
+                    child: _pdfMetric(
+                        'From Search', '${multipleResults!.length} total')),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _pdfMetric(String label, String value) => pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(label,
+              style: const pw.TextStyle(
+                  fontSize: 8, color: PdfColors.grey700)),
+          pw.SizedBox(height: 3),
+          pw.Text(value,
+              style: pw.TextStyle(
+                  fontSize: 11,
+                  fontWeight: pw.FontWeight.bold,
+                  color: _pdfBrand)),
+        ],
       );
+
+  pw.Widget _pdfIndex(List<Map<String, dynamic>> records) {
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        _pdfHeading('Quick Reference'),
+        pw.Table(
+          border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.5),
+          columnWidths: {
+            0: const pw.FixedColumnWidth(28),
+            1: const pw.FlexColumnWidth(1.2),
+            2: const pw.FlexColumnWidth(2),
+            3: const pw.FlexColumnWidth(1.5),
+            4: const pw.FlexColumnWidth(1.2),
+          },
+          children: [
+            pw.TableRow(
+              decoration: pw.BoxDecoration(color: _pdfBrand),
+              children: ['#', 'ID', 'Customer', 'Booking ID', 'Status']
+                  .map((h) => _pdfCell(h, header: true))
+                  .toList(),
+            ),
+            ...List.generate(records.length, (i) {
+              final r = records[i];
+              return pw.TableRow(
+                decoration: pw.BoxDecoration(
+                    color: i.isOdd ? PdfColors.grey100 : PdfColors.white),
+                children: [
+                  _pdfCell('${i + 1}'),
+                  _pdfCell(_fmt(r['id'])),
+                  _pdfCell(_fmt(r['customerName'])),
+                  _pdfCell(_fmt(r['bookingId'])),
+                  _pdfCell(_fmt(r['adminStatus'])),
+                ],
+              );
+            }),
+          ],
+        ),
+      ],
+    );
+  }
+
+  pw.Widget _pdfHeading(String title) => pw.Container(
+        width: double.infinity,
+        margin: const pw.EdgeInsets.only(bottom: 8),
+        padding:
+            const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: pw.BoxDecoration(
+          color: _pdfBrandLight,
+          borderRadius: pw.BorderRadius.circular(4),
+          border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
+        ),
+        child: pw.Text(title,
+            style: pw.TextStyle(
+                fontSize: 10,
+                fontWeight: pw.FontWeight.bold,
+                color: _pdfBrand)),
+      );
+
+  pw.Widget _pdfCell(String text, {bool header = false}) => pw.Padding(
+        padding:
+            const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 7),
+        child: pw.Text(text,
+            maxLines: 2,
+            style: pw.TextStyle(
+                fontSize: 8,
+                fontWeight:
+                    header ? pw.FontWeight.bold : pw.FontWeight.normal,
+                color: header ? PdfColors.white : PdfColors.black)),
+      );
+
+  pw.Widget _pdfDetailRow(String label, String value,
+      {bool emphasize = false}) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.only(bottom: 6),
+      child: pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.SizedBox(
+            width: 118,
+            child: pw.Text(label,
+                style: const pw.TextStyle(
+                    fontSize: 9, color: PdfColors.grey700)),
+          ),
+          pw.Expanded(
+            child: pw.Text(value,
+                style: pw.TextStyle(
+                    fontSize: 9,
+                    fontWeight: emphasize
+                        ? pw.FontWeight.bold
+                        : pw.FontWeight.normal,
+                    color: emphasize ? _pdfBrand : PdfColors.black)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _pdfCard(
+      Map<String, dynamic> r, int index, int total) {
+    return pw.Container(
+      width: double.infinity,
+      padding: const pw.EdgeInsets.all(14),
+      decoration: pw.BoxDecoration(
+        border: pw.Border.all(color: PdfColors.grey400, width: 0.8),
+        borderRadius: pw.BorderRadius.circular(6),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [
+              pw.Text('Record $index of $total',
+                  style: pw.TextStyle(
+                      fontSize: 12,
+                      fontWeight: pw.FontWeight.bold,
+                      color: _pdfBrand)),
+              pw.Container(
+                padding: const pw.EdgeInsets.symmetric(
+                    horizontal: 10, vertical: 4),
+                decoration: pw.BoxDecoration(
+                    color: _pdfBrand,
+                    borderRadius: pw.BorderRadius.circular(12)),
+                child: pw.Text(_fmt(r['adminStatus']),
+                    style: pw.TextStyle(
+                        fontSize: 8,
+                        fontWeight: pw.FontWeight.bold,
+                        color: PdfColors.white)),
+              ),
+            ],
+          ),
+          pw.SizedBox(height: 4),
+          pw.Text('Booking: ${_fmt(r['bookingId'])}',
+              style: const pw.TextStyle(
+                  fontSize: 9, color: PdfColors.grey700)),
+          pw.SizedBox(height: 12),
+          pw.Divider(color: PdfColors.grey300, height: 1),
+          pw.SizedBox(height: 10),
+          _pdfHeading('Customer Details'),
+          _pdfDetailRow('Customer ID', _fmt(r['id'])),
+          _pdfDetailRow('Name', _fmt(r['customerName'])),
+          _pdfDetailRow('Mobile', _fmt(r['mobileNumber'])),
+          _pdfDetailRow('Booking ID', _fmt(r['bookingId'])),
+          pw.SizedBox(height: 6),
+          _pdfHeading('Device Details'),
+          pw.Row(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Expanded(
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    _pdfDetailRow('Brand', _fmt(r['deviceBrand'])),
+                    _pdfDetailRow('Type', _fmt(r['deviceType'])),
+                  ],
+                ),
+              ),
+              pw.Expanded(
+                child: _pdfDetailRow(
+                    'Condition', _fmt(r['deviceCondition'])),
+              ),
+            ],
+          ),
+          pw.SizedBox(height: 6),
+          _pdfHeading('Service & Billing'),
+          _pdfDetailRow('Amount', _fmtAmount(r['amount']),
+              emphasize: true),
+          _pdfDetailRow('Address', _fmt(r['address'])),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _viewReportPdf() async {
+    final records = _getSelectedRecords();
+    if (records.isEmpty) {
+      _showSnack('Select at least one record', color: Colors.orange);
       return;
     }
-
     setState(() => _isPdfViewing = true);
     try {
-      final pdf = await _buildPdfDocument(selectedRecords);
+      final pdf = await _buildPdfDocument(records);
       if (!mounted) return;
       await Printing.layoutPdf(
-        onLayout: (PdfPageFormat format) async => pdf.save(),
-        name: _reportPdfName(selectedRecords),
+        onLayout: (fmt) async => pdf.save(),
+        name: _reportPdfName(records),
       );
     } catch (e) {
-      if (mounted) {
-        _showPdfMessage('Unable to open report: $e', isError: true);
-      }
+      if (mounted) _showSnack('Unable to open PDF: $e', color: Colors.red);
     } finally {
       if (mounted) setState(() => _isPdfViewing = false);
     }
   }
 
   Future<void> _downloadReportPdf() async {
-    final selectedRecords = _getSelectedRecords();
-    if (selectedRecords.isEmpty) {
-      _showPdfMessage(
-        'Please select at least one record to download',
-        isError: true,
-      );
+    final records = _getSelectedRecords();
+    if (records.isEmpty) {
+      _showSnack('Select at least one record', color: Colors.orange);
       return;
     }
-
     setState(() => _isPdfDownloading = true);
     try {
-      final pdf = await _buildPdfDocument(selectedRecords);
-      final directory =
-          await getDownloadsDirectory() ??
+      final pdf = await _buildPdfDocument(records);
+      final dir = await getDownloadsDirectory() ??
           await getApplicationDocumentsDirectory();
-      final file = File(
-        '${directory.path}/${_reportPdfName(selectedRecords)}.pdf',
-      );
+      final file =
+          File('${dir.path}/${_reportPdfName(records)}.pdf');
       await file.writeAsBytes(await pdf.save());
-
       if (!mounted) return;
-      _showPdfMessage(
-        'Report saved to Downloads',
-        openPath: file.path,
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('PDF saved to Downloads'),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        action: SnackBarAction(
+          label: 'Open',
+          textColor: Colors.white,
+          onPressed: () => OpenFile.open(file.path),
+        ),
+      ));
     } catch (e) {
-      if (mounted) {
-        _showPdfMessage('Download failed: $e', isError: true);
-      }
+      if (mounted) _showSnack('Download failed: $e', color: Colors.red);
     } finally {
       if (mounted) setState(() => _isPdfDownloading = false);
     }
   }
 
+  // ─── BUILD ─────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: const Color(0xFFF4F7FC),
       appBar: AppBar(
-        title: Text(
+        title: const Text(
           'Customer Report Generator',
-          style: TextStyle(fontWeight: FontWeight.w600, color: Colors.white),
+          style: TextStyle(
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+              fontSize: 18,
+              letterSpacing: -0.3),
         ),
-        backgroundColor: primaryColor,
+        backgroundColor: _brand,
         foregroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(bottom: Radius.circular(15)),
+        shape: const RoundedRectangleBorder(
+          borderRadius:
+              BorderRadius.vertical(bottom: Radius.circular(20)),
         ),
       ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final isNarrow = constraints.maxWidth < 600;
-          final hPad = isNarrow ? 12.0 : 20.0;
-          return SafeArea(
-            bottom: false,
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(hPad, 16, hPad, 16),
-                child: Column(
-                  children: [
-                    // Search Card
-                    Card(
-                      elevation: 8,
-                      shadowColor: primaryColor.withValues(alpha: 0.3),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              Theme.of(context).cardColor,
-                              Theme.of(
-                                context,
-                              ).primaryColorLight.withValues(alpha: 0.1),
-                            ],
-                          ),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: MediaQuery.of(context).size.width < 400
-                                ? 14
-                                : 20,
-                            vertical: 20,
-                          ),
-                          child: Column(
-                            children: [
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.search,
-                                    color: primaryColor,
-                                    size: 28,
-                                  ),
-                                  SizedBox(width: 12),
-                                  Expanded(
-                                    child: Text(
-                                      'Find Customer Records',
-                                      style: TextStyle(
-                                        fontSize: isNarrow ? 16 : 18,
-                                        fontWeight: FontWeight.w600,
-                                        color: primaryColor,
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              SizedBox(height: 20),
-                              TextField(
-                                controller: _controller,
-                                decoration: InputDecoration(
-                                  labelText:
-                                      'Enter Customer ID, Phone, or Booking ID',
-                                  labelStyle: TextStyle(
-                                    color: Theme.of(context).hintColor,
-                                  ),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(15),
-                                    borderSide: BorderSide(
-                                      color: Theme.of(context).dividerColor,
-                                    ),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(15),
-                                    borderSide: BorderSide(
-                                      color: primaryColor,
-                                      width: 2,
-                                    ),
-                                  ),
-                                  filled: true,
-                                  fillColor: Theme.of(context).cardColor,
-                                  prefixIcon: Icon(
-                                    Icons.person_search,
-                                    color: primaryColor,
-                                  ),
-                                  contentPadding: EdgeInsets.symmetric(
-                                    horizontal: 20,
-                                    vertical: 16,
-                                  ),
-                                ),
-                                onSubmitted: (value) {
-                                  _fetchData(value.trim());
-                                },
-                              ),
-                              SizedBox(height: 20),
-                              SizedBox(
-                                width: double.infinity,
-                                height: 52,
-                                child: ElevatedButton(
-                                  onPressed: _loading
-                                      ? null
-                                      : () =>
-                                            _fetchData(_controller.text.trim()),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: primaryColor,
-                                    foregroundColor: Colors.white,
-                                    elevation: 4,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(15),
-                                    ),
-                                    shadowColor: primaryColor.withValues(alpha: 0.4),
-                                  ),
-                                  child: _loading
-                                      ? SizedBox(
-                                          width: 24,
-                                          height: 24,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            color: Colors.white,
-                                          ),
-                                        )
-                                      : Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            Icon(Icons.manage_search, size: 22),
-                                            SizedBox(width: 10),
-                                            Text(
-                                              'Search & Generate Report',
-                                              style: TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    SizedBox(height: 20),
-
-                    if (_displayRecords.isNotEmpty)
-                      _buildReportSection(isNarrow)
-                    else if (resultData == null &&
-                        (multipleResults == null || multipleResults!.isEmpty))
-                      _buildEmptyState(),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildReportSection(bool isNarrow) {
-    final exportRecords = _getSelectedRecords();
-    final exportCount = exportRecords.length;
-    final totalAmount = _totalDisplayAmount(exportRecords);
-
-    return Card(
-      elevation: 4,
-      shadowColor: _reportBrand.withValues(alpha: 0.15),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Container(
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
-            decoration: BoxDecoration(
-              color: _reportBrand,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(16),
-              ),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.summarize_rounded,
-                    color: Colors.white,
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Customer Service Report',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 17,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: -0.3,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        multipleResults != null
-                            ? '${_displayRecords.length} records found'
-                            : '1 record found',
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.85),
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _buildSummaryChip(
-                    icon: Icons.description_outlined,
-                    label: 'In report',
-                    value: exportCount.toString(),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _buildSummaryChip(
-                    icon: Icons.currency_rupee_rounded,
-                    label: 'Total amount',
-                    value: _formatDisplayAmount(totalAmount),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (multipleResults != null) ...[
-            const SizedBox(height: 12),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: _selectedCount > 0
-                      ? primaryColor.withValues(alpha: 0.08)
-                      : Theme.of(context).colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: _selectedCount > 0
-                        ? primaryColor.withValues(alpha: 0.35)
-                        : Theme.of(context).dividerColor,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.checklist_rounded,
-                      size: 20,
-                      color: _selectedCount > 0
-                          ? primaryColor
-                          : Theme.of(context).hintColor,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        '$_selectedCount of ${multipleResults!.length} selected for export',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: _selectedCount > 0
-                              ? primaryColor
-                              : Theme.of(context).hintColor,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      'All',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: primaryColor,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    Checkbox(
-                      value: _allSelected,
-                      onChanged: (_) => _toggleAllSelection(),
-                      activeColor: primaryColor,
-                      visualDensity: VisualDensity.compact,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-          const SizedBox(height: 14),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text(
-              'Record details',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: _reportBrand,
-                letterSpacing: -0.2,
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            itemCount: _displayRecords.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 12),
-            itemBuilder: (context, index) {
-              final record = _displayRecords[index];
-              final isMulti = multipleResults != null;
-              final isSelected = isMulti ? (_selectedRows[index] ?? false) : true;
-              return _buildRecordReportCard(
-                record: record,
-                index: index,
-                isSelectable: isMulti,
-                isSelected: isSelected,
-                onSelectionChanged: isMulti
-                    ? () => _toggleRowSelection(index)
-                    : null,
-              );
-            },
-          ),
-          Container(
-            padding: EdgeInsets.fromLTRB(16, 0, 16, isNarrow ? 16 : 20),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest
-                  .withValues(alpha: 0.5),
-              borderRadius: const BorderRadius.vertical(
-                bottom: Radius.circular(16),
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const SizedBox(height: 16),
-                Text(
-                  'Export report',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Theme.of(context).hintColor,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                if (isNarrow)
-                  Column(
-                    children: [
-                      _buildReportActionButton(
-                        label: 'View PDF',
-                        icon: Icons.visibility_rounded,
-                        isLoading: _isPdfViewing,
-                        isPrimary: true,
-                        enabled: _canExportReport &&
-                            !_isPdfDownloading &&
-                            !_isPdfViewing,
-                        onPressed: _viewReportPdf,
-                      ),
-                      const SizedBox(height: 10),
-                      _buildReportActionButton(
-                        label: 'Download PDF',
-                        icon: Icons.download_rounded,
-                        isLoading: _isPdfDownloading,
-                        isPrimary: false,
-                        enabled: _canExportReport &&
-                            !_isPdfDownloading &&
-                            !_isPdfViewing,
-                        onPressed: _downloadReportPdf,
-                      ),
-                    ],
-                  )
-                else
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildReportActionButton(
-                          label: 'View PDF',
-                          icon: Icons.visibility_rounded,
-                          isLoading: _isPdfViewing,
-                          isPrimary: true,
-                          enabled: _canExportReport &&
-                              !_isPdfDownloading &&
-                              !_isPdfViewing,
-                          onPressed: _viewReportPdf,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _buildReportActionButton(
-                          label: 'Download PDF',
-                          icon: Icons.download_rounded,
-                          isLoading: _isPdfDownloading,
-                          isPrimary: false,
-                          enabled: _canExportReport &&
-                              !_isPdfDownloading &&
-                              !_isPdfViewing,
-                          onPressed: _downloadReportPdf,
-                        ),
-                      ),
-                    ],
-                  ),
-                if (!_canExportReport && multipleResults != null) ...[
-                  const SizedBox(height: 10),
-                  Text(
-                    'Select one or more records above to view or download',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Theme.of(context).hintColor,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 4),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSummaryChip({
-    required IconData icon,
-    required String label,
-    required String value,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      decoration: BoxDecoration(
-        color: _reportBrand.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _reportBrand.withValues(alpha: 0.12)),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 22, color: _reportBrand),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Theme.of(context).hintColor,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: _reportBrand,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildReportActionButton({
-    required String label,
-    required IconData icon,
-    required bool isLoading,
-    required bool isPrimary,
-    required bool enabled,
-    required VoidCallback onPressed,
-  }) {
-    return SizedBox(
-      height: 48,
-      child: ElevatedButton.icon(
-        onPressed: enabled && !isLoading ? onPressed : null,
-        icon: isLoading
-            ? SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: isPrimary ? Colors.white : _reportBrand,
-                ),
-              )
-            : Icon(icon, size: 20),
-        label: Text(
-          isLoading ? 'Please wait...' : label,
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-        ),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: isPrimary ? _reportBrand : Colors.white,
-          foregroundColor: isPrimary ? Colors.white : _reportBrand,
-          disabledBackgroundColor: Theme.of(context).disabledColor,
-          disabledForegroundColor: Colors.white,
-          elevation: isPrimary ? 2 : 0,
-          side: isPrimary
-              ? null
-              : BorderSide(color: _reportBrand.withValues(alpha: 0.4)),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRecordReportCard({
-    required Map<String, dynamic> record,
-    required int index,
-    required bool isSelectable,
-    required bool isSelected,
-    VoidCallback? onSelectionChanged,
-  }) {
-    final status = record['adminStatus']?.toString();
-    return Material(
-      color: isSelected
-          ? primaryColor.withValues(alpha: 0.04)
-          : Theme.of(context).cardColor,
-      elevation: isSelected ? 2 : 0,
-      shadowColor: _reportBrand.withValues(alpha: 0.1),
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        onTap: isSelectable ? onSelectionChanged : null,
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: isSelected
-                  ? primaryColor.withValues(alpha: 0.45)
-                  : Theme.of(context).dividerColor,
-              width: isSelected ? 1.5 : 1,
-            ),
-          ),
-          padding: const EdgeInsets.all(14),
+      body: SafeArea(
+        bottom: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (isSelectable)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8, top: 2),
-                      child: Checkbox(
-                        value: isSelected,
-                        onChanged: (_) => onSelectionChanged?.call(),
-                        activeColor: primaryColor,
-                        visualDensity: VisualDensity.compact,
-                      ),
-                    ),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _fieldValue(record['customerName']),
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: _reportBrand,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Booking ${_fieldValue(record['bookingId'])}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Theme.of(context).hintColor,
-                          ),
-                        ),
-                      ],
-                    ),
+              _buildSearchCard(),
+              const SizedBox(height: 20),
+              if (_loading) _buildLoading(),
+              if (!_loading && _displayRecords.isNotEmpty)
+                FadeTransition(
+                  opacity: _fadeAnim,
+                  child: SlideTransition(
+                    position: _slideAnim,
+                    child: _buildResultsSection(),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _getStatusColor(status),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      status ?? 'N/A',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              const Divider(height: 1),
-              const SizedBox(height: 12),
-              _buildReportDetailGrid(record),
+                ),
+              if (!_loading &&
+                  resultData == null &&
+                  (multipleResults == null || multipleResults!.isEmpty))
+                _buildEmptyState(),
             ],
           ),
         ),
@@ -1458,171 +675,895 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator> {
     );
   }
 
-  Widget _buildReportDetailGrid(Map<String, dynamic> record) {
-    Widget rowPair(Widget left, Widget right) {
-      return Row(
+  // ─── SEARCH CARD ────────────────────────────────────────────────────────────
+
+  Widget _buildSearchCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: _brand.withOpacity(0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          )
+        ],
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(child: left),
-          const SizedBox(width: 10),
-          Expanded(child: right),
+          // Header row
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: _brandLight,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(Icons.person_search_rounded,
+                    color: _brand, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Find Customer',
+                      style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                          color: _brand,
+                          letterSpacing: -0.3)),
+                  const Text('Search by ID, Phone or Booking ID',
+                      style: TextStyle(
+                          fontSize: 12, color: Color(0xFF8A9BB8))),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          // Search field
+          Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFFF4F7FC),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFDDE4F0)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _controller,
+                    focusNode: _searchFocusNode,
+                    style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                        color: _brand),
+                    decoration: const InputDecoration(
+                      hintText: 'Enter Customer ID, Phone, or Booking ID',
+                      hintStyle: TextStyle(
+                          color: Color(0xFFADB9CC), fontSize: 14),
+                      border: InputBorder.none,
+                      prefixIcon: Icon(Icons.search_rounded,
+                          color: Color(0xFF8A9BB8), size: 20),
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+                    ),
+                    onSubmitted: (v) => _fetchData(v.trim()),
+                  ),
+                ),
+                if (_controller.text.isNotEmpty)
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded,
+                        color: Color(0xFF8A9BB8), size: 20),
+                    onPressed: () {
+                      _controller.clear();
+                      setState(() {
+                        resultData = null;
+                        multipleResults = null;
+                      });
+                    },
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          // Quick-search chips
+          Wrap(
+            spacing: 8,
+            children: ['Customer ID', 'Phone Number', 'Booking ID']
+                .map((label) => _searchChip(label))
+                .toList(),
+          ),
+          const SizedBox(height: 18),
+          // Search button
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton(
+              onPressed: _loading
+                  ? null
+                  : () {
+                      _searchFocusNode.unfocus();
+                      _fetchData(_controller.text.trim());
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _brand,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: _brand.withOpacity(0.4),
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+              ),
+              child: _loading
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2.5, color: Colors.white))
+                  : const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.manage_search_rounded, size: 20),
+                        SizedBox(width: 8),
+                        Text('Search & Generate Report',
+                            style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: -0.2)),
+                      ],
+                    ),
+            ),
+          ),
         ],
-      );
-    }
+      ),
+    );
+  }
 
+  Widget _searchChip(String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: _brandLight,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(label,
+          style: TextStyle(
+              fontSize: 11,
+              color: _brand,
+              fontWeight: FontWeight.w600)),
+    );
+  }
+
+  // ─── LOADING ────────────────────────────────────────────────────────────────
+
+  Widget _buildLoading() {
+    return Container(
+      height: 180,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+              color: _brand.withOpacity(0.06),
+              blurRadius: 16,
+              offset: const Offset(0, 4))
+        ],
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(color: _brand, strokeWidth: 3),
+          const SizedBox(height: 16),
+          Text('Searching records…',
+              style: TextStyle(
+                  color: _brand.withOpacity(0.7),
+                  fontWeight: FontWeight.w500,
+                  fontSize: 14)),
+        ],
+      ),
+    );
+  }
+
+  // ─── RESULTS SECTION ────────────────────────────────────────────────────────
+
+  Widget _buildResultsSection() {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        rowPair(
-          _buildReportDetailTile('Customer ID', _fieldValue(record['id'])),
-          _buildReportDetailTile('Mobile', _fieldValue(record['mobileNumber'])),
-        ),
-        const SizedBox(height: 10),
-        rowPair(
-          _buildReportDetailTile(
-            'Device brand',
-            _fieldValue(record['deviceBrand']),
-          ),
-          _buildReportDetailTile(
-            'Device type',
-            _fieldValue(record['deviceType']),
-          ),
-        ),
-        const SizedBox(height: 10),
-        rowPair(
-          _buildReportDetailTile(
-            'Condition',
-            _fieldValue(record['deviceCondition']),
-          ),
-          _buildReportDetailTile(
-            'Amount',
-            _formatDisplayAmount(record['amount']),
-            emphasize: true,
-          ),
-        ),
-        const SizedBox(height: 10),
-        _buildReportDetailTile('Address', _fieldValue(record['address'])),
+        // Stats bar
+        _buildStatsBar(),
+        const SizedBox(height: 14),
+
+        // Select-all bar (multi results only)
+        if (multipleResults != null) ...[
+          _buildSelectAllBar(),
+          const SizedBox(height: 14),
+        ],
+
+        // Record cards
+        ...List.generate(_displayRecords.length, (i) {
+          final record = _displayRecords[i];
+          final isMulti = multipleResults != null;
+          final isSelected =
+              isMulti ? (_selectedRows[i] ?? false) : true;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _buildRecordCard(
+              record: record,
+              index: i,
+              isSelectable: isMulti,
+              isSelected: isSelected,
+              onTap: isMulti ? () => _toggleRowSelection(i) : null,
+            ),
+          );
+        }),
+
+        const SizedBox(height: 4),
+
+        // Export panel
+        _buildExportPanel(),
       ],
     );
   }
 
-  Widget _buildReportDetailTile(
-    String label,
-    String value, {
-    bool emphasize = false,
-  }) {
+  Widget _buildStatsBar() {
+    final selected = _getSelectedRecords();
+    final total = _totalAmount(selected);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest
-            .withValues(alpha: 0.45),
-        borderRadius: BorderRadius.circular(8),
+        gradient: LinearGradient(
+          colors: [_brand, _brand.withOpacity(0.8)],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Text(
-            label.toUpperCase(),
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: Theme.of(context).hintColor,
-              letterSpacing: 0.4,
-            ),
+          _statItem(
+            icon: Icons.folder_open_rounded,
+            label: 'Found',
+            value: '${_displayRecords.length}',
           ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: emphasize ? FontWeight.w700 : FontWeight.w500,
-              color: emphasize ? Colors.green.shade800 : _reportBrand,
-            ),
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
+          _divider(),
+          _statItem(
+            icon: Icons.check_circle_outline_rounded,
+            label: 'Selected',
+            value: multipleResults != null
+                ? '$_selectedCount'
+                : '1',
+          ),
+          _divider(),
+          _statItem(
+            icon: Icons.currency_rupee_rounded,
+            label: 'Total',
+            value: _fmtAmount(total),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildEmptyState() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final iconSize = constraints.maxWidth < 360 ? 80.0 : 120.0;
-        return Center(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+  Widget _statItem(
+      {required IconData icon,
+      required String label,
+      required String value}) {
+    return Expanded(
+      child: Column(
+        children: [
+          Icon(icon, color: Colors.white70, size: 18),
+          const SizedBox(height: 4),
+          Text(value,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16)),
+          Text(label,
+              style: const TextStyle(
+                  color: Colors.white60,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500)),
+        ],
+      ),
+    );
+  }
+
+  Widget _divider() => Container(
+        width: 1,
+        height: 40,
+        color: Colors.white.withOpacity(0.2),
+      );
+
+  Widget _buildSelectAllBar() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
+      decoration: BoxDecoration(
+        color: _selectedCount > 0
+            ? _brand.withOpacity(0.06)
+            : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: _selectedCount > 0
+              ? _brand.withOpacity(0.3)
+              : const Color(0xFFDDE4F0),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.checklist_rounded,
+              size: 18,
+              color:
+                  _selectedCount > 0 ? _brand : const Color(0xFF8A9BB8)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              _selectedCount > 0
+                  ? '$_selectedCount of ${multipleResults!.length} selected for PDF export'
+                  : 'Select records to export',
+              style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: _selectedCount > 0
+                      ? _brand
+                      : const Color(0xFF8A9BB8)),
+            ),
+          ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('All',
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: _brand.withOpacity(0.7))),
+              Checkbox(
+                value: _allSelected,
+                onChanged: (_) => _toggleAllSelection(),
+                activeColor: _brand,
+                visualDensity: VisualDensity.compact,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(4)),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─── RECORD CARD ────────────────────────────────────────────────────────────
+
+  Widget _buildRecordCard({
+    required Map<String, dynamic> record,
+    required int index,
+    required bool isSelectable,
+    required bool isSelected,
+    VoidCallback? onTap,
+  }) {
+    final status = record['adminStatus']?.toString();
+    final statusColor = _getStatusColor(status);
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isSelected && isSelectable
+              ? _brand.withOpacity(0.4)
+              : const Color(0xFFDDE4F0),
+          width: isSelected && isSelectable ? 1.5 : 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: isSelected && isSelectable
+                ? _brand.withOpacity(0.08)
+                : Colors.black.withOpacity(0.04),
+            blurRadius: isSelected ? 12 : 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Column(
+          children: [
+            // Card header
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+              decoration: BoxDecoration(
+                color: isSelected && isSelectable
+                    ? _brand.withOpacity(0.04)
+                    : const Color(0xFFF8FAFD),
+                borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(16)),
+              ),
+              child: Row(
+                children: [
+                  if (isSelectable) ...[
+                    SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: Checkbox(
+                        value: isSelected,
+                        onChanged: (_) => onTap?.call(),
+                        activeColor: _brand,
+                        visualDensity: VisualDensity.compact,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(4)),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                  ],
+                  // Avatar
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: _brand.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Center(
+                      child: Text(
+                        (_fmt(record['customerName']).isNotEmpty &&
+                                _fmt(record['customerName']) != 'N/A')
+                            ? _fmt(record['customerName'])[0]
+                                .toUpperCase()
+                            : '?',
+                        style: TextStyle(
+                            color: _brand,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 16),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _fmt(record['customerName']),
+                          style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: _brand,
+                              letterSpacing: -0.2),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Booking: ${_fmt(record['bookingId'])}',
+                          style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF8A9BB8),
+                              fontWeight: FontWeight.w500),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: statusColor.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                          color: statusColor.withOpacity(0.3), width: 1),
+                    ),
+                    child: Text(
+                      status ?? 'N/A',
+                      style: TextStyle(
+                          color: statusColor,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Details grid
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                          child: _detailTile(
+                              'Customer ID', _fmt(record['id']),
+                              icon: Icons.badge_outlined)),
+                      const SizedBox(width: 10),
+                      Expanded(
+                          child: _detailTile(
+                              'Mobile', _fmt(record['mobileNumber']),
+                              icon: Icons.phone_outlined)),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                          child: _detailTile(
+                              'Device Brand', _fmt(record['deviceBrand']),
+                              icon: Icons.devices_outlined)),
+                      const SizedBox(width: 10),
+                      Expanded(
+                          child: _detailTile(
+                              'Device Type', _fmt(record['deviceType']),
+                              icon: Icons.phone_android_outlined)),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                          child: _detailTile('Condition',
+                              _fmt(record['deviceCondition']),
+                              icon: Icons.info_outline_rounded)),
+                      const SizedBox(width: 10),
+                      Expanded(
+                          child: _detailTile(
+                              'Amount', _fmtAmount(record['amount']),
+                              icon: Icons.currency_rupee_rounded,
+                              emphasize: true)),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  _detailTile('Service Address', _fmt(record['address']),
+                      icon: Icons.location_on_outlined, fullWidth: true),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _detailTile(String label, String value,
+      {required IconData icon,
+      bool emphasize = false,
+      bool fullWidth = false}) {
+    return Container(
+      width: fullWidth ? double.infinity : null,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF4F7FC),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 14, color: const Color(0xFF8A9BB8)),
+          const SizedBox(width: 8),
+          Expanded(
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: iconSize,
-                  height: iconSize,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).primaryColorLight.withValues(alpha: 0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.assignment_outlined,
-                    size: iconSize * 0.5,
-                    color: primaryColor,
-                  ),
-                ),
-                SizedBox(height: 20),
-                Text(
-                  'No Data Found',
-                  style: TextStyle(
-                    fontSize: constraints.maxWidth < 360 ? 18 : 22,
-                    fontWeight: FontWeight.w600,
-                    color: Theme.of(context).hintColor,
-                  ),
-                ),
-                SizedBox(height: 10),
-                Text(
-                  'Try searching with Customer ID, Phone Number, or Booking ID',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: constraints.maxWidth < 360 ? 13 : 15,
-                    color: Theme.of(context).hintColor,
-                  ),
-                ),
-                SizedBox(height: 20),
+                Text(label.toUpperCase(),
+                    style: const TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF8A9BB8),
+                        letterSpacing: 0.4)),
+                const SizedBox(height: 3),
+                Text(value,
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: emphasize
+                            ? FontWeight.w800
+                            : FontWeight.w600,
+                        color: emphasize
+                            ? Colors.green.shade700
+                            : _brand),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis),
               ],
             ),
           ),
-        );
-      },
+        ],
+      ),
+    );
+  }
+
+  // ─── EXPORT PANEL ────────────────────────────────────────────────────────────
+
+  Widget _buildExportPanel() {
+    final canExport = _canExportReport;
+    final exportCount = _getSelectedRecords().length;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+              color: _brand.withOpacity(0.08),
+              blurRadius: 20,
+              offset: const Offset(0, 4))
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Panel header
+          Container(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+            decoration: const BoxDecoration(
+              color: Color(0xFFF4F7FC),
+              borderRadius:
+                  BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: _brand,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.picture_as_pdf_rounded,
+                      color: Colors.white, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Export PDF Report',
+                          style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: _brand,
+                              letterSpacing: -0.3)),
+                      Text(
+                        canExport
+                            ? '$exportCount record${exportCount != 1 ? 's' : ''} ready to export'
+                            : 'Select records above to export',
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: canExport
+                                ? Colors.green.shade600
+                                : const Color(0xFF8A9BB8),
+                            fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
+                ),
+                if (canExport)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                          color: Colors.green.shade200, width: 1),
+                    ),
+                    child: Text('Ready',
+                        style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.green.shade700,
+                            fontWeight: FontWeight.w700)),
+                  ),
+              ],
+            ),
+          ),
+
+          // Buttons
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                // View PDF - primary
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton.icon(
+                    onPressed: canExport &&
+                            !_isPdfViewing &&
+                            !_isPdfDownloading
+                        ? _viewReportPdf
+                        : null,
+                    icon: _isPdfViewing
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: Colors.white))
+                        : const Icon(
+                            Icons.visibility_rounded, size: 20),
+                    label: Text(
+                        _isPdfViewing ? 'Opening…' : 'View PDF Report',
+                        style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: -0.2)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _brand,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor:
+                          const Color(0xFFDDE4F0),
+                      disabledForegroundColor:
+                          const Color(0xFF8A9BB8),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                // Download PDF - secondary
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: OutlinedButton.icon(
+                    onPressed: canExport &&
+                            !_isPdfViewing &&
+                            !_isPdfDownloading
+                        ? _downloadReportPdf
+                        : null,
+                    icon: _isPdfDownloading
+                        ? SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: _brand.withOpacity(0.6)))
+                        : const Icon(
+                            Icons.download_rounded, size: 20),
+                    label: Text(
+                        _isPdfDownloading
+                            ? 'Saving…'
+                            : 'Download PDF',
+                        style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: -0.2)),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _brand,
+                      disabledForegroundColor:
+                          const Color(0xFF8A9BB8),
+                      side: BorderSide(
+                          color: canExport
+                              ? _brand.withOpacity(0.35)
+                              : const Color(0xFFDDE4F0),
+                          width: 1.5),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                    ),
+                  ),
+                ),
+                if (!canExport && multipleResults != null) ...[
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.info_outline_rounded,
+                          size: 14,
+                          color: const Color(0xFF8A9BB8)),
+                      const SizedBox(width: 6),
+                      const Text(
+                        'Tap a record above to select it for export',
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF8A9BB8),
+                            fontStyle: FontStyle.italic),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─── EMPTY STATE ─────────────────────────────────────────────────────────────
+
+  Widget _buildEmptyState() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 16,
+              offset: const Offset(0, 4))
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: _brandLight,
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Icon(Icons.assignment_outlined,
+                size: 40, color: _brand),
+          ),
+          const SizedBox(height: 20),
+          Text('No Records Yet',
+              style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: _brand,
+                  letterSpacing: -0.3)),
+          const SizedBox(height: 8),
+          const Text(
+            'Search by Customer ID, Phone Number\nor Booking ID to generate a report',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+                fontSize: 14,
+                color: Color(0xFF8A9BB8),
+                height: 1.5),
+          ),
+          const SizedBox(height: 24),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.center,
+            children: [
+              _tipChip(Icons.badge_outlined, 'Customer ID'),
+              _tipChip(Icons.phone_outlined, 'Phone Number'),
+              _tipChip(
+                  Icons.confirmation_number_outlined, 'Booking ID'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _tipChip(IconData icon, String label) {
+    return Container(
+      padding:
+          const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(
+        color: _brandLight,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: _brand),
+          const SizedBox(width: 6),
+          Text(label,
+              style: TextStyle(
+                  fontSize: 12,
+                  color: _brand,
+                  fontWeight: FontWeight.w600)),
+        ],
+      ),
     );
   }
 
   Color _getStatusColor(String? status) {
-    final normalized = status?.toLowerCase().trim() ?? '';
-    if (normalized == 'assigned' ||
-        normalized == 'completed' ||
-        normalized == 'complete') {
+    final n = status?.toLowerCase().trim() ?? '';
+    if (n == 'assigned' || n == 'completed' || n == 'complete')
       return Colors.green;
-    }
-    if (normalized == 'not assigned' || normalized == 'not assinged') {
-      return Colors.red;
-    }
-    if (normalized.contains('approval')) {
-      return Colors.purple;
-    }
-    if (normalized.contains('spare')) {
-      return Colors.amber;
-    }
-    if (normalized.contains('observation')) {
-      return Colors.cyan;
-    }
-    if (normalized.contains('cancel')) {
-      return Colors.grey;
-    }
-    if (normalized == 'pending' || normalized == 'open') {
-      return Colors.orange;
-    }
-    if (normalized == 'in progress') {
-      return Colors.blue;
-    }
+    if (n == 'not assigned' || n == 'not assinged') return Colors.red;
+    if (n.contains('approval')) return Colors.purple;
+    if (n.contains('spare')) return Colors.amber.shade800;
+    if (n.contains('observation')) return Colors.cyan.shade700;
+    if (n.contains('cancel')) return Colors.grey;
+    if (n == 'pending' || n == 'open') return Colors.orange;
+    if (n == 'in progress') return Colors.blue;
     return Colors.blueGrey;
   }
 }

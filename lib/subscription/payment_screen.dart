@@ -3,6 +3,8 @@ import 'package:subscription_rooks_app/services/icici_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:subscription_rooks_app/services/auth_state_service.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
+import 'package:subscription_rooks_app/services/payment_recovery_service.dart';
+import 'package:subscription_rooks_app/services/invoice_email_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'icici_payment_webview_screen.dart';
 
@@ -100,6 +102,7 @@ class _PaymentScreenState extends State<PaymentScreen>
 
     bool isSuccess = false;
     bool isPending = false;
+    Map<String, dynamic>? finalVerifyResult;
     String errorMessage = 'Payment failed or was cancelled.';
 
     final bool isHosted = selectedPaymentMethod != 'UPI';
@@ -132,6 +135,7 @@ class _PaymentScreenState extends State<PaymentScreen>
             if (status == 'SUCCESS') {
               isSuccess = true;
               isPending = false;
+              finalVerifyResult = doc.data();
               break;
             } else if (status == 'FAILED') {
               isSuccess = false;
@@ -158,6 +162,7 @@ class _PaymentScreenState extends State<PaymentScreen>
             if (status == 'SUCCESS') {
               isSuccess = true;
               isPending = false;
+              finalVerifyResult = verifyResult;
               break;
             } else if (status == 'FAILED') {
               isSuccess = false;
@@ -210,11 +215,6 @@ class _PaymentScreenState extends State<PaymentScreen>
               .createAndFinalizeAccount();
           if (result['success']) {
             uid = result['uid'];
-            // Update the payment document with the real UID
-            await FirebaseFirestore.instance
-                .collection('payments')
-                .doc(txnId)
-                .update({'uid': uid, 'userId': uid});
           } else {
             throw Exception(
               result['message'] ?? 'Failed to create and finalize account.',
@@ -256,43 +256,140 @@ class _PaymentScreenState extends State<PaymentScreen>
             barcode: widget.barcode,
             reportExport: widget.reportExport,
           );
+
+          // 4. Update the payment document status in global payments collection
+          // only after payment verification and Firestore data synchronization are completed.
+          await FirebaseFirestore.instance
+              .collection('payments')
+              .doc(txnId)
+              .update({
+                'uid': uid,
+                'userId': uid,
+                'status': 'SUCCESS',
+                'updatedAt': FieldValue.serverTimestamp(),
+              });
+
+          // 5. Store the payment transaction details in the payment_logs collection
+          await FirestoreService.instance.logPaymentTransaction(
+            txnId: txnId,
+            uidOrMobile: uid,
+            planName: widget.planName,
+            amount: widget.price,
+            status: 'SUCCESS',
+            isYearly: widget.isYearly,
+            isSixMonths: widget.isSixMonths,
+            registrationCompleted: true,
+            firestoreSynced: true,
+            tenantId: tenantId,
+            customerName: widget.pendingUserData?['name'] ?? 'Customer',
+            customerEmail: widget.pendingUserData?['email'] ?? 'support@servnex.com',
+            customerMobile: widget.pendingUserData?['customerMobile'] ?? widget.pendingUserData?['phone'],
+            gatewayResponse: finalVerifyResult ?? {
+              'paymentMode': selectedPaymentMethod,
+              'amount': widget.price,
+              'status': 'SUCCESS',
+              'transactionId': txnId,
+            },
+          );
+
+          // Automatically send the invoice in the background
+          InvoiceEmailService.instance.processAndSendInvoice(
+            txnId: txnId,
+            customerName: widget.pendingUserData?['name'] ?? 'Customer',
+            customerEmail: widget.pendingUserData?['email'] ?? 'support@servnex.com',
+            planName: widget.planName,
+            isYearly: widget.isYearly,
+            isSixMonths: widget.isSixMonths,
+            amountPaid: widget.price,
+            gstNumber: widget.pendingUserData?['gstNumber'],
+          );
         }
 
-        // 4. Finally navigate to success screen
+        // Only clear pending payment after complete success of Firestore writes
+        await PaymentRecoveryService.instance.clearPendingPayment();
+
+        // 6. Finally navigate to success screen
         _navigateToSuccess(txnId);
       } catch (e) {
-        debugPrint('Critical Error after successful payment: $e');
-        // Even if Firestore fails, the payment was successful.
-        _navigateToSuccess(txnId);
-      }
-    } else if (isPending) {
-      // Handle PENDING state - show a informative dialog
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Payment Pending'),
-          content: const Text(
-            'Your payment is currently being processed by the bank. '
-            'Please do not try again immediately. '
-            'Once confirmed, your account will be activated automatically. '
-            'You can check your status in a few minutes.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () =>
-                  Navigator.of(context).popUntil((route) => route.isFirst),
-              child: const Text('Go to Dashboard'),
+        debugPrint('Critical Error after successful payment during Firestore sync: $e');
+        
+        if (!mounted) return;
+        
+        // Show Synchronization Incomplete Alert dialog
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            title: Row(
+              children: const [
+                Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
+                SizedBox(width: 8),
+                Text('Sync Incomplete'),
+              ],
             ),
-          ],
-        ),
-      );
-    } else {
-      // Verification explicitly failed
+            content: Text(
+              'Your payment of ₹${widget.price} was successful, but we encountered an issue while saving your registration and subscription details to our servers.\n\n'
+              'Don\'t worry! Your payment is perfectly secure. We will automatically retry this synchronization the next time you reopen the app.\n\n'
+              'Error details: $e'
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context); // Close the dialog
+                  _verifyPaymentOnReturn(txnId); // Retry synchronization
+                },
+                child: const Text(
+                  'RETRY NOW',
+                  style: TextStyle(fontWeight: FontWeight.bold, color: brandBlue),
+                ),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context); // Close the dialog
+                  // Exit back to the first route to complete onboarding later
+                  Navigator.of(context).popUntil((route) => route.isFirst);
+                },
+                child: const Text(
+                  'OK',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+    } 
+    else {
+      // isPending or FAILED/CANCELLED
       final uid = AuthStateService.instance.currentUser?.uid;
       final tenantId = ThemeService.instance.databaseName;
+      
+      final String displayError = isPending 
+          ? 'Your payment is currently pending or being processed by the bank. Once confirmed, your subscription will activate automatically. You can check your status in a few minutes.' 
+          : errorMessage;
+
+      await FirestoreService.instance.logPaymentTransaction(
+        txnId: txnId,
+        uidOrMobile: uid ?? widget.pendingUserData?['email'] ?? 'unknown',
+        planName: widget.planName,
+        amount: widget.price,
+        status: isPending ? 'PENDING' : 'FAILED',
+        isYearly: widget.isYearly,
+        isSixMonths: widget.isSixMonths,
+        failureReason: displayError,
+        registrationCompleted: false,
+        firestoreSynced: true,
+      );
+
+      // Retain pending payment state locally if it is PENDING so it can be recovered later.
+      // Clear it ONLY if it explicitly FAILED/CANCELLED.
+      if (!isPending) {
+        await PaymentRecoveryService.instance.clearPendingPayment();
+      }
+
       if (uid != null) {
         try {
-          // Record failed attempt but do not finalize registration
+          // Record failed/pending attempt but do not finalize registration
           await FirestoreService.instance.upsertSubscription(
             uid: uid,
             tenantId: tenantId,
@@ -303,7 +400,7 @@ class _PaymentScreenState extends State<PaymentScreen>
             price: widget.price,
             originalPrice: widget.originalPrice,
             paymentMethod: selectedPaymentMethod,
-            status: 'failed', // Mark as failed
+            status: isPending ? 'pending' : 'failed',
             gstNumber: widget.pendingUserData?['gstNumber'],
             limits: widget.limits,
             geoLocation: widget.geoLocation,
@@ -312,15 +409,16 @@ class _PaymentScreenState extends State<PaymentScreen>
             reportExport: widget.reportExport,
           );
         } catch (e) {
-          debugPrint('Error recording failed payment: $e');
+          debugPrint('Error recording failed/pending payment: $e');
         }
       }
 
+      if (!mounted) return;
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => PaymentFailedScreen(
-            errorMessage: errorMessage,
+            errorMessage: displayError,
             paymentMethod: selectedPaymentMethod,
             amount: widget.price,
             transactionId: txnId,
@@ -959,7 +1057,26 @@ class _PaymentScreenState extends State<PaymentScreen>
         throw Exception(response.error ?? 'Failed to initiate payment');
       }
 
-      // 2. Handle standard web flow
+      // 2. Save pending payment details for recovery before redirecting
+      if (response.txnId != null) {
+        await PaymentRecoveryService.instance.savePendingPayment({
+          'txnId': response.txnId,
+          'planName': widget.planName,
+          'price': widget.price,
+          'isYearly': widget.isYearly,
+          'isSixMonths': widget.isSixMonths,
+          'originalPrice': widget.originalPrice,
+          'paymentMethod': selectedPaymentMethod,
+          'pendingUserData': widget.pendingUserData,
+          'limits': widget.limits,
+          'geoLocation': widget.geoLocation,
+          'attendance': widget.attendance,
+          'barcode': widget.barcode,
+          'reportExport': widget.reportExport,
+        });
+      }
+
+      // 3. Handle standard web flow
       await _handleWebFlow(response, effectiveUid);
     } catch (e) {
       if (mounted && Navigator.canPop(context)) {

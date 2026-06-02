@@ -14,8 +14,11 @@ import 'package:subscription_rooks_app/backend/screens/admin_login_page.dart';
 import 'package:subscription_rooks_app/backend/screens/engineer_login_page.dart';
 import 'package:subscription_rooks_app/backend/screens/amc_customerlogin_page.dart';
 import 'package:subscription_rooks_app/subscription/access_restricted_screen.dart';
+import 'package:subscription_rooks_app/subscription/access_restricted_screen.dart';
 import 'package:subscription_rooks_app/subscription/plan_expired_screen.dart';
 import 'package:subscription_rooks_app/services/subscription_expiry_service.dart';
+import 'package:subscription_rooks_app/services/payment_recovery_service.dart';
+import 'package:subscription_rooks_app/subscription/payment_recovery_screen.dart';
 
 class AuthStateService extends ChangeNotifier {
   AuthStateService._();
@@ -42,6 +45,10 @@ class AuthStateService extends ChangeNotifier {
 
   // Temporary storage for registration data during the multi-step process
   Map<String, dynamic>? _pendingRegistrationData;
+
+  void restorePendingRegistrationData(Map<String, dynamic> data) {
+    _pendingRegistrationData = data;
+  }
 
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
@@ -506,6 +513,13 @@ class AuthStateService extends ChangeNotifier {
     try {
       debugPrint('AuthStateService: Determining initial screen...');
       final prefs = await SharedPreferences.getInstance();
+
+      // Check for pending payment recovery first
+      final pendingPayment = await PaymentRecoveryService.instance.getPendingPayment();
+      if (pendingPayment != null) {
+        debugPrint('AuthStateService: Found pending payment for recovery, redirecting to PaymentRecoveryScreen');
+        return PaymentRecoveryScreen(pendingPayment: pendingPayment);
+      }
 
       // 1. Check for active Firebase Session (Recovery path)
       final user = auth.currentUser;
