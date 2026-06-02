@@ -55,6 +55,7 @@ class PaymentScreen extends StatefulWidget {
 
 class _PaymentScreenState extends State<PaymentScreen>
     with WidgetsBindingObserver {
+  bool _isVerifying = false;
   static const Color brandBlue = Color(0xFF1A237E);
   final String selectedPaymentMethod = 'Card'; // Hardcoded for hosted flow
 
@@ -83,6 +84,7 @@ class _PaymentScreenState extends State<PaymentScreen>
 
   Future<void> _verifyPaymentOnReturn(String txnId) async {
     if (!mounted) return;
+    setState(() { _isVerifying = true; });
 
     // Show a non-dismissible verifying dialog
     showDialog(
@@ -137,13 +139,13 @@ class _PaymentScreenState extends State<PaymentScreen>
               isPending = false;
               finalVerifyResult = doc.data();
               break;
-            } else if (status == 'FAILED') {
-              isSuccess = false;
-              isPending = false;
-              errorMessage = doc.data()?['error'] ?? 'Payment failed.';
-              break;
+            } else if (status == 'FAILED' || status == 'CANCELLED') {
+                isSuccess = false;
+                isPending = false;
+                errorMessage = doc.data()?['error'] ?? (status == 'CANCELLED' ? 'Payment was cancelled by the user.' : 'Payment failed.');
+                break;
             } else if (status == 'PENDING') {
-              isPending = true;
+                isPending = true;
             }
           }
         }
@@ -160,17 +162,17 @@ class _PaymentScreenState extends State<PaymentScreen>
           if (verifyResult['success'] == true) {
             final status = verifyResult['status'];
             if (status == 'SUCCESS') {
-              isSuccess = true;
-              isPending = false;
-              finalVerifyResult = verifyResult;
-              break;
-            } else if (status == 'FAILED') {
-              isSuccess = false;
-              isPending = false;
-              errorMessage = verifyResult['error'] ?? 'Payment failed.';
-              break;
+                isSuccess = true;
+                isPending = false;
+                finalVerifyResult = verifyResult;
+                break;
+            } else if (status == 'FAILED' || status == 'CANCELLED') {
+                isSuccess = false;
+                isPending = false;
+                errorMessage = verifyResult['error'] ?? (status == 'CANCELLED' ? 'Payment was cancelled by the user.' : 'Payment failed.');
+                break;
             } else {
-              isPending = true;
+                isPending = true;
             }
           } else {
             // If API check itself returns success: false, it might be P0039 if not handled by backend
@@ -203,6 +205,7 @@ class _PaymentScreenState extends State<PaymentScreen>
 
     if (!mounted) return;
     Navigator.pop(context); // Close verifying dialog
+    setState(() { _isVerifying = false; });
 
     if (isSuccess) {
       // Payment is genuinely successful
@@ -544,58 +547,85 @@ class _PaymentScreenState extends State<PaymentScreen>
           surface: Colors.white,
         ),
       ),
-      child: Scaffold(
-        backgroundColor: const Color(0xFFF8F9FA),
-        appBar: AppBar(
-          title: const Text(
-            'Payment',
-            style: TextStyle(fontWeight: FontWeight.bold),
+      child: WillPopScope(
+        onWillPop: () async {
+          if (_isVerifying) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Please wait. Payment verification is in progress. You can go back once the verification process is complete.',
+                ),
+              ),
+            );
+            return false;
+          }
+          return true;
+        },
+        child: Scaffold(
+          backgroundColor: const Color(0xFFF8F9FA),
+          appBar: AppBar(
+            title: const Text(
+              'Payment',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            backgroundColor: Colors.white,
+            foregroundColor: Colors.black,
+            elevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+              onPressed: () {
+                if (_isVerifying) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Please wait. Payment verification is in progress. You can go back once the verification process is complete.',
+                      ),
+                    ),
+                  );
+                } else {
+                  Navigator.pop(context);
+                }
+              },
+            ),
           ),
-          backgroundColor: Colors.white,
-          foregroundColor: Colors.black,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new, size: 20),
-            onPressed: () => Navigator.pop(context),
-          ),
-        ),
-        body: SafeArea(
-          child: SingleChildScrollView(
-            padding: screenPadding,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Summary Section (Moved to top for better flow)
-                _buildSubscriptionSummary(formattedDate),
+          body: SafeArea(
+            child: SingleChildScrollView(
+              padding: screenPadding,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Summary Section (Moved to top for better flow)
+                  _buildSubscriptionSummary(formattedDate),
 
-                const SizedBox(height: 100),
+                  const SizedBox(height: 100),
 
-                // Responsive Layout for Payment Actions
-                if (isDesktop)
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Expanded(
-                        flex: 2,
-                        child: SizedBox(),
-                      ), // Placeholder for balance
-                      const SizedBox(width: 32),
-                      Expanded(flex: 1, child: _buildRightSideSidebar()),
-                    ],
-                  )
-                else
-                  Column(
-                    children: [
-                      const SizedBox(height: 16),
-                      _buildSecurityBadges(),
-                      const SizedBox(height: 40),
-                      _buildActionButtons(),
-                      const SizedBox(height: 24),
-                      _buildTermsText(),
-                    ],
-                  ),
-                const SizedBox(height: 40),
-              ],
+                  // Responsive Layout for Payment Actions
+                  if (isDesktop)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Expanded(
+                          flex: 2,
+                          child: SizedBox(),
+                        ), // Placeholder for balance
+                        const SizedBox(width: 32),
+                        Expanded(flex: 1, child: _buildRightSideSidebar()),
+                      ],
+                    )
+                  else
+                    Column(
+                      children: [
+                        const SizedBox(height: 16),
+                        _buildSecurityBadges(),
+                        const SizedBox(height: 40),
+                        _buildActionButtons(),
+                        const SizedBox(height: 24),
+                        _buildTermsText(),
+                      ],
+                    ),
+                  const SizedBox(height: 40),
+                ],
+              ),
             ),
           ),
         ),
