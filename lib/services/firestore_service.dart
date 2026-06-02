@@ -163,10 +163,21 @@ class FirestoreService {
     bool? barcode,
     bool? reportExport,
   }) async {
+    final normalizedPlanName = planName.trim();
+    if (normalizedPlanName.isEmpty) {
+      throw ArgumentError('planName must not be empty');
+    }
+    if (price < 0) {
+      throw ArgumentError('price must be zero or greater');
+    }
+    final normalizedPaymentMethod = paymentMethod.trim().isEmpty
+        ? 'Unknown'
+        : paymentMethod.trim();
+
     final now = DateTime.now();
     DateTime nextBilling;
 
-    if (planName.toLowerCase().contains('trial')) {
+    if (normalizedPlanName.toLowerCase().contains('trial')) {
       // Free Trial is exactly 7 days
       nextBilling = now.add(const Duration(days: 7));
     } else if (isYearly) {
@@ -178,27 +189,27 @@ class FirestoreService {
     }
 
     final data = <String, dynamic>{
-      'planName': planName,
+      'planName': normalizedPlanName,
       'isYearly': isYearly,
       'isSixMonths': isSixMonths,
       'price': price,
-      'originalPrice': originalPrice,
-      'paymentMethod': paymentMethod,
+      'paymentMethod': normalizedPaymentMethod,
       'status': status,
       'startedAt': now.toIso8601String(),
       'nextBillingAt': nextBilling.toIso8601String(),
       'expiresAt':
           nextBilling, // DateTime is converted to Timestamp by Firestore
       'updatedAt': FieldValue.serverTimestamp(),
+      if (originalPrice != null) 'originalPrice': originalPrice,
       if (customerMobile != null && customerMobile.isNotEmpty)
         'customerMobile': customerMobile,
       if (gstNumber != null && gstNumber.isNotEmpty)
         'gstNumber': gstNumber,
-      'limits': limits,
-      'geoLocation': geoLocation,
-      'attendance': attendance,
-      'barcode': barcode,
-      'reportExport': reportExport,
+      if (limits != null) 'limits': limits,
+      if (geoLocation != null) 'geoLocation': geoLocation,
+      if (attendance != null) 'attendance': attendance,
+      if (barcode != null) 'barcode': barcode,
+      if (reportExport != null) 'reportExport': reportExport,
     };
 
     if (brandingData != null) {

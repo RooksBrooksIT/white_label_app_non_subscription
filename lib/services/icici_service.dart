@@ -151,7 +151,7 @@ class IciciService {
     if (phone.isNotEmpty && !phone.startsWith('91')) {
       phone = '91$phone';
     }
-    return {'name': name, 'phone': phone.isEmpty ? '919999999999' : phone};
+    return {'name': name, 'phone': phone};
   }
 
   /// Stream transaction status from Firestore

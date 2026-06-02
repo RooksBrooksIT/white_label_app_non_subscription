@@ -14,8 +14,8 @@ import 'package:subscription_rooks_app/backend/screens/admin_login_page.dart';
 import 'package:subscription_rooks_app/backend/screens/engineer_login_page.dart';
 import 'package:subscription_rooks_app/backend/screens/amc_customerlogin_page.dart';
 import 'package:subscription_rooks_app/subscription/access_restricted_screen.dart';
-import 'package:subscription_rooks_app/subscription/access_restricted_screen.dart';
 import 'package:subscription_rooks_app/subscription/plan_expired_screen.dart';
+import 'package:subscription_rooks_app/subscription/branding_customization_screen.dart';
 import 'package:subscription_rooks_app/services/subscription_expiry_service.dart';
 import 'package:subscription_rooks_app/services/payment_recovery_service.dart';
 import 'package:subscription_rooks_app/subscription/payment_recovery_screen.dart';
@@ -26,6 +26,7 @@ class AuthStateService extends ChangeNotifier {
 
   static const String _kIsRegistered = 'app_is_registered';
   static const String _kUserRole = 'user_role';
+  static const String _kBrandingCompleted = 'branding_completed';
 
   FirebaseAuth? _auth;
   FirebaseAuth get auth {
@@ -508,6 +509,50 @@ class AuthStateService extends ChangeNotifier {
         : AccessRestrictedScreen(role: role);
   }
 
+  Future<bool> _isBrandingSetupCompleted({
+    required SharedPreferences prefs,
+    required String tenantId,
+  }) async {
+    final tenantKey = '${_kBrandingCompleted}_$tenantId';
+    final localCompleted =
+        (prefs.getBool(_kBrandingCompleted) ?? false) ||
+        (prefs.getBool(tenantKey) ?? false);
+
+    if (localCompleted) {
+      if (!(prefs.getBool(tenantKey) ?? false)) {
+        await prefs.setBool(tenantKey, true);
+      }
+      if (!(prefs.getBool(_kBrandingCompleted) ?? false)) {
+        await prefs.setBool(_kBrandingCompleted, true);
+      }
+      return true;
+    }
+
+    try {
+      final brandingDoc = await FirestoreService.instance
+          .brandingDoc(tenantId: tenantId, appId: 'data')
+          .get();
+      final brandingData = brandingDoc.data();
+      final hasBrandingData =
+          brandingDoc.exists &&
+          brandingData != null &&
+          ((brandingData['appName']?.toString().trim().isNotEmpty ?? false) ||
+              brandingData['logoUrl'] != null ||
+              brandingData['primaryColor'] != null ||
+              brandingData['secondaryColor'] != null);
+
+      if (hasBrandingData) {
+        await prefs.setBool(_kBrandingCompleted, true);
+        await prefs.setBool(tenantKey, true);
+        return true;
+      }
+    } catch (e) {
+      debugPrint('AuthStateService: Branding completion validation failed: $e');
+    }
+
+    return false;
+  }
+
   /// Determines the initial screen based on persisted login state
   Future<Widget> getInitialScreen() async {
     try {
@@ -581,6 +626,67 @@ class AuthStateService extends ChangeNotifier {
                 isAdmin: true,
               );
             }
+
+            final isBrandingCompleted = await _isBrandingSetupCompleted(
+              prefs: prefs,
+              tenantId: effectiveTenant,
+            );
+            if (!isBrandingCompleted) {
+              debugPrint('AuthStateService: Branding incomplete for admin, routing to BrandingCustomizationScreen');
+              try {
+                // Fetch latest payment to populate BrandingCustomizationScreen
+                final paymentSnapshot = await FirebaseFirestore.instance
+                    .collection('payments')
+                    .where('userId', isEqualTo: user.uid)
+                    .orderBy('updatedAt', descending: true)
+                    .limit(1)
+                    .get();
+
+                if (paymentSnapshot.docs.isNotEmpty) {
+                  final paymentData = paymentSnapshot.docs.first.data();
+                  final rawAmount = paymentData['amount'];
+                  final parsedAmount = rawAmount is num
+                      ? rawAmount.toInt()
+                      : int.tryParse(rawAmount?.toString() ?? '');
+                  final rawOriginalPrice = paymentData['originalPrice'];
+                  final parsedOriginalPrice = rawOriginalPrice is num
+                      ? rawOriginalPrice.toInt()
+                      : int.tryParse(rawOriginalPrice?.toString() ?? '');
+                  final resolvedPaymentMethod =
+                      (paymentData['paymentMethod'] ??
+                              paymentData['paymentMode'] ??
+                              '')
+                          .toString()
+                          .trim();
+                  return BrandingCustomizationScreen(
+                    planName: paymentData['planName'] ?? 'Subscription',
+                    isYearly: paymentData['isYearly'] ?? false,
+                    isSixMonths: paymentData['isSixMonths'] ?? false,
+                    price: parsedAmount,
+                    transactionId: paymentSnapshot.docs.first.id,
+                    originalPrice: parsedOriginalPrice,
+                    paymentMethod:
+                        resolvedPaymentMethod.isNotEmpty
+                        ? resolvedPaymentMethod
+                        : null,
+                    limits: paymentData['limits'] as Map<String, dynamic>?,
+                    geoLocation: paymentData['geoLocation'] as bool?,
+                    attendance: paymentData['attendance'] as bool?,
+                    barcode: paymentData['barcode'] as bool?,
+                    reportExport: paymentData['reportExport'] as bool?,
+                  );
+                }
+              } catch (e) {
+                debugPrint('AuthStateService: Error fetching latest payment for branding: $e');
+              }
+              // Fallback if no payment found
+              return const BrandingCustomizationScreen(
+                planName: 'Subscription',
+                isYearly: false,
+                price: 0,
+              );
+            }
+
             return const admindashboard();
           } else {
             // Engineer or Customer
@@ -629,6 +735,19 @@ class AuthStateService extends ChangeNotifier {
               tenantId: adminTenantId,
               role: 'admin',
               isAdmin: true,
+            );
+          }
+
+          final isBrandingCompleted = await _isBrandingSetupCompleted(
+            prefs: prefs,
+            tenantId: adminTenantId,
+          );
+          if (!isBrandingCompleted) {
+            debugPrint('AuthStateService: Branding incomplete for fallback admin session, routing to BrandingCustomizationScreen');
+            return const BrandingCustomizationScreen(
+              planName: 'Subscription',
+              isYearly: false,
+              price: 0,
             );
           }
         }

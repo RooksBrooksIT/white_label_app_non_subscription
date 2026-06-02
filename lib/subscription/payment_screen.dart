@@ -82,6 +82,50 @@ class _PaymentScreenState extends State<PaymentScreen>
     }
   }
 
+  /// Returns true if the given Firestore/API payment data represents a successful payment.
+  /// Checks: status=SUCCESS, txnStatus=SUC, responseCode=000, txnResponseCode=0000.
+  /// activationStatus=PENDING is NOT treated as a failure.
+  bool _isPaymentSuccess(Map<String, dynamic> data) {
+    final status = (data['status'] as String? ?? '').toUpperCase();
+    final txnStatus = (data['txnStatus'] as String? ?? '').toUpperCase();
+    final responseCode = (data['responseCode'] as String? ?? '');
+    final txnResponseCode = (data['txnResponseCode'] as String? ?? '');
+
+    debugPrint(
+      '[PaymentValidation] status=$status | txnStatus=$txnStatus | '
+      'responseCode=$responseCode | txnResponseCode=$txnResponseCode'
+    );
+
+    // Primary indicator
+    if (status == 'SUCCESS') return true;
+    // Secondary indicators from ICICI gateway
+    if (txnStatus == 'SUC') return true;
+    if (responseCode == '000' && txnResponseCode == '0000') return true;
+    return false;
+  }
+
+  /// Returns true if the payment is definitively failed/cancelled.
+  bool _isPaymentFailed(Map<String, dynamic> data) {
+    final status = (data['status'] as String? ?? '').toUpperCase();
+    return status == 'FAILED' || status == 'CANCELLED';
+  }
+
+  String _resolvePaymentMethodFromResult(
+    Map<String, dynamic>? result, {
+    String fallback = 'CARD',
+  }) {
+    if (result == null) return fallback;
+    final rawValue =
+        result['paymentMethod'] ??
+        result['paymentMode'] ??
+        result['payMode'] ??
+        result['txnPaymentMode'] ??
+        result['mode'];
+    final method = rawValue?.toString().trim();
+    if (method == null || method.isEmpty) return fallback;
+    return method.toUpperCase();
+  }
+
   Future<void> _verifyPaymentOnReturn(String txnId) async {
     if (!mounted) return;
     setState(() { _isVerifying = true; });
@@ -107,105 +151,128 @@ class _PaymentScreenState extends State<PaymentScreen>
     Map<String, dynamic>? finalVerifyResult;
     String errorMessage = 'Payment failed or was cancelled.';
 
-    final bool isHosted = selectedPaymentMethod != 'UPI';
-
-    if (!isHosted) {
-      // Wait 2 seconds before the first check to give the webhook a head start
-      await Future.delayed(const Duration(seconds: 2));
-    }
+    const verificationWindow = Duration(seconds: 5);
+    const pollInterval = Duration(seconds: 1);
+    final deadline = DateTime.now().add(verificationWindow);
 
     try {
       int attempts = 0;
-      const maxAttempts = 10; // Increased for ~80s total polling (10 * 8s)
-
-      while (attempts < maxAttempts) {
+      while (DateTime.now().isBefore(deadline)) {
         attempts++;
         if (!mounted) return;
 
-        if (!isHosted) {
-          // 1. Check Firestore first (fastest if webhook arrived)
+        // ── STEP 1: Always check Firestore first (fastest path, works for both UPI & Hosted) ──
+        try {
           final doc = await FirebaseFirestore.instance
               .collection('payments')
               .doc(txnId)
-              .get();
+              .get(const GetOptions(source: Source.server)); // force fresh read from server
+
           if (doc.exists) {
-            final status = doc.data()?['status'];
+            final firestoreData = doc.data()!;
             debugPrint(
-              'Firestore Status for $txnId (Attempt $attempts): $status',
+              '[PaymentVerify] Firestore doc (Attempt $attempts): $firestoreData',
             );
 
-            if (status == 'SUCCESS') {
+            if (_isPaymentSuccess(firestoreData)) {
+              debugPrint('[PaymentVerify] ✅ Firestore confirms SUCCESS for $txnId');
               isSuccess = true;
               isPending = false;
-              finalVerifyResult = doc.data();
+              finalVerifyResult = firestoreData;
               break;
-            } else if (status == 'FAILED' || status == 'CANCELLED') {
-                isSuccess = false;
-                isPending = false;
-                errorMessage = doc.data()?['error'] ?? (status == 'CANCELLED' ? 'Payment was cancelled by the user.' : 'Payment failed.');
-                break;
-            } else if (status == 'PENDING') {
-                isPending = true;
+            } else if (_isPaymentFailed(firestoreData)) {
+              debugPrint('[PaymentVerify] ❌ Firestore confirms FAILED/CANCELLED for $txnId');
+              isSuccess = false;
+              isPending = false;
+              finalVerifyResult = firestoreData;
+              errorMessage = firestoreData['error'] ??
+                  (firestoreData['status'] == 'CANCELLED'
+                      ? 'Payment was cancelled by the user.'
+                      : 'Payment failed.');
+              break;
+            } else {
+              // PENDING or any other transient status — keep polling
+              debugPrint(
+                '[PaymentVerify] Firestore status still transient: ${firestoreData['status']} | activationStatus: ${firestoreData['activationStatus']}',
+              );
+              isPending = true;
             }
+          } else {
+            debugPrint('[PaymentVerify] Firestore doc not yet created for $txnId (Attempt $attempts)');
           }
+        } catch (firestoreError) {
+          debugPrint('[PaymentVerify] Firestore read error: $firestoreError');
         }
 
-        // 2. Fallback to API check if Firestore is still PENDING or missing (or if Hosted payment)
+        // ── STEP 2: Fallback to API check if Firestore has no conclusive result ──
         try {
           final verifyResult = await IciciService.instance.verifyPaymentStatus(
             txnId: txnId,
           );
           debugPrint(
-            'API Status for $txnId (Attempt $attempts): ${verifyResult['status']} | Error: ${verifyResult['error']}',
+            '[PaymentVerify] API response (Attempt $attempts): $verifyResult',
           );
 
           if (verifyResult['success'] == true) {
-            final status = verifyResult['status'];
-            if (status == 'SUCCESS') {
-                isSuccess = true;
-                isPending = false;
-                finalVerifyResult = verifyResult;
-                break;
-            } else if (status == 'FAILED' || status == 'CANCELLED') {
-                isSuccess = false;
-                isPending = false;
-                errorMessage = verifyResult['error'] ?? (status == 'CANCELLED' ? 'Payment was cancelled by the user.' : 'Payment failed.');
-                break;
+            // Check all gateway success fields in the API response
+            if (_isPaymentSuccess(verifyResult)) {
+              debugPrint('[PaymentVerify] ✅ API confirms SUCCESS for $txnId');
+              isSuccess = true;
+              isPending = false;
+              finalVerifyResult = verifyResult;
+              break;
+            } else if (_isPaymentFailed(verifyResult)) {
+              debugPrint('[PaymentVerify] ❌ API confirms FAILED/CANCELLED for $txnId');
+              isSuccess = false;
+              isPending = false;
+              finalVerifyResult = verifyResult;
+              errorMessage = verifyResult['error'] ??
+                  (verifyResult['status'] == 'CANCELLED'
+                      ? 'Payment was cancelled by the user.'
+                      : 'Payment failed.');
+              break;
             } else {
-                isPending = true;
+              isPending = true;
             }
           } else {
-            // If API check itself returns success: false, it might be P0039 if not handled by backend
             final error = verifyResult['error']?.toString() ?? '';
             if (error.contains('P0039') ||
                 error.contains('Transaction Not available') ||
                 error.toLowerCase().contains('pending')) {
-              debugPrint(
-                'Transaction sync delay detected (P0039). Continuing to poll...',
-              );
+              debugPrint('[PaymentVerify] Transaction sync delay (P0039). Continuing to poll...');
+              isPending = true;
+            } else {
+              debugPrint('[PaymentVerify] API returned success=false: $error');
+              // Don't break — webhook may still arrive; keep polling
               isPending = true;
             }
           }
-        } catch (e) {
-          debugPrint('API Verification error during polling: $e');
+        } catch (apiError) {
+          debugPrint('[PaymentVerify] API Verification error: $apiError');
         }
 
         // If still PENDING, wait and retry
-        if (attempts < maxAttempts) {
-          await Future.delayed(
-            Duration(seconds: isHosted ? 4 : 8),
-          ); // Shorter delay for hosted flow
+        if (DateTime.now().isBefore(deadline)) {
+          await Future.delayed(pollInterval);
         }
       }
     } catch (e) {
-      debugPrint('Verification error: $e');
+      debugPrint('[PaymentVerify] Outer verification error: $e');
       isSuccess = false;
       errorMessage = 'An error occurred during verification.';
     }
 
+    debugPrint(
+      '[PaymentVerify] Final result → isSuccess=$isSuccess | isPending=$isPending | error=$errorMessage',
+    );
+
     if (!mounted) return;
     Navigator.pop(context); // Close verifying dialog
     setState(() { _isVerifying = false; });
+    final resolvedPaymentMethod = _resolvePaymentMethodFromResult(
+      finalVerifyResult,
+      fallback: selectedPaymentMethod.toUpperCase(),
+    );
 
     if (isSuccess) {
       // Payment is genuinely successful
@@ -250,7 +317,7 @@ class _PaymentScreenState extends State<PaymentScreen>
             isSixMonths: widget.isSixMonths,
             price: widget.price,
             originalPrice: widget.originalPrice,
-            paymentMethod: selectedPaymentMethod,
+            paymentMethod: resolvedPaymentMethod,
             status: 'active',
             gstNumber: widget.pendingUserData?['gstNumber'],
             limits: widget.limits,
@@ -269,6 +336,8 @@ class _PaymentScreenState extends State<PaymentScreen>
                 'uid': uid,
                 'userId': uid,
                 'status': 'SUCCESS',
+                'paymentMethod': resolvedPaymentMethod,
+                'paymentMode': resolvedPaymentMethod,
                 'updatedAt': FieldValue.serverTimestamp(),
               });
 
@@ -288,7 +357,8 @@ class _PaymentScreenState extends State<PaymentScreen>
             customerEmail: widget.pendingUserData?['email'] ?? 'support@servnex.com',
             customerMobile: widget.pendingUserData?['customerMobile'] ?? widget.pendingUserData?['phone'],
             gatewayResponse: finalVerifyResult ?? {
-              'paymentMode': selectedPaymentMethod,
+              'paymentMode': resolvedPaymentMethod,
+              'paymentMethod': resolvedPaymentMethod,
               'amount': widget.price,
               'status': 'SUCCESS',
               'transactionId': txnId,
@@ -402,7 +472,7 @@ class _PaymentScreenState extends State<PaymentScreen>
             isSixMonths: widget.isSixMonths,
             price: widget.price,
             originalPrice: widget.originalPrice,
-            paymentMethod: selectedPaymentMethod,
+            paymentMethod: resolvedPaymentMethod,
             status: isPending ? 'pending' : 'failed',
             gstNumber: widget.pendingUserData?['gstNumber'],
             limits: widget.limits,
@@ -422,7 +492,7 @@ class _PaymentScreenState extends State<PaymentScreen>
         MaterialPageRoute(
           builder: (context) => PaymentFailedScreen(
             errorMessage: displayError,
-            paymentMethod: selectedPaymentMethod,
+            paymentMethod: resolvedPaymentMethod,
             amount: widget.price,
             transactionId: txnId,
           ),
@@ -547,9 +617,10 @@ class _PaymentScreenState extends State<PaymentScreen>
           surface: Colors.white,
         ),
       ),
-      child: WillPopScope(
-        onWillPop: () async {
-          if (_isVerifying) {
+      child: PopScope(
+        canPop: !_isVerifying,
+        onPopInvokedWithResult: (didPop, result) {
+          if (!didPop && _isVerifying) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text(
@@ -557,9 +628,7 @@ class _PaymentScreenState extends State<PaymentScreen>
                 ),
               ),
             );
-            return false;
           }
-          return true;
         },
         child: Scaffold(
           backgroundColor: const Color(0xFFF8F9FA),
@@ -1030,10 +1099,10 @@ class _PaymentScreenState extends State<PaymentScreen>
       final effectiveUid =
           uid ?? 'PENDING_${DateTime.now().millisecondsSinceEpoch}';
 
-      // Fetch customer data for pre-filling
+      // Fetch customer data for pre-filling — use the actual entered mobile number.
       Map<String, String> customerData = {
         'name': 'Customer',
-        'phone': '919999999999',
+        'phone': '',
       };
       if (uid != null) {
         customerData = await IciciService.instance.fetchCustomerData(
@@ -1041,10 +1110,16 @@ class _PaymentScreenState extends State<PaymentScreen>
           tenantId,
         );
       } else if (widget.pendingUserData != null) {
+        // Use the exact mobile number entered by the user during registration.
+        final rawPhone = widget.pendingUserData!['phone'] as String? ??
+            widget.pendingUserData!['mobile'] as String? ??
+            widget.pendingUserData!['customerMobile'] as String? ??
+            '';
         customerData = {
-          'name': widget.pendingUserData!['name'] ?? 'Customer',
-          'phone': '919999999999', // Default if not in pending data
+          'name': widget.pendingUserData!['name'] as String? ?? 'Customer',
+          'phone': rawPhone,
         };
+        debugPrint('[PaymentScreen] Using pendingUserData phone: $rawPhone');
       }
 
       // 1. Initiate Sale via backend

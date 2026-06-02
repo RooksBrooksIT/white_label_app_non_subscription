@@ -11,6 +11,7 @@ import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/services/storage_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class BrandingCustomizationScreen extends StatefulWidget {
   final String? planName;
@@ -57,6 +58,11 @@ class BrandingCustomizationScreen extends StatefulWidget {
 
 class _BrandingCustomizationScreenState
     extends State<BrandingCustomizationScreen> {
+  bool get _hasValidSubscriptionPayload {
+    final plan = widget.planName?.trim() ?? '';
+    final method = widget.paymentMethod?.trim() ?? '';
+    return plan.isNotEmpty && widget.price != null && method.isNotEmpty;
+  }
   // Branding State
   Color _primaryColor = Colors.deepPurple;
   Color _secondaryColor = Colors.amber;
@@ -1411,7 +1417,7 @@ class _BrandingCustomizationScreenState
           );
 
           try {
-            // Prepare branding data
+            // ── Prepare branding data ──
             final brandingData = {
               'appName': _appNameController.text,
               'primaryColor': _primaryColor.toARGB32(),
@@ -1422,12 +1428,14 @@ class _BrandingCustomizationScreenState
               'databaseName': ThemeService.instance.databaseName,
             };
 
-            // Use real auth uid if available
+            // ── Resolve uid ──
             String? uid = AuthStateService.instance.currentUser?.uid;
+            debugPrint('[BrandingScreen] uid=$uid');
+            debugPrint('[BrandingScreen] databaseName=${ThemeService.instance.databaseName}');
+            debugPrint('[BrandingScreen] appName=${_appNameController.text}');
 
-            // If we have pending user data, register the user now
+            // If we have pending user data and no uid, register now
             if (widget.pendingUserData != null && uid == null) {
-              // Extract core fields and pass the rest as additionalData
               final name = widget.pendingUserData!['name'] as String;
               final email = widget.pendingUserData!['email'] as String;
               final password = widget.pendingUserData!['password'] as String;
@@ -1446,56 +1454,45 @@ class _BrandingCustomizationScreenState
                 email: email,
                 password: password,
                 role: role,
-                additionalData: additionalData.isNotEmpty
-                    ? additionalData
-                    : null,
+                additionalData: additionalData.isNotEmpty ? additionalData : null,
               );
               if (result['success']) {
                 uid = result['uid'];
               } else {
-                throw Exception(
-                  result['message'] ?? 'Failed to create account',
-                );
+                throw Exception(result['message'] ?? 'Failed to create account');
               }
             }
 
-            uid ??= 'demo-user';
+            uid ??= AuthStateService.instance.currentUser?.uid ?? 'demo-user';
+            debugPrint('[BrandingScreen] Final uid=$uid');
 
-            debugPrint(
-              'BrandingCustomizationScreen: uid=$uid, appName=${_appNameController.text}',
-            );
-            debugPrint(
-              'BrandingCustomizationScreen: logoFile=${_logoFile?.path}',
-            );
-
-            // Upload logo if a new file was picked
+            // ── Upload logo if a new file was picked ──
             if (_logoFile != null) {
-              debugPrint(
-                'BrandingCustomizationScreen: Starting logo upload...',
-              );
+              debugPrint('[BrandingScreen] Uploading logo...');
               final logoUrl = await StorageService.instance.uploadLogo(
                 userId: uid,
                 file: _logoFile!,
               );
               if (logoUrl != null) {
                 brandingData['logoUrl'] = logoUrl;
+                debugPrint('[BrandingScreen] Logo uploaded: $logoUrl');
               }
             } else if (_existingLogoUrl != null) {
-              // Keep existing logo URL if no new file was picked
               brandingData['logoUrl'] = _existingLogoUrl!;
             }
 
-            if (widget.isEditMode) {
-              // --- Edit Mode: Only update branding data ---
+            final tenantId = ThemeService.instance.databaseName;
+            debugPrint('[BrandingScreen] Saving to tenantId=$tenantId');
 
-              // Save to App-Specific Collection
+            if (widget.isEditMode) {
+              // ── Edit Mode ──
+              debugPrint('[BrandingScreen] Edit mode: saving branding...');
               await FirestoreService.instance.saveAppBranding(
-                tenantId: ThemeService.instance.databaseName,
+                tenantId: tenantId,
                 appId: 'data',
                 brandingData: brandingData,
               );
 
-              // Update App Theme
               ThemeService.instance.updateTheme(
                 primary: _primaryColor,
                 secondary: _secondaryColor,
@@ -1503,9 +1500,13 @@ class _BrandingCustomizationScreenState
                 isDarkMode: _useDarkMode,
                 fontFamily: _selectedFont,
                 appName: _appNameController.text,
-                databaseName: ThemeService.instance.databaseName,
+                databaseName: tenantId,
                 logoUrl: brandingData['logoUrl'] as String?,
               );
+
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setBool('branding_completed', true);
+              debugPrint('[BrandingScreen] Edit mode: branding saved OK');
 
               if (!mounted) return;
               Navigator.pop(context); // Close loading
@@ -1521,70 +1522,23 @@ class _BrandingCustomizationScreenState
                 ),
               );
 
-              // Use pushReplacement to force a full rebuild of the dashboard
-              // with the updated branding colors and app name
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(builder: (_) => const admindashboard()),
               );
             } else {
-              // --- First-time Setup Mode ---
+              // ── First-time Setup ──
 
-              // Generate Referral Code
-              final referralCode = _generateReferralCode();
-              brandingData['referralCode'] = referralCode;
-
-              // 1. Save to App-Specific Collection ('data' as stable ID)
+              // STEP 1: Save branding (critical)
+              debugPrint('[BrandingScreen] Saving app branding...');
               await FirestoreService.instance.saveAppBranding(
-                tenantId: ThemeService.instance.databaseName,
+                tenantId: tenantId,
                 appId: 'data',
                 brandingData: brandingData,
               );
+              debugPrint('[BrandingScreen] App branding saved.');
 
-              // 2. Save Referral Code Mapping
-              await FirestoreService.instance.saveReferralCode(
-                code: referralCode,
-                tenantId: ThemeService.instance.databaseName,
-                appId: 'data',
-                adminUid: uid,
-              );
-
-              // 3. Save Full Subscription with Branding (linked to user)
-              await FirestoreService.instance.upsertSubscription(
-                uid: uid,
-                tenantId: ThemeService.instance.databaseName,
-                appId: 'data',
-                planName: widget.planName!,
-                isYearly: widget.isYearly!,
-                isSixMonths: widget.isSixMonths ?? false,
-                price: widget.price!,
-                originalPrice: widget.originalPrice,
-                paymentMethod: widget.paymentMethod!,
-                gstNumber: widget.pendingUserData?['gstNumber'],
-                brandingData: brandingData,
-                limits: widget.limits,
-                geoLocation: widget.geoLocation,
-                attendance: widget.attendance,
-                barcode: widget.barcode,
-                reportExport: widget.reportExport,
-              );
-
-              // 4. Update Global User Directory (Link Admin to this App)
-              await FirestoreService.instance.saveUserDirectory(
-                uid: uid,
-                tenantId: ThemeService.instance.databaseName,
-                role: 'admin',
-                appName: _appNameController.text,
-              );
-
-              // 5. Activate the user after successful subscription
-              await FirestoreService.instance.setUserActiveStatus(
-                uid: uid,
-                tenantId: ThemeService.instance.databaseName,
-                active: true,
-              );
-
-              // Update App Theme
+              // STEP 2: Update local theme
               ThemeService.instance.updateTheme(
                 primary: _primaryColor,
                 secondary: _secondaryColor,
@@ -1592,14 +1546,94 @@ class _BrandingCustomizationScreenState
                 isDarkMode: _useDarkMode,
                 fontFamily: _selectedFont,
                 appName: _appNameController.text,
-                databaseName: ThemeService.instance.databaseName,
+                databaseName: tenantId,
                 logoUrl: brandingData['logoUrl'] as String?,
               );
+
+              // STEP 3: Mark branding complete EARLY so navigation always works
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setBool('branding_completed', true);
+              debugPrint('[BrandingScreen] branding_completed=true saved.');
+
+              // STEP 4: Generate referral code
+              final referralCode = _generateReferralCode();
+              brandingData['referralCode'] = referralCode;
+
+              // STEP 5: Optional writes — each in its own try-catch so they can't block navigation
+              try {
+                debugPrint('[BrandingScreen] Saving referral code...');
+                await FirestoreService.instance.saveReferralCode(
+                  code: referralCode,
+                  tenantId: tenantId,
+                  appId: 'data',
+                  adminUid: uid,
+                );
+                debugPrint('[BrandingScreen] Referral code saved: $referralCode');
+              } catch (e) {
+                debugPrint('[BrandingScreen] Non-critical: referral code save failed: $e');
+              }
+
+              try {
+                if (_hasValidSubscriptionPayload) {
+                  debugPrint('[BrandingScreen] Upserting subscription...');
+                  await FirestoreService.instance.upsertSubscription(
+                    uid: uid,
+                    tenantId: tenantId,
+                    appId: 'data',
+                    planName: widget.planName!.trim(),
+                    isYearly: widget.isYearly ?? false,
+                    isSixMonths: widget.isSixMonths ?? false,
+                    price: widget.price!,
+                    originalPrice: widget.originalPrice,
+                    paymentMethod: widget.paymentMethod!.trim(),
+                    status: 'active',
+                    gstNumber: widget.pendingUserData?['gstNumber'],
+                    brandingData: brandingData,
+                    limits: widget.limits,
+                    geoLocation: widget.geoLocation,
+                    attendance: widget.attendance,
+                    barcode: widget.barcode,
+                    reportExport: widget.reportExport,
+                  );
+                  debugPrint('[BrandingScreen] Subscription upserted.');
+                } else {
+                  debugPrint(
+                    '[BrandingScreen] Skipping subscription upsert: incomplete payload.',
+                  );
+                }
+              } catch (e) {
+                debugPrint('[BrandingScreen] Non-critical: upsertSubscription failed: $e');
+              }
+
+              try {
+                debugPrint('[BrandingScreen] Saving user directory...');
+                await FirestoreService.instance.saveUserDirectory(
+                  uid: uid,
+                  tenantId: tenantId,
+                  role: 'admin',
+                  appName: _appNameController.text,
+                );
+                debugPrint('[BrandingScreen] User directory saved.');
+              } catch (e) {
+                debugPrint('[BrandingScreen] Non-critical: saveUserDirectory failed: $e');
+              }
+
+              try {
+                debugPrint('[BrandingScreen] Setting user active...');
+                await FirestoreService.instance.setUserActiveStatus(
+                  uid: uid,
+                  tenantId: tenantId,
+                  active: true,
+                );
+                debugPrint('[BrandingScreen] User active status set.');
+              } catch (e) {
+                debugPrint('[BrandingScreen] Non-critical: setUserActiveStatus failed: $e');
+              }
 
               if (!mounted) return;
               Navigator.pop(context); // Close loading
 
-              // Show Success Dialog with Referral Code
+              // Show referral code dialog
               await showDialog(
                 context: context,
                 barrierDismissible: false,
@@ -1652,7 +1686,7 @@ class _BrandingCustomizationScreenState
               );
 
               if (!mounted) return;
-              // Navigate directly to Admin Dashboard
+              debugPrint('[BrandingScreen] Navigating to admindashboard...');
               Navigator.pushAndRemoveUntil(
                 context,
                 MaterialPageRoute(builder: (_) => const admindashboard()),
@@ -1660,16 +1694,18 @@ class _BrandingCustomizationScreenState
               );
             }
           } catch (e) {
+            debugPrint('[BrandingScreen] CRITICAL ERROR in Complete Setup: $e');
             if (mounted) {
               Navigator.pop(context); // Close loading
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('Error saving preferences: $e'),
+                  content: Text('Error: $e'),
                   behavior: SnackBarBehavior.floating,
                   backgroundColor: Colors.red,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
+                  duration: const Duration(seconds: 8),
                 ),
               );
             }
