@@ -104,7 +104,7 @@ class AdminNotificationsPage extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
+                      color: Colors.black.withValues(alpha: 0.05),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
@@ -112,7 +112,7 @@ class AdminNotificationsPage extends StatelessWidget {
                   border: isSeen
                       ? null
                       : Border.all(
-                          color: primaryColor.withOpacity(0.3),
+                          color: primaryColor.withValues(alpha: 0.3),
                           width: 1.5,
                         ),
                 ),
@@ -124,7 +124,7 @@ class AdminNotificationsPage extends StatelessWidget {
                   leading: CircleAvatar(
                     backgroundColor: isSeen
                         ? Colors.grey[200]
-                        : primaryColor.withOpacity(0.1),
+                        : primaryColor.withValues(alpha: 0.1),
                     child: Icon(
                       _getIconForType(notification.type),
                       color: isSeen ? Colors.grey[600] : primaryColor,

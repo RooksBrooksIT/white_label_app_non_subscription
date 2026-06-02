@@ -5,7 +5,7 @@
 
 "use strict";
 
-const { onRequest } = require("firebase-functions/v2/https");
+const { onRequest, onCall, HttpsError } = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
 const iciciService = require("./icici_service");
 
@@ -334,3 +334,122 @@ exports.processRefund = onRequest(
     }
 );
 
+/**
+ * API: adminProcessRefund
+ * Secure HTTPS Callable for Admins to initiate refunds
+ */
+exports.adminProcessRefund = onCall(
+    {
+        region: "us-central1",
+        vpcConnector: "icici-connector",
+        vpcConnectorEgressSettings: "ALL_TRAFFIC",
+        cors: true,
+        timeoutSeconds: 60,
+        memory: "256MiB"
+    },
+    async (request) => {
+        // 1. Authenticate user
+        if (!request.auth) {
+            throw new HttpsError("unauthenticated", "User must be logged in to process refunds.");
+        }
+
+        const uid = request.auth.uid;
+        const { orderId, refundAmount, refundReason, adminName } = request.data;
+
+        if (!orderId || !refundAmount || !refundReason) {
+            throw new HttpsError("invalid-argument", "Missing required fields: orderId, refundAmount, or refundReason.");
+        }
+
+        try {
+            // 2. Authorize Admin
+            const userDoc = await db.collection("users").doc(uid).get();
+            let finalAdminName = adminName || "Admin";
+            
+            if (userDoc.exists) {
+                const userData = userDoc.data();
+                if (userData.name) finalAdminName = userData.name;
+            }
+
+            // 3. Fetch Transaction
+            const paymentRef = db.collection("payments").doc(orderId);
+            
+            const result = await db.runTransaction(async (transaction) => {
+                const paymentDoc = await transaction.get(paymentRef);
+                
+                if (!paymentDoc.exists) {
+                    throw new HttpsError("not-found", "Transaction not found.");
+                }
+
+                const paymentData = paymentDoc.data();
+                
+                if (paymentData.status !== "SUCCESS" && paymentData.status !== "PARTIAL_REFUND") {
+                    throw new HttpsError("failed-precondition", "Only SUCCESS or PARTIAL_REFUND transactions can be refunded.");
+                }
+
+                const amountPaid = parseFloat(paymentData.amount || 0);
+                const amountRequested = parseFloat(refundAmount);
+                const existingRefund = parseFloat(paymentData.refundedAmount || 0);
+
+                if (amountRequested <= 0) {
+                     throw new HttpsError("invalid-argument", "Refund amount must be greater than 0.");
+                }
+
+                if ((existingRefund + amountRequested) > amountPaid) {
+                     throw new HttpsError("out-of-range", "Total refund amount exceeds original payment amount.");
+                }
+
+                // 4. Call ICICI Bank API
+                const bankResult = await iciciService.processRefund(orderId, amountRequested);
+                
+                if (!bankResult.success) {
+                    throw new HttpsError("internal", "Refund rejected by bank: " + (bankResult.error || "Unknown error"), bankResult.data);
+                }
+
+                const newRefundedAmount = existingRefund + amountRequested;
+                const newStatus = (newRefundedAmount >= amountPaid) ? "REFUNDED" : "PARTIAL_REFUND";
+
+                // 5. Update Payments Collection
+                const updateData = {
+                    status: newStatus,
+                    refundedAmount: newRefundedAmount,
+                    lastRefundDate: admin.firestore.FieldValue.serverTimestamp(),
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                };
+                
+                transaction.update(paymentRef, updateData);
+
+                // 6. Create Audit Logs
+                const refundId = db.collection("refunds").doc().id;
+                const refundRecord = {
+                    refundId: refundId,
+                    orderId: orderId,
+                    amount: amountRequested,
+                    reason: refundReason,
+                    adminUid: uid,
+                    adminName: finalAdminName,
+                    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                    status: "SUCCESS",
+                    bankResponse: bankResult.data || {}
+                };
+
+                transaction.set(db.collection("refunds").doc(refundId), refundRecord);
+                transaction.set(db.collection("refund_logs").doc(refundId), refundRecord);
+
+                return {
+                    success: true,
+                    status: newStatus,
+                    refundedAmount: newRefundedAmount
+                };
+            });
+
+            return result;
+
+        } catch (error) {
+            console.error("[ADMIN_REFUND_ERROR]", error);
+            if (error instanceof HttpsError) {
+                throw error;
+            }
+            throw new HttpsError("internal", error.message || "An error occurred while processing the refund.");
+        }
+    }
+);

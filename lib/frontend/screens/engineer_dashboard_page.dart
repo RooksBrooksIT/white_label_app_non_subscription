@@ -1336,7 +1336,7 @@ class _EngineerPageState extends State<EngineerPage> {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(title, style: titleStyle),
-        if (trailing != null) trailing,
+        ?trailing,
       ],
     );
   }

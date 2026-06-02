@@ -36,6 +36,7 @@ import 'package:subscription_rooks_app/frontend/screens/about_us_screen.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/frontend/screens/contact_us_screen.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_notifications_page.dart';
+import 'package:subscription_rooks_app/frontend/screens/refund_page.dart';
 
 class admindashboard extends StatefulWidget {
   const admindashboard({super.key});
@@ -126,7 +127,7 @@ class _admindashboardState extends State<admindashboard> {
         .listen((snapshot) {
           for (var change in snapshot.docChanges) {
             if (change.type == DocumentChangeType.added) {
-              final data = change.doc.data() as Map<String, dynamic>?;
+              final data = change.doc.data();
               if (data != null) {
                 final title = data['title'] ?? 'New Notification';
                 final body = data['body'] ?? '';
@@ -1404,6 +1405,21 @@ class _admindashboardState extends State<admindashboard> {
                 ),
                 const Divider(indent: 20, endIndent: 20),
 
+                _buildDrawerItem(
+                  icon: Icons.undo_rounded,
+                  title: 'Refund Management',
+                  subtitle: 'Manage ICICI refunds',
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const RefundPage(),
+                      ),
+                    );
+                  },
+                ),
+                const Divider(indent: 20, endIndent: 20),
                 _buildDrawerItem(
                   icon: Icons.contact_mail_rounded,
                   title: 'Contact Us',
