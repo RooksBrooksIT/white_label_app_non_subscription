@@ -1662,6 +1662,7 @@ const iciciFunctions = require("./src/iciciPaymentFunctions");
 // paymentCallback → webhook called by ICICI after payment
 // verifyPayment   → called by Flutter app to poll status
 exports.processRefund    = iciciFunctions.processRefund;
+exports.adminProcessRefund = iciciFunctions.adminProcessRefund;
 exports.paymentCallback  = iciciFunctions.paymentCallback;
 exports.verifyPayment    = iciciFunctions.verifyPayment;
 
