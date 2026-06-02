@@ -763,7 +763,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                   fontSize: 12,
                   color: _isOnline
                       ? Colors.greenAccent
-                      : appBarForegroundColor.withOpacity(0.7),
+                      : appBarForegroundColor.withValues(alpha: 0.7),
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -976,8 +976,9 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
     Color labelColor,
     Color textColor,
   ) {
-    if (value == null || value.isEmpty || value == "N/A")
+    if (value == null || value.isEmpty || value == "N/A") {
       return const SizedBox.shrink();
+    }
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
