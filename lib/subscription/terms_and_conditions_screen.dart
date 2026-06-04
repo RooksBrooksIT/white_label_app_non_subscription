@@ -49,8 +49,240 @@ class TermsAndConditionsScreen extends StatefulWidget {
       _TermsAndConditionsScreenState();
 }
 
+class _TermsSection {
+  final String title;
+  final String content;
+  final IconData icon;
+
+  const _TermsSection(this.title, this.content, this.icon);
+}
+
 class _TermsAndConditionsScreenState extends State<TermsAndConditionsScreen>
     with SingleTickerProviderStateMixin {
+  static const String _lastUpdated = 'June 2, 2026';
+
+  static const String _introText =
+      'These Terms and Conditions govern your access to and use of the ServNex '
+      'mobile application and related services operated by Rooks & Brooks '
+      'Technologies Pvt. Ltd. By creating an account, subscribing to a plan, '
+      'or using the Service, you agree to be bound by these Terms.';
+
+  static const List<_TermsSection> _termsSections = [
+    _TermsSection(
+      '1. Definitions',
+      '1.1 "Administrator" or "Admin" means an authorized user who registers an '
+          'organization and manages subscription, branding, engineers, customers, '
+          'and organizational settings.\n\n'
+          '1.2 "Customer" means an end user (e.g., AMC or service customer) who '
+          'accesses the Service under an organization\'s tenant, typically via '
+          'referral code or invitation.\n\n'
+          '1.3 "Engineer" means a field or service technician assigned by an '
+          'Administrator to perform service tasks, attendance, location updates, '
+          'and related operations.\n\n'
+          '1.4 "Organization" or "Tenant" means a separate business entity whose '
+          'data, branding, and users are isolated within the multi-tenant platform.\n\n'
+          '1.5 "Subscription" means a paid or trial plan (e.g., Silver, Gold, '
+          'Platinum, or promotional trial) that defines features, usage limits, '
+          'and billing cycle.\n\n'
+          '1.6 "You" or "User" means any person or entity using the Service in any role.',
+      Icons.menu_book_outlined,
+    ),
+    _TermsSection(
+      '2. Acceptance and Eligibility',
+      '2.1 You must be at least 18 years of age and have the legal capacity to '
+          'enter into a binding agreement, or use the Service only with consent '
+          'and supervision of a parent or legal guardian where permitted by law.\n\n'
+          '2.2 If you register on behalf of an organization, you represent that '
+          'you have authority to bind that organization to these Terms.\n\n'
+          '2.3 We may update these Terms from time to time. Material changes will '
+          'be indicated by updating the "Last Updated" date. Continued use after '
+          'changes constitutes acceptance. For material changes, we may require '
+          'renewed acceptance within the app.',
+      Icons.check_circle_outline,
+    ),
+    _TermsSection(
+      '3. Description of the Service',
+      '3.1 ServNex is a white-label service management platform that enables '
+          'organizations to:\n\n'
+          '(a) Manage service operations, customers, engineers, and workflows;\n'
+          '(b) Customize branding (app name, colors, logo, typography);\n'
+          '(c) Subscribe to tiered plans with feature limits (customers, engineers, '
+          'storage, geo-location, attendance, barcode, report export, etc.);\n'
+          '(d) Process subscription payments through integrated payment gateways;\n'
+          '(e) Generate invoices, receipts, and operational reports;\n'
+          '(f) Use optional features such as attendance tracking, geo-location, '
+          'barcode scanning, notifications, and document uploads.\n\n'
+          '3.2 Feature availability depends on your Subscription plan and active '
+          'status. We may modify, add, or discontinue features with reasonable notice '
+          'where practicable.',
+      Icons.apps_outlined,
+    ),
+    _TermsSection(
+      '4. Account Registration and Security',
+      '4.1 You agree to provide accurate, current, and complete registration '
+          'information (including organization name, contact details, GST number '
+          'if applicable, and role-specific data).\n\n'
+          '4.2 You are responsible for maintaining the confidentiality of your login '
+          'credentials and for all activity under your account.\n\n'
+          '4.3 You must notify us promptly at support@rookstechnologies.com of any '
+          'unauthorized access or suspected breach.\n\n'
+          '4.4 We may suspend or terminate accounts that violate these Terms or pose '
+          'security or legal risk.',
+      Icons.account_circle_outlined,
+    ),
+    _TermsSection(
+      '5. Subscriptions, Billing, and Payments',
+      '5.1 Subscription plans may be offered on monthly, six-month, yearly, or trial '
+          'bases as displayed in the app at the time of purchase.\n\n'
+          '5.2 Prices, discounts, and plan limits are shown before checkout. '
+          'Applicable taxes may apply as required by law.\n\n'
+          '5.3 Payments are processed through third-party payment partners (e.g., ICICI '
+          'and related hosted payment flows). We do not store full card or banking '
+          'credentials on our servers. Payment confirmation is subject to verification '
+          'by the payment gateway and our backend systems.\n\n'
+          '5.4 Subscriptions renew automatically for the selected billing period unless '
+          'cancelled before the renewal date in accordance with app or support instructions.\n\n'
+          '5.5 Failed, pending, or disputed payments may result in limited access, '
+          'suspension of features, or deactivation until resolved.\n\n'
+          '5.6 Refund requests are handled per our refund policy and applicable law. '
+          'Contact support@rookstechnologies.com for billing disputes.',
+      Icons.payment_outlined,
+    ),
+    _TermsSection(
+      '6. Free Trial',
+      '6.1 Free trials, if offered, are limited in duration and features as stated '
+          'in the app (e.g., 7-day trial).\n\n'
+          '6.2 One trial per organization or user may apply unless we expressly allow otherwise.\n\n'
+          '6.3 At trial end, continued use may require selecting a paid Subscription. '
+          'Access may be restricted if no active Subscription exists.',
+      Icons.timer_outlined,
+    ),
+    _TermsSection(
+      '7. White-Label Branding and Organization Data',
+      '7.1 Administrators may upload logos, set colors, fonts, and app display names. '
+          'You represent that you have rights to all branding materials you upload.\n\n'
+          '7.2 You grant us a license to host, display, and process branding assets '
+          'solely to provide the Service to your Organization.\n\n'
+          '7.3 Each Tenant\'s operational data is logically separated. You remain '
+          'responsible for data you and your users enter into your Tenant.',
+      Icons.palette_outlined,
+    ),
+    _TermsSection(
+      '8. Acceptable Use',
+      'You agree NOT to:\n\n'
+          '8.1 Use the Service for unlawful, fraudulent, or harmful purposes;\n'
+          '8.2 Upload malware, attempt unauthorized access, reverse engineer, or disrupt '
+          'the Service or infrastructure;\n'
+          '8.3 Impersonate others or misrepresent your affiliation;\n'
+          '8.4 Harvest data from the Service without authorization;\n'
+          '8.5 Exceed plan limits through circumvention or abuse;\n'
+          '8.6 Use location, attendance, or customer data in violation of applicable '
+          'privacy, employment, or consumer laws;\n'
+          '8.7 Share referral codes or credentials in a manner that compromises security.',
+      Icons.gavel_outlined,
+    ),
+    _TermsSection(
+      '9. User-Generated and Operational Data',
+      '9.1 You retain ownership of content and data you submit (customer records, '
+          'service tickets, photos, documents, attendance logs, etc.).\n\n'
+          '9.2 You grant us a worldwide, non-exclusive license to use, store, process, '
+          'transmit, and display such data as necessary to operate, secure, and improve '
+          'the Service, including backups and support.\n\n'
+          '9.3 You are responsible for obtaining necessary consents from employees, '
+          'engineers, and customers whose personal data you process through the Service.',
+      Icons.storage_outlined,
+    ),
+    _TermsSection(
+      '10. Intellectual Property',
+      '10.1 The Service, including software, design, trademarks, and documentation '
+          '(excluding your content and branding), is owned by the Company or its licensors.\n\n'
+          '10.2 No rights are granted except as expressly stated in these Terms.',
+      Icons.copyright_outlined,
+    ),
+    _TermsSection(
+      '11. Third-Party Services',
+      'The Service integrates with third parties including but not limited to:\n\n'
+          '• Google Firebase (authentication, database, storage, messaging)\n'
+          '• Payment gateways (e.g., ICICI)\n'
+          '• Mapping and location providers\n'
+          '• Email and notification services\n\n'
+          'Your use of those services may be subject to their separate terms and policies. '
+          'We are not responsible for third-party outages or acts.',
+      Icons.link_outlined,
+    ),
+    _TermsSection(
+      '12. Disclaimers',
+      '12.1 THE SERVICE IS PROVIDED "AS IS" AND "AS AVAILABLE" TO THE MAXIMUM EXTENT '
+          'PERMITTED BY LAW.\n\n'
+          '12.2 WE DO NOT WARRANT UNINTERRUPTED, ERROR-FREE, OR SECURE OPERATION.\n\n'
+          '12.3 FIELD SERVICE, LOCATION, AND ATTENDANCE FEATURES ARE TOOLS FOR '
+          'OPERATIONAL USE; YOU ARE RESPONSIBLE FOR HOW YOU INTERPRET AND ACT ON SUCH DATA.',
+      Icons.warning_amber_outlined,
+    ),
+    _TermsSection(
+      '13. Limitation of Liability',
+      '13.1 TO THE MAXIMUM EXTENT PERMITTED BY LAW, WE SHALL NOT BE LIABLE FOR INDIRECT, '
+          'INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR FOR LOSS OF PROFITS, '
+          'DATA, OR GOODWILL.\n\n'
+          '13.2 OUR TOTAL LIABILITY FOR CLAIMS ARISING FROM OR RELATED TO THE SERVICE '
+          'SHALL NOT EXCEED THE AMOUNT YOU PAID US FOR THE SUBSCRIPTION IN THE TWELVE (12) '
+          'MONTHS PRECEDING THE CLAIM, OR INR 5,000, WHICHEVER IS GREATER, UNLESS MANDATORY '
+          'LAW REQUIRES OTHERWISE.',
+      Icons.balance_outlined,
+    ),
+    _TermsSection(
+      '14. Indemnification',
+      'You agree to indemnify and hold harmless the Company, its officers, directors, '
+          'employees, and agents from claims arising from your use of the Service, your '
+          'content, your violation of these Terms, or your violation of any law or '
+          'third-party rights.',
+      Icons.shield_outlined,
+    ),
+    _TermsSection(
+      '15. Suspension and Termination',
+      '15.1 We may suspend or terminate access for non-payment, breach of Terms, '
+          'legal requirements, or security reasons.\n\n'
+          '15.2 You may stop using the Service at any time. Subscription cancellation '
+          'does not automatically entitle you to refunds for unused periods unless required '
+          'by law or our refund policy.\n\n'
+          '15.3 Upon termination, access to Tenant data may be restricted. Export any '
+          'critical data before cancellation where the app provides export features.',
+      Icons.block_outlined,
+    ),
+    _TermsSection(
+      '16. Governing Law and Disputes',
+      '16.1 These Terms are governed by the laws of India, without regard to conflict '
+          'of law principles.\n\n'
+          '16.2 Courts at competent courts in India shall have exclusive jurisdiction, '
+          'subject to mandatory consumer protections.\n\n'
+          '16.3 You agree to attempt good-faith resolution by contacting '
+          'support@rookstechnologies.com before formal proceedings where reasonable.',
+      Icons.policy_outlined,
+    ),
+    _TermsSection(
+      '17. Contact Information',
+      'Rooks & Brooks Technologies Pvt. Ltd.\n'
+          'ServNex Platform Support\n\n'
+          'Email: support@rookstechnologies.com\n'
+          'Phone: +91 7358677670\n'
+          'Website: www.rookstechnologies.com\n\n'
+          'For privacy-related requests, see our Privacy Policy or email the address above '
+          'with subject line "Privacy Request."',
+      Icons.contact_mail_outlined,
+    ),
+    _TermsSection(
+      '18. Miscellaneous',
+      '18.1 If any provision is held invalid, the remainder remains in effect.\n\n'
+          '18.2 Failure to enforce a right is not a waiver.\n\n'
+          '18.3 These Terms constitute the entire agreement regarding the Service unless '
+          'supplemented by a separate written agreement signed by the Company.\n\n'
+          '18.4 White-labeled app names displayed to end users are configured by each '
+          'Organization and do not change the legal relationship between you and the '
+          'Company for platform services.',
+      Icons.more_horiz,
+    ),
+  ];
+
   bool _agreedToTerms = false;
   bool _isLoading = false;
   final ScrollController _scrollController = ScrollController();
@@ -403,7 +635,7 @@ class _TermsAndConditionsScreenState extends State<TermsAndConditionsScreen>
                                   borderRadius: BorderRadius.circular(20),
                                 ),
                                 child: Text(
-                                  'Last Updated: December 2024',
+                                  'Last Updated: $_lastUpdated',
                                   style: TextStyle(
                                     fontSize: 12,
                                     color: Colors.grey.shade600,
@@ -428,6 +660,7 @@ class _TermsAndConditionsScreenState extends State<TermsAndConditionsScreen>
                                   ),
                                 ),
                                 child: const Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Icon(
                                       Icons.info_outline,
@@ -437,7 +670,7 @@ class _TermsAndConditionsScreenState extends State<TermsAndConditionsScreen>
                                     SizedBox(width: 16),
                                     Expanded(
                                       child: Text(
-                                        'Welcome to ServNex. By using this application, you agree to the following Terms and Conditions.',
+                                        _introText,
                                         style: TextStyle(
                                           fontSize: 14,
                                           color: Color(0xFF1A1A1A),
@@ -451,42 +684,19 @@ class _TermsAndConditionsScreenState extends State<TermsAndConditionsScreen>
 
                               const SizedBox(height: 32),
 
-                              // Terms Sections
-                              _buildProfessionalSection(
-                                '1. Acceptance of Terms',
-                                'By using ServNex, you agree to these terms. If you don\'t agree, please do not use the app.',
-                                Icons.check_circle_outline,
-                              ),
-                              const SizedBox(height: 20),
-
-                              _buildProfessionalSection(
-                                '2. Account Responsibility',
-                                'You are responsible for keeping your account details accurate and your login credentials secure.',
-                                Icons.account_circle_outlined,
-                              ),
-                              const SizedBox(height: 20),
-
-                              _buildProfessionalSection(
-                                '3. Payments & Subscriptions',
-                                'Payments are processed securely. Subscriptions auto-renew unless cancelled before the billing cycle ends.',
-                                Icons.payment_outlined,
-                              ),
-                              const SizedBox(height: 20),
-
-                              _buildProfessionalSection(
-                                '4. Prohibited Conduct',
-                                'You agree not to misuse the app, provide false information, or attempt to disrupt the service.',
-                                Icons.gavel_outlined,
-                              ),
-                              const SizedBox(height: 20),
-
-                              _buildProfessionalSection(
-                                '5. Company Info',
-                                'Business Name: ServNex\nAddress: RAMAVARMAPURAM, NAGERCOIL\nEmail: support@rookstechnologies.com',
-                                Icons.business_outlined,
+                              // Full terms from legal/terms_and_conditions.txt
+                              ..._termsSections.map(
+                                (section) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 20),
+                                  child: _buildProfessionalSection(
+                                    section.title,
+                                    section.content,
+                                    section.icon,
+                                  ),
+                                ),
                               ),
 
-                              const SizedBox(height: 32),
+                              const SizedBox(height: 12),
 
                               // Contact Card
                               Container(
@@ -796,15 +1006,19 @@ class _TermsAndConditionsScreenState extends State<TermsAndConditionsScreen>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Icon(icon, size: 20, color: const Color(0xFF0D47A1)),
             const SizedBox(width: 12),
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF1A1A1A),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1A1A1A),
+                  height: 1.3,
+                ),
               ),
             ),
           ],

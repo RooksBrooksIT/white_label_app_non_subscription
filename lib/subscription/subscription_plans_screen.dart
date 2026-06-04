@@ -72,7 +72,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
   final List<Map<String, dynamic>> plans = [
     {
       'name': 'Silver',
-      'monthlyPrice': 1,
+      'monthlyPrice': 199,
       'monthlyOriginalPrice': 299,
       'sixMonthPrice': 999,
       'sixMonthOriginalPrice': 1794,

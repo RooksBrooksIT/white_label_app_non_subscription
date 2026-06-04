@@ -1405,21 +1405,7 @@ class _admindashboardState extends State<admindashboard> {
                 ),
                 const Divider(indent: 20, endIndent: 20),
 
-                _buildDrawerItem(
-                  icon: Icons.undo_rounded,
-                  title: 'Refund Management',
-                  subtitle: 'Manage ICICI refunds',
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const RefundPage(),
-                      ),
-                    );
-                  },
-                ),
-                const Divider(indent: 20, endIndent: 20),
+                
                 _buildDrawerItem(
                   icon: Icons.contact_mail_rounded,
                   title: 'Contact Us',

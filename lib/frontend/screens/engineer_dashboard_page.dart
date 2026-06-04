@@ -363,6 +363,7 @@ class ProfessionalNavigationDrawer extends StatelessWidget {
   final VoidCallback onLogout;
   final String currentSection;
   final Function(String) onSectionChange;
+  final bool barcodeEnabled;
 
   const ProfessionalNavigationDrawer({
     super.key,
@@ -371,6 +372,7 @@ class ProfessionalNavigationDrawer extends StatelessWidget {
     required this.onLogout,
     required this.currentSection,
     required this.onSectionChange,
+    this.barcodeEnabled = true,
   });
 
   @override
@@ -483,38 +485,41 @@ class ProfessionalNavigationDrawer extends StatelessWidget {
                       onSectionChange('completed');
                     },
                   ),
-                  _buildMenuItem(
-                    context: context,
-                    icon: Icons.qr_code_scanner,
-                    title: 'Barcode Scanner',
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              BarcodeScannerScreen(userName: userName),
-                        ),
-                      );
-                    },
-                  ),
-                  _buildMenuItem(
-                    context: context,
-                    icon: Icons.qr_code_2_rounded,
-                    title: 'Barcode Identifier',
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => EngineerBarcodeIdentifierScreen(
-                            scannedBarcode: '',
-                            userName: userName,
+                  if (barcodeEnabled) ...[
+                    _buildMenuItem(
+                      context: context,
+                      icon: Icons.qr_code_scanner,
+                      title: 'Barcode Scanner',
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                BarcodeScannerScreen(userName: userName),
                           ),
-                        ),
-                      );
-                    },
-                  ),
+                        );
+                      },
+                    ),
+                    _buildMenuItem(
+                      context: context,
+                      icon: Icons.qr_code_2_rounded,
+                      title: 'Barcode Identifier',
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                EngineerBarcodeIdentifierScreen(
+                                  scannedBarcode: '',
+                                  userName: userName,
+                                ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
                   // _buildMenuItem(
                   //   context: context,
                   //   icon: Icons.qr_code_2_rounded,
@@ -637,6 +642,8 @@ class _EngineerPageState extends State<EngineerPage> {
   bool _isLoading = true;
   bool _isCheckedIn = false;
   bool _isCheckingIn = false;
+  bool _barcodeEnabled =
+      true; // Default to true to maintain backward compatibility
 
   @override
   void initState() {
@@ -654,6 +661,26 @@ class _EngineerPageState extends State<EngineerPage> {
     _fetchInitialOnlineStatus();
     _requestInitialLocationPermission();
     _checkAttendanceStatus();
+    _fetchSubscriptionData();
+  }
+
+  Future<void> _fetchSubscriptionData() async {
+    try {
+      final tenantId = await SharedPreferences.getInstance().then(
+        (p) => p.getString('tenantId'),
+      );
+      if (tenantId != null) {
+        final subscriptionData = await FirestoreService.instance
+            .getTenantSubscriptionData(tenantId: tenantId);
+        if (subscriptionData != null) {
+          setState(() {
+            _barcodeEnabled = subscriptionData['barcode'] ?? true;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching subscription data: $e');
+    }
   }
 
   Future<void> _checkAttendanceStatus() async {
@@ -1154,6 +1181,7 @@ class _EngineerPageState extends State<EngineerPage> {
                   0; // Go back to dashboard tab when section changes
             });
           },
+          barcodeEnabled: _barcodeEnabled,
         ),
         body: Column(
           children: [
@@ -1569,7 +1597,7 @@ class _EngineerPageState extends State<EngineerPage> {
         int currentMonthCompleted = 0;
         int pendingTickets = 0;
         int inProgressTickets = 0;
-        
+
         Map<int, int> assignedPerMonth = {};
         Map<int, int> completedPerMonth = {};
 
@@ -1619,10 +1647,10 @@ class _EngineerPageState extends State<EngineerPage> {
             }
           }
         }
-        
-        final completionPercentage = currentMonthAssigned > 0 
-           ? (currentMonthCompleted / currentMonthAssigned).clamp(0.0, 1.0) 
-           : 0.0;
+
+        final completionPercentage = currentMonthAssigned > 0
+            ? (currentMonthCompleted / currentMonthAssigned).clamp(0.0, 1.0)
+            : 0.0;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1645,17 +1673,20 @@ class _EngineerPageState extends State<EngineerPage> {
                         ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
-                           color: ProfessionalTheme.primaryExtraLight(context),
-                           borderRadius: BorderRadius.circular(12),
+                          color: ProfessionalTheme.primaryExtraLight(context),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
                           DateFormat('MMMM yyyy').format(now),
                           style: TextStyle(
-                             fontSize: 12,
-                             fontWeight: FontWeight.w700,
-                             color: ProfessionalTheme.primary(context),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: ProfessionalTheme.primary(context),
                           ),
                         ),
                       ),
@@ -1664,23 +1695,51 @@ class _EngineerPageState extends State<EngineerPage> {
                   const SizedBox(height: 20),
                   Row(
                     children: [
-                      Expanded(child: _buildMiniStat('Assigned', currentMonthAssigned.toString(), Colors.blue)),
+                      Expanded(
+                        child: _buildMiniStat(
+                          'Assigned',
+                          currentMonthAssigned.toString(),
+                          Colors.blue,
+                        ),
+                      ),
                       const SizedBox(width: 12),
-                      Expanded(child: _buildMiniStat('Completed', currentMonthCompleted.toString(), ProfessionalTheme.success)),
+                      Expanded(
+                        child: _buildMiniStat(
+                          'Completed',
+                          currentMonthCompleted.toString(),
+                          ProfessionalTheme.success,
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                      Expanded(child: _buildMiniStat('Pending', pendingTickets.toString(), Colors.orange)),
+                      Expanded(
+                        child: _buildMiniStat(
+                          'Pending',
+                          pendingTickets.toString(),
+                          Colors.orange,
+                        ),
+                      ),
                       const SizedBox(width: 12),
-                      Expanded(child: _buildMiniStat('In Progress', inProgressTickets.toString(), Colors.purple)),
+                      Expanded(
+                        child: _buildMiniStat(
+                          'In Progress',
+                          inProgressTickets.toString(),
+                          Colors.purple,
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 20),
                   Text(
                     'Completion Rate (Current Month)',
-                    style: TextStyle(color: ProfessionalTheme.textSecondary(context), fontWeight: FontWeight.bold, fontSize: 13),
+                    style: TextStyle(
+                      color: ProfessionalTheme.textSecondary(context),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Row(
@@ -1691,7 +1750,9 @@ class _EngineerPageState extends State<EngineerPage> {
                           child: LinearProgressIndicator(
                             value: completionPercentage,
                             minHeight: 12,
-                            backgroundColor: ProfessionalTheme.borderLight(context),
+                            backgroundColor: ProfessionalTheme.borderLight(
+                              context,
+                            ),
                             valueColor: AlwaysStoppedAnimation<Color>(
                               ProfessionalTheme.success,
                             ),
@@ -1701,14 +1762,18 @@ class _EngineerPageState extends State<EngineerPage> {
                       const SizedBox(width: 12),
                       Text(
                         '${(completionPercentage * 100).toInt()}%',
-                        style: TextStyle(fontWeight: FontWeight.w800, color: ProfessionalTheme.success, fontSize: 16),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          color: ProfessionalTheme.success,
+                          fontSize: 16,
+                        ),
                       ),
                     ],
                   ),
                 ],
               ),
             ),
-            
+
             const SizedBox(height: 24),
             Text(
               'Monthly Summary (${now.year})',
@@ -1725,46 +1790,93 @@ class _EngineerPageState extends State<EngineerPage> {
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: now.month,
-                separatorBuilder: (context, index) => Divider(height: 1, color: ProfessionalTheme.borderLight(context)),
+                separatorBuilder: (context, index) => Divider(
+                  height: 1,
+                  color: ProfessionalTheme.borderLight(context),
+                ),
                 itemBuilder: (context, index) {
-                   int month = now.month - index;
-                   int assigned = assignedPerMonth[month] ?? 0;
-                   int completed = completedPerMonth[month] ?? 0;
-                   String monthName = DateFormat('MMMM').format(DateTime(now.year, month));
-                   return Padding(
-                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                     child: Row(
-                       children: [
-                         SizedBox(
-                           width: 90, 
-                           child: Text(monthName, style: TextStyle(fontWeight: FontWeight.w700, color: ProfessionalTheme.textPrimary(context)))
-                         ),
-                         Expanded(
-                           child: Row(
-                             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                             children: [
-                                Column(
-                                  children: [
-                                    Text(assigned.toString(), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-                                    Text('Assigned', style: TextStyle(fontSize: 10, color: ProfessionalTheme.textSecondary(context))),
-                                  ]
-                                ),
-                                Container(width: 1, height: 30, color: ProfessionalTheme.borderLight(context)),
-                                Column(
-                                  children: [
-                                    Text(completed.toString(), style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: ProfessionalTheme.success)),
-                                    Text('Completed', style: TextStyle(fontSize: 10, color: ProfessionalTheme.textSecondary(context))),
-                                  ]
-                                ),
-                             ],
-                           )
-                         )
-                       ]
-                     )
-                   );
-                }
-              )
-            )
+                  int month = now.month - index;
+                  int assigned = assignedPerMonth[month] ?? 0;
+                  int completed = completedPerMonth[month] ?? 0;
+                  String monthName = DateFormat(
+                    'MMMM',
+                  ).format(DateTime(now.year, month));
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 16,
+                    ),
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: 90,
+                          child: Text(
+                            monthName,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: ProfessionalTheme.textPrimary(context),
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              Column(
+                                children: [
+                                  Text(
+                                    assigned.toString(),
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Assigned',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: ProfessionalTheme.textSecondary(
+                                        context,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Container(
+                                width: 1,
+                                height: 30,
+                                color: ProfessionalTheme.borderLight(context),
+                              ),
+                              Column(
+                                children: [
+                                  Text(
+                                    completed.toString(),
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 16,
+                                      color: ProfessionalTheme.success,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Completed',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: ProfessionalTheme.textSecondary(
+                                        context,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
           ],
         );
       },
@@ -1943,7 +2055,10 @@ class _EngineerPageState extends State<EngineerPage> {
   Widget _buildProfileView() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirestoreService.instance
-          .collection('EngineerLogin', tenantId: ThemeService.instance.databaseName)
+          .collection(
+            'EngineerLogin',
+            tenantId: ThemeService.instance.databaseName,
+          )
           .where('Username', isEqualTo: widget.userName)
           .limit(1)
           .snapshots(),
@@ -2001,7 +2116,10 @@ class _EngineerPageState extends State<EngineerPage> {
               const SizedBox(height: 4),
               if (specialization != 'Not provided')
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: ProfessionalTheme.primaryExtraLight(context),
                     borderRadius: BorderRadius.circular(20),
@@ -2020,7 +2138,11 @@ class _EngineerPageState extends State<EngineerPage> {
               // Info cards
               _buildProfileItem(Icons.email_rounded, 'Email', email),
               _buildProfileItem(Icons.phone_rounded, 'Mobile Number', phone),
-              _buildProfileItem(Icons.architecture_rounded, 'Specialization', specialization),
+              _buildProfileItem(
+                Icons.architecture_rounded,
+                'Specialization',
+                specialization,
+              ),
               _buildProfileItem(Icons.place_rounded, 'Address', address),
 
               const SizedBox(height: 32),
@@ -2100,7 +2222,11 @@ class _EngineerPageState extends State<EngineerPage> {
                 color: ProfessionalTheme.primaryExtraLight(context),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(icon, color: ProfessionalTheme.primary(context), size: 20),
+              child: Icon(
+                icon,
+                color: ProfessionalTheme.primary(context),
+                size: 20,
+              ),
             ),
             const SizedBox(width: 16),
             Expanded(
