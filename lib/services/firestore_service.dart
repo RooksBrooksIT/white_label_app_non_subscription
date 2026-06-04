@@ -36,9 +36,19 @@ class FirestoreService {
         .collection(collectionName);
   }
 
-  /// Exposes collectionGroup query
+  /// Exposes collectionGroup query that is scoped to the current tenant
   Query<Map<String, dynamic>> collectionGroup(String collectionPath) {
-    return _db.collectionGroup(collectionPath);
+    final effectiveTenant = ThemeService.instance.databaseName;
+    final effectiveApp = 'data';
+    // Filter documents whose full path starts with our tenant's prefix
+    final prefix = '$effectiveTenant/$effectiveApp/';
+    return _db
+        .collectionGroup(collectionPath)
+        .where(FieldPath.fromString('__name__'), isGreaterThanOrEqualTo: prefix)
+        .where(
+          FieldPath.fromString('__name__'),
+          isLessThanOrEqualTo: '$prefix\uf8ff',
+        );
   }
 
   /// Tenant-specific reference for subscriptions
@@ -192,8 +202,7 @@ class FirestoreService {
       'updatedAt': FieldValue.serverTimestamp(),
       if (customerMobile != null && customerMobile.isNotEmpty)
         'customerMobile': customerMobile,
-      if (gstNumber != null && gstNumber.isNotEmpty)
-        'gstNumber': gstNumber,
+      if (gstNumber != null && gstNumber.isNotEmpty) 'gstNumber': gstNumber,
       'limits': limits,
       'geoLocation': geoLocation,
       'attendance': attendance,
@@ -602,7 +611,7 @@ class FirestoreService {
       // 1. Log to the centralized global collection
       final docRef = _db.collection('payment_logs').doc(txnId);
       final docSnapshot = await docRef.get();
-      
+
       final data = {
         'transactionId': txnId,
         'userIdOrMobile': uidOrMobile,
@@ -640,7 +649,10 @@ class FirestoreService {
           'amount': amount,
           'currency': 'INR',
           'paymentStatus': status,
-          'paymentMethod': gatewayResponse?['paymentMode'] ?? gatewayResponse?['paymentMethod'] ?? 'Unknown',
+          'paymentMethod':
+              gatewayResponse?['paymentMode'] ??
+              gatewayResponse?['paymentMethod'] ??
+              'Unknown',
           'customerName': customerName ?? 'Customer',
           'customerEmail': customerEmail ?? '',
           'customerMobile': customerMobile ?? '',
@@ -668,12 +680,13 @@ class FirestoreService {
     try {
       final docRef = _db.collection('payment_logs').doc(txnId);
       final updates = <String, dynamic>{};
-      
+
       if (invoiceNumber != null) updates['invoiceNumber'] = invoiceNumber;
       if (status != null) updates['invoiceStatus'] = status;
       if (invoiceSent != null) updates['invoiceSent'] = invoiceSent;
-      if (invoiceSentAt != null) updates['invoiceSentAt'] = invoiceSentAt.toIso8601String();
-      
+      if (invoiceSentAt != null)
+        updates['invoiceSentAt'] = invoiceSentAt.toIso8601String();
+
       if (updates.isNotEmpty) {
         await docRef.update(updates);
       }
@@ -682,4 +695,3 @@ class FirestoreService {
     }
   }
 }
-
