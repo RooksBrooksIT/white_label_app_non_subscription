@@ -590,9 +590,15 @@ class FirestoreService {
     return null;
   }
 
-  /// Logs payment transaction details to the centralized 'payment_logs' collection
+  /// Logs a payment transaction to the centralized 'payment_logs' collection
   /// and the user's tenant-specific 'payment_logs' subcollection.
-  Future<void> logPaymentTransaction({
+  ///
+  /// Every call creates a **new** Firestore document with a unique composite ID
+  /// `{txnId}_{timestampMs}` — existing records are never overwritten.
+  ///
+  /// Returns the full Firestore document ID of the created log record,
+  /// which callers must pass to [updateInvoiceStatus] and invoice services.
+  Future<String> logPaymentTransaction({
     required String txnId,
     required String uidOrMobile,
     required String planName,
@@ -608,89 +614,131 @@ class FirestoreService {
     String? customerEmail,
     String? customerMobile,
     Map<String, dynamic>? gatewayResponse,
+    // Queue metadata
+    String queueStatus = 'Immediate', // 'Immediate' | 'Queued'
+    String? previousPlan,
+    String? newPlan,
+    String? userId,
   }) async {
+    // Unique doc ID = txnId + current timestamp in ms to ensure no overwrites.
+    final timestampMs = DateTime.now().millisecondsSinceEpoch;
+    final logDocId = '${txnId}_$timestampMs';
+
     try {
-      // 1. Log to the centralized global collection
-      final docRef = _db.collection('payment_logs').doc(txnId);
-      final docSnapshot = await docRef.get();
-      
-      final data = {
+      // 1. Create a NEW document in the centralized global collection.
+      final docRef = _db.collection('payment_logs').doc(logDocId);
+
+      final data = <String, dynamic>{
+        'logDocId': logDocId,
         'transactionId': txnId,
+        'userId': userId ?? uidOrMobile,
         'userIdOrMobile': uidOrMobile,
         'planName': planName,
+        'newPlan': newPlan ?? planName,
+        if (previousPlan != null) 'previousPlan': previousPlan,
         'amount': amount,
         'status': status,
         'isYearly': isYearly,
         'isSixMonths': isSixMonths,
+        'queueStatus': queueStatus,
         if (failureReason != null) 'failureReason': failureReason,
         'timestamp': FieldValue.serverTimestamp(),
         'registrationCompleted': registrationCompleted,
         'firestoreSynced': firestoreSynced,
+        // Invoice fields — always initialized on creation
+        'invoiceSent': false,
+        'invoiceStatus': 'Pending',
+        'invoiceDetails': {
+          'planName': planName,
+          'amount': amount,
+          'billingCycle': isYearly ? 'Yearly' : (isSixMonths ? '6 Months' : 'Monthly'),
+          if (customerName != null) 'customerName': customerName,
+          if (customerEmail != null) 'customerEmail': customerEmail,
+        },
       };
 
-      if (!docSnapshot.exists) {
-        // Initialize invoice fields only on creation
-        data['invoiceSent'] = false;
-        data['invoiceStatus'] = 'Pending';
-      }
+      await docRef.set(data);
 
-      await docRef.set(data, SetOptions(merge: true));
-
-      // 2. Log to user's tenant-specific payment_logs subcollection
+      // 2. Mirror to tenant-specific payment_logs subcollection.
       final effectiveTenant = tenantId ?? ThemeService.instance.databaseName;
       if (effectiveTenant.isNotEmpty) {
-        final userLogRef = _db
-            .collection(effectiveTenant)
-            .doc('data')
-            .collection('payment_logs')
-            .doc(txnId);
-
-        final userLogData = {
+        final userLogData = <String, dynamic>{
+          'logDocId': logDocId,
           'transactionId': txnId,
           'orderId': txnId,
+          'userId': userId ?? uidOrMobile,
+          'userIdOrMobile': uidOrMobile,
           'amount': amount,
           'currency': 'INR',
           'paymentStatus': status,
-          'paymentMethod': gatewayResponse?['paymentMode'] ?? gatewayResponse?['paymentMethod'] ?? 'Unknown',
+          'paymentMethod':
+              gatewayResponse?['paymentMode'] ??
+              gatewayResponse?['paymentMethod'] ??
+              'Unknown',
           'customerName': customerName ?? 'Customer',
           'customerEmail': customerEmail ?? '',
           'customerMobile': customerMobile ?? '',
+          'planName': planName,
+          'queueStatus': queueStatus,
+          if (previousPlan != null) 'previousPlan': previousPlan,
+          'newPlan': newPlan ?? planName,
           'gatewayResponse': gatewayResponse ?? {},
           'createdAt': FieldValue.serverTimestamp(),
-          'planName': planName,
-          'userIdOrMobile': uidOrMobile,
         };
 
-        await userLogRef.set(userLogData, SetOptions(merge: true));
+        await _db
+            .collection(effectiveTenant)
+            .doc('data')
+            .collection('payment_logs')
+            .doc(logDocId)
+            .set(userLogData);
       }
     } catch (e) {
-      debugPrint('Error logging payment transaction: $e');
+      debugPrint('Error logging payment transaction ($logDocId): $e');
     }
+
+    return logDocId;
   }
 
   /// Updates invoice delivery status in payment_logs.
+  ///
+  /// [logDocId] is the full Firestore document ID returned by [logPaymentTransaction]
+  /// (format: `{txnId}_{timestampMs}`). Do NOT pass a bare txnId.
   Future<void> updateInvoiceStatus(
-    String txnId, {
+    String logDocId, {
     String? invoiceNumber,
     String? status,
     bool? invoiceSent,
     DateTime? invoiceSentAt,
   }) async {
     try {
-      final docRef = _db.collection('payment_logs').doc(txnId);
+      final docRef = _db.collection('payment_logs').doc(logDocId);
       final updates = <String, dynamic>{};
-      
+
       if (invoiceNumber != null) updates['invoiceNumber'] = invoiceNumber;
       if (status != null) updates['invoiceStatus'] = status;
       if (invoiceSent != null) updates['invoiceSent'] = invoiceSent;
-      if (invoiceSentAt != null) updates['invoiceSentAt'] = invoiceSentAt.toIso8601String();
-      
+      if (invoiceSentAt != null) {
+        updates['invoiceSentAt'] = invoiceSentAt.toIso8601String();
+      }
+
       if (updates.isNotEmpty) {
         await docRef.update(updates);
       }
     } catch (e) {
-      debugPrint('Error updating invoice status for $txnId: $e');
+      debugPrint('Error updating invoice status for doc $logDocId: $e');
     }
+  }
+
+  /// Reference to the queued_subscriptions collection for a tenant.
+  /// Path: {tenantId} → {tenantId} → queued_subscriptions
+  CollectionReference<Map<String, dynamic>> queuedSubscriptionsRef({
+    required String tenantId,
+  }) {
+    return _db
+        .collection(tenantId)
+        .doc(tenantId)
+        .collection('queued_subscriptions');
   }
 }
 

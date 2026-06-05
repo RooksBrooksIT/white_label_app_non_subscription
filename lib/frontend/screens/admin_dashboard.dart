@@ -8,6 +8,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_Engineer_reports.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_assign_tickets.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_barcode_scanner.dart';
+import 'package:subscription_rooks_app/services/subscription_queue_service.dart';
+import 'package:intl/intl.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_brandandmodel_page.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_attendance_page.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_attendance_reports.dart';
@@ -1400,7 +1402,7 @@ class _admindashboardState extends State<admindashboard> {
                         ),
                   onTap: () {
                     Navigator.pop(context);
-                    _navigateToChangePlan();
+                    _showManageSubscriptionSheet();
                   },
                 ),
                 const Divider(indent: 20, endIndent: 20),
@@ -1608,6 +1610,283 @@ class _admindashboardState extends State<admindashboard> {
   }
 
   /// Navigates to the SubscriptionPlansScreen with the plan name pre-highlighted.
+  void _showManageSubscriptionSheet() {
+    final tenantId = ThemeService.instance.databaseName;
+    final user = AuthStateService.instance.currentUser;
+    if (user == null) return;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Manage Subscription',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: textColor,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              // Current Plan Info
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Current Active Plan',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          currentPlanName ?? 'No Active Plan',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: primaryColor,
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _appBarSubscriptionColor.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            subscriptionStatus?.toUpperCase() ?? 'UNKNOWN',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: _appBarSubscriptionColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Expires in: ${remainingDays ?? 0} days',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: textLightColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Queued Plan Info
+              StreamBuilder<Map<String, dynamic>?>(
+                stream: SubscriptionQueueService.instance.streamQueuedPlan(
+                  tenantId: tenantId,
+                  uid: user.uid,
+                ),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  final queuedData = snapshot.data;
+                  if (queuedData == null) {
+                    return const SizedBox.shrink();
+                  }
+
+                  final queuedPlanName = queuedData['planName'] ?? 'Unknown Plan';
+                  final scheduledDate = queuedData['scheduledActivationDate'];
+                  String formattedDate = 'On current plan expiry';
+                  if (scheduledDate is Timestamp) {
+                    formattedDate = DateFormat('dd MMM yyyy')
+                        .format(scheduledDate.toDate().toLocal());
+                  }
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF0F0FF),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFF6C5CE7)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Queued Upgrade',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF6C5CE7),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          queuedPlanName,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Scheduled for: $formattedDate',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Colors.black54,
+                          ),
+                        ),
+                        const Divider(height: 24),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Expanded(
+                              child: Text(
+                                'Activate after current plan expires',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            Switch(
+                              value: true, // Always true if queued
+                              activeColor: const Color(0xFF6C5CE7),
+                              onChanged: (val) async {
+                                if (!val) {
+                                  // User toggled it off -> activate immediately!
+                                  final confirm = await showDialog<bool>(
+                                    context: context,
+                                    builder: (ctx) => AlertDialog(
+                                      title: const Text('Activate Immediately?'),
+                                      content: const Text(
+                                        'Turning this off will immediately activate the queued plan, replacing your current plan. This cannot be undone. Are you sure?',
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(ctx, false),
+                                          child: const Text('Cancel'),
+                                        ),
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(ctx, true),
+                                          child: const Text('Activate Now'),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+
+                                  if (confirm == true) {
+                                    if (!context.mounted) return;
+                                    Navigator.pop(context); // close sheet
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Activating plan...')),
+                                    );
+                                    await SubscriptionQueueService.instance
+                                        .activateQueuedPlan(tenantId: tenantId, uid: user.uid);
+                                    if (!context.mounted) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Plan activated successfully!')),
+                                    );
+                                  }
+                                }
+                              },
+                            ),
+                          ],
+                        ),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: () async {
+                              final confirm = await showDialog<bool>(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  title: const Text('Cancel Queued Plan?'),
+                                  content: const Text(
+                                    'Are you sure you want to cancel this queued plan? This will remove it from your account. If you need a refund, please use the Support/Refund page.',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(ctx, false),
+                                      child: const Text('Keep Plan'),
+                                    ),
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(ctx, true),
+                                      style: TextButton.styleFrom(foregroundColor: Colors.red),
+                                      child: const Text('Cancel Plan'),
+                                    ),
+                                  ],
+                                ),
+                              );
+
+                              if (confirm == true) {
+                                await SubscriptionQueueService.instance
+                                    .clearQueuedPlan(tenantId: tenantId, uid: user.uid);
+                              }
+                            },
+                            child: const Text('Cancel Queued Plan', style: TextStyle(color: Colors.red)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _navigateToChangePlan();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryColor,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  'Upgrade / Change Plan',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   void _navigateToChangePlan() {
     Navigator.push(
       context,

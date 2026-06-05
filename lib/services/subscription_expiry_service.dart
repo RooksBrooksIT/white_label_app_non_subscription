@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/services/notification_service.dart';
+import 'package:subscription_rooks_app/services/subscription_queue_service.dart';
 import 'package:subscription_rooks_app/subscription/plan_expired_screen.dart';
 
 class SubscriptionExpiryService {
@@ -116,10 +117,32 @@ class SubscriptionExpiryService {
     }
 
     if (isExpired) {
+      final uid = data['uid'] ?? data['id'] ?? '';
+      final user = FirebaseAuth.instance.currentUser;
+      final targetDocId = uid.isNotEmpty ? uid : (user?.uid ?? '');
+
+      // Attempt to activate a queued plan before expiring
+      bool queuedActivated = false;
+      if (targetDocId.isNotEmpty) {
+        try {
+          queuedActivated = await SubscriptionQueueService.instance.activateQueuedPlan(
+            tenantId: tenantId,
+            uid: targetDocId,
+          );
+        } catch (e) {
+          debugPrint('SubscriptionExpiryService: Error activating queued plan: $e');
+        }
+      }
+
+      if (queuedActivated) {
+        debugPrint('SubscriptionExpiryService: Queued plan activated successfully. Avoiding expiry redirect.');
+        // _isRedirectedToExpired is false by default, just return.
+        return;
+      }
+
       // Update Firestore if it was 'active' but date has actually passed
       if (status == 'active') {
         try {
-          final uid = data['uid'] ?? data['id'] ?? '';
           if (uid.isNotEmpty) {
             await FirestoreService.instance.setUserActiveStatus(
               uid: uid,
@@ -127,8 +150,6 @@ class SubscriptionExpiryService {
               active: false,
             );
           }
-          final user = FirebaseAuth.instance.currentUser;
-          final targetDocId = uid.isNotEmpty ? uid : (user?.uid ?? '');
           if (targetDocId.isNotEmpty) {
             await FirestoreService.instance
                 .subscriptionsRef(tenantId: tenantId, appId: 'data')
