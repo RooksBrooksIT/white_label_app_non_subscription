@@ -38,7 +38,7 @@ class ReceiptService {
 
     final String taxableAmountStr = taxableAmount.toStringAsFixed(2);
     final String gstAmountStr = gstAmount.toStringAsFixed(2);
-    final String totalAmountStr = amount.toStringAsFixed(2);
+    final String totalAmountStr = amount.toString();
 
     pdf.addPage(
       pw.Page(

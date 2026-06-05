@@ -644,9 +644,9 @@ exports.processPaymentSuccess = onDocumentWritten(
                 doc.font("Helvetica").fontSize(10).fillColor(VALUE_COLOR);
                 doc.text(planName, col.desc + 10, y + 15, { width: 170 });
                 doc.text("1", col.qty, y + 15, { width: 40, align: "center" });
-                doc.text(baseAmount.toFixed(2), col.price, y + 15, { width: 80, align: "right" });
+                doc.text(`${baseAmount}`, col.price, y + 15, { width: 80, align: "right" });
                 doc.text("18", col.gst, y + 15, { width: 50, align: "center" });
-                doc.text(`${totalAmount.toFixed(2)}`, col.total, y + 15, { width: 85, align: "right" });
+                doc.text(`${totalAmount}`, col.total, y + 15, { width: 85, align: "right" });
 
                 // ── Summary Section ─────────────────────────────────────────
                 y += 60;
@@ -655,7 +655,7 @@ exports.processPaymentSuccess = onDocumentWritten(
                 doc.rect(R - summaryW, y, summaryW, summaryH).fill(ACCENT_BLUE);
                 doc.font("Helvetica-Bold").fontSize(11).fillColor("#FFFFFF");
                 doc.text("Invoice Total", R - summaryW + 15, y + 15);
-                doc.text(`${totalAmount.toFixed(2)}`, R - summaryW, y + 15, { width: summaryW - 15, align: "right" });
+                doc.text(`${totalAmount}`, R - summaryW, y + 15, { width: summaryW - 15, align: "right" });
 
                 // ── Footer Section ──────────────────────────────────────────
                 // Border line before footer
@@ -754,16 +754,16 @@ exports.processPaymentSuccess = onDocumentWritten(
               </tr>
               <tr style="border-bottom:0.5px solid #E0E0E0;">
                 <td><strong>Subtotal (ex-GST)</strong></td>
-                <td align="right">₹${baseAmount.toFixed(2)}</td>
+                <td align="right">₹${baseAmount}</td>
               </tr>
               <tr style="border-bottom:0.5px solid #E0E0E0;">
                 <td><strong>GST (18%)</strong></td>
-                <td align="right">₹${gstAmount.toFixed(2)}</td>
+                <td align="right">₹${gstAmount}</td>
               </tr>
               <tr style="background:#1A237E;border-radius:4px;">
                 <td style="color:#fff;font-size:15px;border-radius:4px 0 0 4px;"><strong>Total Paid</strong></td>
                 <td align="right" style="color:#fff;font-size:17px;font-weight:700;border-radius:0 4px 4px 0;">
-                  ₹${totalAmount.toFixed(2)}
+                  ₹${totalAmount}
                 </td>
               </tr>
             </table>
