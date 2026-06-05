@@ -212,8 +212,9 @@ class AttendanceBackend {
             if (engId == null || username == 'Unknown') {
               try {
                 final pathSegments = doc.reference.path.split('/');
-                if (pathSegments.length >= 2) {
-                  final potentialId = pathSegments[1];
+                // Path structure: [tenantId, data, attendance, engineerId, year, month, daily, dateStr]
+                if (pathSegments.length >= 4) {
+                  final potentialId = pathSegments[3];
                   if (usersMap.containsKey(potentialId)) {
                     username = usersMap[potentialId]!;
                   }

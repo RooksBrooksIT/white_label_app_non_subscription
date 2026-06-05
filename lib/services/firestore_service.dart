@@ -40,15 +40,17 @@ class FirestoreService {
   Query<Map<String, dynamic>> collectionGroup(String collectionPath) {
     final effectiveTenant = ThemeService.instance.databaseName;
     final effectiveApp = 'data';
-    // Filter documents whose full path starts with our tenant's prefix
-    final prefix = '$effectiveTenant/$effectiveApp/';
+    // Create document references for path filtering using __name__ field which stores full path as DocumentReference
+    final startRef = _db.doc('$effectiveTenant/$effectiveApp');
+    final endRef = _db.doc('$effectiveTenant/$effectiveApp\uf8ff');
+
     return _db
         .collectionGroup(collectionPath)
-        .where(FieldPath.fromString('__name__'), isGreaterThanOrEqualTo: prefix)
         .where(
           FieldPath.fromString('__name__'),
-          isLessThanOrEqualTo: '$prefix\uf8ff',
-        );
+          isGreaterThanOrEqualTo: startRef,
+        )
+        .where(FieldPath.fromString('__name__'), isLessThanOrEqualTo: endRef);
   }
 
   /// Tenant-specific reference for subscriptions

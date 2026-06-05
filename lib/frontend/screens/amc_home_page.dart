@@ -621,13 +621,16 @@ class _AmcCustomerHomePageState extends State<AmcCustomerHomePage> {
                         ),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         side: BorderSide(
-                          color: ProfessionalTheme.borderMedium(context),
+                          color: Colors.grey.shade300,
                         ),
+                        backgroundColor: Colors.grey.shade200,
+                        foregroundColor: ProfessionalTheme.textSecondary(context),
                       ),
                       child: Text(
                         'Cancel',
                         style: TextStyle(
                           color: ProfessionalTheme.textSecondary(context),
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),

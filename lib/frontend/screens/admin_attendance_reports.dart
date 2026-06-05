@@ -23,6 +23,7 @@ class _AdminAttendanceReportsPageState
   DateTime? _selectedMonth; // For month-wise filtering
   List<Map<String, dynamic>> _engineers = [];
   bool _isLoadingEngineers = true;
+  DateTime _today = DateTime.now();
 
   final List<String> _months = [
     'January',
@@ -196,7 +197,7 @@ class _AdminAttendanceReportsPageState
                         : '${DateFormat('dd/MM').format(_selectedDateRange!.start)} - ${DateFormat('dd/MM').format(_selectedDateRange!.end)}',
                   ),
                   style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    padding: const EdgeInsets.symmetric(vertical: 9),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -215,7 +216,7 @@ class _AdminAttendanceReportsPageState
                     isDense: true,
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 12,
-                      vertical: 12,
+                      vertical: 8.5,
                     ),
                   ),
                   initialValue: _selectedMonth?.month,
@@ -255,7 +256,8 @@ class _AdminAttendanceReportsPageState
 
   Widget _buildAttendanceErrorState(Object error) {
     final message = error.toString();
-    final isIndexError = message.contains('failed-precondition') ||
+    final isIndexError =
+        message.contains('failed-precondition') ||
         message.contains('COLLECTION_GROUP') ||
         message.contains('index');
     final indexUrl = RegExp(
@@ -278,19 +280,16 @@ class _AdminAttendanceReportsPageState
               isIndexError
                   ? 'Database index required'
                   : 'Unable to load attendance',
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-              ),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 10),
             Text(
               isIndexError
                   ? 'A Firestore index is missing for attendance queries. '
-                      'The full error and index link are printed in the debug terminal.'
+                        'The full error and index link are printed in the debug terminal.'
                   : 'Something went wrong while loading records. '
-                      'Check the debug terminal for details.',
+                        'Check the debug terminal for details.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 14,
@@ -355,32 +354,37 @@ class _AdminAttendanceReportsPageState
 
         // Concept: Engineer is marked as present for each and everyday until marked otherwise.
         // We fill in the gaps for the selected range/month if a specific engineer is selected.
-        if (_selectedEngineerId != null) {
-          // Sort descending
-          list.sort(
-            (a, b) =>
-                (b['date'] as Timestamp).compareTo(a['date'] as Timestamp),
-          );
+        DateTime? start, end;
+        if (_selectedMonth != null) {
+          start = DateTime(_selectedMonth!.year, _selectedMonth!.month, 1);
+          end = DateTime(_selectedMonth!.year, _selectedMonth!.month + 1, 0);
+        } else if (_selectedDateRange != null) {
+          start = _selectedDateRange!.start;
+          end = _selectedDateRange!.end;
         } else if (_selectedEngineerId == null) {
-          // If "All Engineers" is selected, just filter the existing list by date
-          DateTime? start, end;
-          if (_selectedMonth != null) {
-            start = DateTime(_selectedMonth!.year, _selectedMonth!.month, 1);
-            end = DateTime(_selectedMonth!.year, _selectedMonth!.month + 1, 0);
-          } else if (_selectedDateRange != null) {
-            start = _selectedDateRange!.start;
-            end = _selectedDateRange!.end;
-          }
+          // Only default to today if ALL ENGINEERS selected and no filter
+          start = DateTime(_today.year, _today.month, _today.day);
+          end = start;
+        }
 
-          if (start != null && end != null) {
-            list = list.where((data) {
-              final date = _parseTimestamp(data['date']).toDate();
-              return (date.isAfter(start!.subtract(const Duration(days: 1))) ||
-                      date.isAtSameMomentAs(start)) &&
-                  (date.isBefore(end!.add(const Duration(days: 1))) ||
-                      date.isAtSameMomentAs(end));
-            }).toList();
-          }
+        // Apply date filter only if we have a date range (either selected or default)
+        if (start != null && end != null) {
+          list = list.where((data) {
+            final date = _parseTimestamp(data['date']).toDate();
+            return (date.isAfter(start!.subtract(const Duration(days: 1))) ||
+                    date.isAtSameMomentAs(start)) &&
+                (date.isBefore(end!.add(const Duration(days: 1))) ||
+                    date.isAtSameMomentAs(end));
+          }).toList();
+        }
+
+        if (_selectedEngineerId != null) {
+          // Sort descending for specific engineer
+          list.sort(
+            (a, b) => _parseTimestamp(
+              b['date'],
+            ).compareTo(_parseTimestamp(a['date'])),
+          );
         }
 
         if (list.isEmpty) {
@@ -393,6 +397,7 @@ class _AdminAttendanceReportsPageState
         int leaveCount = 0;
         int otCount = 0;
         int halfDayCount = 0;
+        Set<String> uniqueEngineerIds = {};
 
         for (var data in list) {
           final status = data['status'];
@@ -407,24 +412,40 @@ class _AdminAttendanceReportsPageState
           } else if (status == 'HalfDay' || status == 'Half Day') {
             halfDayCount++;
           }
+
+          // Track unique engineers
+          final engineerId = data['engineerId'] as String?;
+          if (engineerId != null) {
+            uniqueEngineerIds.add(engineerId);
+          }
         }
 
-        int totalDays = list.length;
-        double attendancePercentage = totalDays > 0
-            ? ((presentCount + otCount + (halfDayCount * 0.5)) / totalDays) *
-                  100
-            : 0.0;
+        // Determine current date to display
+        String displayDate;
+        if (_selectedMonth != null) {
+          displayDate = DateFormat.yMMMM().format(_selectedMonth!);
+        } else if (_selectedDateRange != null) {
+          if (_selectedDateRange!.start.isAtSameMomentAs(
+            _selectedDateRange!.end,
+          )) {
+            displayDate = DateFormat.yMMMd().format(_selectedDateRange!.start);
+          } else {
+            displayDate =
+                '${DateFormat.yMMMd().format(_selectedDateRange!.start)} - ${DateFormat.yMMMd().format(_selectedDateRange!.end)}';
+          }
+        } else {
+          displayDate = DateFormat.yMMMd().format(_today);
+        }
 
         return Column(
           children: [
             _buildSummaryCards(
               presentCount,
               absentCount,
-              leaveCount,
-              otCount,
               halfDayCount,
-              totalDays,
-              attendancePercentage,
+              otCount,
+              uniqueEngineerIds.length,
+              displayDate,
             ),
             Padding(
               padding: const EdgeInsets.symmetric(
@@ -443,11 +464,10 @@ class _AdminAttendanceReportsPageState
                       list,
                       presentCount,
                       absentCount,
-                      leaveCount,
-                      otCount,
                       halfDayCount,
-                      totalDays,
-                      attendancePercentage,
+                      otCount,
+                      uniqueEngineerIds.length,
+                      displayDate,
                     ),
                     icon: const Icon(Icons.picture_as_pdf),
                     label: const Text('Export PDF'),
@@ -481,11 +501,10 @@ class _AdminAttendanceReportsPageState
   Widget _buildSummaryCards(
     int present,
     int absent,
-    int leave,
-    int ot,
     int halfDay,
-    int total,
-    double percentage,
+    int ot,
+    int totalEngineers,
+    String displayDate,
   ) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -504,16 +523,16 @@ class _AdminAttendanceReportsPageState
           Row(
             children: [
               _metricCard(
-                'Total Days',
-                total.toString(),
-                Icons.event_note,
+                'Total Engineers',
+                totalEngineers.toString(),
+                Icons.people,
                 Colors.blueGrey,
               ),
               const SizedBox(width: 12),
               _metricCard(
-                'Attendance %',
-                '${percentage.toStringAsFixed(1)}%',
-                Icons.analytics,
+                'Current Date',
+                displayDate,
+                Icons.calendar_today,
                 Colors.indigo,
               ),
             ],
@@ -536,26 +555,30 @@ class _AdminAttendanceReportsPageState
           children: [
             Icon(icon, color: color, size: 28),
             const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: color,
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    value,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: color,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: color.withValues(alpha: 0.8),
-                    fontWeight: FontWeight.w500,
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: color.withValues(alpha: 0.8),
+                      fontWeight: FontWeight.w500,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ),
@@ -609,11 +632,10 @@ class _AdminAttendanceReportsPageState
 
     Color statusColor = Colors.green;
     if (status == 'Absent') statusColor = Colors.red;
-    if (status == 'Leave') statusColor = Colors.orange;
-    if (status == 'OT') statusColor = Colors.blue;
     if (status == 'HalfDay' || status == 'Half Day') {
-      statusColor = Colors.purple;
+      statusColor = Colors.orange;
     }
+    if (status == 'OT') statusColor = Colors.blue;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -702,11 +724,10 @@ class _AdminAttendanceReportsPageState
     List<dynamic> list,
     int present,
     int absent,
-    int leave,
-    int ot,
     int halfDay,
-    int total,
-    double percentage,
+    int ot,
+    int totalEngineers,
+    String displayDate,
   ) async {
     try {
       // Show feedback
@@ -778,11 +799,13 @@ class _AdminAttendanceReportsPageState
             ],
           ),
           build: (context) {
-            return [
-              // Summary Stats
-              pw.SizedBox(height: 10),
+            List<pw.Widget> content = [];
+
+            // Summary Stats - First Row (Present, Absent, Half Day, OT)
+            content.add(pw.SizedBox(height: 10));
+            content.add(
               pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
+                mainAxisAlignment: pw.MainAxisAlignment.spaceEvenly,
                 children: [
                   _pdfSummaryBox(
                     'Present',
@@ -798,72 +821,106 @@ class _AdminAttendanceReportsPageState
                   _pdfSummaryBox('OT', ot.toString(), PdfColors.blue700),
                 ],
               ),
-              pw.SizedBox(height: 10),
+            );
+
+            // Summary Stats - Second Row (Total Engineers, Current Date)
+            content.add(pw.SizedBox(height: 12));
+            content.add(
               pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
+                mainAxisAlignment: pw.MainAxisAlignment.spaceEvenly,
                 children: [
                   _pdfSummaryBox(
-                    'Total Days',
-                    total.toString(),
+                    'Total Engineers',
+                    totalEngineers.toString(),
                     PdfColors.blueGrey700,
+                    isWide: true,
                   ),
                   _pdfSummaryBox(
-                    'Attendance %',
-                    '${percentage.toStringAsFixed(1)}%',
+                    'Current Date',
+                    displayDate,
                     PdfColors.indigo700,
+                    isWide: true,
                   ),
                 ],
               ),
-              pw.SizedBox(height: 20),
+            );
+            content.add(pw.SizedBox(height: 24));
 
+            if (list.isEmpty) {
+              // Empty state
+              content.add(
+                pw.Center(
+                  child: pw.Text(
+                    'No attendance records found for the selected filters.',
+                    style: pw.TextStyle(fontSize: 14, color: PdfColors.grey600),
+                  ),
+                ),
+              );
+            } else {
               // Attendance Table
-              pw.Table.fromTextArray(
-                context: context,
-                border: pw.TableBorder.all(color: PdfColors.grey300),
-                headerStyle: pw.TextStyle(
-                  fontWeight: pw.FontWeight.bold,
-                  color: PdfColors.white,
-                ),
-                headerDecoration: const pw.BoxDecoration(
-                  color: PdfColors.blue900,
-                ),
-                cellHeight: 25,
-                cellAlignments: {
-                  0: pw.Alignment.centerLeft,
-                  1: pw.Alignment.center,
-                  2: pw.Alignment.center,
-                  3: pw.Alignment.centerLeft,
-                },
-                headers: ['Engineer Name', 'Date', 'Status', 'Remarks'],
-                data: list.map((d) {
-                  try {
-                    final username =
-                        d['engineerUsername']?.toString().toUpperCase() ??
-                        'N/A';
+              final tableData = list.map((d) {
+                try {
+                  final username =
+                      d['engineerUsername']?.toString().toUpperCase() ?? 'N/A';
 
-                    String dateStr = '-';
-                    if (d['date'] != null && d['date'] is Timestamp) {
-                      dateStr = DateFormat(
-                        'dd/MM/yyyy',
-                      ).format((d['date'] as Timestamp).toDate());
-                    }
-
-                    return [
-                      username,
-                      dateStr,
-                      d['status']?.toString() ?? 'N/A',
-                      d['comment']?.toString() ?? '-',
-                    ];
-                  } catch (e) {
-                    return ['Error', '-', '-', '-'];
+                  String dateStr = '-';
+                  if (d['date'] != null) {
+                    dateStr = DateFormat(
+                      'dd/MM/yyyy',
+                    ).format(_parseTimestamp(d['date']).toDate());
                   }
-                }).toList(),
-              ),
-            ];
+
+                  return [
+                    dateStr,
+                    username,
+                    d['status']?.toString() ?? 'N/A',
+                    d['comment']?.toString() ?? '-',
+                  ];
+                } catch (e) {
+                  return ['-', 'Error', '-', '-'];
+                }
+              }).toList();
+
+              content.add(
+                pw.Table.fromTextArray(
+                  context: context,
+                  border: pw.TableBorder.all(
+                    color: PdfColors.grey300,
+                    width: 1,
+                  ),
+                  headerStyle: pw.TextStyle(
+                    fontWeight: pw.FontWeight.bold,
+                    color: PdfColors.white,
+                  ),
+                  headerDecoration: const pw.BoxDecoration(
+                    color: PdfColors.blue900,
+                  ),
+                  cellHeight: 30,
+                  cellAlignment: pw.Alignment.centerLeft,
+                  cellAlignments: {
+                    0: pw.Alignment.centerLeft,
+                    1: pw.Alignment.centerLeft,
+                    2: pw.Alignment.center,
+                    3: pw.Alignment.centerLeft,
+                  },
+                  columnWidths: const {
+                    0: pw.FixedColumnWidth(80),
+                    1: pw.FlexColumnWidth(),
+                    2: pw.FixedColumnWidth(80),
+                    3: pw.FlexColumnWidth(),
+                  },
+                  headers: ['Date', 'Engineer Name', 'Status', 'Remarks'],
+                  data: tableData,
+                ),
+              );
+            }
+
+            return content;
           },
           footer: (context) => pw.Column(
             children: [
               pw.Divider(thickness: 0.5, color: PdfColors.grey400),
+              pw.SizedBox(height: 8),
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
@@ -919,27 +976,42 @@ class _AdminAttendanceReportsPageState
     }
   }
 
-  pw.Widget _pdfSummaryBox(String title, String value, PdfColor color) {
+  pw.Widget _pdfSummaryBox(
+    String title,
+    String value,
+    PdfColor color, {
+    bool isWide = false,
+  }) {
     return pw.Container(
-      width: 120,
-      padding: const pw.EdgeInsets.all(10),
+      width: isWide ? 180 : 130,
+      height: 80,
+      padding: const pw.EdgeInsets.all(12),
       decoration: pw.BoxDecoration(
         border: pw.Border.all(color: color, width: 2),
-        borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
+        borderRadius: const pw.BorderRadius.all(pw.Radius.circular(12)),
       ),
       child: pw.Column(
+        mainAxisAlignment: pw.MainAxisAlignment.center,
         children: [
           pw.Text(
             value,
             style: pw.TextStyle(
-              fontSize: 20,
+              fontSize: isWide ? 16 : 20,
               fontWeight: pw.FontWeight.bold,
               color: color,
             ),
+            textAlign: pw.TextAlign.center,
+            overflow: pw.TextOverflow.clip,
           ),
+          pw.SizedBox(height: 4),
           pw.Text(
             title,
-            style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold),
+            style: pw.TextStyle(
+              fontSize: 10,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.grey700,
+            ),
+            textAlign: pw.TextAlign.center,
           ),
         ],
       ),

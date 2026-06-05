@@ -93,11 +93,7 @@ class _AdminAttendancePageState extends State<AdminAttendancePage>
             ? (_absentReasons[uid] ?? '')
             : null;
 
-        records.add({
-          'engineerId': uid,
-          'status': status,
-          'comment': ?comment,
-        });
+        records.add({'engineerId': uid, 'status': status, 'comment': comment});
       }
 
       await AttendanceBackend.batchSaveAttendance(
@@ -224,19 +220,67 @@ class _AdminAttendancePageState extends State<AdminAttendancePage>
       return const Center(child: Text("No engineers found"));
     }
 
-    return ListView.builder(
-      itemCount: filtered.length,
-      itemBuilder: (context, index) {
-        final engineer = filtered[index];
-        final uid = engineer['uid'];
-        final status = _attendanceStatus[uid] ?? 'Present';
+    return Column(
+      children: [
+        // Header Row
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          child: Row(
+            children: [
+              Expanded(child: Container()), // Spacer for name column
+              _buildStatusHeader(),
+            ],
+          ),
+        ),
+        // Divider
+        const Divider(height: 1),
+        // Engineer List
+        Expanded(
+          child: ListView.builder(
+            itemCount: filtered.length,
+            itemBuilder: (context, index) {
+              final engineer = filtered[index];
+              final uid = engineer['uid'];
+              final status = _attendanceStatus[uid] ?? 'Present';
 
-        return ListTile(
-          title: Text(engineer['username'] ?? 'Unknown'),
-          subtitle: Text(status),
-          trailing: _buildStatusSelector(uid, status),
-        );
-      },
+              return ListTile(
+                title: Text(engineer['username'] ?? 'Unknown'),
+                subtitle: Text(status),
+                trailing: _buildStatusSelector(uid, status),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatusHeader() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _headerLabel('Present'),
+        _headerLabel('Absent'),
+        _headerLabel('OT'),
+        _headerLabel('Half Day'),
+      ],
+    );
+  }
+
+  Widget _headerLabel(String text) {
+    return SizedBox(
+      width: 48, // Match exactly the size we use for status buttons
+      child: Center(
+        child: Text(
+          text,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: Theme.of(context).textTheme.bodyLarge?.color,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ),
     );
   }
 
@@ -263,16 +307,21 @@ class _AdminAttendancePageState extends State<AdminAttendancePage>
     Color color,
     bool isSelected,
   ) {
-    return IconButton(
-      icon: Icon(
-        isSelected ? Icons.check_circle : Icons.circle_outlined,
-        color: isSelected ? color : Colors.grey,
+    return SizedBox(
+      width: 48, // Same fixed width as header labels
+      height: 48,
+      child: IconButton(
+        padding: EdgeInsets.zero, // Remove default padding
+        icon: Icon(
+          isSelected ? Icons.check_circle : Icons.circle_outlined,
+          color: isSelected ? color : Colors.grey,
+        ),
+        onPressed: () {
+          setState(() {
+            _attendanceStatus[uid] = status;
+          });
+        },
       ),
-      onPressed: () {
-        setState(() {
-          _attendanceStatus[uid] = status;
-        });
-      },
     );
   }
 }
