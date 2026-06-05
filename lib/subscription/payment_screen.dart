@@ -5,8 +5,10 @@ import 'package:subscription_rooks_app/services/auth_state_service.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/services/payment_recovery_service.dart';
 import 'package:subscription_rooks_app/services/invoice_email_service.dart';
+import 'package:subscription_rooks_app/services/subscription_queue_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'icici_payment_webview_screen.dart';
+import 'queued_upgrade_confirmation_screen.dart';
 
 import 'dart:async';
 
@@ -32,6 +34,18 @@ class PaymentScreen extends StatefulWidget {
   /// User data for a new user who hasn't registered yet.
   final Map<String, dynamic>? pendingUserData;
 
+  // ── Queue upgrade support ──────────────────────────────────────────────────
+
+  /// True when an existing active plan is present (shows queue checkbox).
+  final bool hasActiveSubscription;
+
+  /// Name of the currently active plan (used in queue confirmation UI).
+  final String? currentActivePlanName;
+
+  /// Expiry date of the active plan — becomes the scheduled activation date
+  /// for the queued plan.
+  final DateTime? activePlanExpiryDate;
+
   const PaymentScreen({
     super.key,
     required this.planName,
@@ -47,6 +61,9 @@ class PaymentScreen extends StatefulWidget {
     this.barcode,
     this.reportExport,
     this.pendingUserData,
+    this.hasActiveSubscription = false,
+    this.currentActivePlanName,
+    this.activePlanExpiryDate,
   });
 
   @override
@@ -60,6 +77,10 @@ class _PaymentScreenState extends State<PaymentScreen>
   final String selectedPaymentMethod = 'Card'; // Hardcoded for hosted flow
 
   String? _activeTxnId;
+
+  /// Whether the user wants to queue the upgrade rather than activate immediately.
+  /// Only relevant when [widget.hasActiveSubscription] is true.
+  bool _queueUpgrade = false;
 
   @override
   void initState() {
@@ -300,35 +321,55 @@ class _PaymentScreenState extends State<PaymentScreen>
               widget.pendingUserData?['tenantId'] ??
               ThemeService.instance.databaseName;
 
-          // 2. Set user as active
-          await FirestoreService.instance.setUserActiveStatus(
-            uid: uid,
-            tenantId: tenantId,
-            active: true,
-          );
+          // 2. Set user as active (only for immediate upgrades)
+          if (!_queueUpgrade) {
+            await FirestoreService.instance.setUserActiveStatus(
+              uid: uid,
+              tenantId: tenantId,
+              active: true,
+            );
 
-          // 3. Save subscription details
-          await FirestoreService.instance.upsertSubscription(
-            uid: uid,
-            tenantId: tenantId,
-            appId: 'data',
-            planName: widget.planName,
-            isYearly: widget.isYearly,
-            isSixMonths: widget.isSixMonths,
-            price: widget.price,
-            originalPrice: widget.originalPrice,
-            paymentMethod: resolvedPaymentMethod,
-            status: 'active',
-            gstNumber: widget.pendingUserData?['gstNumber'],
-            limits: widget.limits,
-            geoLocation: widget.geoLocation,
-            attendance: widget.attendance,
-            barcode: widget.barcode,
-            reportExport: widget.reportExport,
-          );
+            // 3. Save subscription details (immediate activation)
+            await FirestoreService.instance.upsertSubscription(
+              uid: uid,
+              tenantId: tenantId,
+              appId: 'data',
+              planName: widget.planName,
+              isYearly: widget.isYearly,
+              isSixMonths: widget.isSixMonths,
+              price: widget.price,
+              originalPrice: widget.originalPrice,
+              paymentMethod: resolvedPaymentMethod,
+              status: 'active',
+              gstNumber: widget.pendingUserData?['gstNumber'],
+              limits: widget.limits,
+              geoLocation: widget.geoLocation,
+              attendance: widget.attendance,
+              barcode: widget.barcode,
+              reportExport: widget.reportExport,
+            );
+          } else {
+            // 3b. Queue the plan — do NOT touch the active subscription.
+            await SubscriptionQueueService.instance.saveQueuedPlan(
+              tenantId: tenantId,
+              uid: uid,
+              planName: widget.planName,
+              isYearly: widget.isYearly,
+              isSixMonths: widget.isSixMonths,
+              price: widget.price,
+              originalPrice: widget.originalPrice,
+              paymentMethod: resolvedPaymentMethod,
+              transactionId: txnId,
+              scheduledActivationDate: widget.activePlanExpiryDate,
+              limits: widget.limits,
+              geoLocation: widget.geoLocation,
+              attendance: widget.attendance,
+              barcode: widget.barcode,
+              reportExport: widget.reportExport,
+            );
+          }
 
           // 4. Update the payment document status in global payments collection
-          // only after payment verification and Firestore data synchronization are completed.
           await FirebaseFirestore.instance
               .collection('payments')
               .doc(txnId)
@@ -341,21 +382,28 @@ class _PaymentScreenState extends State<PaymentScreen>
                 'updatedAt': FieldValue.serverTimestamp(),
               });
 
-          // 5. Store the payment transaction details in the payment_logs collection
-          await FirestoreService.instance.logPaymentTransaction(
+          // 5. Log payment transaction (always creates a NEW unique doc)
+          final logDocId = await FirestoreService.instance.logPaymentTransaction(
             txnId: txnId,
             uidOrMobile: uid,
+            userId: uid,
             planName: widget.planName,
+            newPlan: widget.planName,
+            previousPlan: widget.currentActivePlanName,
             amount: widget.price,
             status: 'SUCCESS',
             isYearly: widget.isYearly,
             isSixMonths: widget.isSixMonths,
+            queueStatus: _queueUpgrade ? 'Queued' : 'Immediate',
             registrationCompleted: true,
             firestoreSynced: true,
             tenantId: tenantId,
             customerName: widget.pendingUserData?['name'] ?? 'Customer',
-            customerEmail: widget.pendingUserData?['email'] ?? 'support@servnex.com',
-            customerMobile: widget.pendingUserData?['customerMobile'] ?? widget.pendingUserData?['phone'],
+            customerEmail:
+                widget.pendingUserData?['email'] ?? 'support@servnex.com',
+            customerMobile:
+                widget.pendingUserData?['customerMobile'] ??
+                widget.pendingUserData?['phone'],
             gatewayResponse: finalVerifyResult ?? {
               'paymentMode': resolvedPaymentMethod,
               'paymentMethod': resolvedPaymentMethod,
@@ -368,8 +416,10 @@ class _PaymentScreenState extends State<PaymentScreen>
           // Automatically send the invoice in the background
           InvoiceEmailService.instance.processAndSendInvoice(
             txnId: txnId,
+            logDocId: logDocId,
             customerName: widget.pendingUserData?['name'] ?? 'Customer',
-            customerEmail: widget.pendingUserData?['email'] ?? 'support@servnex.com',
+            customerEmail:
+                widget.pendingUserData?['email'] ?? 'support@servnex.com',
             planName: widget.planName,
             isYearly: widget.isYearly,
             isSixMonths: widget.isSixMonths,
@@ -381,8 +431,12 @@ class _PaymentScreenState extends State<PaymentScreen>
         // Only clear pending payment after complete success of Firestore writes
         await PaymentRecoveryService.instance.clearPendingPayment();
 
-        // 6. Finally navigate to success screen
-        _navigateToSuccess(txnId);
+        // 6. Navigate to the appropriate success screen
+        if (_queueUpgrade) {
+          _navigateToQueuedConfirmation(txnId);
+        } else {
+          _navigateToSuccess(txnId);
+        }
       } catch (e) {
         debugPrint('Critical Error after successful payment during Firestore sync: $e');
         
@@ -981,10 +1035,59 @@ class _PaymentScreenState extends State<PaymentScreen>
     final buttonWidth = isDesktop ? 400.0 : double.infinity;
 
     return Column(
-      crossAxisAlignment: isDesktop
-          ? CrossAxisAlignment.start
-          : CrossAxisAlignment.stretch,
+      crossAxisAlignment:
+          isDesktop ? CrossAxisAlignment.start : CrossAxisAlignment.stretch,
       children: [
+        // ── Queue Upgrade Checkbox (shown only when user has an active plan) ──
+        if (widget.hasActiveSubscription && !widget.isFirstTimeRegistration)
+          Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            decoration: BoxDecoration(
+              color: _queueUpgrade
+                  ? const Color(0xFFF0F0FF)
+                  : Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: _queueUpgrade
+                    ? const Color(0xFF6C5CE7)
+                    : Colors.grey.shade300,
+                width: _queueUpgrade ? 1.5 : 1,
+              ),
+            ),
+            child: CheckboxListTile(
+              value: _queueUpgrade,
+              onChanged: (val) => setState(() => _queueUpgrade = val ?? false),
+              title: const Text(
+                'Queue Upgrade Until Current Plan Expires',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+              subtitle: Text(
+                _queueUpgrade
+                    ? 'Your ${widget.currentActivePlanName ?? 'current'} plan stays active. '
+                      '${widget.planName} will activate automatically on expiry.'
+                    : '${widget.planName} plan will activate immediately after payment.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: _queueUpgrade
+                      ? const Color(0xFF4A3F99)
+                      : Colors.grey.shade600,
+                  height: 1.3,
+                ),
+              ),
+              activeColor: const Color(0xFF6C5CE7),
+              controlAffinity: ListTileControlAffinity.leading,
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+
         SizedBox(
           width: buttonWidth,
           height: buttonHeight,
@@ -999,7 +1102,7 @@ class _PaymentScreenState extends State<PaymentScreen>
               ),
             ),
             child: Text(
-              'Pay Now',
+              _queueUpgrade ? 'Pay & Queue Upgrade' : 'Pay Now',
               style: TextStyle(
                 fontSize: buttonFontSize,
                 fontWeight: FontWeight.bold,
@@ -1247,7 +1350,27 @@ class _PaymentScreenState extends State<PaymentScreen>
           reportExport: widget.reportExport,
         ),
       ),
-      (route) => route.isFirst, // Go back to dashboard/first route
+      (route) => route.isFirst,
+    );
+  }
+
+  /// Navigate to the queued plan confirmation screen.
+  void _navigateToQueuedConfirmation(String txnId) {
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (context) => QueuedUpgradeConfirmationScreen(
+          newPlanName: widget.planName,
+          currentPlanName:
+              widget.currentActivePlanName ?? 'Current Plan',
+          amountPaid: widget.price,
+          transactionId: txnId,
+          scheduledActivationDate: widget.activePlanExpiryDate,
+          isYearly: widget.isYearly,
+          isSixMonths: widget.isSixMonths,
+        ),
+      ),
+      (route) => route.isFirst,
     );
   }
 

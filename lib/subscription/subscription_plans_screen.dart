@@ -72,7 +72,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
   final List<Map<String, dynamic>> plans = [
     {
       'name': 'Silver',
-      'monthlyPrice': 199,
+      'monthlyPrice': 1,
       'monthlyOriginalPrice': 299,
       'sixMonthPrice': 999,
       'sixMonthOriginalPrice': 1794,
@@ -102,7 +102,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
     },
     {
       'name': 'Gold',
-      'monthlyPrice': 399,
+      'monthlyPrice': 2,
       'monthlyOriginalPrice': 499,
       'sixMonthPrice': 1990,
       'sixMonthOriginalPrice': 2994,
@@ -1297,6 +1297,9 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
             barcode: selectedPlan['barcode'],
             reportExport: selectedPlan['reportExport'],
             pendingUserData: widget.pendingUserData,
+            hasActiveSubscription: widget.currentPlanName != null && widget.currentPlanName!.isNotEmpty,
+            currentActivePlanName: widget.currentPlanName,
+            activePlanExpiryDate: widget.remainingDays != null ? DateTime.now().add(Duration(days: widget.remainingDays!)) : null,
           ),
         ),
       );

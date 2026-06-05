@@ -153,10 +153,12 @@ class _PaymentRecoveryScreenState extends State<PaymentRecoveryScreen> {
                 'updatedAt': FieldValue.serverTimestamp(),
               });
 
-          await FirestoreService.instance.logPaymentTransaction(
+          final logDocId = await FirestoreService.instance.logPaymentTransaction(
             txnId: txnId,
             uidOrMobile: uid,
+            userId: uid,
             planName: widget.pendingPayment['planName'] ?? 'Subscription',
+            newPlan: widget.pendingPayment['planName'] ?? 'Subscription',
             amount: widget.pendingPayment['price'] ?? 0,
             status: 'SUCCESS',
             isYearly: widget.pendingPayment['isYearly'] ?? false,
@@ -168,6 +170,7 @@ class _PaymentRecoveryScreenState extends State<PaymentRecoveryScreen> {
           // Automatically send the invoice in the background
           InvoiceEmailService.instance.processAndSendInvoice(
             txnId: txnId,
+            logDocId: logDocId,
             customerName: pendingUserData?['name'] ?? 'Customer',
             customerEmail: pendingUserData?['email'] ?? 'support@servnex.com',
             planName: widget.pendingPayment['planName'] ?? 'Subscription',
@@ -222,7 +225,9 @@ class _PaymentRecoveryScreenState extends State<PaymentRecoveryScreen> {
       await FirestoreService.instance.logPaymentTransaction(
         txnId: txnId,
         uidOrMobile: uid ?? pendingUserData?['email'] ?? 'unknown',
+        userId: uid,
         planName: widget.pendingPayment['planName'] ?? 'Subscription',
+        newPlan: widget.pendingPayment['planName'] ?? 'Subscription',
         amount: widget.pendingPayment['price'] ?? 0,
         status: isPending ? 'PENDING' : 'FAILED',
         isYearly: widget.pendingPayment['isYearly'] ?? false,
