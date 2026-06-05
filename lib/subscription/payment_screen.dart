@@ -296,6 +296,25 @@ class _PaymentScreenState extends State<PaymentScreen>
     );
 
     if (isSuccess) {
+      // Show Finalizing Dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const PopScope(
+          canPop: false,
+          child: AlertDialog(
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Finalizing transaction... Please wait.'),
+              ],
+            ),
+          ),
+        ),
+      );
+
       // Payment is genuinely successful
       String? uid = AuthStateService.instance.currentUser?.uid;
 
@@ -441,6 +460,7 @@ class _PaymentScreenState extends State<PaymentScreen>
         debugPrint('Critical Error after successful payment during Firestore sync: $e');
         
         if (!mounted) return;
+        Navigator.pop(context); // Pop Finalizing dialog
         
         // Show Synchronization Incomplete Alert dialog
         showDialog(
