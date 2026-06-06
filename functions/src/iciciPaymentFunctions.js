@@ -58,6 +58,20 @@ function mapICICIStatus(data) {
 }
 
 /**
+ * Helper to extract the actual payment method from bank response
+ */
+function resolvePaymentMethod(data, fallback) {
+    if (!data) return fallback;
+    const rawValue = data.paymentMethod || data.paymentMode || data.payMode || data.txnPaymentMode || data.mode || data.PAYMENT_MODE || data.PAY_MODE || data.payment_mode || data.txn_payment_mode;
+    if (!rawValue) return fallback;
+    const method = String(rawValue).trim().toUpperCase();
+    if (method === "NB") return "NETBANKING";
+    if (method === "CC" || method === "DC") return "CARD";
+    if (method === "UPI") return "UPI";
+    return method;
+}
+
+/**
  * Webhook: paymentCallback
  * Securely processes bank notifications (POST webhook) and browser redirects (GET).
  *
@@ -200,9 +214,24 @@ h2{color:#1A237E;} p{color:#555;}
 
                 console.log(`${TAG} Final calculated status for ${txnId}: ${finalStatus}`);
 
-                // 5. Update Database
+                // 5. Extract actual payment method and amount
+                let actualPaymentMethod = paymentData.paymentMethod || paymentData.paymentMode;
+                let actualAmount = paymentData.amount;
+                if (finalStatus === "SUCCESS") {
+                    actualPaymentMethod = resolvePaymentMethod(data, actualPaymentMethod);
+                    actualPaymentMethod = resolvePaymentMethod(query, actualPaymentMethod);
+                    const bankAmount = parseFloat(data.TXN_AMOUNT || data.amount || query.TXN_AMOUNT || query.amount);
+                    if (!isNaN(bankAmount)) {
+                        actualAmount = bankAmount;
+                    }
+                }
+
+                // 6. Update Database
                 const updateData = {
                     status: finalStatus,
+                    paymentMethod: actualPaymentMethod,
+                    paymentMode: actualPaymentMethod,
+                    amount: actualAmount,
                     iciciResponse: {
                         callback: data,
                         query: query,
@@ -213,7 +242,7 @@ h2{color:#1A237E;} p{color:#555;}
 
                 transaction.update(paymentRef, updateData);
 
-                // 6. Mirror to Tenant Sub-collection for processPaymentSuccess trigger
+                // 7. Mirror to Tenant Sub-collection for processPaymentSuccess trigger
                 if (finalStatus === "SUCCESS" && paymentData.tenantId && paymentData.appId) {
                     const tenantRef = db.doc(`${paymentData.tenantId}/${paymentData.appId}/payment_transactions/${txnId}`);
                     const tenantData = {
@@ -221,11 +250,12 @@ h2{color:#1A237E;} p{color:#555;}
                         ...updateData,
                         uid: paymentData.uid || paymentData.userId,
                         merchantTxnNo: paymentData.merchantTxnNo || txnId,
-                        paymentMethod: paymentData.paymentMethod || paymentData.paymentMode,
+                        paymentMethod: actualPaymentMethod,
+                        paymentMode: actualPaymentMethod,
                         planName: paymentData.planName || "Subscription",
                         isYearly: paymentData.isYearly || false,
                         isSixMonths: paymentData.isSixMonths || false,
-                        amount: paymentData.amount,
+                        amount: actualAmount,
                     };
                     transaction.set(tenantRef, tenantData, { merge: true });
                         // Set activation status pending for later processing
@@ -279,8 +309,22 @@ exports.verifyPayment = onRequest(
 
                 if (paymentDoc.exists) {
                     const paymentData = paymentDoc.data();
+                    let actualPaymentMethod = paymentData.paymentMethod || paymentData.paymentMode;
+                    let actualAmount = paymentData.amount;
+                    
+                    if (status === "SUCCESS") {
+                        actualPaymentMethod = resolvePaymentMethod(data, actualPaymentMethod);
+                        const bankAmount = parseFloat(data.TXN_AMOUNT || data.amount);
+                        if (!isNaN(bankAmount)) {
+                            actualAmount = bankAmount;
+                        }
+                    }
+
                     const updateData = {
                         status: status,
+                        paymentMethod: actualPaymentMethod,
+                        paymentMode: actualPaymentMethod,
+                        amount: actualAmount,
                         iciciResponse: { manualVerify: data },
                         updatedAt: admin.firestore.FieldValue.serverTimestamp()
                     };
@@ -299,7 +343,9 @@ exports.verifyPayment = onRequest(
                             ...updateData,
                             uid: paymentData.uid || paymentData.userId,
                             merchantTxnNo: paymentData.merchantTxnNo || txnId,
-                            paymentMethod: paymentData.paymentMethod || paymentData.paymentMode,
+                            paymentMethod: actualPaymentMethod,
+                            paymentMode: actualPaymentMethod,
+                            amount: actualAmount,
                         }, { merge: true });
                         console.log(`[VERIFY] Mirrored SUCCESS for ${txnId} to tenant collection.`);
                     }

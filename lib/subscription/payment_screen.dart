@@ -317,6 +317,18 @@ class _PaymentScreenState extends State<PaymentScreen>
 
       // Payment is genuinely successful
       String? uid = AuthStateService.instance.currentUser?.uid;
+      
+      int actualAmount = widget.price;
+      if (finalVerifyResult != null && finalVerifyResult['amount'] != null) {
+        dynamic amt = finalVerifyResult['amount'];
+        if (amt is int) {
+          actualAmount = amt;
+        } else if (amt is double) {
+          actualAmount = amt.toInt();
+        } else if (amt is String) {
+          actualAmount = double.tryParse(amt)?.toInt() ?? widget.price;
+        }
+      }
 
       try {
         // If we have pending user data, register/create the user now
@@ -356,7 +368,7 @@ class _PaymentScreenState extends State<PaymentScreen>
               planName: widget.planName,
               isYearly: widget.isYearly,
               isSixMonths: widget.isSixMonths,
-              price: widget.price,
+              price: actualAmount,
               originalPrice: widget.originalPrice,
               paymentMethod: resolvedPaymentMethod,
               status: 'active',
@@ -375,7 +387,7 @@ class _PaymentScreenState extends State<PaymentScreen>
               planName: widget.planName,
               isYearly: widget.isYearly,
               isSixMonths: widget.isSixMonths,
-              price: widget.price,
+              price: actualAmount,
               originalPrice: widget.originalPrice,
               paymentMethod: resolvedPaymentMethod,
               transactionId: txnId,
@@ -409,7 +421,7 @@ class _PaymentScreenState extends State<PaymentScreen>
             planName: widget.planName,
             newPlan: widget.planName,
             previousPlan: widget.currentActivePlanName,
-            amount: widget.price,
+            amount: actualAmount,
             status: 'SUCCESS',
             isYearly: widget.isYearly,
             isSixMonths: widget.isSixMonths,
@@ -426,7 +438,7 @@ class _PaymentScreenState extends State<PaymentScreen>
             gatewayResponse: finalVerifyResult ?? {
               'paymentMode': resolvedPaymentMethod,
               'paymentMethod': resolvedPaymentMethod,
-              'amount': widget.price,
+              'amount': actualAmount,
               'status': 'SUCCESS',
               'transactionId': txnId,
             },
@@ -442,7 +454,7 @@ class _PaymentScreenState extends State<PaymentScreen>
             planName: widget.planName,
             isYearly: widget.isYearly,
             isSixMonths: widget.isSixMonths,
-            amountPaid: widget.price,
+            amountPaid: actualAmount,
             gstNumber: widget.pendingUserData?['gstNumber'],
           );
         }
@@ -452,9 +464,9 @@ class _PaymentScreenState extends State<PaymentScreen>
 
         // 6. Navigate to the appropriate success screen
         if (_queueUpgrade) {
-          _navigateToQueuedConfirmation(txnId);
+          _navigateToQueuedConfirmation(txnId, actualAmount);
         } else {
-          _navigateToSuccess(txnId);
+          _navigateToSuccess(txnId, resolvedPaymentMethod, actualAmount);
         }
       } catch (e) {
         debugPrint('Critical Error after successful payment during Firestore sync: $e');
@@ -1347,7 +1359,7 @@ class _PaymentScreenState extends State<PaymentScreen>
     }
   }
 
-  void _navigateToSuccess(String txnId) {
+  void _navigateToSuccess(String txnId, String resolvedPaymentMethod, int actualAmount) {
     if (!mounted) return;
 
     // Ensure all dialogs are closed before navigating to the final screen
@@ -1356,9 +1368,9 @@ class _PaymentScreenState extends State<PaymentScreen>
         builder: (context) => TransactionCompletedScreen(
           transactionId: txnId,
           planName: widget.planName,
-          amountPaid: widget.price,
+          amountPaid: actualAmount,
           isYearly: widget.isYearly,
-          paymentMethod: selectedPaymentMethod,
+          paymentMethod: resolvedPaymentMethod,
           timestamp: DateTime.now(),
           isFirstTimeRegistration: widget.isFirstTimeRegistration,
           isSixMonths: widget.isSixMonths,
@@ -1375,7 +1387,7 @@ class _PaymentScreenState extends State<PaymentScreen>
   }
 
   /// Navigate to the queued plan confirmation screen.
-  void _navigateToQueuedConfirmation(String txnId) {
+  void _navigateToQueuedConfirmation(String txnId, int actualAmount) {
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(
@@ -1383,7 +1395,7 @@ class _PaymentScreenState extends State<PaymentScreen>
           newPlanName: widget.planName,
           currentPlanName:
               widget.currentActivePlanName ?? 'Current Plan',
-          amountPaid: widget.price,
+          amountPaid: actualAmount,
           transactionId: txnId,
           scheduledActivationDate: widget.activePlanExpiryDate,
           isYearly: widget.isYearly,
