@@ -3,7 +3,7 @@ import 'dart:math';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:image_cropper/image_cropper.dart';
+import 'package:crop_image/crop_image.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_dashboard.dart';
 import 'package:subscription_rooks_app/services/auth_state_service.dart';
@@ -141,26 +141,20 @@ class _BrandingCustomizationScreenState
       );
       if (pickedFile != null) {
         setState(() => _isUploadingLogo = true);
-        final CroppedFile? croppedFile = await ImageCropper().cropImage(
-          sourcePath: pickedFile.path,
-          uiSettings: [
-            AndroidUiSettings(
-              toolbarTitle: 'Crop Logo',
-              toolbarColor: _primaryColor,
-              toolbarWidgetColor: Colors.white,
-              initAspectRatio: CropAspectRatioPreset.square,
-              lockAspectRatio: true,
+        
+        final File? croppedFile = await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => CustomLogoCropperScreen(
+              imageFile: File(pickedFile.path),
+              primaryColor: _primaryColor,
             ),
-            IOSUiSettings(
-              title: 'Crop Logo',
-              minimumAspectRatio: 1.0,
-            ),
-          ],
+          ),
         );
 
         if (croppedFile != null) {
           setState(() {
-            _logoFile = File(croppedFile.path);
+            _logoFile = croppedFile;
             _existingLogoUrl = null;
           });
         }
@@ -1361,6 +1355,91 @@ class _BrandingCustomizationScreenState
             letterSpacing: 0.3,
           ),
         ),
+      ),
+    );
+  }
+}
+
+class CustomLogoCropperScreen extends StatefulWidget {
+  final File imageFile;
+  final Color primaryColor;
+
+  const CustomLogoCropperScreen({
+    Key? key,
+    required this.imageFile,
+    required this.primaryColor,
+  }) : super(key: key);
+
+  @override
+  State<CustomLogoCropperScreen> createState() => _CustomLogoCropperScreenState();
+}
+
+class _CustomLogoCropperScreenState extends State<CustomLogoCropperScreen> {
+  final controller = CropController(
+    aspectRatio: 1.0,
+    defaultCrop: const Rect.fromLTRB(0.05, 0.05, 0.95, 0.95),
+  );
+
+  bool _isSaving = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        title: const Text('Crop Logo', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.white,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.black87),
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: CropImage(
+              controller: controller,
+              image: Image.file(widget.imageFile),
+              paddingSize: 25.0,
+              alwaysMove: true,
+            ),
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: widget.primaryColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  onPressed: _isSaving ? null : () async {
+                    setState(() => _isSaving = true);
+                    try {
+                      final img = await controller.croppedBitmap();
+                      final data = await img.toByteData(format: ImageByteFormat.png);
+                      final bytes = data!.buffer.asUint8List();
+                      final tempDir = Directory.systemTemp;
+                      final file = await File('${tempDir.path}/cropped_logo_${DateTime.now().millisecondsSinceEpoch}.png').create();
+                      await file.writeAsBytes(bytes);
+                      if (!mounted) return;
+                      Navigator.pop(context, file);
+                    } catch (e) {
+                      debugPrint('Crop error: $e');
+                      if (mounted) Navigator.pop(context, null);
+                    }
+                  },
+                  child: _isSaving
+                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : const Text('Save', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ),
+          )
+        ],
       ),
     );
   }

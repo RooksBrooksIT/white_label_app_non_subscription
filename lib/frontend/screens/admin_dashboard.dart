@@ -39,6 +39,8 @@ import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/frontend/screens/contact_us_screen.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_notifications_page.dart';
 import 'package:subscription_rooks_app/frontend/screens/refund_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:subscription_rooks_app/widgets/subscription_welcome_modal.dart';
 
 class admindashboard extends StatefulWidget {
   const admindashboard({super.key});
@@ -67,6 +69,7 @@ class _admindashboardState extends State<admindashboard> {
   bool _hasBarcodeFeature = true;
   bool _hasGeoLocationFeature = true;
   StreamSubscription<QuerySnapshot>? _adminNotificationSubscription;
+  bool _welcomeModalShowing = false;
 
   // Dynamic Color Palette from ThemeService
   late Color primaryColor;
@@ -243,12 +246,96 @@ class _admindashboardState extends State<admindashboard> {
                       billingCycle = null;
                     }
                   });
+                  if (data != null) {
+                    _checkAndShowWelcomeModal(data);
+                  }
                 }
               });
         } catch (e) {
           debugPrint('Error loading subscription info: $e');
         }
       }
+    }
+  }
+
+  void _checkAndShowWelcomeModal(Map<String, dynamic> data) async {
+    if (_welcomeModalShowing) return;
+
+    final planName = data['planName'] as String?;
+    final status = data['status'] as String? ?? '';
+    final startedAt = data['startedAt'] as String? ?? '';
+    final isYearly = data['isYearly'] as bool? ?? false;
+    final isSixMonths = data['isSixMonths'] as bool? ?? false;
+
+    if (planName == null || status != 'active') return;
+
+    String calculatedCycle;
+    if (planName.toLowerCase().contains('trial')) {
+      calculatedCycle = '7 Days';
+    } else if (isYearly) {
+      calculatedCycle = 'Yearly';
+    } else if (isSixMonths) {
+      calculatedCycle = '6 Months';
+    } else {
+      calculatedCycle = 'Monthly';
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final bool welcomeViewed = prefs.getBool('subscriptionWelcomeViewed') ?? false;
+    final String? lastPlanName = prefs.getString('lastWelcomePlanName');
+    final String? lastStartedAt = prefs.getString('lastWelcomeStartedAt');
+    final String? lastStatus = prefs.getString('lastWelcomeStatus');
+
+    final bool shouldShow = !welcomeViewed ||
+        lastPlanName != planName ||
+        lastStartedAt != startedAt ||
+        (lastStatus != 'active' && status == 'active');
+
+    if (shouldShow && mounted) {
+      _welcomeModalShowing = true;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) {
+          return SubscriptionWelcomeModal(
+            planName: planName,
+            billingCycle: calculatedCycle,
+            status: status,
+            onContinue: () async {
+              Navigator.pop(ctx);
+              final p = await SharedPreferences.getInstance();
+              await p.setBool('subscriptionWelcomeViewed', true);
+              await p.setString('lastWelcomePlanName', planName);
+              await p.setString('lastWelcomeStartedAt', startedAt);
+              await p.setString('lastWelcomeStatus', status);
+            },
+            onViewDetails: () async {
+              Navigator.pop(ctx);
+              final p = await SharedPreferences.getInstance();
+              await p.setBool('subscriptionWelcomeViewed', true);
+              await p.setString('lastWelcomePlanName', planName);
+              await p.setString('lastWelcomeStartedAt', startedAt);
+              await p.setString('lastWelcomeStatus', status);
+
+              if (mounted) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => SubscriptionPlansScreen(
+                      currentPlanName: planName,
+                      hideTrial: planName.toLowerCase().contains('trial') != true,
+                      remainingDays: remainingDays,
+                      billingCycle: calculatedCycle,
+                    ),
+                  ),
+                );
+              }
+            },
+          );
+        },
+      ).then((_) {
+        _welcomeModalShowing = false;
+      });
     }
   }
 

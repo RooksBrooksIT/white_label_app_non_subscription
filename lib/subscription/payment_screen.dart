@@ -136,6 +136,17 @@ class _PaymentScreenState extends State<PaymentScreen>
     String fallback = 'CARD',
   }) {
     if (result == null) return fallback;
+    
+    // 1. Check inside iciciResponse object if available
+    final iciciResponse = result['iciciResponse'];
+    if (iciciResponse is Map<String, dynamic>) {
+      final iciciMode = iciciResponse['paymentMode'] ?? iciciResponse['paymentMethod'];
+      if (iciciMode != null && iciciMode.toString().trim().isNotEmpty) {
+        return iciciMode.toString().trim().toUpperCase();
+      }
+    }
+
+    // 2. Fallback to root-level fields
     final rawValue =
         result['paymentMethod'] ??
         result['paymentMode'] ??

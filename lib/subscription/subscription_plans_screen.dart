@@ -72,7 +72,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
   final List<Map<String, dynamic>> plans = [
     {
       'name': 'Silver',
-      'monthlyPrice': 1,
+      'monthlyPrice': 199,
       'monthlyOriginalPrice': 299,
       'sixMonthPrice': 999,
       'sixMonthOriginalPrice': 1794,
@@ -102,7 +102,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
     },
     {
       'name': 'Gold',
-      'monthlyPrice': 2,
+      'monthlyPrice': 399,
       'monthlyOriginalPrice': 499,
       'sixMonthPrice': 1990,
       'sixMonthOriginalPrice': 2994,
@@ -172,11 +172,11 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
     'originalPrice': 0,
     'subtitle': 'Full access to premium features for 7 days',
     'limits': {
-      'maxCustomers': 50,
-      'maxEngineers': 10,
-      'maxPhotosPerCustomer': 30,
-      'maxPdfUploadsPerCustomer': 15,
-      'maxStorageGB': 5,
+      'maxCustomers': 3,
+      'maxEngineers': 2,
+      'maxPhotosPerCustomer':10,
+      'maxPdfUploadsPerCustomer': 5,
+      'maxStorageGB': 1,
     },
     'features': [
       'Access to all Gold Plan features',

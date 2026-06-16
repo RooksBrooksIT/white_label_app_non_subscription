@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -359,7 +360,23 @@ class _IciciPaymentWebViewScreenState
   Widget _buildWebViewBody() {
     return Stack(
       children: [
-        WebViewWidget(controller: _controller),
+        // Use Hybrid Composition on Android to prevent the
+        // "ID too large, must fit 32-bit integer" crash that prevents
+        // TransactionCompletedScreen from being shown after payment.
+        () {
+          if (WebViewPlatform.instance is AndroidWebViewPlatform) {
+            return WebViewWidget.fromPlatformCreationParams(
+              params: AndroidWebViewWidgetCreationParams
+                  .fromPlatformWebViewWidgetCreationParams(
+                PlatformWebViewWidgetCreationParams(
+                  controller: _controller.platform,
+                ),
+                displayWithHybridComposition: true,
+              ),
+            );
+          }
+          return WebViewWidget(controller: _controller);
+        }(),
         // Full-page loader only during initial load
         if (_isLoading && _loadingProgress < 0.3)
           const Center(
