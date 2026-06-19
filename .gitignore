@@ -9,7 +9,8 @@ ios/.symlinks/
 ios/Runner.app/
 
 # Logs
-*.log
+/*.log
+/*.txt
 
 # Environment files
 .env

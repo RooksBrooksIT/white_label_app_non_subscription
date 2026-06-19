@@ -2,20 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:lottie/lottie.dart';
+import 'package:subscription_rooks_app/services/notification_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:subscription_rooks_app/services/auth_state_service.dart';
 import 'package:subscription_rooks_app/frontend/screens/role_selection_screen.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class ProfessionalTheme {
   static Color primary(BuildContext context) => Theme.of(context).primaryColor;
   static Color primaryDark(BuildContext context) =>
       Theme.of(context).primaryColor;
   static Color primaryLight(BuildContext context) =>
-      Theme.of(context).primaryColor.withOpacity(0.8);
+      Theme.of(context).primaryColor.withValues(alpha: 0.8);
   static Color primaryExtraLight(BuildContext context) =>
-      Theme.of(context).primaryColor.withOpacity(0.1);
+      Theme.of(context).primaryColor.withValues(alpha: 0.1);
 
   static Color background(BuildContext context) =>
       Theme.of(context).scaffoldBackgroundColor;
@@ -42,7 +44,7 @@ class ProfessionalTheme {
       Theme.of(context).colorScheme.onPrimary;
 
   static Color borderLight(BuildContext context) =>
-      Theme.of(context).dividerColor.withOpacity(0.5);
+      Theme.of(context).dividerColor.withValues(alpha: 0.5);
   static Color borderMedium(BuildContext context) =>
       Theme.of(context).dividerColor;
 
@@ -140,6 +142,17 @@ class _AmcCustomerHomePageState extends State<AmcCustomerHomePage> {
     // Fetch mobile number and device types
     _fetchMobileNumber();
     _fetchDeviceTypes();
+
+    // Register FCM token for real-time notifications
+    if (widget.customerId.isNotEmpty) {
+      final user = FirebaseAuth.instance.currentUser;
+      final email = user?.email ?? '';
+      NotificationService.instance.registerToken(
+        role: 'customer',
+        userId: widget.customerId,
+        email: email,
+      );
+    }
   }
 
   Future<void> _fetchMobileNumber() async {
@@ -370,6 +383,17 @@ class _AmcCustomerHomePageState extends State<AmcCustomerHomePage> {
             .doc(docId)
             .set(adminData);
 
+        // Add real-time notification for Admin
+        await NotificationService.sendNotificationToFirestore(
+          audience: 'admin',
+          title: 'New Ticket Received',
+          body:
+              'A new ticket ($bookingId) has been raised by ${_customerNameController.text}',
+          type: 'new_ticket',
+          bookingId: bookingId,
+          customerName: _customerNameController.text,
+        );
+
         if (!mounted) return;
         showDialog(
           context: context,
@@ -453,7 +477,7 @@ class _AmcCustomerHomePageState extends State<AmcCustomerHomePage> {
                 filled: true,
                 fillColor: enabled
                     ? Theme.of(context).cardColor
-                    : Theme.of(context).disabledColor.withOpacity(0.1),
+                    : Theme.of(context).disabledColor.withValues(alpha: 0.1),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -560,7 +584,7 @@ class _AmcCustomerHomePageState extends State<AmcCustomerHomePage> {
                 width: 60,
                 height: 60,
                 decoration: BoxDecoration(
-                  color: ProfessionalTheme.error.withOpacity(0.1),
+                  color: ProfessionalTheme.error.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
@@ -672,7 +696,7 @@ class _AmcCustomerHomePageState extends State<AmcCustomerHomePage> {
                 Container(
                   margin: const EdgeInsets.only(right: 8),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.15),
+                    color: Colors.white.withValues(alpha: 0.15),
                     shape: BoxShape.circle,
                   ),
                   child: IconButton(
@@ -726,7 +750,7 @@ class _AmcCustomerHomePageState extends State<AmcCustomerHomePage> {
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 border: Border.all(
-                                  color: Colors.white.withOpacity(0.5),
+                                  color: Colors.white.withValues(alpha: 0.5),
                                   width: 2,
                                 ),
                               ),
@@ -750,7 +774,7 @@ class _AmcCustomerHomePageState extends State<AmcCustomerHomePage> {
                                   style: TextStyle(
                                     fontSize: 10,
                                     fontWeight: FontWeight.w800,
-                                    color: Colors.white.withOpacity(0.7),
+                                    color: Colors.white.withValues(alpha: 0.7),
                                     letterSpacing: 2.0,
                                   ),
                                 ),
@@ -782,10 +806,13 @@ class _AmcCustomerHomePageState extends State<AmcCustomerHomePage> {
           decoration: BoxDecoration(
             color: Theme.of(context).scaffoldBackgroundColor,
           ),
-          padding: const EdgeInsets.all(20.0),
-          child: Form(
-            key: _formKey,
-            child: ListView(
+          child: ResponsiveWrapper(
+            maxWidth: kMaxFormWidth,
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Form(
+                key: _formKey,
+                child: ListView(
               children: [
                 const SizedBox(height: 20),
                 _buildTextField(
@@ -966,7 +993,9 @@ class _AmcCustomerHomePageState extends State<AmcCustomerHomePage> {
           ),
         ),
       ),
-    );
+    ),
+  ),
+);
   }
 }
 
@@ -989,7 +1018,7 @@ class GradientButton extends StatelessWidget {
           gradient: LinearGradient(
             colors: [
               Theme.of(context).primaryColor,
-              Theme.of(context).primaryColor.withOpacity(0.8),
+              Theme.of(context).primaryColor.withValues(alpha: 0.8),
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -997,7 +1026,7 @@ class GradientButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Theme.of(context).shadowColor.withOpacity(0.4),
+              color: Theme.of(context).shadowColor.withValues(alpha: 0.4),
               blurRadius: 8,
               offset: const Offset(0, 4),
             ),
@@ -1073,7 +1102,7 @@ class CustomerNavigationDrawer extends StatelessWidget {
                       radius: 32,
                       backgroundColor: ProfessionalTheme.textInverse(
                         context,
-                      ).withOpacity(0.2),
+                      ).withValues(alpha: 0.2),
                       backgroundImage: photoUrl != null
                           ? NetworkImage(photoUrl)
                           : null,
@@ -1103,7 +1132,7 @@ class CustomerNavigationDrawer extends StatelessWidget {
                     fontSize: 14,
                     color: ProfessionalTheme.textInverse(
                       context,
-                    ).withOpacity(0.8),
+                    ).withValues(alpha: 0.8),
                   ),
                 ),
               ],
@@ -1142,7 +1171,7 @@ class CustomerNavigationDrawer extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
         color: isSelected
-            ? ProfessionalTheme.primary(context).withOpacity(0.1)
+            ? ProfessionalTheme.primary(context).withValues(alpha: 0.1)
             : Colors.transparent,
         borderRadius: BorderRadius.circular(8),
       ),

@@ -7,6 +7,11 @@ import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:flutter/services.dart';
 import 'package:subscription_rooks_app/services/notification_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:subscription_rooks_app/services/location_service.dart';
+import 'package:subscription_rooks_app/services/storage_service.dart';
+import 'package:file_picker/file_picker.dart' as picker;
+import 'dart:io';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 // -- CustomerHomePage now gets these values upon navigation --
 class CustomerHomePage extends StatefulWidget {
@@ -45,6 +50,8 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
       TextEditingController();
   final TextEditingController _customDeviceBrandController =
       TextEditingController();
+  final TextEditingController _customDeviceConditionController =
+      TextEditingController();
 
   late String deviceType;
   String deviceBrand = '';
@@ -60,6 +67,10 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
   bool _isDeviceBrandsLoading = false;
 
   bool _isSubmitting = false;
+  bool _isFetchingLocation = false;
+  bool _isGeoLocationEnabled = true; // Default to true until checked
+  picker.PlatformFile? _selectedFile;
+  Map<String, dynamic>? _currentLocationData;
 
   @override
   void initState() {
@@ -70,6 +81,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
     _customerNameController = TextEditingController(text: widget.customerName);
     _mobileNumberController = TextEditingController(text: widget.mobileNumber);
 
+    _checkGeoLocationSetting();
     _fetchDeviceTypes();
     jobType = widget.initialJobType ?? '';
     deviceType = widget.initialDeviceType ?? '';
@@ -115,6 +127,23 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
       }
     } catch (e) {
       // Optionally handle the error (e.g., show Snackbar or log)
+    }
+  }
+
+  Future<void> _checkGeoLocationSetting() async {
+    try {
+      final databaseName = ThemeService.instance.databaseName;
+      final subscriptionData = await FirestoreService.instance
+          .getTenantSubscriptionData(tenantId: databaseName, appId: 'data');
+
+      if (subscriptionData != null) {
+        setState(() {
+          // If geoLocation field exists, use its value, otherwise default to true
+          _isGeoLocationEnabled = subscriptionData['geoLocation'] ?? true;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error checking geoLocation setting: $e');
     }
   }
 
@@ -187,6 +216,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
     _addressController.dispose();
     _customDeviceTypeController.dispose();
     _customDeviceBrandController.dispose();
+    _customDeviceConditionController.dispose();
     _descriptionController.dispose();
     super.dispose();
   }
@@ -222,18 +252,17 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
         ),
         backgroundColor: Theme.of(context).primaryColor,
         elevation: 0,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(bottom: Radius.circular(15)),
-        ),
       ),
       body: Container(
         decoration: BoxDecoration(
           color: Theme.of(context).scaffoldBackgroundColor,
         ),
-        padding: const EdgeInsets.all(20.0),
-        child: Form(
-          key: _formKey,
-          child: ListView(
+        child: ResponsiveWrapper(
+          maxWidth: 960.0,
+          padding: const EdgeInsets.all(20.0),
+          child: Form(
+            key: _formKey,
+            child: ListView(
             children: [
               const SizedBox(height: 10),
               _buildHeader(),
@@ -361,10 +390,23 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                   (value) {
                     setState(() {
                       deviceCondition = value ?? '';
+                      if (deviceCondition != 'Others') {
+                        _customDeviceConditionController.clear();
+                      }
                     });
                   },
                   value: deviceCondition.isNotEmpty ? deviceCondition : null,
                 ),
+                if (deviceCondition == 'Others')
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12.0),
+                    child: _buildTextField(
+                      'Custom Device Condition',
+                      'Enter device condition',
+                      Icons.build_circle,
+                      _customDeviceConditionController,
+                    ),
+                  ),
                 const SizedBox(height: 20),
                 _buildTextField(
                   'Message',
@@ -390,7 +432,29 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                 'Enter your address',
                 Icons.location_on,
                 _addressController,
+                maxLines: 2,
+                suffixIcon: _isGeoLocationEnabled
+                    ? IconButton(
+                        icon: _isFetchingLocation
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Icon(
+                                Icons.my_location,
+                                color: Theme.of(context).primaryColor,
+                              ),
+                        onPressed: _isFetchingLocation
+                            ? null
+                            : _handleLocationPinTap,
+                      )
+                    : null,
               ),
+              const SizedBox(height: 20),
+              _buildFileUploadField(),
               const SizedBox(height: 30),
               Center(
                 child: _isSubmitting
@@ -403,6 +467,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
           ),
         ),
       ),
+      ),
     );
   }
 
@@ -414,7 +479,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Theme.of(context).primaryColor.withOpacity(0.3),
+            color: Theme.of(context).primaryColor.withValues(alpha: 0.3),
             blurRadius: 8,
             offset: const Offset(0, 3),
           ),
@@ -448,6 +513,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
     bool enabled = true,
     String? Function(String?)? validator,
     List<TextInputFormatter>? inputFormatters,
+    Widget? suffixIcon,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -466,7 +532,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
             borderRadius: BorderRadius.circular(10),
             boxShadow: [
               BoxShadow(
-                color: Colors.grey.withOpacity(0.2),
+                color: Colors.grey.withValues(alpha: 0.2),
                 blurRadius: 4,
                 offset: const Offset(0, 2),
               ),
@@ -480,7 +546,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
               filled: true,
               fillColor: enabled
                   ? Theme.of(context).cardColor
-                  : Theme.of(context).disabledColor.withOpacity(0.1),
+                  : Theme.of(context).disabledColor.withValues(alpha: 0.1),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
                 borderSide: BorderSide.none,
@@ -499,11 +565,12 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
               prefixIcon: Container(
                 margin: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).primaryColor.withOpacity(0.1),
+                  color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(icon, color: Theme.of(context).primaryColor),
               ),
+              suffixIcon: suffixIcon,
             ),
             style: TextStyle(
               color: Theme.of(context).textTheme.bodyMedium?.color,
@@ -517,6 +584,67 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                     ? '$label is required'
                     : null,
             inputFormatters: inputFormatters,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFileUploadField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Documents / Files',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Theme.of(context).primaryColor,
+          ),
+        ),
+        const SizedBox(height: 6),
+        GestureDetector(
+          onTap: _handleFilePick,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 15),
+            decoration: BoxDecoration(
+              color: Theme.of(context).cardColor,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: Theme.of(context).primaryColor.withValues(alpha: 0.3),
+                style: BorderStyle.solid,
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  _selectedFile != null
+                      ? Icons.file_present
+                      : Icons.upload_file,
+                  color: Theme.of(context).primaryColor,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    _selectedFile != null
+                        ? _selectedFile!.name
+                        : 'Upload Customer Documents (PDF, JPG, PNG, DOC)',
+                    style: TextStyle(
+                      color: _selectedFile != null
+                          ? Colors.black87
+                          : Colors.grey,
+                      fontSize: 14,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (_selectedFile != null)
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.red, size: 20),
+                    onPressed: () => setState(() => _selectedFile = null),
+                  ),
+              ],
+            ),
           ),
         ),
       ],
@@ -547,7 +675,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
             borderRadius: BorderRadius.circular(10),
             boxShadow: [
               BoxShadow(
-                color: Colors.grey.withOpacity(0.2),
+                color: Colors.grey.withValues(alpha: 0.2),
                 blurRadius: 4,
                 offset: const Offset(0, 2),
               ),
@@ -576,7 +704,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
               prefixIcon: Container(
                 margin: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).primaryColor.withOpacity(0.1),
+                  color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(icon, color: Theme.of(context).primaryColor),
@@ -609,9 +737,10 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
         'Partially working',
         'Maintenance',
         'New Installation',
+        'Others',
       ];
     }
-    return ['Completely down', 'Partially working'];
+    return ['Completely down', 'Partially working', 'Others'];
   }
 
   Future<String> _generateBookingId() async {
@@ -632,6 +761,66 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
     });
   }
 
+  Future<void> _handleLocationPinTap() async {
+    setState(() => _isFetchingLocation = true);
+    try {
+      final locationData = await LocationService.instance
+          .getCurrentLocationData();
+      if (locationData != null) {
+        setState(() {
+          _currentLocationData = locationData;
+          _addressController.text = locationData['address'] ?? '';
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Location updated successfully')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to get location. Please check permissions.'),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error fetching location: $e');
+    } finally {
+      setState(() => _isFetchingLocation = false);
+    }
+  }
+
+  Future<void> _handleFilePick() async {
+    try {
+      final result = await picker.FilePicker.pickFiles(
+        type: picker.FileType.custom,
+        allowedExtensions: ['jpg', 'png', 'pdf', 'doc', 'docx', 'jpeg'],
+      );
+
+      if (result != null && result.files.isNotEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _selectedFile = result.files.first;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('File selected successfully')),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Error picking file: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error picking file: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    }
+  }
+
   void _handleSubmit() async {
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
@@ -647,6 +836,19 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
         final actualDeviceBrand = deviceBrand == 'Others'
             ? _customDeviceBrandController.text.trim()
             : deviceBrand;
+        final actualDeviceCondition = deviceCondition == 'Others'
+            ? _customDeviceConditionController.text.trim()
+            : deviceCondition;
+
+        // Handle file upload if a file is selected
+        String? fileUrl;
+        if (_selectedFile != null && _selectedFile!.path != null) {
+          fileUrl = await StorageService.instance.uploadCustomerFile(
+            customerId: _customerIdController.text,
+            file: File(_selectedFile!.path!),
+            originalFileName: _selectedFile!.name,
+          );
+        }
 
         Map<String, dynamic> customerData = {
           'id': _customerIdController.text, // Add fixed customer id
@@ -657,13 +859,21 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
           'categoryName': widget.categoryName,
           'timestamp': Timestamp.now(),
           'JobType': jobType,
+          'customerFileUrl': fileUrl,
+          'fileName': _selectedFile?.name,
         };
+
+        // Add location data if available
+        if (_currentLocationData != null) {
+          customerData['latitude'] = _currentLocationData!['latitude'];
+          customerData['longitude'] = _currentLocationData!['longitude'];
+        }
 
         if (jobType == 'Service') {
           customerData.addAll({
             'deviceType': actualDeviceType,
             'deviceBrand': actualDeviceBrand,
-            'deviceCondition': deviceCondition,
+            'deviceCondition': actualDeviceCondition,
             'message': _messageController.text,
           });
         } else if (jobType == 'Delivery') {
@@ -687,6 +897,17 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
             .collection('Admin_details')
             .doc(docId)
             .set(adminData);
+
+        // Add real-time notification for Admin
+        await NotificationService.sendNotificationToFirestore(
+          audience: 'admin',
+          title: 'New Ticket Received',
+          body:
+              'A new ticket ($bookingId) has been raised by ${_customerNameController.text}',
+          type: 'new_ticket',
+          bookingId: bookingId,
+          customerName: _customerNameController.text,
+        );
 
         if (!mounted) return;
 
@@ -774,7 +995,7 @@ class GradientButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Theme.of(context).primaryColor.withOpacity(0.4),
+              color: Theme.of(context).primaryColor.withValues(alpha: 0.4),
               blurRadius: 8,
               offset: const Offset(0, 4),
             ),

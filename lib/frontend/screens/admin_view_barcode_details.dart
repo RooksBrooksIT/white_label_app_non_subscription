@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:intl/intl.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class AdminViewBarcodeDetails extends StatefulWidget {
   const AdminViewBarcodeDetails({super.key});
@@ -544,7 +545,12 @@ class _AdminViewBarcodeDetailsState extends State<AdminViewBarcodeDetails> {
         elevation: 0,
         centerTitle: true,
       ),
-      body: Column(
+      body: ResponsiveWrapper(
+        maxWidth: 1200.0,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 500),
+            child: Column(
         children: [
           // Search Bar
           Container(
@@ -553,7 +559,7 @@ class _AdminViewBarcodeDetailsState extends State<AdminViewBarcodeDetails> {
               color: Theme.of(context).scaffoldBackgroundColor,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.grey.withOpacity(0.1),
+                  color: Colors.grey.withValues(alpha: 0.1),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -914,6 +920,9 @@ class _AdminViewBarcodeDetailsState extends State<AdminViewBarcodeDetails> {
                   ),
           ),
         ],
+      ),
+          ),
+        ),
       ),
     );
   }

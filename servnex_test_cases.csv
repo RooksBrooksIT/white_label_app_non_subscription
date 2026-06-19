@@ -1,0 +1,181 @@
+Test Case ID,Module,Feature,Test Scenario,Preconditions,Test Steps,Test Data,Expected Result,Actual Result,Status,Priority,Remarks
+TC-001,Authentication,Admin Login,Admin successfully logs in with valid credentials,Admin account exists,1. Open app
+2. Navigate to Unified Login
+3. Select Admin role
+4. Enter valid email/password
+5. Click Login,Email: admin@example.com
+Password: Admin@123,Admin redirected to Admin Dashboard,,,,High,
+TC-002,Authentication,Admin Login,Admin login fails with invalid password,Admin account exists,1. Open app
+2. Navigate to Unified Login
+3. Select Admin role
+4. Enter valid email and invalid password
+5. Click Login,Email: admin@example.com
+Password: WrongPass123,Error message displayed: "Invalid credentials",,,,High,
+TC-003,Authentication,Admin Login,Admin login fails with non-existent email,No preconditions,1. Open app
+2. Navigate to Unified Login
+3. Select Admin role
+4. Enter non-existent email and any password
+5. Click Login,Email: nonexistent@example.com
+Password: AnyPass123,Error message displayed: "User not found",,,,High,
+TC-004,Authentication,Engineer Login,Engineer successfully logs in with valid credentials,Engineer account exists,1. Open app
+2. Navigate to Unified Login
+3. Select Engineer role
+4. Enter valid email/password
+5. Click Login,Email: engineer@example.com
+Password: Engineer@123,Engineer redirected to Engineer Dashboard,,,,High,
+TC-005,Authentication,Engineer Login,Engineer login fails with invalid password,Engineer account exists,1. Open app
+2. Navigate to Unified Login
+3. Select Engineer role
+4. Enter valid email and invalid password
+5. Click Login,Email: engineer@example.com
+Password: WrongPass123,Error message displayed: "Invalid credentials",,,,High,
+TC-006,Authentication,Customer Login,Customer successfully logs in with valid credentials,Customer account exists,1. Open app
+2. Navigate to Unified Login
+3. Select Customer role
+4. Enter valid email/password
+5. Click Login,Email: customer@example.com
+Password: Customer@123,Customer redirected to Customer Dashboard,,,,High,
+TC-007,Authentication,Customer Login,Customer login fails with invalid password,Customer account exists,1. Open app
+2. Navigate to Unified Login
+3. Select Customer role
+4. Enter valid email and invalid password
+5. Click Login,Email: customer@example.com
+Password: WrongPass123,Error message displayed: "Invalid credentials",,,,High,
+TC-008,Authentication,Forgot Password,User successfully requests password reset,User account exists with valid email,1. Navigate to Login page
+2. Click "Forgot Password"
+3. Enter valid email
+4. Click Submit,Email: user@example.com,Password reset email sent to user's email address,,,,High,
+TC-009,Authentication,Forgot Password,Password reset fails with invalid email,No preconditions,1. Navigate to Login page
+2. Click "Forgot Password"
+3. Enter invalid email format
+4. Click Submit,Email: invalid-email,Error message displayed: "Invalid email format",,,,Medium,
+TC-010,Authentication,OTP Verification,User successfully verifies OTP,OTP sent to registered email/phone,1. Navigate to OTP Verification page
+2. Enter valid 6-digit OTP
+3. Click Verify,OTP: 123456,OTP verified successfully, user navigated to next screen,,,,High,
+TC-011,Authentication,OTP Verification,OTP verification fails with wrong OTP,OTP sent to registered email/phone,1. Navigate to OTP Verification page
+2. Enter invalid OTP
+3. Click Verify,OTP: 654321,Error message displayed: "Invalid OTP",,,,High,
+TC-012,Authentication,OTP Verification,OTP resend functionality works,OTP sent and expired,1. Navigate to OTP Verification page
+2. Wait for OTP to expire
+3. Click "Resend OTP",,New OTP sent to user's email/phone,,,,Medium,
+TC-013,Authentication,Reset Password,User successfully resets password,User has valid reset link,1. Open password reset link
+2. Enter new password
+3. Confirm new password
+4. Click Reset Password,New Password: NewPass@123
+Confirm Password: NewPass@123,Password reset successfully, user redirected to login page,,,,High,
+TC-014,Authentication,Reset Password,Reset password fails with password mismatch,User has valid reset link,1. Open password reset link
+2. Enter new password
+3. Enter different confirm password
+4. Click Reset Password,New Password: NewPass@123
+Confirm Password: DiffPass@123,Error message displayed: "Passwords do not match",,,,Medium,
+TC-015,Admin Dashboard,Create Engineer,Admin successfully creates a new engineer,Admin logged in,1. Navigate to Admin Dashboard
+2. Click "Create Engineer"
+3. Fill in engineer details
+4. Click Save,Name: John Doe
+Email: john@example.com
+Phone: 9876543210
+Password: Engineer@123,Engineer account created successfully, notification sent,,,,High,
+TC-016,Admin Dashboard,Create Engineer,Create engineer fails with duplicate email,Engineer with same email exists,1. Navigate to Admin Dashboard
+2. Click "Create Engineer"
+3. Fill in details with duplicate email
+4. Click Save,Name: Jane Doe
+Email: john@example.com (already exists),Error message displayed: "Email already in use",,,,High,
+TC-017,Admin Dashboard,Create Engineer,Create engineer fails with invalid email format,Admin logged in,1. Navigate to Admin Dashboard
+2. Click "Create Engineer"
+3. Enter invalid email format
+4. Click Save,Email: invalid-email,Error message displayed: "Invalid email format",,,,Medium,
+TC-018,Admin Dashboard,Create AMC Customer,Admin successfully creates a new AMC customer,Admin logged in,1. Navigate to Admin Dashboard
+2. Click "Create AMC Customer"
+3. Fill in customer details
+4. Click Save,Name: ABC Corp
+Email: abc@corp.com
+Phone: 1234567890,AMC Customer account created successfully,,,,High,
+TC-019,Admin Dashboard,Assign Ticket,Admin successfully assigns ticket to engineer,Admin logged in, ticket exists,1. Navigate to Admin Tickets Overview
+2. Select a pending ticket
+3. Click "Assign Engineer"
+4. Select an engineer
+5. Click Confirm,Ticket ID: TKT-001
+Engineer: John Doe,Ticket assigned successfully, engineer notified via FCM,,,,High,
+TC-020,Admin Dashboard,Ticket Overview,Admin views all tickets,Admin logged in, tickets exist,1. Navigate to Admin Dashboard
+2. Click "Tickets Overview",,All tickets displayed with status (Pending/In Progress/Completed),,,,Medium,
+TC-021,Admin Dashboard,Attendance Reports,Admin views attendance reports,Admin logged in, attendance data exists,1. Navigate to Admin Dashboard
+2. Click "Attendance Reports",,Attendance reports displayed with engineer-wise and date-wise data,,,,Medium,
+TC-022,Admin Dashboard,Engineer Reports,Admin views engineer performance reports,Admin logged in,1. Navigate to Admin Dashboard
+2. Click "Engineer Reports",,Engineer performance reports displayed (tickets closed, time taken, etc.),,,,Medium,
+TC-023,Admin Dashboard,Customer Reports,Admin views customer reports,Admin logged in,1. Navigate to Admin Dashboard
+2. Click "Customer Reports",,Customer reports displayed (tickets raised, satisfaction, etc.),,,,Medium,
+TC-024,Admin Dashboard,Geo Location Tracking,Admin views engineer live location,Admin logged in, engineer has location enabled,1. Navigate to Admin Dashboard
+2. Click "Geo Location",,Map displayed showing live location of all engineers,,,,High,
+TC-025,Admin Dashboard,Brand & Model Management,Admin adds new brand and model,Admin logged in,1. Navigate to Admin Dashboard
+2. Click "Brand & Model"
+3. Click "Add Brand"
+4. Enter brand name
+5. Click "Add Model" for the brand
+6. Enter model name,Brand: Samsung
+Model: Galaxy S24,Brand and model added successfully,,,,Medium,
+TC-026,Admin Dashboard,Barcode Scanner,Admin scans barcode to view details,Admin logged in, barcode/QR code available,1. Navigate to Admin Dashboard
+2. Click "Barcode Scanner"
+3. Scan barcode/QR code,,Barcode details displayed (device info, etc.),,,,Medium,
+TC-027,Admin Dashboard,Notifications,Admin views and sends notifications,Admin logged in,1. Navigate to Admin Dashboard
+2. Click "Notifications",,Notifications page displayed, can send new notifications,,,,Low,
+TC-028,Admin Dashboard,Transactions,Admin views transaction history,Admin logged in, transactions exist,1. Navigate to Admin Dashboard
+2. Click "Transactions",,Transaction history displayed,,,,Medium,
+TC-029,Admin Dashboard,Shift Management,Admin manages engineer shifts,Admin logged in,1. Navigate to Admin Dashboard
+2. Click "Shift Management",,Shift management page displayed, can create/edit shifts,,,,Medium,
+TC-030,Engineer Dashboard,Attendance Marking,Engineer successfully marks attendance with valid location,Engineer logged in, location enabled,1. Navigate to Engineer Dashboard
+2. Click "Mark Attendance"
+3. Allow location access
+4. Confirm attendance,,Attendance marked successfully, geo-tagged location stored,,,,High,
+TC-031,Engineer Dashboard,Attendance Marking,Attendance marking fails with invalid location (outside geofence),Engineer logged in,1. Navigate to Engineer Dashboard
+2. Click "Mark Attendance"
+3. Be outside geofenced area
+4. Confirm attendance,,Error message displayed: "Outside allowed geofence area",,,,High,
+TC-032,Engineer Dashboard,View Assigned Tickets,Engineer views assigned tickets,Engineer logged in, tickets assigned,1. Navigate to Engineer Dashboard
+2. Click "Assigned Tickets",,All assigned tickets displayed with status,,,,High,
+TC-033,Engineer Dashboard,Update Ticket Status,Engineer updates ticket to In Progress,Engineer logged in, assigned ticket exists,1. Navigate to Assigned Tickets
+2. Select a ticket
+3. Click "Start Work"
+4. Enter details,Ticket ID: TKT-001,Ticket status updated to "In Progress",,,,High,
+TC-034,Engineer Dashboard,Update Ticket Status,Engineer updates ticket to Completed,Engineer logged in, ticket In Progress,1. Navigate to Assigned Tickets
+2. Select the ticket
+3. Click "Complete Ticket"
+4. Enter completion notes,Ticket ID: TKT-001
+Notes: Fixed issue,Ticket status updated to "Completed", customer notified,,,,High,
+TC-035,Engineer Dashboard,Barcode Scanner,Engineer scans device barcode,Engineer logged in, ticket assigned,1. Navigate to ticket details
+2. Click "Scan Barcode"
+3. Scan device barcode,,Device barcode scanned successfully, verified against ticket details,,,,High,
+TC-036,Engineer Dashboard,Edit Profile,Engineer edits profile details,Engineer logged in,1. Navigate to Engineer Dashboard
+2. Click "Edit Profile"
+3. Update details
+4. Click Save,New Phone: 9876501234,Profile updated successfully,,,,Medium,
+TC-037,Engineer Dashboard,Location Sharing,Engineer enables live location sharing,Engineer logged in,1. Navigate to Engineer Dashboard
+2. Enable location sharing,,Location starts streaming to Firestore,,,,Medium,
+TC-038,Customer Dashboard,Create Ticket,Customer successfully creates a new ticket,Customer logged in,1. Navigate to Customer Dashboard
+2. Click "Create Ticket"
+3. Select device type, brand, model
+4. Enter issue details
+5. Submit,Issue: Display not working
+Brand: Samsung
+Model: Galaxy S24,Ticket created successfully, ticket ID generated,,,,High,
+TC-039,Customer Dashboard,Create Ticket,Create ticket fails with empty required fields,Customer logged in,1. Navigate to Customer Dashboard
+2. Click "Create Ticket"
+3. Leave required fields empty
+4. Submit,,Error message displayed for each empty required field,,,,High,
+TC-040,Customer Dashboard,View Tickets,Customer views ticket status,Customer logged in, tickets exist,1. Navigate to Customer Dashboard
+2. Click "My Tickets",,All customer tickets displayed with current status and timeline,,,,High,
+TC-041,AMC Customer,AMC Home Page,AMC customer views AMC details,AMC customer logged in,1. Navigate to AMC Home Page,,AMC details displayed (contract period, services, etc.),,,,Medium,
+TC-042,White Labeling,Branding,Admin updates branding colors,Admin logged in,1. Navigate to Admin Dashboard > Main Config
+2. Update primary and secondary colors
+3. Save,Primary Color: #FF5733
+Secondary Color: #33FF57,App theme updated in real-time for all users,,,,Medium,
+TC-043,Integration,Firebase Auth,Firebase Auth works correctly,App connected to Firebase,Test login with valid/invalid credentials (covered in TC-001 to TC-007),,Firebase Auth responds correctly,,,,High,
+TC-044,Integration,Firestore,Firestore CRUD operations work,App connected to Firebase,Test creating/reading/updating/deleting documents,,All CRUD operations complete successfully,,,,High,
+TC-045,Integration,FCM Notifications,Notifications are received,Device has app installed,Send a test notification from Admin,,Notification received on device,,,,High,
+TC-046,Integration,Google Maps,Map loads correctly,Admin/Engineer logged in,Navigate to Geo Location screen,,Map loads and displays correctly,,,,Medium,
+TC-047,Edge Case,Network Failure,Ticket creation fails gracefully without network,Ticket creation form filled,1. Disable network connection
+2. Click Submit ticket,,Error message displayed: "No internet connection", form data retained,,,,High,
+TC-048,Edge Case,Invalid Inputs,Form handles invalid inputs properly,Form open,1. Enter SQL injection attempt in a text field
+2. Submit,Form validates and rejects invalid input,,,,High,
+TC-049,Edge Case,Session Timeout,User is logged out after session timeout,User logged in,1. Wait for session timeout period
+2. Try to perform an action,,User redirected to login page,,,,Medium,
+TC-050,Regression,All Previous Features,All previously working features still work after update,App updated to new version,Run all high-priority test cases (TC-001 to TC-049),,All test cases pass,,,,High,

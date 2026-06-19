@@ -5,8 +5,10 @@ import 'package:subscription_rooks_app/frontend/screens/app_main_page.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_dashboard.dart';
 import 'package:subscription_rooks_app/frontend/screens/engineer_dashboard_page.dart';
 import 'package:subscription_rooks_app/subscription/subscription_plans_screen.dart';
+import 'package:subscription_rooks_app/subscription/plan_expired_screen.dart';
 import 'package:subscription_rooks_app/frontend/screens/forgot_password_page.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class UnifiedLoginScreen extends StatefulWidget {
   const UnifiedLoginScreen({super.key});
@@ -55,6 +57,14 @@ class _UnifiedLoginScreenState extends State<UnifiedLoginScreen> {
         return;
       }
 
+      if (result['subscriptionExpired'] == true) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => PlanExpiredScreen(role: role ?? 'admin')),
+        );
+        return;
+      }
+
       Widget nextScreen;
       switch (role) {
         case 'admin':
@@ -96,9 +106,12 @@ class _UnifiedLoginScreenState extends State<UnifiedLoginScreen> {
         ),
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Form(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: kMaxFormWidth),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Form(
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -198,11 +211,13 @@ class _UnifiedLoginScreenState extends State<UnifiedLoginScreen> {
                           ),
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 40),
                 Center(
                   child: TextButton(
                     onPressed: () async {
-                      final Uri url = Uri.parse('https://sites.google.com/view/rooks-white-label-app/home');
+                      final Uri url = Uri.parse(
+                        'https://sites.google.com/view/rooks-white-label-app/home',
+                      );
                       if (!await launchUrl(url)) {
                         debugPrint('Could not launch $url');
                       }
@@ -219,6 +234,8 @@ class _UnifiedLoginScreenState extends State<UnifiedLoginScreen> {
                 ),
                 const SizedBox(height: 40),
               ],
+            ),
+          ),
             ),
           ),
         ),

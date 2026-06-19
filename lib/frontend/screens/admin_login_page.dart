@@ -5,6 +5,7 @@ import 'package:subscription_rooks_app/backend/screens/admin_login_page.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:subscription_rooks_app/frontend/screens/forgot_password_page.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class AdminLogin extends StatefulWidget {
   const AdminLogin({super.key});
@@ -77,18 +78,20 @@ class _AdminLoginState extends State<AdminLogin> {
       body: Container(
         color: Theme.of(context).scaffoldBackgroundColor,
         child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox(height: 20),
-                Card(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: kMaxFormWidth),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(height: 20),
+                  Card(
                   elevation: 12,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(25),
                   ),
-                  shadowColor: Colors.black.withOpacity(0.3),
+                  shadowColor: Colors.black.withValues(alpha: 0.3),
                   child: Padding(
                     padding: const EdgeInsets.all(24.0),
                     child: Column(
@@ -113,7 +116,7 @@ class _AdminLoginState extends State<AdminLogin> {
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.1),
+                                color: Colors.black.withValues(alpha: 0.1),
                                 blurRadius: 10,
                                 offset: const Offset(0, 4),
                               ),
@@ -181,7 +184,7 @@ class _AdminLoginState extends State<AdminLogin> {
                               borderRadius: BorderRadius.circular(15),
                             ),
                             backgroundColor: primaryColor,
-                            shadowColor: Colors.black.withOpacity(0.3),
+                            shadowColor: Colors.black.withValues(alpha: 0.3),
                             elevation: 8,
                           ),
                           child: _isLoading
@@ -260,6 +263,7 @@ class _AdminLoginState extends State<AdminLogin> {
                   ),
                 ),
               ],
+              ),
             ),
           ),
         ),

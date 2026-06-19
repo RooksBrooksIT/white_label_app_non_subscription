@@ -38,9 +38,9 @@ class SubscriptionService {
     try {
       String usernameDate = generateUsernameDateSegment(username);
 
-      // Path: main/{appName}/subscriptions/{username_date}/entries/{autoId}
+      // Path: main/{appName}/subscription/{username_date}/entries/{autoId}
       await _firestore
-          .collection('subscriptions')
+          .collection('subscription')
           .doc(usernameDate)
           .collection('entries')
           .add({

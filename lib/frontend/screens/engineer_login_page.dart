@@ -5,6 +5,7 @@ import 'package:subscription_rooks_app/backend/screens/engineer_login_page.dart'
 import 'package:subscription_rooks_app/frontend/screens/engineer_dashboard_page.dart';
 import 'package:subscription_rooks_app/subscription/access_restricted_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class Engineerlogin extends StatefulWidget {
   const Engineerlogin({super.key});
@@ -137,9 +138,12 @@ class _EngineerloginState extends State<Engineerlogin> {
         ),
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Form(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: kMaxFormWidth),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Form(
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -256,7 +260,9 @@ class _EngineerloginState extends State<Engineerlogin> {
                 Center(
                   child: TextButton(
                     onPressed: () async {
-                      final Uri url = Uri.parse('https://sites.google.com/view/rooks-white-label-app/home');
+                      final Uri url = Uri.parse(
+                        'https://sites.google.com/view/rooks-white-label-app/home',
+                      );
                       if (!await launchUrl(url)) {
                         debugPrint('Could not launch $url');
                       }
@@ -274,6 +280,8 @@ class _EngineerloginState extends State<Engineerlogin> {
                 const SizedBox(height: 40),
               ],
             ),
+          ),
+          ),
           ),
         ),
       ),

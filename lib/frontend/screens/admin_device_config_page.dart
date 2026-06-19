@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class AdminDeviceConfigurationPage extends StatefulWidget {
-  final bool isEmbedded;
-  const AdminDeviceConfigurationPage({super.key, this.isEmbedded = false});
+  const AdminDeviceConfigurationPage({super.key});
 
   @override
   State<AdminDeviceConfigurationPage> createState() =>
@@ -19,7 +19,7 @@ class _AdminDeviceConfigurationPageState
   bool _isLoading = false;
 
   Color get primaryColor => Theme.of(context).primaryColor;
-  Color get accentColor => primaryColor.withOpacity(0.1);
+  Color get accentColor => primaryColor.withValues(alpha: 0.1);
 
   @override
   void dispose() {
@@ -273,14 +273,14 @@ class _AdminDeviceConfigurationPageState
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey.withOpacity(0.3),
+                  color: Colors.grey.withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
               const SizedBox(height: 20),
               CircleAvatar(
                 radius: 30,
-                backgroundColor: primaryColor.withOpacity(0.1),
+                backgroundColor: primaryColor.withValues(alpha: 0.1),
                 child: Icon(
                   _getIconData(deviceType),
                   color: primaryColor,
@@ -447,40 +447,6 @@ class _AdminDeviceConfigurationPageState
 
   @override
   Widget build(BuildContext context) {
-    Widget bodyContent = CustomScrollView(
-      slivers: [
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildHeader(),
-                const SizedBox(height: 24),
-                _buildAddDeviceCard(),
-                const SizedBox(height: 32),
-                const Text(
-                  'Configured Devices',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
-            ),
-          ),
-        ),
-        _buildDeviceGrid(),
-        const SliverToBoxAdapter(child: SizedBox(height: 40)),
-      ],
-    );
-
-    if (widget.isEmbedded) {
-      return bodyContent;
-    }
-
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
@@ -493,7 +459,43 @@ class _AdminDeviceConfigurationPageState
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.black),
       ),
-      body: bodyContent,
+      body: ResponsiveWrapper(
+        maxWidth: kMaxContentWidth,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 500),
+            child: CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildHeader(),
+                    const SizedBox(height: 24),
+                    _buildAddDeviceCard(),
+                    const SizedBox(height: 32),
+                    const Text(
+                      'Configured Devices',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                ),
+              ),
+            ),
+            _buildDeviceGrid(),
+            const SliverToBoxAdapter(child: SizedBox(height: 40)),
+          ],
+        ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -502,12 +504,12 @@ class _AdminDeviceConfigurationPageState
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [primaryColor, primaryColor.withOpacity(0.8)],
+          colors: [primaryColor, primaryColor.withValues(alpha: 0.8)],
         ),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: primaryColor.withOpacity(0.3),
+            color: primaryColor.withValues(alpha: 0.3),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -532,7 +534,7 @@ class _AdminDeviceConfigurationPageState
                 Text(
                   'Manage your hardware inventory and settings',
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.9),
+                    color: Colors.white.withValues(alpha: 0.9),
                     fontSize: 13,
                   ),
                 ),
@@ -549,7 +551,7 @@ class _AdminDeviceConfigurationPageState
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
-        side: BorderSide(color: Colors.grey.withOpacity(0.2)),
+        side: BorderSide(color: Colors.grey.withValues(alpha: 0.2)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(20.0),
@@ -668,10 +670,10 @@ class _AdminDeviceConfigurationPageState
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.grey.withOpacity(0.1)),
+                    border: Border.all(color: Colors.grey.withValues(alpha: 0.1)),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.02),
+                        color: Colors.black.withValues(alpha: 0.02),
                         blurRadius: 10,
                         offset: const Offset(0, 4),
                       ),
@@ -683,7 +685,7 @@ class _AdminDeviceConfigurationPageState
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: primaryColor.withOpacity(0.05),
+                          color: primaryColor.withValues(alpha: 0.05),
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
@@ -717,7 +719,7 @@ class _AdminDeviceConfigurationPageState
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 10,
-                          color: primaryColor.withOpacity(0.5),
+                          color: primaryColor.withValues(alpha: 0.5),
                         ),
                       ),
                     ],

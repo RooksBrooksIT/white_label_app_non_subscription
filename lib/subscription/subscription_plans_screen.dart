@@ -8,6 +8,7 @@ import 'package:subscription_rooks_app/services/auth_state_service.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_dashboard.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class SubscriptionPlansScreen extends StatefulWidget {
   /// Optionally pass the admin's current plan name to highlight it on the screen.
@@ -140,11 +141,11 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
       'yearlyOriginalPrice': 17988,
       'subtitle': 'Best for enterprises & unlimited usage',
       'limits': {
-        'maxCustomers': -1, // -1 means Unlimited
-        'maxEngineers': -1,
-        'maxPhotosPerCustomer': -1,
-        'maxPdfUploadsPerCustomer': -1,
-        'maxStorageGB': 100, // Increased for Platinum
+        'maxCustomers': 999, 
+        'maxEngineers': 999,
+        'maxPhotosPerCustomer': 999,
+        'maxPdfUploadsPerCustomer': 999,
+        'maxStorageGB': 100, 
       },
       'features': [
         'Unlimited Customers',
@@ -425,8 +426,10 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
           body: SafeArea(
             child: _isLoadingSubscription
                 ? const Center(child: CircularProgressIndicator())
-                : Column(
-                    children: [
+                : ResponsiveWrapper(
+                    maxWidth: 1200.0,
+                    child: Column(
+                      children: [
                       // Header with Glassy Effect
                       ClipRRect(
                         child: BackdropFilter(
@@ -632,6 +635,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
                         ),
                       ),
                     ],
+                  ),
                   ),
           ),
         ),

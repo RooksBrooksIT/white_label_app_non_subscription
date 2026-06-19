@@ -4,6 +4,7 @@ import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/backend/brand_model_backend.dart';
 import 'package:lottie/lottie.dart';
 import 'package:flutter/services.dart';
+import '../../utils/responsive_wrapper.dart';
 
 class CreateTickets extends StatefulWidget {
   final String customerId;
@@ -818,106 +819,165 @@ class _CreateTicketsState extends State<CreateTickets> {
     bool isSelected,
     VoidCallback onPressed,
   ) {
-    return ElevatedButton(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: isSelected
-            ? Theme.of(context).primaryColor
-            : Theme.of(context).disabledColor,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-      ),
-      onPressed: onPressed,
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.bold,
-          color: Theme.of(context).colorScheme.onPrimary,
+    return Expanded(
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: Theme.of(context).primaryColor.withValues(alpha: 0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : [],
+        ),
+        child: Material(
+          color: isSelected
+              ? Theme.of(context).primaryColor
+              : Theme.of(context).cardColor,
+          borderRadius: BorderRadius.circular(12),
+          elevation: isSelected ? 4 : 1,
+          child: InkWell(
+            onTap: onPressed,
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isSelected
+                      ? Theme.of(context).primaryColor
+                      : Theme.of(context).dividerColor,
+                  width: 1.5,
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    isSelected ? Icons.check_circle : Icons.circle_outlined,
+                    color: isSelected
+                        ? Colors.white
+                        : Theme.of(context).textTheme.bodyLarge?.color,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    text,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: isSelected
+                          ? Colors.white
+                          : Theme.of(context).textTheme.bodyLarge?.color,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildCustomerIdField() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: 8),
-        Text(
-          'Customer ID',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: Theme.of(context).textTheme.bodyLarge?.color,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Stack(
-          children: [
-            TextFormField(
-              controller: _customerIdController,
-              focusNode: _customerIdFocusNode,
-              readOnly: _customerType == 'new',
-              decoration: InputDecoration(
-                hintText: 'Customer ID',
-                hintStyle: TextStyle(color: Theme.of(context).hintColor),
-                filled: true,
-                fillColor: _customerType == 'new'
-                    ? Theme.of(context).disabledColor.withOpacity(0.1)
-                    : Theme.of(context).cardColor,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  vertical: 16,
-                  horizontal: 15,
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Theme.of(context).primaryColor),
-                ),
-                prefixIcon: Icon(
-                  Icons.perm_identity,
-                  color: Theme.of(context).primaryColor,
-                ),
-                suffixIcon: _customerType == 'new' && _isGeneratingCustomerId
-                    ? const Padding(
-                        padding: EdgeInsets.all(12.0),
-                        child: SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      )
-                    : null,
+  Widget _buildSectionHeader(String title, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Theme.of(context).primaryColor,
+                  Theme.of(context).primaryColor.withValues(alpha: 0.7),
+                ],
               ),
-              style: TextStyle(
-                color: _customerType == 'new'
-                    ? Theme.of(context).hintColor
-                    : Theme.of(context).textTheme.bodyLarge?.color,
-                fontWeight: _customerType == 'new'
-                    ? FontWeight.bold
-                    : FontWeight.normal,
-              ),
-              validator: (value) => value == null || value.isEmpty
-                  ? 'Customer ID is required'
-                  : null,
+              borderRadius: BorderRadius.circular(10),
             ),
-          ],
+            child: Icon(icon, color: Colors.white, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).textTheme.bodyLarge?.color,
+            ),
+          ),
+          Expanded(
+            child: Divider(
+              color: Theme.of(context).dividerColor,
+              thickness: 1,
+              indent: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoCard({
+    required String title,
+    required IconData icon,
+    required Color color,
+    required Widget child,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Theme.of(context).dividerColor.withValues(alpha: 0.1),
+          width: 1,
         ),
-        if (_customerType == 'new')
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(icon, color: color, size: 22),
+                const SizedBox(width: 12),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                ),
+              ],
+            ),
+          ),
           Padding(
-            padding: const EdgeInsets.only(top: 4.0),
-            child: Text(
-              'Customer ID is automatically generated and read-only',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[400],
-                fontStyle: FontStyle.italic,
-              ),
-            ),
+            padding: const EdgeInsets.all(16),
+            child: child,
           ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -930,16 +990,32 @@ class _CreateTicketsState extends State<CreateTickets> {
     String? Function(String?)? validator,
     List<TextInputFormatter>? inputFormatters,
     FocusNode? focusNode,
+    bool required = true,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: Theme.of(context).textTheme.bodyLarge?.color,
+        RichText(
+          text: TextSpan(
+            children: [
+              TextSpan(
+                text: label,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).textTheme.bodyLarge?.color,
+                ),
+              ),
+              if (required)
+                TextSpan(
+                  text: ' *',
+                  style: TextStyle(
+                    color: Colors.red.shade600,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+            ],
           ),
         ),
         const SizedBox(height: 8),
@@ -948,26 +1024,57 @@ class _CreateTicketsState extends State<CreateTickets> {
           controller: controller,
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: TextStyle(color: Theme.of(context).hintColor),
+            hintStyle: TextStyle(
+              color: Theme.of(context).hintColor,
+              fontSize: 13,
+            ),
             filled: true,
-            fillColor: Theme.of(context).cardColor,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            contentPadding: const EdgeInsets.symmetric(
-              vertical: 16,
-              horizontal: 15,
+            fillColor: Theme.of(context).scaffoldBackgroundColor,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: Theme.of(context).dividerColor.withValues(alpha: 0.3),
+                width: 1,
+              ),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Theme.of(context).primaryColor),
+              borderSide: BorderSide(
+                color: Theme.of(context).primaryColor,
+                width: 2,
+              ),
             ),
-            prefixIcon: Icon(icon, color: Theme.of(context).primaryColor),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.red.shade400, width: 1.5),
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              vertical: 14,
+              horizontal: 16,
+            ),
+            prefixIcon: Icon(
+              icon,
+              color: Theme.of(context).primaryColor,
+              size: 20,
+            ),
           ),
-          style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
+          style: TextStyle(
+            fontSize: 14,
+            color: Theme.of(context).textTheme.bodyLarge?.color,
+          ),
           maxLines: maxLines,
           validator:
-              validator ??
-              (value) =>
-                  value == null || value.isEmpty ? '$label is required' : null,
+              required
+                  ? (validator ??
+                      (value) =>
+                          value == null || value.isEmpty
+                              ? '$label is required'
+                              : null)
+                  : null,
           inputFormatters: inputFormatters,
         ),
       ],
@@ -978,103 +1085,135 @@ class _CreateTicketsState extends State<CreateTickets> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Mobile Number',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: Theme.of(context).textTheme.bodyLarge?.color,
+        RichText(
+          text: TextSpan(
+            children: [
+              TextSpan(
+                text: 'Mobile Number',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).textTheme.bodyLarge?.color,
+                ),
+              ),
+              TextSpan(
+                text: ' *',
+                style: TextStyle(
+                  color: Colors.red.shade600,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 8),
-        Stack(
-          children: [
-            TextFormField(
-              controller: _mobileNumberController,
-              focusNode: _mobileNumberFocusNode,
-              decoration: InputDecoration(
-                hintText: 'Enter mobile number',
-                hintStyle: TextStyle(color: Theme.of(context).hintColor),
-                filled: true,
-                fillColor: Theme.of(context).cardColor,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  vertical: 16,
-                  horizontal: 15,
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(
-                    color: _mobileNumberError.isNotEmpty
-                        ? Colors.red
-                        : Theme.of(context).primaryColor,
-                  ),
-                ),
-                errorBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Colors.red),
-                ),
-                prefixIcon: Icon(
-                  Icons.phone,
-                  color: Theme.of(context).primaryColor,
-                ),
-                suffixIcon: _isCheckingMobileNumber
-                    ? const Padding(
-                        padding: EdgeInsets.all(12.0),
+        Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: _mobileNumberError.isNotEmpty
+                  ? Colors.red.shade400
+                  : Theme.of(context).dividerColor.withValues(alpha: 0.3),
+              width: 1,
+            ),
+          ),
+          child: TextFormField(
+            controller: _mobileNumberController,
+            focusNode: _mobileNumberFocusNode,
+            decoration: InputDecoration(
+              hintText: 'Enter 10-digit mobile number',
+              hintStyle: TextStyle(
+                color: Theme.of(context).hintColor,
+                fontSize: 13,
+              ),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(
+                vertical: 14,
+                horizontal: 16,
+              ),
+              prefixIcon: Icon(
+                Icons.phone_android,
+                color: Theme.of(context).primaryColor,
+                size: 20,
+              ),
+              suffixIcon:
+                  _isCheckingMobileNumber
+                      ? Padding(
+                        padding: const EdgeInsets.all(12),
                         child: SizedBox(
                           width: 16,
                           height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Theme.of(context).primaryColor,
+                            ),
+                          ),
                         ),
                       )
-                    : _mobileNumberError.isNotEmpty
-                    ? const Icon(Icons.error, color: Colors.red)
-                    : null,
-              ),
-              style: TextStyle(
-                color: Theme.of(context).textTheme.bodyLarge?.color,
-              ),
-              keyboardType: TextInputType.phone,
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
-                LengthLimitingTextInputFormatter(10),
-              ],
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Mobile Number is required';
-                }
-                if (value.length != 10) {
-                  return 'Please enter a valid 10-digit mobile number';
-                }
-                return null;
-              },
+                      : _mobileNumberError.isNotEmpty
+                      ? Icon(Icons.error_outline, color: Colors.red.shade400)
+                      : null,
             ),
-          ],
+            style: TextStyle(
+              fontSize: 14,
+              color: Theme.of(context).textTheme.bodyLarge?.color,
+            ),
+            keyboardType: TextInputType.phone,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(10),
+            ],
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Mobile Number is required';
+              }
+              if (value.length != 10) {
+                return 'Please enter a valid 10-digit mobile number';
+              }
+              return null;
+            },
+          ),
         ),
         if (_mobileNumberError.isNotEmpty)
           Padding(
-            padding: const EdgeInsets.only(top: 4.0),
-            child: Text(
-              _mobileNumberError,
-              style: const TextStyle(
-                fontSize: 12,
-                color: Colors.red,
-                fontWeight: FontWeight.w500,
-              ),
+            padding: const EdgeInsets.only(top: 6),
+            child: Row(
+              children: [
+                Icon(Icons.warning_amber_rounded, color: Colors.red.shade400, size: 14),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    _mobileNumberError,
+                    style: TextStyle(fontSize: 12, color: Colors.red.shade600),
+                  ),
+                ),
+              ],
             ),
           ),
         if (_customerType == 'new' && _mobileNumberError.isEmpty)
           Padding(
-            padding: const EdgeInsets.only(top: 4.0),
-            child: Text(
-              'We\'ll check if this number is already registered',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[400],
-                fontStyle: FontStyle.italic,
-              ),
+            padding: const EdgeInsets.only(top: 6),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.info_outline,
+                  color: Theme.of(context).primaryColor.withValues(alpha: 0.6),
+                  size: 14,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'We\'ll check if this number is already registered',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Theme.of(context).hintColor,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
       ],
@@ -1087,45 +1226,85 @@ class _CreateTicketsState extends State<CreateTickets> {
     IconData icon,
     Function(String?) onChanged, {
     String? value,
+    bool required = true,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: Theme.of(context).textTheme.bodyLarge?.color,
-          ),
-        ),
-        const SizedBox(height: 8),
-        DropdownButtonFormField<String>(
-          initialValue: value,
-          decoration: InputDecoration(
-            filled: true,
-            fillColor: Theme.of(context).cardColor,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            contentPadding: const EdgeInsets.symmetric(
-              vertical: 10,
-              horizontal: 15,
-            ),
-            prefixIcon: Icon(icon, color: Theme.of(context).primaryColor),
-          ),
-          items: options.map((String val) {
-            return DropdownMenuItem<String>(
-              value: val,
-              child: Text(
-                val,
+        RichText(
+          text: TextSpan(
+            children: [
+              TextSpan(
+                text: label,
                 style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
                   color: Theme.of(context).textTheme.bodyLarge?.color,
                 ),
               ),
-            );
-          }).toList(),
-          onChanged: onChanged,
-          validator: (value) =>
-              value == null || value.isEmpty ? '$label is required' : null,
+              if (required)
+                TextSpan(
+                  text: ' *',
+                  style: TextStyle(
+                    color: Colors.red.shade600,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: Theme.of(context).dividerColor.withValues(alpha: 0.3),
+              width: 1,
+            ),
+          ),
+          child: DropdownButtonFormField<String>(
+            initialValue: value,
+            isExpanded: true,
+            decoration: InputDecoration(
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(
+                vertical: 12,
+                horizontal: 16,
+              ),
+              prefixIcon: Icon(icon, color: Theme.of(context).primaryColor, size: 20),
+            ),
+            dropdownColor: Theme.of(context).cardColor,
+            icon: Icon(
+              Icons.arrow_drop_down,
+              color: Theme.of(context).primaryColor,
+            ),
+            style: TextStyle(
+              fontSize: 14,
+              color: Theme.of(context).textTheme.bodyLarge?.color,
+            ),
+            items: options.map((String val) {
+              return DropdownMenuItem<String>(
+                value: val,
+                child: Text(
+                  val,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Theme.of(context).textTheme.bodyLarge?.color,
+                  ),
+                ),
+              );
+            }).toList(),
+            onChanged: onChanged,
+            validator:
+                required
+                    ? (value) =>
+                        value == null || value.isEmpty
+                            ? '$label is required'
+                            : null
+                    : null,
+          ),
         ),
       ],
     );
@@ -1134,225 +1313,357 @@ class _CreateTicketsState extends State<CreateTickets> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text(
-          "Assign Tickets",
+        title: const Text(
+          "Create New Ticket",
           style: TextStyle(
-            color:
-                Theme.of(context).appBarTheme.foregroundColor ?? Colors.white,
+            fontSize: 20,
             fontWeight: FontWeight.bold,
+            letterSpacing: 0.5,
           ),
         ),
-        leading: IconButton(
-          icon: Icon(
-            Icons.arrow_back,
-            color:
-                Theme.of(context).appBarTheme.foregroundColor ?? Colors.white,
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
+        centerTitle: true,
+        elevation: 0,
         backgroundColor: Theme.of(context).primaryColor,
+        foregroundColor: Colors.white,
       ),
-      body: Container(
-        color: Theme.of(context).scaffoldBackgroundColor,
-        padding: const EdgeInsets.all(20.0),
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            children: [
-              const SizedBox(height: 10),
+      body: ResponsiveWrapper(
+        padding: EdgeInsets.symmetric(horizontal: context.responsiveHPadding),
+        child: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+              _buildSectionHeader('Customer Information', Icons.person_outline),
+              const SizedBox(height: 12),
               Row(
                 children: [
-                  Expanded(
-                    child: _buildCustomerTypeButton(
-                      'Existing Customer',
-                      _customerType == 'existing',
-                      () {
-                        setState(() {
-                          _customerType = 'existing';
-                          _mobileNumberError = '';
-                          _customerIdController.text = widget.customerId;
-                          _customerNameController.text = widget.customerName;
-                          _mobileNumberController.text = widget.mobileNumber;
-                        });
-                      },
-                    ),
+                  _buildCustomerTypeButton(
+                    'Existing Customer',
+                    _customerType == 'existing',
+                    () {
+                      setState(() {
+                        _customerType = 'existing';
+                        _mobileNumberError = '';
+                        _customerIdController.text = widget.customerId;
+                        _customerNameController.text = widget.customerName;
+                        _mobileNumberController.text = widget.mobileNumber;
+                      });
+                    },
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _buildCustomerTypeButton(
-                      'New Customer',
-                      _customerType == 'new',
-                      () {
-                        setState(() {
-                          _customerType = 'new';
-                          _mobileNumberError = '';
-                        });
-                        _clearFormForNewCustomer();
-                      },
-                    ),
+                  const SizedBox(width: 12),
+                  _buildCustomerTypeButton(
+                    'New Customer',
+                    _customerType == 'new',
+                    () {
+                      setState(() {
+                        _customerType = 'new';
+                        _mobileNumberError = '';
+                      });
+                      _clearFormForNewCustomer();
+                    },
                   ),
                 ],
               ),
               const SizedBox(height: 20),
-              _buildCustomerIdField(),
-              const SizedBox(height: 20),
-              _buildTextField(
-                'Customer Name',
-                'Enter customer name',
-                Icons.person,
-                _customerNameController,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Customer Name is required';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 20),
-              _buildMobileNumberField(),
-              const SizedBox(height: 20),
-              _buildDropdownField(
-                'Job Type',
-                jobTypes,
-                Icons.work,
-                (value) {
-                  setState(() {
-                    jobType = value ?? '';
-                    if (jobType == 'Delivery') {
-                      deviceType = '';
-                      deviceBrand = '';
-                      deviceCondition = '';
-                      _messageController.clear();
-                      _customDeviceTypeController.clear();
-                      _customDeviceBrandController.clear();
-                    } else {
-                      _descriptionController.clear();
-                    }
-                  });
-                },
-                value: jobType.isNotEmpty ? jobType : null,
-              ),
-              if (jobType == 'Service') ...[
-                const SizedBox(height: 20),
-                _isDeviceTypesLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : _buildDropdownField(
-                        'Device Type',
-                        deviceTypes,
-                        Icons.devices,
-                        (value) async {
-                          setState(() {
-                            deviceType = value ?? '';
-                            if (deviceType != 'Others') {
-                              _customDeviceTypeController.clear();
-                            }
-                            deviceBrand = '';
-                            _customDeviceBrandController.clear();
-                          });
-                          if (value != null && value != 'Others') {
-                            // Brands are now fetched globally in initState
-                          } else {
-                            // Keep global brands even if 'Others' is selected
-                          }
-                        },
-                        value: deviceType.isNotEmpty ? deviceType : null,
-                      ),
-                if (deviceType == 'Others')
-                  Padding(
-                    padding: const EdgeInsets.only(top: 12.0),
-                    child: _buildTextField(
-                      'Custom Device Type',
-                      'Enter your device type',
-                      Icons.devices_other,
-                      _customDeviceTypeController,
+              _buildInfoCard(
+                title: _customerType == 'existing' ? 'Find Customer' : 'Register New Customer',
+                icon: _customerType == 'existing' ? Icons.search : Icons.person_add,
+                color: Theme.of(context).primaryColor,
+                child: Column(
+                  children: [
+                    _buildCustomerIdField(),
+                    const SizedBox(height: 16),
+                    _buildTextField(
+                      'Customer Name',
+                      'Enter full name',
+                      Icons.person,
+                      _customerNameController,
                     ),
-                  ),
-                const SizedBox(height: 20),
-                _isDeviceBrandsLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : _buildDropdownField(
-                        'Device Brand',
-                        deviceBrands.isNotEmpty
-                            ? deviceBrands
-                            : ['DELL', 'HP', 'MAC', 'LENOVO', 'ASUS', 'Others'],
-                        Icons.branding_watermark,
+                    const SizedBox(height: 16),
+                    _buildMobileNumberField(),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              _buildSectionHeader('Job Details', Icons.work_outline),
+              const SizedBox(height: 12),
+              _buildInfoCard(
+                title: 'Service Information',
+                icon: Icons.build_circle,
+                color: Colors.orange.shade600,
+                child: Column(
+                  children: [
+                    _buildDropdownField(
+                      'Job Type',
+                      jobTypes,
+                      Icons.work,
+                      (value) {
+                        setState(() {
+                          jobType = value ?? '';
+                          if (jobType == 'Delivery') {
+                            deviceType = '';
+                            deviceBrand = '';
+                            deviceCondition = '';
+                            _messageController.clear();
+                            _customDeviceTypeController.clear();
+                            _customDeviceBrandController.clear();
+                          } else {
+                            _descriptionController.clear();
+                          }
+                        });
+                      },
+                      value: jobType.isNotEmpty ? jobType : null,
+                    ),
+                    if (jobType == 'Service') ...[
+                      const SizedBox(height: 16),
+                      if (_isDeviceTypesLoading)
+                        const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(20),
+                            child: CircularProgressIndicator(),
+                          ),
+                        )
+                      else ...[
+                        _buildDropdownField(
+                          'Device Type',
+                          deviceTypes,
+                          Icons.devices,
+                          (value) async {
+                            setState(() {
+                              deviceType = value ?? '';
+                              if (deviceType != 'Others') {
+                                _customDeviceTypeController.clear();
+                              }
+                              deviceBrand = '';
+                              _customDeviceBrandController.clear();
+                            });
+                          },
+                          value: deviceType.isNotEmpty ? deviceType : null,
+                        ),
+                        if (deviceType == 'Others')
+                          Padding(
+                            padding: const EdgeInsets.only(top: 12),
+                            child: _buildTextField(
+                              'Custom Device Type',
+                              'Enter your device type',
+                              Icons.devices_other,
+                              _customDeviceTypeController,
+                              required: true,
+                            ),
+                          ),
+                      ],
+                      const SizedBox(height: 16),
+                      if (_isDeviceBrandsLoading)
+                        const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(20),
+                            child: CircularProgressIndicator(),
+                          ),
+                        )
+                      else ...[
+                        _buildDropdownField(
+                          'Device Brand',
+                          deviceBrands.isNotEmpty
+                              ? deviceBrands
+                              : ['DELL', 'HP', 'MAC', 'LENOVO', 'ASUS', 'Others'],
+                          Icons.branding_watermark,
+                          (value) {
+                            setState(() {
+                              deviceBrand = value ?? '';
+                              if (deviceBrand != 'Others') {
+                                _customDeviceBrandController.clear();
+                              }
+                            });
+                          },
+                          value: deviceBrand.isNotEmpty ? deviceBrand : null,
+                        ),
+                        if (deviceBrand == 'Others')
+                          Padding(
+                            padding: const EdgeInsets.only(top: 12),
+                            child: _buildTextField(
+                              'Custom Device Brand',
+                              'Enter your device brand',
+                              Icons.branding_watermark,
+                              _customDeviceBrandController,
+                              required: true,
+                            ),
+                          ),
+                      ],
+                      const SizedBox(height: 16),
+                      _buildDropdownField(
+                        'Device Condition',
+                        currentDeviceConditions,
+                        Icons.build,
                         (value) {
                           setState(() {
-                            deviceBrand = value ?? '';
-                            if (deviceBrand != 'Others') {
-                              _customDeviceBrandController.clear();
-                            }
+                            deviceCondition = value ?? '';
                           });
                         },
-                        value: deviceBrand.isNotEmpty ? deviceBrand : null,
+                        value: deviceCondition.isNotEmpty ? deviceCondition : null,
                       ),
-                if (deviceBrand == 'Others')
-                  Padding(
-                    padding: const EdgeInsets.only(top: 12.0),
-                    child: _buildTextField(
-                      'Custom Device Brand',
-                      'Enter your device brand',
-                      Icons.branding_watermark,
-                      _customDeviceBrandController,
+                      const SizedBox(height: 16),
+                      _buildTextField(
+                        'Additional Message',
+                        'Enter any additional details about the issue',
+                        Icons.message,
+                        _messageController,
+                        maxLines: 3,
+                        required: false,
+                      ),
+                    ],
+                    if (jobType == 'Delivery') ...[
+                      const SizedBox(height: 16),
+                      _buildTextField(
+                        'Delivery Description',
+                        'Enter delivery details',
+                        Icons.description,
+                        _descriptionController,
+                        maxLines: 3,
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    _buildTextField(
+                      'Address',
+                      'Enter complete address',
+                      Icons.location_on,
+                      _addressController,
                     ),
-                  ),
-                const SizedBox(height: 20),
-                _buildDropdownField(
-                  'Device Condition',
-                  currentDeviceConditions,
-                  Icons.build,
-                  (value) {
-                    setState(() {
-                      deviceCondition = value ?? '';
-                    });
-                  },
-                  value: deviceCondition.isNotEmpty ? deviceCondition : null,
+                  ],
                 ),
-                const SizedBox(height: 20),
-                _buildTextField(
-                  'Message',
-                  'Enter additional details',
-                  Icons.message,
-                  _messageController,
-                  maxLines: 3,
-                ),
-              ],
-              if (jobType == 'Delivery') ...[
-                const SizedBox(height: 20),
-                _buildTextField(
-                  'Description',
-                  'Enter delivery description',
-                  Icons.description,
-                  _descriptionController,
-                  maxLines: 3,
-                ),
-              ],
-              const SizedBox(height: 20),
-              _buildTextField(
-                'Address',
-                'Enter your address',
-                Icons.location_on,
-                _addressController,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Address is required';
-                  }
-                  return null;
-                },
               ),
-              const SizedBox(height: 30),
+              const SizedBox(height: 24),
               Center(
                 child: _isSubmitting
                     ? CircularProgressIndicator(
                         color: Theme.of(context).primaryColor,
                       )
-                    : GradientButton(onPressed: _handleSubmit, text: 'Submit'),
+                    : GradientButton(onPressed: _handleSubmit, text: 'Submit Ticket'),
               ),
+              const SizedBox(height: 16),
             ],
           ),
         ),
       ),
+    ),
+    );
+  }
+
+  Widget _buildCustomerIdField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        RichText(
+          text: TextSpan(
+            children: [
+              TextSpan(
+                text: 'Customer ID',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).textTheme.bodyLarge?.color,
+                ),
+              ),
+              TextSpan(
+                text: ' *',
+                style: TextStyle(
+                  color: Colors.red.shade600,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: _customerType == 'new'
+                ? Theme.of(context).primaryColor.withValues(alpha: 0.05)
+                : Theme.of(context).scaffoldBackgroundColor,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: Theme.of(context).dividerColor.withValues(alpha: 0.3),
+              width: 1,
+            ),
+          ),
+          child: TextFormField(
+            controller: _customerIdController,
+            focusNode: _customerIdFocusNode,
+            readOnly: _customerType == 'new',
+            decoration: InputDecoration(
+              hintText: _customerType == 'new' ? 'Auto-generated' : 'Enter customer ID',
+              hintStyle: TextStyle(
+                color: Theme.of(context).hintColor,
+                fontSize: 13,
+                fontStyle: _customerType == 'new' ? FontStyle.italic : FontStyle.normal,
+              ),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(
+                vertical: 14,
+                horizontal: 16,
+              ),
+              prefixIcon: Icon(
+                Icons.perm_identity,
+                color: Theme.of(context).primaryColor,
+                size: 20,
+              ),
+              suffixIcon:
+                  _customerType == 'new' && _isGeneratingCustomerId
+                      ? Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Theme.of(context).primaryColor,
+                            ),
+                          ),
+                        ),
+                      )
+                      : null,
+            ),
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight:
+                  _customerType == 'new' ? FontWeight.w500 : FontWeight.normal,
+              color:
+                  _customerType == 'new'
+                      ? Theme.of(context).primaryColor
+                      : Theme.of(context).textTheme.bodyLarge?.color,
+            ),
+            validator: (value) =>
+                value == null || value.isEmpty ? 'Customer ID is required' : null,
+          ),
+        ),
+        if (_customerType == 'new')
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.lock_outline,
+                  color: Theme.of(context).primaryColor.withValues(alpha: 0.6),
+                  size: 14,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Customer ID is automatically generated and read-only',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Theme.of(context).hintColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 }
@@ -1369,24 +1680,42 @@ class GradientButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
+    return Container(
       width: double.infinity,
+      height: 52,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Theme.of(context).primaryColor,
+            Theme.of(context).primaryColor.withValues(alpha: 0.8),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Theme.of(context).primaryColor.withValues(alpha: 0.4),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
-          backgroundColor: Theme.of(context).primaryColor,
-          padding: const EdgeInsets.symmetric(vertical: 14),
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14),
           ),
-          elevation: 4,
         ),
         onPressed: onPressed,
         child: Text(
           text,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
-            color: Theme.of(context).colorScheme.onPrimary,
+            letterSpacing: 1,
           ),
         ),
       ),

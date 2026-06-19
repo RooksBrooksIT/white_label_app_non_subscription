@@ -15,8 +15,6 @@ class ThemeService extends ChangeNotifier {
   String _databaseName = 'default_db';
   String? _logoUrl;
 
-  String get brandingFontFamily => 'Lufga';
-
   Color get primaryColor => _primaryColor;
   Color get secondaryColor => _secondaryColor;
   Color get backgroundColor => _backgroundColor;
@@ -37,9 +35,7 @@ class ThemeService extends ChangeNotifier {
         surface:
             _backgroundColor, // Use background color for surface/background
       ),
-      textTheme: _fontFamily == 'Lufga'
-          ? base.textTheme.apply(fontFamily: 'Lufga')
-          : GoogleFonts.getTextTheme(_fontFamily, base.textTheme),
+      textTheme: GoogleFonts.getTextTheme(_fontFamily, base.textTheme),
       scaffoldBackgroundColor: _backgroundColor,
       canvasColor: _backgroundColor,
       appBarTheme: AppBarTheme(
@@ -69,9 +65,7 @@ class ThemeService extends ChangeNotifier {
         brightness: Brightness.light,
         surface: background,
       ),
-      textTheme: fontFamily == 'Lufga'
-          ? base.textTheme.apply(fontFamily: 'Lufga')
-          : GoogleFonts.getTextTheme(fontFamily, base.textTheme),
+      textTheme: GoogleFonts.getTextTheme(fontFamily, base.textTheme),
       scaffoldBackgroundColor: background,
       canvasColor: background,
       appBarTheme: const AppBarTheme(
@@ -114,9 +108,9 @@ class ThemeService extends ChangeNotifier {
 
   Future<void> saveToLocal() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('primaryColor', _primaryColor.value);
-    await prefs.setInt('secondaryColor', _secondaryColor.value);
-    await prefs.setInt('backgroundColor', _backgroundColor.value);
+    await prefs.setInt('primaryColor', _primaryColor.toARGB32());
+    await prefs.setInt('secondaryColor', _secondaryColor.toARGB32());
+    await prefs.setInt('backgroundColor', _backgroundColor.toARGB32());
     await prefs.setBool('isDarkMode', _isDarkMode);
     await prefs.setString('fontFamily', _fontFamily);
     await prefs.setString('appName', _appName);

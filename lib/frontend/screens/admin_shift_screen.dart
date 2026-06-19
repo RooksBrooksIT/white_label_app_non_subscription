@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:subscription_rooks_app/backend/attendance_backend.dart';
 import 'package:subscription_rooks_app/services/auth_state_service.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class Engineershiftscreen extends StatefulWidget {
   const Engineershiftscreen({super.key});
@@ -123,17 +124,20 @@ class _EngineershiftscreenState extends State<Engineershiftscreen> {
       ),
       body: _isLoading && _engineers.isEmpty
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _buildSelectionSection(),
-                  const Divider(height: 30),
-                  _buildStatusSection(),
-                  const Divider(height: 30),
-                  _buildRealTimeView(),
-                ],
+          : ResponsiveWrapper(
+              maxWidth: kMaxContentWidth,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildSelectionSection(),
+                    const Divider(height: 30),
+                    _buildStatusSection(),
+                    const Divider(height: 30),
+                    _buildRealTimeView(),
+                  ],
+                ),
               ),
             ),
     );

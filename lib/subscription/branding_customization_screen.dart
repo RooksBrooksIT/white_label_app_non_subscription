@@ -3,7 +3,7 @@ import 'dart:math';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:image_cropper/image_cropper.dart';
+import 'package:crop_image/crop_image.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_dashboard.dart';
 import 'package:subscription_rooks_app/services/auth_state_service.dart';
@@ -11,6 +11,7 @@ import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/services/storage_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class BrandingCustomizationScreen extends StatefulWidget {
   final String? planName;
@@ -21,13 +22,12 @@ class BrandingCustomizationScreen extends StatefulWidget {
   final String? paymentMethod;
   final String? transactionId;
   final bool isEditMode;
-
-  // New fields for plan limits and features
   final Map<String, dynamic>? limits;
   final bool? geoLocation;
   final bool? attendance;
   final bool? barcode;
   final bool? reportExport;
+  final Map<String, dynamic>? pendingUserData;
 
   const BrandingCustomizationScreen({
     super.key,
@@ -44,6 +44,7 @@ class BrandingCustomizationScreen extends StatefulWidget {
     this.attendance,
     this.barcode,
     this.reportExport,
+    this.pendingUserData,
   });
 
   @override
@@ -52,109 +53,65 @@ class BrandingCustomizationScreen extends StatefulWidget {
 }
 
 class _BrandingCustomizationScreenState
-    extends State<BrandingCustomizationScreen> {
+    extends State<BrandingCustomizationScreen>
+    with SingleTickerProviderStateMixin {
+  bool get _hasValidSubscriptionPayload {
+    final plan = widget.planName?.trim() ?? '';
+    final method = widget.paymentMethod?.trim() ?? '';
+    return plan.isNotEmpty && widget.price != null && method.isNotEmpty;
+  }
+
   // Branding State
   Color _primaryColor = Colors.deepPurple;
   Color _secondaryColor = Colors.amber;
-  Color _backgroundColor = Colors.white; // Fixed to white as per requirements
+  Color _backgroundColor = Colors.white;
   File? _logoFile;
   String? _existingLogoUrl;
-  final bool _useDarkMode = false; // Fixed to false as per requirements
+  final bool _useDarkMode = false;
 
   String _selectedFont = 'Roboto';
   final TextEditingController _appNameController = TextEditingController(
-    text: 'ServNex',
+    text: 'My Awesome App',
   );
 
-  // Preset Themes - Modern color combinations
   final List<Map<String, Color>> _presetThemes = [
-    // Modern Blues
-    {
-      'primary': const Color(0xFF2563EB),
-      'secondary': const Color(0xFF7C3AED),
-    }, // Electric Blue to Purple
-    {
-      'primary': const Color(0xFF0891B2),
-      'secondary': const Color(0xFF2D6A4F),
-    }, // Cyan to Green
-    {
-      'primary': const Color(0xFF7C3AED),
-      'secondary': const Color(0xFFDB2777),
-    }, // Purple to Pink
-    {
-      'primary': const Color(0xFFDC2626),
-      'secondary': const Color(0xFFF59E0B),
-    }, // Red to Amber
-    {
-      'primary': const Color(0xFF059669),
-      'secondary': const Color(0xFF10B981),
-    }, // Emerald
-    {
-      'primary': const Color(0xFF9333EA),
-      'secondary': const Color(0xFFF472B6),
-    }, // Purple to Pink
-    // Warm Tones
-    {
-      'primary': const Color(0xFFEA580C),
-      'secondary': const Color(0xFFFBBF24),
-    }, // Orange to Yellow
-    {
-      'primary': const Color(0xFF1E40AF),
-      'secondary': const Color(0xFF3B82F6),
-    }, // Navy to Blue
-    {
-      'primary': const Color(0xFFBE185D),
-      'secondary': const Color(0xFFEC4899),
-    }, // Rose to Pink
-    {
-      'primary': const Color(0xFF4F46E5),
-      'secondary': const Color(0xFF818CF8),
-    }, // Indigo
-    {
-      'primary': const Color(0xFFB45309),
-      'secondary': const Color(0xFFF59E0B),
-    }, // Amber
-    {
-      'primary': const Color(0xFF065F46),
-      'secondary': const Color(0xFF34D399),
-    }, // Dark Green to Light Green
-    // Professional Tones
-    {
-      'primary': const Color(0xFF1F2937),
-      'secondary': const Color(0xFF4B5563),
-    }, // Gray Scale
-    {
-      'primary': const Color(0xFF8B5CF6),
-      'secondary': const Color(0xFFC4B5FD),
-    }, // Violet
-    {
-      'primary': const Color(0xFFB91C1C),
-      'secondary': const Color(0xFFFCA5A5),
-    }, // Red
+    {'primary': const Color(0xFF2563EB), 'secondary': const Color(0xFF7C3AED)},
+    {'primary': const Color(0xFF0891B2), 'secondary': const Color(0xFF2D6A4F)},
+    {'primary': const Color(0xFF7C3AED), 'secondary': const Color(0xFFDB2777)},
+    {'primary': const Color(0xFFDC2626), 'secondary': const Color(0xFFF59E0B)},
+    {'primary': const Color(0xFF059669), 'secondary': const Color(0xFF10B981)},
+    {'primary': const Color(0xFF9333EA), 'secondary': const Color(0xFFF472B6)},
+    {'primary': const Color(0xFFEA580C), 'secondary': const Color(0xFFFBBF24)},
+    {'primary': const Color(0xFF1E40AF), 'secondary': const Color(0xFF3B82F6)},
+    {'primary': const Color(0xFFBE185D), 'secondary': const Color(0xFFEC4899)},
+    {'primary': const Color(0xFF4F46E5), 'secondary': const Color(0xFF818CF8)},
+    {'primary': const Color(0xFFB45309), 'secondary': const Color(0xFFF59E0B)},
+    {'primary': const Color(0xFF065F46), 'secondary': const Color(0xFF34D399)},
+    {'primary': const Color(0xFF1F2937), 'secondary': const Color(0xFF4B5563)},
+    {'primary': const Color(0xFF8B5CF6), 'secondary': const Color(0xFFC4B5FD)},
+    {'primary': const Color(0xFFB91C1C), 'secondary': const Color(0xFFFCA5A5)},
   ];
 
   int _selectedThemeIndex = 0;
-
   final ImagePicker _picker = ImagePicker();
+  late AnimationController _fadeController;
+  bool _isUploadingLogo = false;
 
   @override
   void initState() {
     super.initState();
-    // Initialize with current values from ThemeService
     final theme = ThemeService.instance;
     _primaryColor = theme.primaryColor;
     _secondaryColor = theme.secondaryColor;
-    _backgroundColor = Colors.white; // Requirement: Fixed to white
+    _backgroundColor = Colors.white;
     _selectedFont = theme.fontFamily;
     _appNameController.text = theme.appName;
 
-    // Pre-fill existing logo URL in edit mode
     if (widget.isEditMode && theme.logoUrl != null) {
       _existingLogoUrl = theme.logoUrl;
     }
 
-    // Try to find if current colors match a preset
-    _selectedThemeIndex = _presetThemes.length; // Default to Custom
+    _selectedThemeIndex = _presetThemes.length;
     for (int i = 0; i < _presetThemes.length; i++) {
       if (_presetThemes[i]['primary']?.toARGB32() == _primaryColor.toARGB32() &&
           _presetThemes[i]['secondary']?.toARGB32() ==
@@ -163,11 +120,17 @@ class _BrandingCustomizationScreenState
         break;
       }
     }
+
+    _fadeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    )..forward();
   }
 
   @override
   void dispose() {
     _appNameController.dispose();
+    _fadeController.dispose();
     super.dispose();
   }
 
@@ -177,65 +140,48 @@ class _BrandingCustomizationScreenState
         source: ImageSource.gallery,
       );
       if (pickedFile != null) {
-        // --- Add Cropping Logic ---
-        final croppedFile = await ImageCropper().cropImage(
-          sourcePath: pickedFile.path,
-          uiSettings: [
-            AndroidUiSettings(
-              toolbarTitle: 'Crop Logo',
-              toolbarColor: _primaryColor,
-              toolbarWidgetColor: Colors.white,
-              activeControlsWidgetColor: _primaryColor,
-              initAspectRatio: CropAspectRatioPreset.square,
-              lockAspectRatio: false,
-              aspectRatioPresets: [
-                CropAspectRatioPreset.square,
-                CropAspectRatioPreset.original,
-                CropAspectRatioPreset.ratio4x3,
-                CropAspectRatioPreset.ratio16x9,
-              ],
+        setState(() => _isUploadingLogo = true);
+        
+        final File? croppedFile = await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => CustomLogoCropperScreen(
+              imageFile: File(pickedFile.path),
+              primaryColor: _primaryColor,
             ),
-            IOSUiSettings(
-              title: 'Crop Logo',
-              aspectRatioPresets: [
-                CropAspectRatioPreset.square,
-                CropAspectRatioPreset.original,
-                CropAspectRatioPreset.ratio4x3,
-                CropAspectRatioPreset.ratio16x9,
-              ],
-            ),
-          ],
+          ),
         );
 
         if (croppedFile != null) {
           setState(() {
-            _logoFile = File(croppedFile.path);
+            _logoFile = croppedFile;
+            _existingLogoUrl = null;
           });
         }
       }
     } catch (e) {
-      // Handle permission errors, etc.
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error picking image: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error picking image: $e'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isUploadingLogo = false);
     }
   }
 
   void _showColorPicker(String type) {
-    Color currentColor;
-    if (type == 'primary') {
-      currentColor = _primaryColor;
-    } else if (type == 'secondary') {
-      currentColor = _secondaryColor;
-    } else {
-      currentColor = _backgroundColor;
-    }
-
+    Color currentColor = type == 'primary' ? _primaryColor : _secondaryColor;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Pick ${type[0].toUpperCase()}${type.substring(1)} Color'),
+        title: Text(
+          'Pick ${type[0].toUpperCase()}${type.substring(1)} Color',
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
         content: SingleChildScrollView(
           child: ColorPicker(
             pickerColor: currentColor,
@@ -243,28 +189,23 @@ class _BrandingCustomizationScreenState
               setState(() {
                 if (type == 'primary') {
                   _primaryColor = color;
-                } else if (type == 'secondary') {
-                  _secondaryColor = color;
                 } else {
-                  _backgroundColor = color;
+                  _secondaryColor = color;
                 }
-
-                if (type != 'background') {
-                  // When manually picking primary/secondary, set to Custom mode
-                  _selectedThemeIndex = _presetThemes.length;
-                }
+                _selectedThemeIndex = _presetThemes.length;
               });
             },
-            labelTypes: const [ColorLabelType.hsl],
-            pickerAreaHeightPercent: 0.8,
+            pickerAreaHeightPercent: 0.7,
+            enableAlpha: false,
+            displayThumbColor: true,
+            labelTypes: const [ColorLabelType.hex, ColorLabelType.rgb],
+            paletteType: PaletteType.hueWheel,
           ),
         ),
-        actions: <Widget>[
+        actions: [
           TextButton(
+            onPressed: () => Navigator.pop(context),
             child: const Text('Done'),
-            onPressed: () {
-              Navigator.of(context).pop();
-            },
           ),
         ],
       ),
@@ -273,272 +214,200 @@ class _BrandingCustomizationScreenState
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isTablet = screenWidth >= 600;
+    final double horizontalPadding = isTablet ? 32.0 : 20.0;
+
     return Theme(
       data: ThemeService.instance.defaultTheme.copyWith(
         scaffoldBackgroundColor: Colors.transparent,
       ),
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Colors.grey.shade100,
-              Colors.blue.shade50.withValues(alpha: 0.5),
-              Colors.grey.shade200,
-            ],
-          ),
-        ),
-        child: Scaffold(
-          backgroundColor: Colors.transparent,
-          extendBodyBehindAppBar: true,
-          appBar: AppBar(
-            title: Text(
-              widget.isEditMode ? 'Edit Branding' : 'Customize Branding',
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.5,
-              ),
-            ),
-            backgroundColor: Colors.white.withValues(alpha: 0.2),
-            foregroundColor: Colors.black,
-            elevation: 0,
-            flexibleSpace: ClipRRect(
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                child: Container(color: Colors.transparent),
-              ),
+      child: Scaffold(
+        extendBodyBehindAppBar: true,
+        appBar: AppBar(
+          title: Text(
+            widget.isEditMode ? 'Edit Branding' : 'Customize Branding',
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.2,
+              fontSize: 20,
             ),
           ),
-          body: LayoutBuilder(
-            builder: (context, constraints) {
-              final isWide = constraints.maxWidth > 800;
-              final horizontalPadding = isWide
-                  ? (constraints.maxWidth - 800) / 2 + 24
-                  : 24.0;
-
-              return Stack(
-                children: [
-                  SafeArea(
-                    child: SingleChildScrollView(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: horizontalPadding,
-                        vertical: 24.0,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildHeader(),
-                          const SizedBox(height: 32),
-                          _buildAppInfoSection(),
-                          const SizedBox(height: 32),
-                          _buildLogoUploadSection(),
-                          const SizedBox(height: 32),
-                          _buildColorThemeSection(
-                            constraints.maxWidth,
-                          ), // Passed maxWidth
-                          const SizedBox(height: 32),
-                          _buildVisualSettingsSection(),
-                          const SizedBox(height: 48),
-                          _buildPreviewSection(isWide), // Passed layout hint
-                          const SizedBox(height: 48),
-                          _buildContinueButton(),
-                          const SizedBox(height: 20),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            },
+          backgroundColor: Colors.white.withValues(alpha: 0.85),
+          foregroundColor: Colors.black87,
+          elevation: 0,
+          centerTitle: false,
+          flexibleSpace: ClipRect(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+              child: Container(color: Colors.transparent),
+            ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildAppInfoSection() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: _primaryColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(Icons.edit_note, color: _primaryColor, size: 20),
-                ),
-                const SizedBox(width: 12),
-                const Text(
-                  'App Information',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ),
+        body: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.grey.shade50,
+                Colors.white,
               ],
             ),
-            const SizedBox(height: 20),
-            TextField(
-              controller: _appNameController,
-              decoration: InputDecoration(
-                hintText: 'Enter your app name',
-                hintStyle: TextStyle(color: Colors.grey.shade400),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 16,
+          ),
+          child: SafeArea(
+            child: FadeTransition(
+              opacity: _fadeController,
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: EdgeInsets.symmetric(
+                  horizontal: horizontalPadding,
+                  vertical: 24,
                 ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.grey.shade200),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 500),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                    _buildHeader(),
+                    const SizedBox(height: 28),
+                    _buildAppInfoSection(),
+                    const SizedBox(height: 24),
+                    _buildLogoUploadSection(),
+                    const SizedBox(height: 24),
+                    _buildColorThemeSection(isTablet),
+                    const SizedBox(height: 24),
+                    _buildVisualSettingsSection(),
+                    const SizedBox(height: 32),
+                    _buildPreviewSection(isTablet),
+                    const SizedBox(height: 40),
+                    _buildContinueButton(),
+                    const SizedBox(height: 24),
+                  ],
                 ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.grey.shade200),
                 ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: _primaryColor, width: 2),
                 ),
-                prefixIcon: Icon(Icons.app_registration, color: _primaryColor),
               ),
-              onChanged: (value) {
-                setState(() {}); // Trigger rebuild for preview
-              },
             ),
-          ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildHeader() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isVerySmall = constraints.maxWidth < 360;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Brand Your App',
-              style: TextStyle(
-                fontSize: isVerySmall ? 24 : 32,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-                letterSpacing: -0.5,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Make the app truly yours. Upload your logo and choose your brand colors.',
-              style: TextStyle(
-                fontSize: isVerySmall ? 14 : 16,
-                color: Colors.grey.shade600,
-                height: 1.5,
-              ),
-            ),
-          ],
-        );
-      },
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Brand Your App',
+          style: TextStyle(
+            fontSize: MediaQuery.of(context).size.width > 400 ? 34 : 28,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+            letterSpacing: -0.5,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Make the app truly yours. Upload your logo and choose your brand colors.',
+          style: TextStyle(
+            fontSize: 15,
+            color: Colors.grey.shade600,
+            height: 1.4,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAppInfoSection() {
+    return _ModernCard(
+      icon: Icons.edit_note,
+      color: _primaryColor,
+      title: 'App Information',
+      child: TextField(
+        controller: _appNameController,
+        decoration: InputDecoration(
+          hintText: 'Enter your app name',
+          hintStyle: TextStyle(color: Colors.grey.shade400),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 16,
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide(color: Colors.grey.shade200),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide(color: Colors.grey.shade200),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide(color: _primaryColor, width: 2),
+          ),
+          prefixIcon: Icon(Icons.app_registration, color: _primaryColor),
+        ),
+      ),
     );
   }
 
   Widget _buildLogoUploadSection() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: _primaryColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(Icons.image, color: _primaryColor, size: 20),
+    return _ModernCard(
+      icon: Icons.image,
+      color: _primaryColor,
+      title: 'Company Logo',
+      child: Column(
+        children: [
+          GestureDetector(
+            onTap: _isUploadingLogo ? null : _pickLogo,
+            child: Container(
+              height: 160,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: Colors.grey.shade200,
+                  width: 1.5,
                 ),
-                const SizedBox(width: 12),
-                const Text(
-                  'Company Logo',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            GestureDetector(
-              onTap: _pickLogo,
-              child: Container(
-                height: 160,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: Colors.grey.shade200,
-                    style: BorderStyle.solid,
-                    width: 2,
-                  ),
-                ),
-                child: _logoFile != null
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(14),
-                        child: Center(
+              ),
+              child: _isUploadingLogo
+                  ? const Center(
+                      child: CircularProgressIndicator(),
+                    )
+                  : (_logoFile != null
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(18),
                           child: Image.file(_logoFile!, fit: BoxFit.contain),
-                        ),
-                      )
-                    : _existingLogoUrl != null
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(14),
-                        child: Center(
+                        )
+                      : _existingLogoUrl != null
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(18),
                           child: Image.network(
                             _existingLogoUrl!,
                             fit: BoxFit.contain,
                             errorBuilder: (context, error, stackTrace) =>
                                 _buildUploadPlaceholder(),
                           ),
-                        ),
-                      )
-                    : _buildUploadPlaceholder(),
-              ),
+                        )
+                      : _buildUploadPlaceholder()),
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 12),
+          TextButton.icon(
+            onPressed: _pickLogo,
+            icon: Icon(Icons.cloud_upload, size: 18, color: _primaryColor),
+            label: Text(
+              _logoFile != null || _existingLogoUrl != null
+                  ? 'Change Logo'
+                  : 'Upload Logo',
+              style: TextStyle(color: _primaryColor),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -548,18 +417,14 @@ class _BrandingCustomizationScreenState
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: _primaryColor.withOpacity(0.1),
+            color: _primaryColor.withValues(alpha: 0.1),
             shape: BoxShape.circle,
           ),
-          child: Icon(
-            Icons.cloud_upload_outlined,
-            size: 32,
-            color: _primaryColor,
-          ),
+          child: Icon(Icons.cloud_upload_outlined, size: 32, color: _primaryColor),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
         Text(
           'Tap to upload logo',
           style: TextStyle(
@@ -570,531 +435,356 @@ class _BrandingCustomizationScreenState
         const SizedBox(height: 4),
         Text(
           'PNG, JPG up to 5MB',
-          style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+          style: TextStyle(color: Colors.grey.shade400, fontSize: 11),
         ),
       ],
     );
   }
 
-  // REDESIGNED THEME COLOR SECTION - More Professional
-  Widget _buildColorThemeSection(double maxWidth) {
-    // Dynamic grid count based on available space
-    int crossAxisCount = 5;
-    if (maxWidth < 400) {
-      crossAxisCount = 4;
-    } else if (maxWidth > 600) {
-      crossAxisCount = 8;
-    }
+  Widget _buildColorThemeSection(bool isTablet) {
+    final crossAxisCount = isTablet
+        ? (MediaQuery.of(context).size.width > 800 ? 8 : 6)
+        : (MediaQuery.of(context).size.width > 380 ? 5 : 4);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+    return _ModernCard(
+      icon: Icons.palette,
+      color: _primaryColor,
+      title: 'Theme Colors',
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Column(
               children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: _primaryColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(Icons.palette, color: _primaryColor, size: 20),
-                ),
-                const SizedBox(width: 12),
-                const Text(
-                  'Theme Colors',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-
-            // Preset Themes with modern design
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.grey.shade200),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Preset Color Schemes',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey.shade700,
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _primaryColor.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          '${_selectedThemeIndex < _presetThemes.length ? _selectedThemeIndex + 1 : 'Custom'}/${_presetThemes.length}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: _primaryColor,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Theme Circles Grid
-                  GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: crossAxisCount,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                      childAspectRatio: 1,
-                    ),
-                    itemCount: _presetThemes.length + 1, // +1 for Custom
-                    itemBuilder: (context, index) {
-                      final isCustom = index == _presetThemes.length;
-                      final isSelected = _selectedThemeIndex == index;
-
-                      if (isCustom) {
-                        return _buildCustomThemeCircle(isSelected);
-                      }
-
-                      return _buildModernThemeCircle(
-                        index,
-                        _presetThemes[index]['primary']!,
-                        _presetThemes[index]['secondary']!,
-                        isSelected,
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-
-            if (_selectedThemeIndex == _presetThemes.length) ...[
-              const SizedBox(height: 20),
-
-              // Custom Colors Section
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.grey.shade200),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Custom Colors',
+                      'Preset Color Schemes',
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                         color: Colors.grey.shade700,
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildModernColorButton(
-                            'Primary',
-                            _primaryColor,
-                            () => _showColorPicker('primary'),
-                          ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _primaryColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                      child: Text(
+                        '${_selectedThemeIndex < _presetThemes.length ? _selectedThemeIndex + 1 : 'Custom'}/${_presetThemes.length}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: _primaryColor,
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildModernColorButton(
-                            'Secondary',
-                            _secondaryColor,
-                            () => _showColorPicker('secondary'),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ],
                 ),
+                const SizedBox(height: 16),
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: crossAxisCount,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: 1,
+                  ),
+                  itemCount: _presetThemes.length + 1,
+                  itemBuilder: (context, index) {
+                    if (index == _presetThemes.length) {
+                      return _buildCustomThemeCircle();
+                    }
+                    return _buildModernThemeCircle(
+                      index,
+                      _presetThemes[index]['primary']!,
+                      _presetThemes[index]['secondary']!,
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+          if (_selectedThemeIndex == _presetThemes.length) ...[
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(20),
               ),
-            ],
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _buildModernColorButton(
+                      'Primary',
+                      _primaryColor,
+                      () => _showColorPicker('primary'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildModernColorButton(
+                      'Secondary',
+                      _secondaryColor,
+                      () => _showColorPicker('secondary'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModernThemeCircle(int index, Color primary, Color secondary) {
+    final isSelected = _selectedThemeIndex == index;
+    return AnimatedScale(
+      scale: isSelected ? 1.05 : 1.0,
+      duration: const Duration(milliseconds: 200),
+      child: GestureDetector(
+        onTap: () {
+          setState(() {
+            _selectedThemeIndex = index;
+            _primaryColor = primary;
+            _secondaryColor = secondary;
+          });
+        },
+        child: Container(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [primary, secondary],
+            ),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: primary.withValues(alpha: 0.4),
+                      blurRadius: 10,
+                      spreadRadius: 2,
+                    ),
+                  ]
+                : [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 4,
+                    ),
+                  ],
+          ),
+          child: Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: isSelected ? Colors.white : Colors.transparent,
+                width: 3,
+              ),
+            ),
+            child: isSelected
+                ? Center(
+                    child: Icon(Icons.check, color: primary, size: 18),
+                  )
+                : null,
+          ),
         ),
       ),
     );
   }
 
-  // Modern Theme Circle Design
-  Widget _buildModernThemeCircle(
-    int index,
-    Color primary,
-    Color secondary,
-    bool isSelected,
-  ) {
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedThemeIndex = index;
-          _primaryColor = primary;
-          _secondaryColor = secondary;
-        });
-      },
-      child: Stack(
-        children: [
-          Container(
+  Widget _buildCustomThemeCircle() {
+    final isSelected = _selectedThemeIndex == _presetThemes.length;
+    return AnimatedScale(
+      scale: isSelected ? 1.05 : 1.0,
+      duration: const Duration(milliseconds: 200),
+      child: GestureDetector(
+        onTap: () {
+          setState(() {
+            _selectedThemeIndex = _presetThemes.length;
+          });
+        },
+        child: Container(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [_primaryColor, _secondaryColor],
+            ),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: _primaryColor.withValues(alpha: 0.4),
+                      blurRadius: 10,
+                      spreadRadius: 2,
+                    ),
+                  ]
+                : [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 4,
+                    ),
+                  ],
+          ),
+          child: Container(
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [primary, secondary],
+              border: Border.all(
+                color: isSelected ? Colors.white : Colors.transparent,
+                width: 3,
               ),
-              boxShadow: isSelected
-                  ? [
-                      BoxShadow(
-                        color: primary.withOpacity(0.4),
-                        blurRadius: 8,
-                        spreadRadius: 2,
-                      ),
-                    ]
-                  : [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 4,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
             ),
-            child: Container(
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: isSelected ? Colors.white : Colors.transparent,
-                  width: 2,
-                ),
+            child: Center(
+              child: Icon(
+                Icons.color_lens,
+                color: Colors.white,
+                size: 20,
               ),
             ),
           ),
-          if (isSelected)
-            Positioned(
-              top: 0,
-              right: 0,
-              child: Container(
-                padding: const EdgeInsets.all(2),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black26,
-                      blurRadius: 4,
-                      spreadRadius: 1,
-                    ),
-                  ],
-                ),
-                child: Icon(Icons.check, color: primary, size: 12),
-              ),
-            ),
-        ],
+        ),
       ),
     );
   }
 
-  // Modern Custom Theme Circle
-  Widget _buildCustomThemeCircle(bool isSelected) {
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedThemeIndex = _presetThemes.length;
-        });
-      },
-      child: Stack(
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [_primaryColor, _secondaryColor],
-              ),
-              boxShadow: isSelected
-                  ? [
-                      BoxShadow(
-                        color: _primaryColor.withOpacity(0.4),
-                        blurRadius: 8,
-                        spreadRadius: 2,
-                      ),
-                    ]
-                  : [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 4,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-            ),
-            child: Container(
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: isSelected ? Colors.white : Colors.transparent,
-                  width: 2,
-                ),
-              ),
-              child: const Center(
-                child: Icon(Icons.color_lens, color: Colors.white, size: 18),
-              ),
-            ),
-          ),
-          if (isSelected)
-            Positioned(
-              top: 0,
-              right: 0,
-              child: Container(
-                padding: const EdgeInsets.all(2),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black26,
-                      blurRadius: 4,
-                      spreadRadius: 1,
-                    ),
-                  ],
-                ),
-                child: Icon(Icons.check, color: _primaryColor, size: 12),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  // Modern Color Button
   Widget _buildModernColorButton(
     String label,
     Color color,
     VoidCallback onTap,
   ) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade200),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.02),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 24,
-              height: 24,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [color, color.withOpacity(0.7)],
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [color, color.withValues(alpha: 0.7)],
+                  ),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
+                  boxShadow: [
+                    BoxShadow(color: color.withValues(alpha: 0.3), blurRadius: 6),
+                  ],
                 ),
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 2),
-                boxShadow: [
-                  BoxShadow(color: color.withOpacity(0.3), blurRadius: 4),
-                ],
               ),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              label,
-              style: const TextStyle(
-                fontWeight: FontWeight.w500,
-                color: Colors.black87,
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w500,
+                    color: Colors.black87,
+                  ),
+                ),
               ),
-            ),
-            const Spacer(),
-            Icon(Icons.chevron_right, color: Colors.grey.shade400, size: 16),
-          ],
+              Icon(Icons.chevron_right, color: Colors.grey.shade400, size: 18),
+            ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildVisualSettingsSection() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return _ModernCard(
+      icon: Icons.text_format,
+      color: _primaryColor,
+      title: 'Typography',
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Row(
               children: [
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: _primaryColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(10),
+                    color: _primaryColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(
-                    Icons.text_format,
-                    color: _primaryColor,
-                    size: 20,
-                  ),
+                  child: Icon(Icons.font_download, color: _primaryColor, size: 20),
                 ),
                 const SizedBox(width: 12),
                 const Text(
-                  'Typography',
+                  'Font Family',
                   style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
                     color: Colors.black87,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 20),
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(16),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(30),
                 border: Border.all(color: Colors.grey.shade200),
               ),
-              child: Wrap(
-                alignment: WrapAlignment.spaceBetween,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                spacing: 16,
-                runSpacing: 12,
-                children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: _primaryColor.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(
-                          Icons.font_download,
-                          color: _primaryColor,
-                          size: 18,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      const Text(
-                        'Font Family',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.black87,
+              child: DropdownButton<String>(
+                value: _selectedFont,
+                underline: const SizedBox(),
+                icon: Icon(Icons.arrow_drop_down, color: _primaryColor),
+                style: const TextStyle(color: Colors.black87),
+                items:
+                    [
+                      'Roboto',
+                      'Lato',
+                      'Montserrat',
+                      'Playfair Display',
+                      'Merriweather',
+                      'Oswald',
+                      'Fira Code',
+                      'Dancing Script',
+                    ]
+                    .map(
+                      (f) => DropdownMenuItem(
+                        value: f,
+                        child: Text(
+                          f,
+                          style: GoogleFonts.getFont(f, fontSize: 13),
                         ),
                       ),
-                    ],
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.grey.shade200),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: _selectedFont,
-                        icon: Icon(Icons.arrow_drop_down, color: _primaryColor),
-                        items:
-                            [
-                                  'Lufga',
-                                  'Roboto',
-                                  'Lato',
-                                  'Montserrat',
-                                  'Playfair Display',
-                                  'Merriweather',
-                                  'Oswald',
-                                  'Fira Code',
-                                  'Dancing Script',
-                                ]
-                                .map(
-                                  (f) => DropdownMenuItem(
-                                    value: f,
-                                    child: Text(
-                                      f,
-                                      style: f == 'Lufga'
-                                          ? const TextStyle(
-                                              fontFamily: 'Lufga',
-                                              fontSize: 14,
-                                            )
-                                          : GoogleFonts.getFont(
-                                              f,
-                                              fontSize: 14,
-                                            ),
-                                    ),
-                                  ),
-                                )
-                                .toList(),
-                        onChanged: (val) {
-                          if (val != null) {
-                            setState(() {
-                              _selectedFont = val;
-                            });
-                          }
-                        },
-                      ),
-                    ),
-                  ),
-                ],
+                    )
+                    .toList(),
+                onChanged: (val) {
+                  if (val != null) setState(() => _selectedFont = val);
+                },
               ),
             ),
           ],
@@ -1103,7 +793,10 @@ class _BrandingCustomizationScreenState
     );
   }
 
-  Widget _buildPreviewSection(bool isWide) {
+  Widget _buildPreviewSection(bool isTablet) {
+    final previewWidth = isTablet ? 360.0 : 280.0;
+    final previewHeight = isTablet ? 600.0 : 500.0;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1114,8 +807,8 @@ class _BrandingCustomizationScreenState
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: _primaryColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(10),
+                  color: _primaryColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(Icons.preview, color: _primaryColor, size: 20),
               ),
@@ -1133,38 +826,30 @@ class _BrandingCustomizationScreenState
         ),
         const SizedBox(height: 16),
         Center(
-          child: Container(
-            width: 280,
-            height: 500,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            width: previewWidth,
+            height: previewHeight,
             decoration: BoxDecoration(
               color: _backgroundColor,
-              borderRadius: BorderRadius.circular(30),
+              borderRadius: BorderRadius.circular(36),
               border: Border.all(color: Colors.grey.shade300, width: 8),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.1),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10),
+                  color: Colors.black.withValues(alpha: 0.15),
+                  blurRadius: 30,
+                  offset: const Offset(0, 15),
                 ),
               ],
             ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(22),
+              borderRadius: BorderRadius.circular(28),
               child: Column(
                 children: [
-                  // Mock Status Bar
                   Container(
                     height: 44,
                     padding: const EdgeInsets.symmetric(horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: _backgroundColor,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.05),
-                          blurRadius: 5,
-                        ),
-                      ],
-                    ),
+                    color: _backgroundColor,
                     child: Row(
                       children: [
                         Text(
@@ -1177,86 +862,40 @@ class _BrandingCustomizationScreenState
                           ),
                         ),
                         const Spacer(),
-                        Icon(
-                          Icons.signal_cellular_alt,
-                          size: 16,
-                          color: _backgroundColor.computeLuminance() < 0.5
-                              ? Colors.white70
-                              : Colors.black54,
-                        ),
+                        Icon(Icons.signal_cellular_alt,
+                            size: 14,
+                            color: _backgroundColor.computeLuminance() < 0.5
+                                ? Colors.white70
+                                : Colors.black54),
                         const SizedBox(width: 4),
-                        Icon(
-                          Icons.wifi,
-                          size: 16,
-                          color: _backgroundColor.computeLuminance() < 0.5
-                              ? Colors.white70
-                              : Colors.black54,
-                        ),
+                        Icon(Icons.wifi,
+                            size: 14,
+                            color: _backgroundColor.computeLuminance() < 0.5
+                                ? Colors.white70
+                                : Colors.black54),
                         const SizedBox(width: 4),
-                        Icon(
-                          Icons.battery_full,
-                          size: 16,
-                          color: _backgroundColor.computeLuminance() < 0.5
-                              ? Colors.white70
-                              : Colors.black54,
-                        ),
+                        Icon(Icons.battery_full,
+                            size: 14,
+                            color: _backgroundColor.computeLuminance() < 0.5
+                                ? Colors.white70
+                                : Colors.black54),
                       ],
                     ),
                   ),
-                  // Mock App Bar
                   Container(
                     height: 60,
                     padding: const EdgeInsets.symmetric(horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: _backgroundColor,
-                      border: Border(
-                        bottom: BorderSide(
-                          color: Colors.grey.withOpacity(0.1),
-                          width: 1,
-                        ),
-                      ),
-                    ),
+                    color: _backgroundColor,
                     child: Row(
                       children: [
                         _logoFile != null
-                            ? Container(
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: Colors.grey.withOpacity(0.2),
-                                    width: 1,
-                                  ),
-                                ),
-                                child: ClipOval(
-                                  child: Image.file(
-                                    _logoFile!,
-                                    height: 30,
-                                    width: 30,
-                                    fit: BoxFit.cover,
-                                  ),
-                                ),
-                              )
+                            ? Image.file(_logoFile!, height: 32, width: 32)
                             : _existingLogoUrl != null
-                            ? Container(
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: Colors.grey.withOpacity(0.2),
-                                    width: 1,
-                                  ),
-                                ),
-                                child: ClipOval(
-                                  child: Image.network(
-                                    _existingLogoUrl!,
-                                    height: 30,
-                                    width: 30,
-                                    fit: BoxFit.cover,
-                                  ),
-                                ),
-                              )
+                            ? Image.network(_existingLogoUrl!,
+                                height: 32, width: 32)
                             : Container(
-                                width: 30,
-                                height: 30,
+                                width: 32,
+                                height: 32,
                                 decoration: BoxDecoration(
                                   color: _primaryColor,
                                   borderRadius: BorderRadius.circular(8),
@@ -1265,7 +904,7 @@ class _BrandingCustomizationScreenState
                                   child: Text(
                                     _appNameController.text.isNotEmpty
                                         ? _appNameController.text[0]
-                                              .toUpperCase()
+                                            .toUpperCase()
                                         : 'A',
                                     style: const TextStyle(
                                       color: Colors.white,
@@ -1275,74 +914,56 @@ class _BrandingCustomizationScreenState
                                   ),
                                 ),
                               ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 10),
                         Expanded(
                           child: Text(
                             _appNameController.text.isEmpty
                                 ? 'App Name'
                                 : _appNameController.text,
-                            style: _selectedFont == 'Lufga'
-                                ? TextStyle(
-                                    fontFamily: 'Lufga',
-                                    color:
-                                        _backgroundColor.computeLuminance() <
-                                            0.5
-                                        ? Colors.white
-                                        : Colors.black87,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 16,
-                                  )
-                                : GoogleFonts.getFont(
-                                    _selectedFont,
-                                    color:
-                                        _backgroundColor.computeLuminance() <
-                                            0.5
-                                        ? Colors.white
-                                        : Colors.black87,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 16,
-                                  ),
+                            style: GoogleFonts.getFont(
+                              _selectedFont,
+                              color: _backgroundColor.computeLuminance() < 0.5
+                                  ? Colors.white
+                                  : Colors.black87,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 15,
+                            ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        Icon(
-                          Icons.notifications_none,
-                          color: _backgroundColor.computeLuminance() < 0.5
-                              ? Colors.white70
-                              : Colors.black54,
-                        ),
+                        Icon(Icons.notifications_none,
+                            color: _backgroundColor.computeLuminance() < 0.5
+                                ? Colors.white70
+                                : Colors.black54),
                       ],
                     ),
                   ),
                   Expanded(
                     child: Padding(
-                      padding: const EdgeInsets.all(16.0),
+                      padding: const EdgeInsets.all(16),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Container(
-                            height: 100,
+                            height: 90,
                             width: double.infinity,
                             decoration: BoxDecoration(
                               gradient: LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
                                 colors: [_primaryColor, _secondaryColor],
                               ),
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius: BorderRadius.circular(20),
                               boxShadow: [
                                 BoxShadow(
-                                  color: _primaryColor.withOpacity(0.3),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 4),
+                                  color: _primaryColor.withValues(alpha: 0.3),
+                                  blurRadius: 12,
                                 ),
                               ],
                             ),
-                            child: Center(
+                            child: const Center(
                               child: Text(
                                 'Feature Card',
-                                style: const TextStyle(
+                                style: TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -1353,17 +974,14 @@ class _BrandingCustomizationScreenState
                           Row(
                             children: [
                               Container(
-                                width: 48,
-                                height: 48,
+                                width: 44,
+                                height: 44,
                                 decoration: BoxDecoration(
-                                  color: _secondaryColor.withOpacity(0.2),
+                                  color: _secondaryColor.withValues(alpha: 0.2),
                                   shape: BoxShape.circle,
                                 ),
                                 child: Center(
-                                  child: Icon(
-                                    Icons.person,
-                                    color: _secondaryColor,
-                                  ),
+                                  child: Icon(Icons.person, color: _secondaryColor),
                                 ),
                               ),
                               const SizedBox(width: 12),
@@ -1378,37 +996,24 @@ class _BrandingCustomizationScreenState
                                         fontSize: 14,
                                         fontWeight: FontWeight.bold,
                                         color:
-                                            _backgroundColor
-                                                    .computeLuminance() <
-                                                0.5
-                                            ? Colors.white
-                                            : Colors.black87,
+                                            _backgroundColor.computeLuminance() <
+                                                    0.5
+                                                ? Colors.white
+                                                : Colors.black87,
                                       ),
                                     ),
                                     const SizedBox(height: 2),
                                     Text(
                                       'Premium Member',
-                                      style: _selectedFont == 'Lufga'
-                                          ? TextStyle(
-                                              fontFamily: 'Lufga',
-                                              fontSize: 12,
-                                              color:
-                                                  _backgroundColor
-                                                          .computeLuminance() <
-                                                      0.5
-                                                  ? Colors.grey.shade400
-                                                  : Colors.grey.shade600,
-                                            )
-                                          : GoogleFonts.getFont(
-                                              _selectedFont,
-                                              fontSize: 12,
-                                              color:
-                                                  _backgroundColor
-                                                          .computeLuminance() <
-                                                      0.5
-                                                  ? Colors.grey.shade400
-                                                  : Colors.grey.shade600,
-                                            ),
+                                      style: GoogleFonts.getFont(
+                                        _selectedFont,
+                                        fontSize: 12,
+                                        color:
+                                            _backgroundColor.computeLuminance() <
+                                                    0.5
+                                                ? Colors.grey.shade400
+                                                : Colors.grey.shade600,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -1419,32 +1024,17 @@ class _BrandingCustomizationScreenState
                       ),
                     ),
                   ),
-                  // Mock Tab Bar
                   Container(
                     height: 50,
-                    decoration: BoxDecoration(
-                      color: _backgroundColor,
-                      borderRadius: const BorderRadius.only(
-                        bottomLeft: Radius.circular(17),
-                        bottomRight: Radius.circular(17),
-                      ),
-                      border: Border(
-                        top: BorderSide(
-                          color: Colors.grey.withOpacity(0.2),
-                          width: 1,
-                        ),
-                      ),
-                    ),
+                    color: _backgroundColor,
                   ),
-                  // Mock Bottom Navigation
                   Container(
                     height: 60,
                     decoration: BoxDecoration(
                       color: _backgroundColor,
                       border: Border(
                         top: BorderSide(
-                          color: Colors.grey.withOpacity(0.1),
-                          width: 1,
+                          color: Colors.grey.withValues(alpha: 0.2),
                         ),
                       ),
                     ),
@@ -1453,10 +1043,7 @@ class _BrandingCustomizationScreenState
                       children: [
                         Icon(Icons.home, color: _primaryColor),
                         Icon(Icons.search, color: Colors.grey.shade400),
-                        Icon(
-                          Icons.favorite_border,
-                          color: Colors.grey.shade400,
-                        ),
+                        Icon(Icons.favorite_border, color: Colors.grey.shade400),
                         Icon(Icons.person_outline, color: Colors.grey.shade400),
                       ],
                     ),
@@ -1473,19 +1060,24 @@ class _BrandingCustomizationScreenState
   String _generateReferralCode() {
     final random = Random();
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    return List.generate(
-      6,
-      (index) => chars[random.nextInt(chars.length)],
-    ).join();
+    return List.generate(6, (index) => chars[random.nextInt(chars.length)]).join();
   }
 
   Widget _buildContinueButton() {
-    return SizedBox(
+    return Container(
       width: double.infinity,
-      height: 60,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       child: ElevatedButton(
         onPressed: () async {
-          // Show loading dialog
           showDialog(
             context: context,
             barrierDismissible: false,
@@ -1501,7 +1093,6 @@ class _BrandingCustomizationScreenState
                     widget.isEditMode
                         ? 'Updating profile...'
                         : 'Finalizing subscription...',
-                    style: const TextStyle(color: Colors.black87),
                   ),
                 ],
               ),
@@ -1509,7 +1100,6 @@ class _BrandingCustomizationScreenState
           );
 
           try {
-            // Prepare branding data
             final brandingData = {
               'appName': _appNameController.text,
               'primaryColor': _primaryColor.toARGB32(),
@@ -1520,45 +1110,57 @@ class _BrandingCustomizationScreenState
               'databaseName': ThemeService.instance.databaseName,
             };
 
-            // Use real auth uid if available
-            final uid =
-                AuthStateService.instance.currentUser?.uid ?? 'demo-user';
+            String? uid = AuthStateService.instance.currentUser?.uid;
 
-            debugPrint(
-              'BrandingCustomizationScreen: uid=$uid, appName=${_appNameController.text}',
-            );
-            debugPrint(
-              'BrandingCustomizationScreen: logoFile=${_logoFile?.path}',
-            );
+            if (widget.pendingUserData != null && uid == null) {
+              final name = widget.pendingUserData!['name'] as String;
+              final email = widget.pendingUserData!['email'] as String;
+              final password = widget.pendingUserData!['password'] as String;
+              final role = widget.pendingUserData!['role'] as String;
 
-            // Upload logo if a new file was picked
-            if (_logoFile != null) {
-              debugPrint(
-                'BrandingCustomizationScreen: Starting logo upload...',
+              final additionalData =
+                  Map<String, dynamic>.from(widget.pendingUserData!)
+                    ..remove('name')
+                    ..remove('email')
+                    ..remove('password')
+                    ..remove('role')
+                    ..remove('tenantId');
+
+              final result = await AuthStateService.instance.registerUser(
+                name: name,
+                email: email,
+                password: password,
+                role: role,
+                additionalData: additionalData.isNotEmpty ? additionalData : null,
               );
+              if (result['success']) {
+                uid = result['uid'];
+              } else {
+                throw Exception(result['message'] ?? 'Failed to create account');
+              }
+            }
+
+            uid ??= AuthStateService.instance.currentUser?.uid ?? 'demo-user';
+
+            if (_logoFile != null) {
               final logoUrl = await StorageService.instance.uploadLogo(
                 userId: uid,
                 file: _logoFile!,
               );
-              if (logoUrl != null) {
-                brandingData['logoUrl'] = logoUrl;
-              }
+              if (logoUrl != null) brandingData['logoUrl'] = logoUrl;
             } else if (_existingLogoUrl != null) {
-              // Keep existing logo URL if no new file was picked
               brandingData['logoUrl'] = _existingLogoUrl!;
             }
 
-            if (widget.isEditMode) {
-              // --- Edit Mode: Only update branding data ---
+            final tenantId = ThemeService.instance.databaseName;
 
-              // Save to App-Specific Collection
+            if (widget.isEditMode) {
               await FirestoreService.instance.saveAppBranding(
-                tenantId: ThemeService.instance.databaseName,
+                tenantId: tenantId,
                 appId: 'data',
                 brandingData: brandingData,
               );
 
-              // Update App Theme
               ThemeService.instance.updateTheme(
                 primary: _primaryColor,
                 secondary: _secondaryColor,
@@ -1566,87 +1168,33 @@ class _BrandingCustomizationScreenState
                 isDarkMode: _useDarkMode,
                 fontFamily: _selectedFont,
                 appName: _appNameController.text,
-                databaseName: ThemeService.instance.databaseName,
+                databaseName: tenantId,
                 logoUrl: brandingData['logoUrl'] as String?,
               );
 
-              if (!mounted) return;
-              Navigator.pop(context); // Close loading
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setBool('branding_completed', true);
 
+              if (!mounted) return;
+              Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: const Text('Profile updated successfully!'),
                   behavior: SnackBarBehavior.floating,
                   backgroundColor: _primaryColor,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
                 ),
               );
-
-              // Use pushReplacement to force a full rebuild of the dashboard
-              // with the updated branding colors and app name
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(builder: (_) => const admindashboard()),
               );
             } else {
-              // --- First-time Setup Mode ---
-
-              // Generate Referral Code
-              final referralCode = _generateReferralCode();
-              brandingData['referralCode'] = referralCode;
-
-              // 1. Save to App-Specific Collection ('data' as stable ID)
               await FirestoreService.instance.saveAppBranding(
-                tenantId: ThemeService.instance.databaseName,
+                tenantId: tenantId,
                 appId: 'data',
                 brandingData: brandingData,
               );
 
-              // 2. Save Referral Code Mapping
-              await FirestoreService.instance.saveReferralCode(
-                code: referralCode,
-                tenantId: ThemeService.instance.databaseName,
-                appId: 'data',
-                adminUid: uid,
-              );
-
-              // 3. Save Full Subscription with Branding (linked to user)
-              await FirestoreService.instance.upsertSubscription(
-                uid: uid,
-                tenantId: ThemeService.instance.databaseName,
-                appId: 'data',
-                planName: widget.planName!,
-                isYearly: widget.isYearly!,
-                isSixMonths: widget.isSixMonths ?? false,
-                price: widget.price!,
-                originalPrice: widget.originalPrice,
-                paymentMethod: widget.paymentMethod!,
-                brandingData: brandingData,
-                limits: widget.limits,
-                geoLocation: widget.geoLocation,
-                attendance: widget.attendance,
-                barcode: widget.barcode,
-                reportExport: widget.reportExport,
-              );
-
-              // 4. Update Global User Directory (Link Admin to this App)
-              await FirestoreService.instance.saveUserDirectory(
-                uid: uid,
-                tenantId: ThemeService.instance.databaseName,
-                role: 'admin',
-                appName: _appNameController.text,
-              );
-
-              // 5. Activate the user after successful subscription
-              await FirestoreService.instance.setUserActiveStatus(
-                uid: uid,
-                tenantId: ThemeService.instance.databaseName,
-                active: true,
-              );
-
-              // Update App Theme
               ThemeService.instance.updateTheme(
                 primary: _primaryColor,
                 secondary: _secondaryColor,
@@ -1654,14 +1202,77 @@ class _BrandingCustomizationScreenState
                 isDarkMode: _useDarkMode,
                 fontFamily: _selectedFont,
                 appName: _appNameController.text,
-                databaseName: ThemeService.instance.databaseName,
+                databaseName: tenantId,
                 logoUrl: brandingData['logoUrl'] as String?,
               );
 
-              if (!mounted) return;
-              Navigator.pop(context); // Close loading
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setBool('branding_completed', true);
 
-              // Show Success Dialog with Referral Code
+              final referralCode = _generateReferralCode();
+              brandingData['referralCode'] = referralCode;
+
+              try {
+                await FirestoreService.instance.saveReferralCode(
+                  code: referralCode,
+                  tenantId: tenantId,
+                  appId: 'data',
+                  adminUid: uid,
+                );
+              } catch (e) {
+                debugPrint('Referral save failed: $e');
+              }
+
+              try {
+                if (_hasValidSubscriptionPayload) {
+                  await FirestoreService.instance.upsertSubscription(
+                    uid: uid,
+                    tenantId: tenantId,
+                    appId: 'data',
+                    planName: widget.planName!.trim(),
+                    isYearly: widget.isYearly ?? false,
+                    isSixMonths: widget.isSixMonths ?? false,
+                    price: widget.price!,
+                    originalPrice: widget.originalPrice,
+                    paymentMethod: widget.paymentMethod!.trim(),
+                    status: 'active',
+                    gstNumber: widget.pendingUserData?['gstNumber'],
+                    brandingData: brandingData,
+                    limits: widget.limits,
+                    geoLocation: widget.geoLocation,
+                    attendance: widget.attendance,
+                    barcode: widget.barcode,
+                    reportExport: widget.reportExport,
+                  );
+                }
+              } catch (e) {
+                debugPrint('Subscription upsert failed: $e');
+              }
+
+              try {
+                await FirestoreService.instance.saveUserDirectory(
+                  uid: uid,
+                  tenantId: tenantId,
+                  role: 'admin',
+                  appName: _appNameController.text,
+                );
+              } catch (e) {
+                debugPrint('User directory save failed: $e');
+              }
+
+              try {
+                await FirestoreService.instance.setUserActiveStatus(
+                  uid: uid,
+                  tenantId: tenantId,
+                  active: true,
+                );
+              } catch (e) {
+                debugPrint('Set active status failed: $e');
+              }
+
+              if (!mounted) return;
+              Navigator.pop(context);
+
               await showDialog(
                 context: context,
                 barrierDismissible: false,
@@ -1682,7 +1293,7 @@ class _BrandingCustomizationScreenState
                         ),
                         decoration: BoxDecoration(
                           color: Colors.grey[100],
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(12),
                           border: Border.all(color: Colors.grey[300]!),
                         ),
                         child: Text(
@@ -1704,17 +1315,13 @@ class _BrandingCustomizationScreenState
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.pop(context),
-                      child: Text(
-                        'Let\'s Go',
-                        style: TextStyle(color: _primaryColor),
-                      ),
+                      child: Text('Let\'s Go', style: TextStyle(color: _primaryColor)),
                     ),
                   ],
                 ),
               );
 
               if (!mounted) return;
-              // Navigate directly to Admin Dashboard
               Navigator.pushAndRemoveUntil(
                 context,
                 MaterialPageRoute(builder: (_) => const admindashboard()),
@@ -1722,16 +1329,15 @@ class _BrandingCustomizationScreenState
               );
             }
           } catch (e) {
+            debugPrint('ERROR: $e');
             if (mounted) {
-              Navigator.pop(context); // Close loading
+              Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('Error saving preferences: $e'),
+                  content: Text('Error: $e'),
                   behavior: SnackBarBehavior.floating,
                   backgroundColor: Colors.red,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
+                  duration: const Duration(seconds: 8),
                 ),
               );
             }
@@ -1741,8 +1347,9 @@ class _BrandingCustomizationScreenState
           backgroundColor: Colors.black,
           foregroundColor: Colors.white,
           elevation: 0,
+          padding: const EdgeInsets.symmetric(vertical: 16),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(24),
           ),
         ),
         child: Text(
@@ -1750,7 +1357,7 @@ class _BrandingCustomizationScreenState
           style: const TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
-            letterSpacing: 0.5,
+            letterSpacing: 0.3,
           ),
         ),
       ),
@@ -1758,58 +1365,149 @@ class _BrandingCustomizationScreenState
   }
 }
 
-class ThemeCirclePainter extends CustomPainter {
-  final Color primary;
-  final Color secondary;
-  final Color tertiary;
+class CustomLogoCropperScreen extends StatefulWidget {
+  final File imageFile;
+  final Color primaryColor;
 
-  ThemeCirclePainter({
-    required this.primary,
-    required this.secondary,
-    required this.tertiary,
+  const CustomLogoCropperScreen({
+    Key? key,
+    required this.imageFile,
+    required this.primaryColor,
+  }) : super(key: key);
+
+  @override
+  State<CustomLogoCropperScreen> createState() => _CustomLogoCropperScreenState();
+}
+
+class _CustomLogoCropperScreenState extends State<CustomLogoCropperScreen> {
+  final controller = CropController(
+    aspectRatio: 1.0,
+    defaultCrop: const Rect.fromLTRB(0.05, 0.05, 0.95, 0.95),
+  );
+
+  bool _isSaving = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        title: const Text('Crop Logo', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.white,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.black87),
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: CropImage(
+              controller: controller,
+              image: Image.file(widget.imageFile),
+              paddingSize: 25.0,
+              alwaysMove: true,
+            ),
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: widget.primaryColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  onPressed: _isSaving ? null : () async {
+                    setState(() => _isSaving = true);
+                    try {
+                      final img = await controller.croppedBitmap();
+                      final data = await img.toByteData(format: ImageByteFormat.png);
+                      final bytes = data!.buffer.asUint8List();
+                      final tempDir = Directory.systemTemp;
+                      final file = await File('${tempDir.path}/cropped_logo_${DateTime.now().millisecondsSinceEpoch}.png').create();
+                      await file.writeAsBytes(bytes);
+                      if (!mounted) return;
+                      Navigator.pop(context, file);
+                    } catch (e) {
+                      debugPrint('Crop error: $e');
+                      if (mounted) Navigator.pop(context, null);
+                    }
+                  },
+                  child: _isSaving
+                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : const Text('Save', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ),
+          )
+        ],
+      ),
+    );
+  }
+}
+
+class _ModernCard extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String title;
+  final Widget child;
+
+  const _ModernCard({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.child,
   });
 
   @override
-  void paint(Canvas canvas, Size size) {
-    final rect = Rect.fromLTWH(0, 0, size.width, size.height);
-    final paint = Paint()..style = PaintingStyle.fill;
-
-    // 1. Draw Top Half (Primary)
-    paint.color = primary;
-    canvas.drawArc(rect, -3.14159, 3.14159, true, paint);
-
-    // 2. Draw Bottom Left (Secondary)
-    paint.color = secondary;
-    canvas.drawArc(
-      rect,
-      1.5708,
-      1.5708,
-      true,
-      paint,
-    ); // 90 to 180 degrees ? Wait.
-    // Arc starts from positive X axis (0).
-    // Top half is -PI to 0. (from left to right top)
-    // Actually, drawArc(rect, startAngle, sweepAngle, useCenter, paint)
-    // -PI is 180 deg (left). sweep PI (180). This draws Top Half. Correct.
-
-    // Bottom Left:
-    // Angle from PI (180 or -180) to PI/2 (90).
-    // Let's use 0 to PI (bottom half).
-    // Bottom Left is 90 deg to 180 deg?
-    // 0 is Right. PI/2 is Bottom. PI is Left.
-    // So Bottom Left is from PI/2 to PI.
-    // Bottom Right is from 0 to PI/2.
-
-    // Bottom Left Implementation:
-    paint.color = secondary;
-    canvas.drawArc(rect, 1.5708, 1.5708, true, paint); // PI/2 to PI?
-    // sweep 1.57 is 90 deg. Start at 1.57 (90 deg). YES.
-
-    // 3. Draw Bottom Right (Tertiary/Grey)
-    paint.color = tertiary;
-    canvas.drawArc(rect, 0, 1.5708, true, paint); // 0 to 90 deg.
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 20,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(icon, color: color, size: 22),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black87,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            child,
+          ],
+        ),
+      ),
+    );
   }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

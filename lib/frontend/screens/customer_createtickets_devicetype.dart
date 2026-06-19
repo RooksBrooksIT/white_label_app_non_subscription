@@ -4,6 +4,7 @@ import 'package:subscription_rooks_app/frontend/screens/customer_home_page.dart'
 import 'package:subscription_rooks_app/utils/responsive_helper.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class Device {
   final String id;
@@ -44,7 +45,7 @@ class Device {
       iconData: data['icon']?.toString() ?? 'devices',
       color: parseColor(
         data['color'] ??
-            ThemeService.instance.primaryColor.value
+            ThemeService.instance.primaryColor.toARGB32()
                 .toRadixString(16)
                 .padLeft(8, '0'),
       ),
@@ -198,27 +199,22 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
         children: [
-          // Modern App Bar
           Container(
             decoration: BoxDecoration(
               color: Theme.of(context).primaryColor,
-              borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(24),
-                bottomRight: Radius.circular(24),
-              ),
               boxShadow: [
                 BoxShadow(
-                  color: Theme.of(context).primaryColor.withOpacity(0.2),
+                  color: Theme.of(context).primaryColor.withValues(alpha: 0.2),
                   blurRadius: 16,
                   offset: const Offset(0, 4),
                 ),
               ],
             ),
             padding: EdgeInsets.only(
-              top: ResponsiveHelper.getResponsiveHeight(6.5),
-              bottom: ResponsiveHelper.getResponsiveHeight(3),
-              left: ResponsiveHelper.getResponsiveWidth(5),
-              right: ResponsiveHelper.getResponsiveWidth(5),
+              top: MediaQuery.of(context).padding.top + 20,
+              bottom: 20,
+              left: context.responsiveHPadding > 24 ? context.responsiveHPadding : 24,
+              right: context.responsiveHPadding > 24 ? context.responsiveHPadding : 24,
             ),
             child: Row(
               children: [
@@ -231,15 +227,15 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                       });
                     },
                     icon: Container(
-                      width: ResponsiveHelper.getResponsiveWidth(9),
-                      height: ResponsiveHelper.getResponsiveWidth(9),
+                      width: 40,
+                      height: 40,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.15),
+                        color: Colors.white.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Icon(
+                      child: const Icon(
                         Icons.arrow_back_ios_new_rounded,
-                        size: ResponsiveHelper.getResponsiveWidth(4.5),
+                        size: 18,
                         color: Colors.white,
                       ),
                     ),
@@ -267,7 +263,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                             : 'What service do you need today?',
                         style: TextStyle(
                           fontSize: 14,
-                          color: Colors.white.withOpacity(0.8),
+                          color: Colors.white.withValues(alpha: 0.8),
                           fontWeight: FontWeight.w400,
                           fontFamily: 'Inter',
                         ),
@@ -276,30 +272,38 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                   ),
                 ),
                 Container(
-                  width: ResponsiveHelper.getResponsiveWidth(11),
-                  height: ResponsiveHelper.getResponsiveWidth(11),
+                  width: 44,
+                  height: 44,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.15),
+                    color: Colors.white.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(
+                  child: const Icon(
                     Icons.person_rounded,
                     color: Colors.white,
-                    size: ResponsiveHelper.getResponsiveWidth(5),
+                    size: 20,
                   ),
                 ),
               ],
             ),
           ),
-
           Expanded(
             child: SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
-              child: Padding(
-                padding: EdgeInsets.all(ResponsiveHelper.getResponsiveWidth(5)),
-                child: !showDeviceSelection
-                    ? _buildServiceSelection()
-                    : _buildDeviceSelection(),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: kMaxContentWidth),
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: context.responsiveHPadding),
+                    child: ResponsiveWrapper(
+                      maxWidth: 960.0,
+                      padding: EdgeInsets.all(ResponsiveHelper.getResponsiveWidth(5)),
+                      child: !showDeviceSelection
+                          ? _buildServiceSelection()
+                          : _buildDeviceSelection(),
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
@@ -333,7 +337,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
             color:
                 Theme.of(
                   context,
-                ).textTheme.bodyMedium?.color?.withOpacity(0.7) ??
+                ).textTheme.bodyMedium?.color?.withValues(alpha: 0.7) ??
                 const Color(0xFF64748B),
             fontWeight: FontWeight.w400,
             fontFamily: 'Inter',
@@ -397,12 +401,12 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
               end: Alignment.bottomRight,
               colors: [
                 Theme.of(context).primaryColor,
-                Theme.of(context).primaryColor.withOpacity(0.8),
+                Theme.of(context).primaryColor.withValues(alpha: 0.8),
               ],
             ),
             boxShadow: [
               BoxShadow(
-                color: Theme.of(context).primaryColor.withOpacity(0.2),
+                color: Theme.of(context).primaryColor.withValues(alpha: 0.2),
                 blurRadius: 12,
                 offset: const Offset(0, 4),
               ),
@@ -415,7 +419,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.15),
+                  color: Colors.white.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(
@@ -443,7 +447,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                       'Certified technicians • 90-day warranty • Same-day service',
                       style: TextStyle(
                         fontSize: 13,
-                        color: Colors.white.withOpacity(0.8),
+                        color: Colors.white.withValues(alpha: 0.8),
                         fontFamily: 'Inter',
                       ),
                     ),
@@ -476,7 +480,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: Theme.of(context).primaryColor.withOpacity(0.1),
+                  color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
@@ -553,7 +557,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                   width: 64,
                   height: 64,
                   decoration: BoxDecoration(
-                    color: Theme.of(context).primaryColor.withOpacity(0.1),
+                    color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: CircularProgressIndicator(
@@ -598,7 +602,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha: 0.05),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
@@ -611,7 +615,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                      color: Theme.of(context).primaryColor.withOpacity(0.1),
+                      color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(
@@ -652,7 +656,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF10B981).withOpacity(0.1),
+                        color: const Color(0xFF10B981).withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: const Text(
@@ -715,7 +719,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                     duration: const Duration(milliseconds: 200),
                     decoration: BoxDecoration(
                       color: isOtherSelected
-                          ? Theme.of(context).primaryColor.withOpacity(0.1)
+                          ? Theme.of(context).primaryColor.withValues(alpha: 0.1)
                           : Theme.of(context).cardColor,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
@@ -726,8 +730,8 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(
-                            isOtherSelected ? 0.1 : 0.05,
+                          color: Colors.black.withValues(
+                            alpha: isOtherSelected ? 0.1 : 0.05,
                           ),
                           blurRadius: 8,
                           offset: const Offset(0, 2),
@@ -735,45 +739,37 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                       ],
                     ),
                     child: Padding(
-                      padding: EdgeInsets.all(
-                        ResponsiveHelper.getResponsiveWidth(3),
-                      ),
+                      padding: const EdgeInsets.all(12),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Container(
-                            width: ResponsiveHelper.getResponsiveWidth(9),
-                            height: ResponsiveHelper.getResponsiveWidth(9),
+                            width: 36,
+                            height: 36,
                             decoration: BoxDecoration(
                               color: isOtherSelected
                                   ? Theme.of(context).primaryColor
                                   : Colors.grey.shade100,
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(10),
                             ),
                             child: Icon(
                               Icons.add_rounded,
-                              size: ResponsiveHelper.getResponsiveWidth(5),
+                              size: 20,
                               color: isOtherSelected
                                   ? Colors.white
                                   : Colors.grey.shade600,
                             ),
                           ),
-                          SizedBox(
-                            height: ResponsiveHelper.getResponsiveHeight(1.5),
-                          ),
+                          const SizedBox(height: 8),
                           Text(
                             'Other',
                             style: TextStyle(
-                              fontSize: ResponsiveHelper.getResponsiveFontSize(
-                                13,
-                              ),
-                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
                               color: isOtherSelected
                                   ? Theme.of(context).primaryColor
-                                  : Theme.of(
-                                          context,
-                                        ).textTheme.bodyMedium?.color ??
-                                        const Color(0xFF1E293B),
+                                  : (Theme.of(context).textTheme.bodyMedium?.color ??
+                                      const Color(0xFF1E293B)),
                               fontFamily: 'Inter',
                             ),
                           ),
@@ -795,7 +791,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
+                      color: Colors.black.withValues(alpha: 0.05),
                       blurRadius: 8,
                       offset: const Offset(0, 2),
                     ),
@@ -813,7 +809,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                           decoration: BoxDecoration(
                             color: Theme.of(
                               context,
-                            ).primaryColor.withOpacity(0.1),
+                            ).primaryColor.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Icon(
@@ -903,12 +899,22 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                   );
                 },
                 style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 56),
+                  // responsive width: up to 400px, otherwise 80% of screen width
+                  minimumSize: Size(
+                    MediaQuery.of(context).size.width * 0.8 > 400
+                        ? 400
+                        : MediaQuery.of(context).size.width * 0.8,
+                    ResponsiveHelper.getResponsiveHeight(5),
+                  ),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: ResponsiveHelper.getResponsiveWidth(5),
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
                   backgroundColor: Theme.of(context).primaryColor,
                   foregroundColor: Colors.white,
+                  elevation: 2,
                 ),
                 child: const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -924,6 +930,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                     Icon(Icons.arrow_forward_rounded, size: 20),
                   ],
                 ),
+
               ),
           ],
         );
@@ -941,7 +948,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         decoration: BoxDecoration(
-          color: isSelected ? device.color.withOpacity(0.1) : Colors.white,
+          color: isSelected ? device.color.withValues(alpha: 0.1) : Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isSelected ? device.color : Colors.grey.shade200,
@@ -949,7 +956,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(isSelected ? 0.1 : 0.05),
+              color: Colors.black.withValues(alpha: isSelected ? 0.1 : 0.05),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -965,7 +972,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                 height: 36,
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: device.color.withOpacity(0.1),
+                  color: device.color.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(device.icon, size: 20, color: device.color),
@@ -994,7 +1001,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                     fontSize: 10,
                     fontWeight: FontWeight.w500,
                     color: (isSelected ? device.color : Colors.grey.shade500)
-                        .withOpacity(0.8),
+                        .withValues(alpha: 0.8),
                     fontFamily: 'Inter',
                   ),
                 ),
@@ -1036,7 +1043,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                 width: 64,
                 height: 64,
                 decoration: BoxDecoration(
-                  color: Theme.of(context).primaryColor.withOpacity(0.1),
+                  color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Icon(

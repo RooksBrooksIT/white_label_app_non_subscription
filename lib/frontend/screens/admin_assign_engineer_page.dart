@@ -3,6 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/frontend/screens/assign_confirmation_page.dart';
 import 'package:subscription_rooks_app/frontend/screens/customer_var_data_screen.dart';
+import 'package:subscription_rooks_app/services/notification_service.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class AssignEngineerPage extends StatefulWidget {
   final Customer customer;
@@ -43,74 +45,77 @@ class _AssignEngineerPageState extends State<AssignEngineerPage> {
         ),
         backgroundColor: Theme.of(context).primaryColor,
       ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  ElevatedButton(
-                    onPressed: () {
-                      setState(() {
-                        _isEngineerSelected = true;
-                        _showHelperInputs = false;
-                        _selectedHelper = null;
-                        _reasonController.clear();
-                        addedHelpers.clear();
-                      });
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _isEngineerSelected
-                          ? Theme.of(context).primaryColor
-                          : Theme.of(context).disabledColor,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30),
+      body: ResponsiveWrapper(
+        maxWidth: kMaxContentWidth,
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    ElevatedButton(
+                      onPressed: () {
+                        setState(() {
+                          _isEngineerSelected = true;
+                          _showHelperInputs = false;
+                          _selectedHelper = null;
+                          _reasonController.clear();
+                          addedHelpers.clear();
+                        });
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _isEngineerSelected
+                            ? Theme.of(context).primaryColor
+                            : Theme.of(context).disabledColor,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                      ),
+                      child: const Text(
+                        'Engineer',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
-                    child: const Text(
-                      'Engineer',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                    const SizedBox(width: 20),
+                    ElevatedButton(
+                      onPressed: () {
+                        setState(() {
+                          _isEngineerSelected = false;
+                          _showHelperInputs = true;
+                          _selectedHelper = null;
+                          _reasonController.clear();
+                          addedHelpers.clear();
+                        });
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: !_isEngineerSelected
+                            ? Theme.of(context).primaryColor
+                            : Theme.of(context).disabledColor,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                      ),
+                      child: const Text(
+                        'Helper',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 20),
-                  ElevatedButton(
-                    onPressed: () {
-                      setState(() {
-                        _isEngineerSelected = false;
-                        _showHelperInputs = true;
-                        _selectedHelper = null;
-                        _reasonController.clear();
-                        addedHelpers.clear();
-                      });
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: !_isEngineerSelected
-                          ? Theme.of(context).primaryColor
-                          : Theme.of(context).disabledColor,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                    ),
-                    child: const Text(
-                      'Helper',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              _isEngineerSelected ? _buildEngineerView() : _buildHelperView(),
-            ],
+                  ],
+                ),
+                const SizedBox(height: 20),
+                _isEngineerSelected ? _buildEngineerView() : _buildHelperView(),
+              ],
+            ),
           ),
         ),
       ),
@@ -591,25 +596,15 @@ class _AssignEngineerPageState extends State<AssignEngineerPage> {
       // Also write an in-app notification document so engineers
       // currently online in the app will receive an immediate dialog
       // via the EngineerPage's notifications listener.
-      try {
-        // Create a notification document targeted specifically to engineers.
-        // Avoid adding a top-level `customerName` field so customer listeners
-        // (which filter by customerName) do not pick up engineer notifications.
-        await FirestoreService.instance.collection('notifications').add({
-          'engineerName': engineerName,
-          'type': 'new_assignment',
-          'bookingId': widget.customer.bookingId,
-          'body': 'You have been assigned a new task: ${widget.customer.bookingId}',
-          'audience': 'engineer',
-          'timestamp': FieldValue.serverTimestamp(),
-          'processed': false,
-          'status': 'pending',
-          'customerName': widget.customer.customerName,
-        });
-      } catch (e) {
-        // non-fatal - assignment already persisted; log for debugging
-        print('Failed to write notification doc: $e');
-      }
+      await NotificationService.sendNotificationToFirestore(
+        audience: 'engineer',
+        engineerName: engineerName,
+        type: 'new_assignment',
+        bookingId: widget.customer.bookingId,
+        body: 'You have been assigned a new task: ${widget.customer.bookingId}',
+        customerName: widget.customer.customerName,
+        additionalData: {'processed': false, 'status': 'pending'}, title: '',
+      );
 
       if (mounted) {
         setState(() => _isAssigning = false);

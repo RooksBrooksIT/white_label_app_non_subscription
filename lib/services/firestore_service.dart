@@ -8,6 +8,17 @@ class FirestoreService {
 
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
+  /// Generates a consistent tenant ID based on organization name and current date.
+  /// Format: {CleanName}_YYYYMMDD
+  static String generateTenantId(String name) {
+    final now = DateTime.now();
+    final dateStr =
+        "${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}";
+    // Clean name: alphanumeric only, remove spaces
+    final cleanName = name.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '');
+    return "${cleanName}_$dateStr";
+  }
+
   /// Returns a collection reference rooted under:
   /// {organizationName}_{createdDate} (coll) -> {documentId} (doc) -> {subCollectionName} (coll)
   /// This follows the format: OrganizationName_createdDate
@@ -34,7 +45,12 @@ class FirestoreService {
   CollectionReference<Map<String, dynamic>> subscriptionsRef({
     required String tenantId,
     String? appId,
-  }) => collection('subscriptions', tenantId: tenantId, appId: appId);
+  }) {
+    // Force use of tenantId as the document bucket for subscriptions to avoid duplicates.
+    // This ensures path is always: {tenantId} (coll) -> {tenantId} (doc) -> subscription (coll)
+    // instead of defaulting to 'data' or being split between 'data' and the appName.
+    return collection('subscription', tenantId: tenantId, appId: tenantId);
+  }
 
   /// Tenant-specific reference for referral codes
   CollectionReference<Map<String, dynamic>> referralCodesRef({
@@ -136,21 +152,34 @@ class FirestoreService {
     required int price,
     int? originalPrice,
     String paymentMethod = 'unknown',
+    String status = 'active', // Add status parameter
     Map<String, dynamic>? brandingData,
     String? appId,
     String? customerMobile, // stored for future payment lookups
+    String? gstNumber, // optional GST number
     Map<String, dynamic>? limits,
     bool? geoLocation,
     bool? attendance,
     bool? barcode,
     bool? reportExport,
   }) async {
+    final normalizedPlanName = planName.trim();
+    if (normalizedPlanName.isEmpty) {
+      throw ArgumentError('planName must not be empty');
+    }
+    if (price < 0) {
+      throw ArgumentError('price must be zero or greater');
+    }
+    final normalizedPaymentMethod = paymentMethod.trim().isEmpty
+        ? 'Unknown'
+        : paymentMethod.trim();
+
     final now = DateTime.now();
     DateTime nextBilling;
 
-    if (planName.toLowerCase().contains('trial')) {
-      // Free Trial is exactly 30 days
-      nextBilling = now.add(const Duration(days: 30));
+    if (normalizedPlanName.toLowerCase().contains('trial')) {
+      // Free Trial is exactly 7 days
+      nextBilling = now.add(const Duration(days: 7));
     } else if (isYearly) {
       nextBilling = DateTime(now.year + 1, now.month, now.day);
     } else if (isSixMonths) {
@@ -160,20 +189,22 @@ class FirestoreService {
     }
 
     final data = <String, dynamic>{
-      'planName': planName,
+      'planName': normalizedPlanName,
       'isYearly': isYearly,
       'isSixMonths': isSixMonths,
       'price': price,
-      'originalPrice': originalPrice,
-      'paymentMethod': paymentMethod,
-      'status': 'active',
+      'paymentMethod': normalizedPaymentMethod,
+      'status': status,
       'startedAt': now.toIso8601String(),
       'nextBillingAt': nextBilling.toIso8601String(),
       'expiresAt':
           nextBilling, // DateTime is converted to Timestamp by Firestore
       'updatedAt': FieldValue.serverTimestamp(),
+      if (originalPrice != null) 'originalPrice': originalPrice,
       if (customerMobile != null && customerMobile.isNotEmpty)
         'customerMobile': customerMobile,
+      if (gstNumber != null && gstNumber.isNotEmpty)
+        'gstNumber': gstNumber,
       if (limits != null) 'limits': limits,
       if (geoLocation != null) 'geoLocation': geoLocation,
       if (attendance != null) 'attendance': attendance,
@@ -192,7 +223,7 @@ class FirestoreService {
   }
 
   /// Check if a user has an active subscription within a tenant
-  /// Also checks if the subscription has expired based on nextBillingAt
+  /// Also checks if the subscription has expired based on expiresAt/nextBillingAt
   Future<bool> hasActiveSubscription({
     required String uid,
     required String tenantId,
@@ -205,27 +236,25 @@ class FirestoreService {
       ).doc(uid).get();
       if (doc.exists && doc.data() != null) {
         final data = doc.data()!;
-        if (data['status'] == 'active') {
-          final expiresAtField = data['expiresAt'];
-          if (expiresAtField != null) {
-            DateTime expiresAt;
-            if (expiresAtField is Timestamp) {
-              expiresAt = expiresAtField.toDate();
-            } else if (expiresAtField is String) {
-              expiresAt = DateTime.parse(expiresAtField);
-            } else {
-              return true; // Unknown format, fail safe to active
-            }
-            return expiresAt.isAfter(DateTime.now());
-          }
-          return true; // No expiry field but active status
+        if (data['status'] != 'active') return false;
+
+        final expiryDate = _getExpiryDate(data);
+        if (expiryDate == null || DateTime.now().toUtc().isAfter(expiryDate)) {
+          // Subscription has expired — mark as expired and deactivate user
+          await subscriptionsRef(
+            tenantId: tenantId,
+            appId: appId,
+          ).doc(uid).update({'status': 'expired'});
+          await setUserActiveStatus(
+            uid: uid,
+            tenantId: tenantId,
+            active: false,
+          );
+          return false;
         }
+        return true;
       }
-    } catch (e) {
-      debugPrint('Error checking subscription: $e');
-      // Return true on network errors or other failures to avoid blocking the user
-      return true;
-    }
+    } catch (_) {}
     return false;
   }
 
@@ -233,46 +262,69 @@ class FirestoreService {
   /// Useful for gating access for non-admin users (Engineers, Customers).
   Future<bool> isTenantActive({required String tenantId, String? appId}) async {
     try {
-      final sub = await getActiveSubscription(tenantId: tenantId, appId: appId);
-      return sub != null;
-    } catch (e) {
-      debugPrint('Error in isTenantActive: $e');
-      return true; // Fail-safe to active on error
-    }
-  }
-
-  /// Get the first active subscription for a tenant
-  Future<Map<String, dynamic>?> getActiveSubscription({
-    required String tenantId,
-    String? appId,
-  }) async {
-    try {
-      final snapshot = await subscriptionsRef(
+      // Check in the standardized bucket (now forced to tenantId bucket in subscriptionsRef)
+      var querySnapshot = await subscriptionsRef(
         tenantId: tenantId,
         appId: appId,
       ).where('status', isEqualTo: 'active').limit(1).get();
 
-      if (snapshot.docs.isNotEmpty) {
-        final data = snapshot.docs.first.data();
-        final expiresAtField = data['expiresAt'];
-        if (expiresAtField != null) {
-          DateTime expiresAt;
-          if (expiresAtField is Timestamp) {
-            expiresAt = expiresAtField.toDate();
-          } else if (expiresAtField is String) {
-            expiresAt = DateTime.parse(expiresAtField);
-          } else {
-            return data;
-          }
-          if (expiresAt.isAfter(DateTime.now())) {
-            return data;
-          }
-        } else {
-          return data; // No expiry field but active status
-        }
+      if (querySnapshot.docs.isEmpty) return false;
+
+      final doc = querySnapshot.docs.first;
+      final data = doc.data();
+      final expiryDate = _getExpiryDate(data);
+      if (expiryDate == null || DateTime.now().toUtc().isAfter(expiryDate)) {
+        // Found an active doc but it's expired -> Update status to expired
+        await doc.reference.update({'status': 'expired'});
+        // Deactivate the admin user associated with this doc
+        await setUserActiveStatus(
+          uid: doc.id,
+          tenantId: tenantId,
+          active: false,
+        );
+        return false;
+      }
+      return true;
+    } catch (e) {
+      debugPrint('Error checking tenant active status: $e');
+      return false;
+    }
+  }
+
+  /// Fetches the subscription data for a tenant to check for features like geoLocation
+  Future<Map<String, dynamic>?> getTenantSubscriptionData({
+    required String tenantId,
+    String? appId,
+  }) async {
+    try {
+      // Check in the standardized bucket
+      var querySnapshot = await subscriptionsRef(
+        tenantId: tenantId,
+        appId: appId,
+      ).where('status', isEqualTo: 'active').limit(1).get();
+
+      if (querySnapshot.docs.isNotEmpty) {
+        return querySnapshot.docs.first.data();
       }
     } catch (e) {
-      debugPrint('Error getting active subscription: $e');
+      debugPrint('Error fetching tenant subscription data: $e');
+    }
+    return null;
+  }
+
+  /// Expiry date helper for timezone consistency
+  DateTime? _getExpiryDate(Map<String, dynamic> data) {
+    final expiresAt = data['expiresAt'];
+    if (expiresAt != null) {
+      if (expiresAt is Timestamp) {
+        return expiresAt.toDate().toUtc();
+      } else if (expiresAt is String) {
+        return DateTime.tryParse(expiresAt)?.toUtc();
+      }
+    }
+    final nextBillingStr = data['nextBillingAt'] as String?;
+    if (nextBillingStr != null) {
+      return DateTime.tryParse(nextBillingStr)?.toUtc();
     }
     return null;
   }
@@ -304,6 +356,42 @@ class FirestoreService {
       }
       return null;
     });
+  }
+
+  // Stream any subscription for a tenant (useful when doc ID is unknown)
+  Stream<Map<String, dynamic>?> streamTenantSubscription(
+    String tenantId, {
+    String? appId,
+  }) {
+    return subscriptionsRef(tenantId: tenantId, appId: appId).snapshots().map((
+      snapshot,
+    ) {
+      if (snapshot.docs.isNotEmpty) {
+        // Try to find one that is active or just return the first one
+        try {
+          return snapshot.docs.firstWhere((doc) {
+            final data = doc.data();
+            return data['status'] == 'active';
+          }).data();
+        } catch (_) {
+          return snapshot.docs.first.data();
+        }
+      }
+      return null;
+    });
+  }
+
+  Future<String?> getActiveSubscriptionAppId({
+    required String tenantId,
+    String? appId,
+  }) async {
+    var querySnapshot = await subscriptionsRef(
+      tenantId: tenantId,
+      appId: appId,
+    ).limit(1).get();
+    if (querySnapshot.docs.isNotEmpty) return tenantId;
+
+    return tenantId;
   }
 
   // Update only branding data for a tenant
@@ -428,4 +516,229 @@ class FirestoreService {
     }
     return null;
   }
+
+  /// Save Terms & Conditions acceptance for a user
+  Future<void> saveTermsAndConditionsAcceptance({
+    required String uid,
+    required String tenantId,
+    required DateTime timestamp,
+    String? appId,
+  }) async {
+    try {
+      await collection(
+        'users',
+        tenantId: tenantId,
+        appId: appId,
+      ).doc(uid).update({
+        'termsAndConditionsAccepted': true,
+        'termsAcceptedAt': timestamp.toIso8601String(),
+        'termsAcceptedTimestamp': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      debugPrint('Error saving T&C acceptance: $e');
+      rethrow;
+    }
+  }
+
+  /// Check if a user has accepted Terms & Conditions
+  Future<bool> hasAcceptedTermsAndConditions({
+    required String uid,
+    required String tenantId,
+    String? appId,
+  }) async {
+    try {
+      final doc = await collection(
+        'users',
+        tenantId: tenantId,
+        appId: appId,
+      ).doc(uid).get();
+
+      if (doc.exists && doc.data() != null) {
+        return doc.data()?['termsAndConditionsAccepted'] == true;
+      }
+    } catch (e) {
+      debugPrint('Error checking T&C acceptance: $e');
+    }
+    return false;
+  }
+
+  /// Get Terms & Conditions acceptance details for a user
+  Future<Map<String, dynamic>?> getTermsAndConditionsDetails({
+    required String uid,
+    required String tenantId,
+    String? appId,
+  }) async {
+    try {
+      final doc = await collection(
+        'users',
+        tenantId: tenantId,
+        appId: appId,
+      ).doc(uid).get();
+
+      if (doc.exists && doc.data() != null) {
+        final data = doc.data()!;
+        return {
+          'accepted': data['termsAndConditionsAccepted'] ?? false,
+          'acceptedAt': data['termsAcceptedAt'],
+          'acceptedTimestamp': data['termsAcceptedTimestamp'],
+        };
+      }
+    } catch (e) {
+      debugPrint('Error fetching T&C details: $e');
+    }
+    return null;
+  }
+
+  /// Logs a payment transaction to the centralized 'payment_logs' collection
+  /// and the user's tenant-specific 'payment_logs' subcollection.
+  ///
+  /// Every call creates a **new** Firestore document with a unique composite ID
+  /// `{txnId}_{timestampMs}` — existing records are never overwritten.
+  ///
+  /// Returns the full Firestore document ID of the created log record,
+  /// which callers must pass to [updateInvoiceStatus] and invoice services.
+  Future<String> logPaymentTransaction({
+    required String txnId,
+    required String uidOrMobile,
+    required String planName,
+    required int amount,
+    required String status,
+    bool isYearly = false,
+    bool isSixMonths = false,
+    String? failureReason,
+    bool registrationCompleted = false,
+    bool firestoreSynced = false,
+    String? tenantId,
+    String? customerName,
+    String? customerEmail,
+    String? customerMobile,
+    Map<String, dynamic>? gatewayResponse,
+    // Queue metadata
+    String queueStatus = 'Immediate', // 'Immediate' | 'Queued'
+    String? previousPlan,
+    String? newPlan,
+    String? userId,
+  }) async {
+    // Unique doc ID = txnId + current timestamp in ms to ensure no overwrites.
+    final timestampMs = DateTime.now().millisecondsSinceEpoch;
+    final logDocId = '${txnId}_$timestampMs';
+
+    try {
+      // 1. Create a NEW document in the centralized global collection.
+      final docRef = _db.collection('payment_logs').doc(logDocId);
+
+      final data = <String, dynamic>{
+        'logDocId': logDocId,
+        'transactionId': txnId,
+        'userId': userId ?? uidOrMobile,
+        'userIdOrMobile': uidOrMobile,
+        'planName': planName,
+        'newPlan': newPlan ?? planName,
+        if (previousPlan != null) 'previousPlan': previousPlan,
+        'amount': amount,
+        'status': status,
+        'isYearly': isYearly,
+        'isSixMonths': isSixMonths,
+        'queueStatus': queueStatus,
+        if (failureReason != null) 'failureReason': failureReason,
+        'timestamp': FieldValue.serverTimestamp(),
+        'registrationCompleted': registrationCompleted,
+        'firestoreSynced': firestoreSynced,
+        // Invoice fields — always initialized on creation
+        'invoiceSent': false,
+        'invoiceStatus': 'Pending',
+        'invoiceDetails': {
+          'planName': planName,
+          'amount': amount,
+          'billingCycle': isYearly ? 'Yearly' : (isSixMonths ? '6 Months' : 'Monthly'),
+          if (customerName != null) 'customerName': customerName,
+          if (customerEmail != null) 'customerEmail': customerEmail,
+        },
+      };
+
+      await docRef.set(data);
+
+      // 2. Mirror to tenant-specific payment_logs subcollection.
+      final effectiveTenant = tenantId ?? ThemeService.instance.databaseName;
+      if (effectiveTenant.isNotEmpty) {
+        final userLogData = <String, dynamic>{
+          'logDocId': logDocId,
+          'transactionId': txnId,
+          'orderId': txnId,
+          'userId': userId ?? uidOrMobile,
+          'userIdOrMobile': uidOrMobile,
+          'amount': amount,
+          'currency': 'INR',
+          'paymentStatus': status,
+          'paymentMethod':
+              gatewayResponse?['paymentMode'] ??
+              gatewayResponse?['paymentMethod'] ??
+              'Unknown',
+          'customerName': customerName ?? 'Customer',
+          'customerEmail': customerEmail ?? '',
+          'customerMobile': customerMobile ?? '',
+          'planName': planName,
+          'queueStatus': queueStatus,
+          if (previousPlan != null) 'previousPlan': previousPlan,
+          'newPlan': newPlan ?? planName,
+          'gatewayResponse': gatewayResponse ?? {},
+          'createdAt': FieldValue.serverTimestamp(),
+        };
+
+        await _db
+            .collection(effectiveTenant)
+            .doc('data')
+            .collection('payment_logs')
+            .doc(logDocId)
+            .set(userLogData);
+      }
+    } catch (e) {
+      debugPrint('Error logging payment transaction ($logDocId): $e');
+    }
+
+    return logDocId;
+  }
+
+  /// Updates invoice delivery status in payment_logs.
+  ///
+  /// [logDocId] is the full Firestore document ID returned by [logPaymentTransaction]
+  /// (format: `{txnId}_{timestampMs}`). Do NOT pass a bare txnId.
+  Future<void> updateInvoiceStatus(
+    String logDocId, {
+    String? invoiceNumber,
+    String? status,
+    bool? invoiceSent,
+    DateTime? invoiceSentAt,
+  }) async {
+    try {
+      final docRef = _db.collection('payment_logs').doc(logDocId);
+      final updates = <String, dynamic>{};
+
+      if (invoiceNumber != null) updates['invoiceNumber'] = invoiceNumber;
+      if (status != null) updates['invoiceStatus'] = status;
+      if (invoiceSent != null) updates['invoiceSent'] = invoiceSent;
+      if (invoiceSentAt != null) {
+        updates['invoiceSentAt'] = invoiceSentAt.toIso8601String();
+      }
+
+      if (updates.isNotEmpty) {
+        await docRef.update(updates);
+      }
+    } catch (e) {
+      debugPrint('Error updating invoice status for doc $logDocId: $e');
+    }
+  }
+
+  /// Reference to the queued_subscriptions collection for a tenant.
+  /// Path: {tenantId} → {tenantId} → queued_subscriptions
+  CollectionReference<Map<String, dynamic>> queuedSubscriptionsRef({
+    required String tenantId,
+  }) {
+    return _db
+        .collection(tenantId)
+        .doc(tenantId)
+        .collection('queued_subscriptions');
+  }
 }
+

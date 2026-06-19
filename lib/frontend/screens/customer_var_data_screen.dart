@@ -16,6 +16,8 @@ class Customer {
   String problem;
   String assignedEngineer;
   final Timestamp timestamp; // Add timestamp field
+  final String? customerFileUrl; // New field
+  final String? fileName; // New field
 
   static const String unassigned = 'Unassigned';
   static const String assigned = 'Assigned';
@@ -39,6 +41,8 @@ class Customer {
     this.problem = '',
     this.assignedEngineer = '',
     required this.timestamp,
+    this.customerFileUrl,
+    this.fileName,
   });
 
   // CopyWith method
@@ -57,6 +61,8 @@ class Customer {
     String? problem,
     String? assignedEngineer,
     Timestamp? timestamp,
+    String? customerFileUrl,
+    String? fileName,
   }) {
     return Customer(
       customerName: customerName ?? this.customerName,
@@ -74,6 +80,8 @@ class Customer {
       assignedEngineer: assignedEngineer ?? this.assignedEngineer,
       timestamp: timestamp ?? this.timestamp,
       customerid: customerid ?? customerid,
+      customerFileUrl: customerFileUrl ?? this.customerFileUrl,
+      fileName: fileName ?? this.fileName,
     );
   }
 
@@ -94,6 +102,8 @@ class Customer {
       "Problem": problem,
       "AssignedEngineer": assignedEngineer,
       "timestamp": timestamp,
+      "customerFileUrl": customerFileUrl,
+      "fileName": fileName,
     };
   }
 
@@ -120,6 +130,8 @@ class Customer {
       assignedEngineer: data?['AssignedEngineer'] ?? '',
       timestamp: _parseTimestamp(data?['timestamp']),
       customerid: data?['id'] ?? '',
+      customerFileUrl: data?['customerFileUrl'],
+      fileName: data?['fileName'],
     );
   }
 

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:subscription_rooks_app/services/auth_state_service.dart';
+import 'package:subscription_rooks_app/services/firestore_service.dart';
+import 'package:subscription_rooks_app/subscription/subscription_plans_screen.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class AdminSignup extends StatefulWidget {
   const AdminSignup({super.key});
@@ -35,22 +37,27 @@ class _AdminSignupState extends State<AdminSignup> {
 
     setState(() => _isLoading = true);
 
-    final result = await AuthStateService.instance.registerUser(
-      name: name,
-      email: email,
-      password: password,
-      role: 'admin',
-    );
+    // Instead of immediate registration, pass data to subscription flow
+    final tenantId = FirestoreService.generateTenantId(name);
+    final pendingUserData = {
+      'name': name,
+      'email': email,
+      'password': password,
+      'role': 'admin',
+      'tenantId': tenantId,
+    };
 
     setState(() => _isLoading = false);
 
-    if (result['success']) {
-      if (!mounted) return;
-      _showSnackBar('Admin registration successful!');
-      Navigator.pop(context); // Go back to login
-    } else {
-      _showSnackBar(result['message'] ?? 'Registration failed');
-    }
+    if (!mounted) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            SubscriptionPlansScreen(pendingUserData: pendingUserData),
+      ),
+    );
   }
 
   void _showSnackBar(String message) {
@@ -67,24 +74,26 @@ class _AdminSignupState extends State<AdminSignup> {
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [primaryColor, primaryColor.withOpacity(0.8)],
+            colors: [primaryColor, primaryColor.withValues(alpha: 0.8)],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
           ),
         ),
         child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: kMaxFormWidth),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
                 const SizedBox(height: 20),
                 Card(
                   elevation: 12,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(25),
                   ),
-                  shadowColor: Colors.black.withOpacity(0.3),
+                  shadowColor: Colors.black.withValues(alpha: 0.3),
                   child: Padding(
                     padding: const EdgeInsets.all(24.0),
                     child: Column(
@@ -204,6 +213,7 @@ class _AdminSignupState extends State<AdminSignup> {
                   ),
                 ),
               ],
+            ),
             ),
           ),
         ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class CustomerTypePage extends StatefulWidget {
   const CustomerTypePage({super.key});
@@ -20,13 +21,14 @@ class _CustomerTypePageState extends State<CustomerTypePage> {
             end: Alignment.bottomCenter,
             colors: [
               Theme.of(context).primaryColor,
-              Theme.of(context).primaryColor.withOpacity(0.8),
+              Theme.of(context).primaryColor.withValues(alpha: 0.8),
             ],
           ),
         ),
         child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
+          child: ResponsiveFormWrapper(
+            maxWidth: kMaxFormWidth,
+            horizontalPadding: 24.0,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -115,7 +117,7 @@ class _CustomerTypePageState extends State<CustomerTypePage> {
         Text(
           "Choose your customer type to continue with our services",
           style: TextStyle(
-            color: Theme.of(context).colorScheme.onPrimary.withOpacity(0.8),
+            color: Theme.of(context).colorScheme.onPrimary.withValues(alpha: 0.8),
             fontSize: 16,
             fontWeight: FontWeight.w400,
           ),
@@ -138,14 +140,14 @@ class _CustomerTypePageState extends State<CustomerTypePage> {
         padding: EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: isSelected
-              ? Theme.of(context).colorScheme.onPrimary.withOpacity(0.15)
-              : Theme.of(context).colorScheme.onPrimary.withOpacity(0.08),
+              ? Theme.of(context).colorScheme.onPrimary.withValues(alpha: 0.15)
+              : Theme.of(context).colorScheme.onPrimary.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(20),
           border: isSelected
               ? Border.all(
                   color: Theme.of(
                     context,
-                  ).colorScheme.onPrimary.withOpacity(0.5),
+                  ).colorScheme.onPrimary.withValues(alpha: 0.5),
                   width: 2,
                 )
               : Border.all(color: Colors.transparent, width: 2),
@@ -154,7 +156,7 @@ class _CustomerTypePageState extends State<CustomerTypePage> {
                   BoxShadow(
                     color: Theme.of(
                       context,
-                    ).colorScheme.onPrimary.withOpacity(0.1),
+                    ).colorScheme.onPrimary.withValues(alpha: 0.1),
                     blurRadius: 20,
                     spreadRadius: 2,
                   ),
@@ -168,7 +170,7 @@ class _CustomerTypePageState extends State<CustomerTypePage> {
               width: 60,
               height: 60,
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.onPrimary.withOpacity(0.1),
+                color: Theme.of(context).colorScheme.onPrimary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(15),
               ),
               child: Icon(
@@ -201,7 +203,7 @@ class _CustomerTypePageState extends State<CustomerTypePage> {
                     style: TextStyle(
                       color: Theme.of(
                         context,
-                      ).colorScheme.onPrimary.withOpacity(0.7),
+                      ).colorScheme.onPrimary.withValues(alpha: 0.7),
                       fontSize: 14,
                       fontWeight: FontWeight.w400,
                     ),
@@ -221,7 +223,7 @@ class _CustomerTypePageState extends State<CustomerTypePage> {
                       ? Theme.of(context).colorScheme.onPrimary
                       : Theme.of(
                           context,
-                        ).colorScheme.onPrimary.withOpacity(0.3),
+                        ).colorScheme.onPrimary.withValues(alpha: 0.3),
                   width: 2,
                 ),
               ),

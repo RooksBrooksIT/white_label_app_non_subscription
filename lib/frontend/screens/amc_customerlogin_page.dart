@@ -3,8 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:subscription_rooks_app/frontend/screens/amc_main_page.dart';
 import 'package:subscription_rooks_app/backend/screens/amc_customerlogin_page.dart';
-import 'package:subscription_rooks_app/subscription/access_restricted_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class AMCLoginPage extends StatefulWidget {
   const AMCLoginPage({super.key});
@@ -56,15 +56,6 @@ class _AMCLoginPageState extends State<AMCLoginPage>
 
     if (result['success']) {
       if (!mounted) return;
-      if (result['restricted'] == true) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) =>
-                const AccessRestrictedScreen(role: 'customer'),
-          ),
-        );
-        return;
-      }
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (context) => AMCCustomerMainPage()),
       );
@@ -94,179 +85,185 @@ class _AMCLoginPageState extends State<AMCLoginPage>
         ),
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 20),
-              // Logo/Branding
-              Center(
-                child: ThemeService.instance.logoUrl != null
-                    ? Image.network(
-                        ThemeService.instance.logoUrl!,
-                        height: 100,
-                        width:
-                            250, // Added width constraint to prevent horizontal overflow
-                        fit: BoxFit.contain,
-                        errorBuilder: (context, error, stackTrace) =>
-                            _buildDefaultLogo(), // Added error handling to prevent broken layout
-                      )
-                    : _buildDefaultLogo(),
-              ),
-              const SizedBox(height: 48),
-              Text(
-                'Welcome Back',
-                style: GoogleFonts.outfit(
-                  fontSize: 32,
-                  fontWeight: FontWeight.w900,
-                  color: Colors.black,
-                  letterSpacing: -1.0,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Sign in to continue to ${ThemeService.instance.appName}',
-                style: GoogleFonts.inter(fontSize: 16, color: Colors.grey[600]),
-              ),
-              const SizedBox(height: 48),
-
-              // Login Form
-              _buildTextField(
-                label: 'Referral Code',
-                controller: referralCodeController,
-                icon: Icons.vpn_key_outlined,
-              ),
-              const SizedBox(height: 24),
-              _buildTextField(
-                label: 'Email Address',
-                controller: emailController,
-                icon: Icons.email_outlined,
-                keyboardType: TextInputType.emailAddress,
-              ),
-              const SizedBox(height: 24),
-              _buildTextField(
-                label: 'Password',
-                controller: passwordController,
-                icon: Icons.lock_outline,
-                obscureText: _obscurePassword,
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _obscurePassword ? Icons.visibility_off : Icons.visibility,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: kMaxFormWidth),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 20),
+                  // Logo/Branding
+                  Center(
+                    child: ThemeService.instance.logoUrl != null
+                        ? Image.network(
+                            ThemeService.instance.logoUrl!,
+                            height: 100,
+                            width: 250,
+                            fit: BoxFit.contain,
+                            errorBuilder: (context, error, stackTrace) =>
+                                _buildDefaultLogo(),
+                          )
+                        : _buildDefaultLogo(),
                   ),
-                  onPressed: () =>
-                      setState(() => _obscurePassword = !_obscurePassword),
-                ),
-              ),
+                  const SizedBox(height: 48),
+                  Text(
+                    'Welcome Back',
+                    style: GoogleFonts.outfit(
+                      fontSize: 32,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.black,
+                      letterSpacing: -1.0,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Sign in to continue to ${ThemeService.instance.appName}',
+                    style: GoogleFonts.inter(fontSize: 16, color: Colors.grey[600]),
+                  ),
+                  const SizedBox(height: 48),
 
-              const SizedBox(height: 16),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () {
-                    showDialog(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        title: const Text('Forgot Password'),
-                        content: const Text(
-                          'Contact Admin to change the password',
-                        ),
-                        actions: [
-                          TextButton(
-                            style: TextButton.styleFrom(
-                              foregroundColor: Theme.of(
-                                context,
-                              ).colorScheme.onPrimary,
-                              backgroundColor: Theme.of(context).primaryColor,
-                            ),
-                            onPressed: () => Navigator.of(ctx).pop(),
-                            child: const Text('OK'),
-                          ),
-                        ],
+                  // Login Form
+                  _buildTextField(
+                    label: 'Referral Code',
+                    controller: referralCodeController,
+                    icon: Icons.vpn_key_outlined,
+                  ),
+                  const SizedBox(height: 24),
+                  _buildTextField(
+                    label: 'Email Address',
+                    controller: emailController,
+                    icon: Icons.email_outlined,
+                    keyboardType: TextInputType.emailAddress,
+                  ),
+                  const SizedBox(height: 24),
+                  _buildTextField(
+                    label: 'Password',
+                    controller: passwordController,
+                    icon: Icons.lock_outline,
+                    obscureText: _obscurePassword,
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscurePassword ? Icons.visibility_off : Icons.visibility,
                       ),
-                    );
-                  },
-                  child: Text(
-                    'Forgot Password?',
-                    style: TextStyle(
-                      color: Colors.grey[700],
-                      fontWeight: FontWeight.bold,
+                      onPressed: () =>
+                          setState(() => _obscurePassword = !_obscurePassword),
                     ),
                   ),
-                ),
-              ),
 
-              const SizedBox(height: 48),
-
-              // Login Button
-              SizedBox(
-                width: double.infinity,
-                height: 60,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : login,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    elevation: 0,
-                  ),
-                  child: _isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : Text(
-                          'Sign In',
-                          style: GoogleFonts.inter(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
+                  const SizedBox(height: 16),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () {
+                        showDialog(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('Forgot Password'),
+                            content: const Text(
+                              'Contact Admin to change the password',
+                            ),
+                            actions: [
+                              TextButton(
+                                style: TextButton.styleFrom(
+                                  foregroundColor: Theme.of(
+                                    context,
+                                  ).colorScheme.onPrimary,
+                                  backgroundColor: Theme.of(context).primaryColor,
+                                ),
+                                onPressed: () => Navigator.of(ctx).pop(),
+                                child: const Text('OK'),
+                              ),
+                            ],
                           ),
+                        );
+                      },
+                      child: Text(
+                        'Forgot Password?',
+                        style: TextStyle(
+                          color: Colors.grey[700],
+                          fontWeight: FontWeight.bold,
                         ),
-                ),
-              ),
-              const SizedBox(height: 24),
+                      ),
+                    ),
+                  ),
 
-              // Alternative Actions
-              Center(
-                child: TextButton(
-                  onPressed: () {}, // Sign up placeholder if needed
-                  child: RichText(
-                    text: TextSpan(
-                      text: "Don't have an account? ",
-                      style: GoogleFonts.inter(color: Colors.grey[600]),
-                      children: [
-                        TextSpan(
-                          text: 'Contact Administrator',
-                          style: GoogleFonts.inter(
-                            color: Colors.black,
-                            fontWeight: FontWeight.bold,
-                          ),
+                  const SizedBox(height: 48),
+
+                  // Login Button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 60,
+                    child: ElevatedButton(
+                      onPressed: _isLoading ? null : login,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.black,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(18),
                         ),
-                      ],
+                        elevation: 0,
+                      ),
+                      child: _isLoading
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : Text(
+                              'Sign In',
+                              style: GoogleFonts.inter(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                     ),
                   ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              Center(
-                child: TextButton(
-                  onPressed: () async {
-                    final Uri url = Uri.parse('https://sites.google.com/view/rooks-white-label-app/home');
-                    if (!await launchUrl(url)) {
-                      debugPrint('Could not launch $url');
-                    }
-                  },
-                  child: Text(
-                    'Show Privacy Policy',
-                    style: GoogleFonts.inter(
-                      color: Colors.grey[700],
-                      fontWeight: FontWeight.bold,
-                      decoration: TextDecoration.underline,
+                  const SizedBox(height: 24),
+
+                  // Alternative Actions
+                  Center(
+                    child: TextButton(
+                      onPressed: () {}, // Sign up placeholder if needed
+                      child: RichText(
+                        text: TextSpan(
+                          text: "Don't have an account? ",
+                          style: GoogleFonts.inter(color: Colors.grey[600]),
+                          children: [
+                            TextSpan(
+                              text: 'Contact Administrator',
+                              style: GoogleFonts.inter(
+                                color: Colors.black,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                  const SizedBox(height: 40),
+                  Center(
+                    child: TextButton(
+                      onPressed: () async {
+                        final Uri url = Uri.parse(
+                          'https://sites.google.com/view/rooks-white-label-app/home',
+                        );
+                        if (!await launchUrl(url)) {
+                          debugPrint('Could not launch $url');
+                        }
+                      },
+                      child: Text(
+                        'Show Privacy Policy',
+                        style: GoogleFonts.inter(
+                          color: Colors.grey[700],
+                          fontWeight: FontWeight.bold,
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 40),
+                ],
               ),
-              const SizedBox(height: 40),
-            ],
+            ),
           ),
         ),
       ),

@@ -5,15 +5,20 @@ import 'package:intl/intl.dart';
 import 'dart:math';
 import 'package:subscription_rooks_app/frontend/screens/admin_assign_engineer_page.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_geo_location_screen.dart';
+import 'package:subscription_rooks_app/services/notification_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:subscription_rooks_app/frontend/screens/customer_var_data_screen.dart'
     as customer_var;
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class AdminPage_CusDetails extends StatefulWidget {
   final customer_var.Customer? newCustomer;
+  final String? searchQuery;
   const AdminPage_CusDetails({
     super.key,
     this.newCustomer,
     required String statusFilter,
+    this.searchQuery,
   });
 
   @override
@@ -28,6 +33,10 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
   @override
   void initState() {
     super.initState();
+    if (widget.searchQuery != null) {
+      searchQuery = widget.searchQuery!;
+      _searchController.text = widget.searchQuery!;
+    }
   }
 
   // Calculate working days between two dates (excludes Sat/Sun)
@@ -83,7 +92,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
     return {
       'label': '$wdOpen day${wdOpen == 1 ? '' : 's'} to go',
       'color': Theme.of(context).primaryColor,
-      'bg': Theme.of(context).primaryColor.withOpacity(0.1),
+      'bg': Theme.of(context).primaryColor.withValues(alpha: 0.1),
     };
   }
 
@@ -124,12 +133,15 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
     final screenHeight = mediaQuery.size.height;
 
     double getProportionalSize(double size) {
-      final baseSize = screenWidth < screenHeight ? screenWidth : screenHeight;
+      final rawBaseSize = screenWidth < screenHeight ? screenWidth : screenHeight;
+      final baseSize = rawBaseSize.clamp(320.0, 480.0);
       return size * (baseSize / 375);
     }
 
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: Theme.of(context).brightness == Brightness.dark 
+          ? Theme.of(context).scaffoldBackgroundColor 
+          : Colors.grey[100],
       appBar: AppBar(
         elevation: 0,
         title: Text(
@@ -145,7 +157,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
         centerTitle: false,
         actions: [
           IconButton(
-            icon: Icon(Icons.filter_list, color: Colors.white),
+            icon: const Icon(Icons.filter_list, color: Colors.white),
             onPressed: () {
               _showFilterDialog();
             },
@@ -157,21 +169,28 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
           width: double.infinity,
           height: double.infinity,
           decoration: BoxDecoration(
-            color: Theme.of(context).scaffoldBackgroundColor,
+            color: Theme.of(context).brightness == Brightness.dark 
+                ? Theme.of(context).scaffoldBackgroundColor 
+                : Colors.grey[100],
           ),
-          child: Column(
-            children: [
-              SizedBox(height: screenHeight * 0.014),
-              _buildSearchBar(screenWidth, getProportionalSize),
-              SizedBox(height: screenHeight * 0.014),
-              Expanded(
-                child: _buildCustomerStreamBuilder(
-                  screenWidth,
-                  screenHeight,
-                  getProportionalSize,
-                ),
+          child: Center(
+            child: ResponsiveWrapper(
+              maxWidth: 960.0,
+              child: Column(
+                children: [
+                  SizedBox(height: screenHeight * 0.014),
+                  _buildSearchBar(screenWidth, getProportionalSize),
+                  SizedBox(height: screenHeight * 0.014),
+                  Expanded(
+                    child: _buildCustomerStreamBuilder(
+                      screenWidth,
+                      screenHeight,
+                      getProportionalSize,
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -183,7 +202,9 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
     double Function(double) getProportionalSize,
   ) {
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.04),
+      padding: EdgeInsets.symmetric(
+        horizontal: context.isMobile ? screenWidth * 0.04 : 16.0,
+      ),
       child: Container(
         height: getProportionalSize(48),
         decoration: BoxDecoration(
@@ -191,13 +212,13 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
           borderRadius: BorderRadius.circular(getProportionalSize(16)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: getProportionalSize(10),
               offset: Offset(0, getProportionalSize(4)),
             ),
           ],
           border: Border.all(
-            color: Theme.of(context).dividerColor.withOpacity(0.1),
+            color: Theme.of(context).dividerColor.withValues(alpha: 0.1),
           ),
         ),
         child: TextField(
@@ -215,12 +236,12 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
           decoration: InputDecoration(
             prefixIcon: Icon(
               Icons.search_rounded,
-              color: Theme.of(context).primaryColor.withOpacity(0.7),
+              color: Theme.of(context).primaryColor.withValues(alpha: 0.7),
               size: getProportionalSize(24),
             ),
-            hintText: 'Search Booking ID...',
+            hintText: 'Search Booking ID, Customer, or Mobile...',
             hintStyle: TextStyle(
-              color: Theme.of(context).hintColor.withOpacity(0.7),
+              color: Theme.of(context).hintColor.withValues(alpha: 0.7),
               fontWeight: FontWeight.w500,
               fontSize: getProportionalSize(14),
             ),
@@ -245,7 +266,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
           data[key].toString().trim().isNotEmpty) {
         final value = data[key].toString().trim();
         // Avoid returning 'N/A' or similar invalid values
-        if (value.toLowerCase() != 'n/a' && !value.contains('/')) {
+        if (value.toLowerCase() != 'n/a') {
           return value;
         }
       }
@@ -411,10 +432,22 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
             'adminStatus',
           ], '').toLowerCase();
           final bookingId = getField(data, ['bookingId'], '').toLowerCase();
+          final customerName = getField(data, [
+            'customerName',
+            'CustomerName',
+          ], '').toLowerCase();
+          final mobileNumber = getField(data, [
+            'mobileNumber',
+            'MobileNumber',
+          ], '').toLowerCase();
 
-          if (searchQuery.isNotEmpty &&
-              !bookingId.contains(searchQuery.toLowerCase())) {
-            return false;
+          if (searchQuery.isNotEmpty) {
+            final query = searchQuery.toLowerCase();
+            if (!bookingId.contains(query) &&
+                !customerName.contains(query) &&
+                !mobileNumber.contains(query)) {
+              return false;
+            }
           }
 
           // Check ticket status
@@ -460,11 +493,11 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
 
         return ListView.separated(
           padding: EdgeInsets.symmetric(
-            horizontal: screenWidth * 0.04,
+            horizontal: context.isMobile ? screenWidth * 0.04 : 16.0,
             vertical: screenHeight * 0.01,
           ),
           itemCount: filteredDocs.length,
-          separatorBuilder: (_, __) => SizedBox(height: screenHeight * 0.015),
+          separatorBuilder: (_, _) => SizedBox(height: screenHeight * 0.015),
           itemBuilder: (context, index) {
             final data = filteredDocs[index].data() as Map<String, dynamic>?;
             if (data == null) return const SizedBox.shrink();
@@ -482,6 +515,8 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
               jobType: getField(data, ['jobType', 'JobType']),
               amount: getField(data, ['amount']),
               customerid: getField(data, ['customerid', 'id', 'Id']),
+              customerFileUrl: getField(data, ['customerFileUrl']),
+              fileName: getField(data, ['fileName']),
             );
             String statusRaw = getField(data, [
               'engineerStatus',
@@ -518,6 +553,13 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
             ], 'Not Assigned');
             final bool isCompleted = status.toLowerCase().contains('complete');
 
+            final double? customerLat = data['latitude'] != null
+                ? (data['latitude'] as num).toDouble()
+                : null;
+            final double? customerLng = data['longitude'] != null
+                ? (data['longitude'] as num).toDouble()
+                : null;
+
             return _buildCustomerCard(
               customer,
               index + 1,
@@ -532,6 +574,8 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
               screenHeight,
               getProportionalSize,
               durationInfo,
+              customerLat,
+              customerLng,
             );
           },
         );
@@ -553,6 +597,8 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
     double screenHeight,
     double Function(double) getProportionalSize,
     Map<String, dynamic> durationInfo,
+    double? customerLat,
+    double? customerLng,
   ) {
     // Local helper for status color
     Color getStatusColor(String status) {
@@ -599,6 +645,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
           context: context,
           isScrollControlled: true,
           backgroundColor: Colors.transparent,
+          constraints: const BoxConstraints(maxWidth: kMaxCardWidth),
           builder: (context) {
             return _buildTicketDetailSheet(
               context,
@@ -614,6 +661,8 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
               screenWidth,
               screenHeight,
               getProportionalSize,
+              customerLat,
+              customerLng,
             );
           },
         );
@@ -625,7 +674,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
           borderRadius: BorderRadius.circular(getProportionalSize(16)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: getProportionalSize(10),
               offset: Offset(0, getProportionalSize(4)),
             ),
@@ -633,12 +682,12 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
           border: isAMC
               ? Border.all(color: const Color(0xFFFFD700), width: 1.5)
               : Border.all(
-                  color: Theme.of(context).dividerColor.withOpacity(0.1),
+                  color: Theme.of(context).dividerColor.withValues(alpha: 0.1),
                 ),
         ),
         padding: EdgeInsets.symmetric(
           vertical: screenHeight * 0.014,
-          horizontal: screenWidth * 0.032,
+          horizontal: context.isMobile ? screenWidth * 0.032 : 16.0,
         ),
         child: Column(
           children: [
@@ -654,7 +703,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                     decoration: BoxDecoration(
                       color: isAMC
                           ? const Color(0xFFFFF8E1)
-                          : statusColor.withOpacity(0.1),
+                          : statusColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(
                         getProportionalSize(12),
                       ),
@@ -694,9 +743,8 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                           customer.customerName,
                           style: TextStyle(
                             fontSize: getProportionalSize(14),
-                            color: Theme.of(
-                              context,
-                            ).textTheme.bodyMedium?.color?.withOpacity(0.7),
+                            color: Theme.of(context).textTheme.bodyMedium?.color
+                                ?.withValues(alpha: 0.7),
                             fontWeight: FontWeight.w500,
                           ),
                           maxLines: 1,
@@ -712,7 +760,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                       vertical: getProportionalSize(6),
                     ),
                     decoration: BoxDecoration(
-                      color: statusColor.withOpacity(0.1),
+                      color: statusColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(
                         getProportionalSize(20),
                       ),
@@ -732,7 +780,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
 
             Divider(
               height: 1,
-              color: Theme.of(context).dividerColor.withOpacity(0.1),
+              color: Theme.of(context).dividerColor.withValues(alpha: 0.1),
             ),
 
             // Details Section
@@ -843,14 +891,17 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                     color: Theme.of(context).hintColor,
                   ),
                   SizedBox(width: getProportionalSize(6)),
-                  Text(
-                    DateFormat(
-                      'dd MMM yyyy',
-                    ).format(customer.timestamp.toDate()),
-                    style: TextStyle(
-                      fontSize: getProportionalSize(12),
-                      color: Theme.of(context).hintColor,
-                      fontWeight: FontWeight.w500,
+                  Flexible(
+                    child: Text(
+                      DateFormat(
+                        'dd MMM yyyy',
+                      ).format(customer.timestamp.toDate()),
+                      style: TextStyle(
+                        fontSize: getProportionalSize(12),
+                        color: Theme.of(context).hintColor,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   const Spacer(),
@@ -863,14 +914,17 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                           Theme.of(context).primaryColor,
                     ),
                     SizedBox(width: getProportionalSize(6)),
-                    Text(
-                      (durationInfo['label'] as String?) ?? '',
-                      style: TextStyle(
-                        fontSize: getProportionalSize(12),
-                        color:
-                            (durationInfo['color'] as Color?) ??
-                            Theme.of(context).primaryColor,
-                        fontWeight: FontWeight.bold,
+                    Flexible(
+                      child: Text(
+                        (durationInfo['label'] as String?) ?? '',
+                        style: TextStyle(
+                          fontSize: getProportionalSize(12),
+                          color:
+                              (durationInfo['color'] as Color?) ??
+                              Theme.of(context).primaryColor,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
@@ -885,7 +939,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                 child: Container(
                   width: double.infinity,
                   padding: EdgeInsets.symmetric(
-                    horizontal: screenWidth * 0.03,
+                    horizontal: context.isMobile ? screenWidth * 0.03 : 12.0,
                     vertical: screenHeight * 0.008,
                   ),
                   decoration: BoxDecoration(
@@ -939,6 +993,8 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
     double screenWidth,
     double screenHeight,
     double Function(double) getProportionalSize,
+    double? customerLat,
+    double? customerLng,
   ) {
     final dt = customer.timestamp.toDate();
     final dateString = DateFormat('dd/MM/yyyy').format(dt);
@@ -953,6 +1009,17 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
 
     // Check if this is an AMC customer
     final isAMC = customer.bookingId.toUpperCase().startsWith('AMC');
+
+    final double sheetPaddingLeftRight = context.isMobile ? screenWidth * 0.045 : 16.0;
+    final double innerPaddingLeft = context.isMobile ? screenWidth * 0.06 : 24.0;
+    final double innerPaddingRight = context.isMobile ? screenWidth * 0.04 : 16.0;
+    final double avatarSize = context.isMobile ? screenWidth * 0.14 : 56.0;
+    final double avatarRadius = context.isMobile ? screenWidth * 0.07 : 28.0;
+    final double iconSizedBoxWidth = context.isMobile ? screenWidth * 0.075 : 24.0;
+    final double iconTextSpacing = context.isMobile ? screenWidth * 0.016 : 8.0;
+    final double buttonHPadding = context.isMobile ? screenWidth * 0.04 : 16.0;
+    final double buttonAssignHPadding = context.isMobile ? screenWidth * 0.07 : 24.0;
+    final double buttonOuterRightPadding = context.isMobile ? screenWidth * 0.06 : 24.0;
 
     return SafeArea(
       top: false,
@@ -975,14 +1042,14 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
               controller: controller,
               child: Padding(
                 padding: EdgeInsets.only(
-                  left: screenWidth * 0.045,
-                  right: screenWidth * 0.045,
+                  left: sheetPaddingLeftRight,
+                  right: sheetPaddingLeftRight,
                   bottom: screenHeight * 0.02,
                 ),
                 child: Container(
                   decoration: BoxDecoration(
                     color: isCanceled
-                        ? Theme.of(context).disabledColor.withOpacity(0.1)
+                        ? Theme.of(context).disabledColor.withValues(alpha: 0.1)
                         : isAppointment
                         ? Color(0xFFFFF9C4)
                         : isAMC
@@ -993,7 +1060,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.13),
+                        color: Colors.black.withValues(alpha: 0.13),
                         blurRadius: getProportionalSize(6),
                         offset: Offset(
                           getProportionalSize(2),
@@ -1010,28 +1077,28 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                     children: [
                       Padding(
                         padding: EdgeInsets.fromLTRB(
-                          screenWidth * 0.06,
+                          innerPaddingLeft,
                           screenHeight * 0.024,
-                          screenWidth * 0.04,
+                          innerPaddingRight,
                           0,
                         ),
                         child: Row(
                           children: [
                             Container(
-                              width: screenWidth * 0.14,
-                              height: screenWidth * 0.14,
+                              width: avatarSize,
+                              height: avatarSize,
                               decoration: BoxDecoration(
                                 color: isCanceled
                                     ? Colors.grey
                                     : isAppointment
                                     ? Colors.amber
                                     : isAMC
-                                    ? Color(0xFFFFD700)
+                                    ? const Color(0xFFFFD700)
                                     : isCompleted
                                     ? Colors.green
                                     : Theme.of(context).primaryColor,
                                 borderRadius: BorderRadius.circular(
-                                  screenWidth * 0.07,
+                                  avatarRadius,
                                 ),
                               ),
                               child: Center(
@@ -1070,7 +1137,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                       ),
                               ),
                             ),
-                            SizedBox(width: screenWidth * 0.05),
+                            SizedBox(width: iconTextSpacing),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1101,7 +1168,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                           customer.bookingId,
                                           style: TextStyle(
                                             color: isAMC
-                                                ? Color(0xFFFFD700)
+                                                ? const Color(0xFFFFD700)
                                                 : Theme.of(
                                                     context,
                                                   ).textTheme.bodyLarge?.color,
@@ -1111,10 +1178,10 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                           overflow: TextOverflow.ellipsis,
                                         ),
                                       ),
-                                      SizedBox(width: screenWidth * 0.02),
+                                      SizedBox(width: iconTextSpacing),
                                       Container(
                                         padding: EdgeInsets.symmetric(
-                                          horizontal: screenWidth * 0.022,
+                                          horizontal: context.isMobile ? screenWidth * 0.022 : 8.0,
                                           vertical: screenHeight * 0.003,
                                         ),
                                         decoration: BoxDecoration(
@@ -1134,6 +1201,29 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                       ),
                                     ],
                                   ),
+                                  SizedBox(height: screenHeight * 0.004),
+                                  if (isCompleted &&
+                                      assignedEmployee.isNotEmpty &&
+                                      assignedEmployee != 'Unassigned' &&
+                                      assignedEmployee != 'Not Assigned')
+                                    Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.check_circle,
+                                          color: Colors.green,
+                                          size: 14,
+                                        ),
+                                        SizedBox(width: getProportionalSize(4)),
+                                        Text(
+                                          'Service completed by: $assignedEmployee',
+                                          style: TextStyle(
+                                            color: Colors.green,
+                                            fontSize: getProportionalSize(12),
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   SizedBox(height: screenHeight * 0.004),
                                   // Customer row
                                   Row(
@@ -1316,6 +1406,13 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                                             engineerName:
                                                                 assignedEmployee,
                                                             bookingDocId: docId,
+                                                            customerLat:
+                                                                customerLat,
+                                                            customerLng:
+                                                                customerLng,
+                                                            customerAddress:
+                                                                customer
+                                                                    .address,
                                                           ),
                                                     ),
                                                   );
@@ -1349,18 +1446,81 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                           ],
                         ),
                       ),
+                      // Service completion message in detail sheet
+                      if (isCompleted &&
+                          assignedEmployee.isNotEmpty &&
+                          assignedEmployee != 'Unassigned' &&
+                          assignedEmployee != 'Not Assigned')
+                        Padding(
+                          padding: EdgeInsets.only(
+                            top: screenHeight * 0.015,
+                            left: innerPaddingLeft,
+                            right: innerPaddingLeft,
+                          ),
+                          child: Container(
+                            width: double.infinity,
+                            padding: EdgeInsets.symmetric(
+                              horizontal: innerPaddingRight,
+                              vertical: screenHeight * 0.012,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(
+                                getProportionalSize(8),
+                              ),
+                              border: Border.all(
+                                color: Colors.green,
+                                width: 1.5,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.check_circle,
+                                  color: Colors.green,
+                                  size: getProportionalSize(20),
+                                ),
+                                SizedBox(width: iconTextSpacing),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Service Completed',
+                                        style: TextStyle(
+                                          color: Colors.green,
+                                          fontSize: getProportionalSize(14),
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      SizedBox(height: getProportionalSize(2)),
+                                      Text(
+                                        'Service completed by: $assignedEmployee',
+                                        style: TextStyle(
+                                          color: Colors.green.shade700,
+                                          fontSize: getProportionalSize(12),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       // Customer cancellation message in detail sheet
                       if (isCanceledByCustomer)
                         Padding(
                           padding: EdgeInsets.only(
                             top: screenHeight * 0.015,
-                            left: screenWidth * 0.06,
-                            right: screenWidth * 0.06,
+                            left: innerPaddingLeft,
+                            right: innerPaddingLeft,
                           ),
                           child: Container(
                             width: double.infinity,
                             padding: EdgeInsets.symmetric(
-                              horizontal: screenWidth * 0.04,
+                              horizontal: innerPaddingRight,
                               vertical: screenHeight * 0.012,
                             ),
                             decoration: BoxDecoration(
@@ -1382,7 +1542,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                   color: Theme.of(context).colorScheme.error,
                                   size: getProportionalSize(20),
                                 ),
-                                SizedBox(width: screenWidth * 0.02),
+                                SizedBox(width: iconTextSpacing),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment:
@@ -1420,19 +1580,19 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                         Padding(
                           padding: EdgeInsets.only(
                             top: screenHeight * 0.01,
-                            left: screenWidth * 0.06,
-                            right: screenWidth * 0.06,
+                            left: innerPaddingLeft,
+                            right: innerPaddingLeft,
                           ),
                           child: Container(
                             padding: EdgeInsets.symmetric(
-                              horizontal: screenWidth * 0.04,
+                              horizontal: innerPaddingRight,
                               vertical: screenHeight * 0.008,
                             ),
                             decoration: BoxDecoration(
-                              color: Color(0xFFFFD700).withOpacity(0.2),
+                              color: const Color(0xFFFFD700).withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
-                                color: Color(0xFFFFD700),
+                                color: const Color(0xFFFFD700),
                                 width: 1,
                               ),
                             ),
@@ -1441,14 +1601,14 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                               children: [
                                 Icon(
                                   Icons.star,
-                                  color: Color(0xFFFFD700),
+                                  color: const Color(0xFFFFD700),
                                   size: getProportionalSize(16),
                                 ),
                                 SizedBox(width: getProportionalSize(8)),
                                 Text(
                                   'AMC Customer',
                                   style: TextStyle(
-                                    color: Color(0xFFB8860B),
+                                    color: const Color(0xFFB8860B),
                                     fontSize: getProportionalSize(14),
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -1459,8 +1619,8 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                         ),
                       Padding(
                         padding: EdgeInsets.only(
-                          left: screenWidth * 0.06,
-                          right: screenWidth * 0.04,
+                          left: innerPaddingLeft,
+                          right: innerPaddingRight,
                           top: screenHeight * 0.016,
                         ),
                         child: Column(
@@ -1493,6 +1653,18 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                               'Created date',
                               dateString,
                               getProportionalSize,
+                            ),
+                            _ticketDetailRow(
+                              'Address',
+                              customer.address,
+                              getProportionalSize,
+                              valueStyle: TextStyle(
+                                fontSize: getProportionalSize(14),
+                                color: Theme.of(
+                                  context,
+                                ).textTheme.bodyMedium?.color,
+                                height: 1.3,
+                              ),
                             ),
                             // Payment Type field
                             StreamBuilder<DocumentSnapshot>(
@@ -1538,17 +1710,124 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
+                            const SizedBox(height: 12),
+                            // NEW: Customer Location Button
+                            ElevatedButton.icon(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        AdminGeoLocationScreen(
+                                          engineerId:
+                                              assignedEmployee != 'Not Assigned'
+                                              ? assignedEmployee
+                                              : 'N/A',
+                                          engineerName:
+                                              assignedEmployee != 'Not Assigned'
+                                              ? assignedEmployee
+                                              : 'N/A',
+                                          bookingDocId: docId,
+                                          customerLat: customerLat,
+                                          customerLng: customerLng,
+                                          customerAddress: customer.address,
+                                          bookingId: customer.bookingId,
+                                          customerName: customer.customerName,
+                                          jobType: customer.jobType,
+                                          deviceType: customer.deviceType,
+                                          deviceBrand: customer.deviceBrand,
+                                          assignedEmployee:
+                                              assignedEmployee != 'Not Assigned'
+                                              ? assignedEmployee
+                                              : null,
+                                          customerStatus: displayStatus,
+                                        ),
+                                  ),
+                                );
+                              },
+                              icon: const Icon(
+                                Icons.location_on,
+                                color: Colors.white,
+                              ),
+                              label: const Text(
+                                'CUSTOMER LOCATION',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red.shade600,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                            ),
+                            // NEW: View Attachment Button
+                            if (customer.customerFileUrl != null &&
+                                customer.customerFileUrl!.isNotEmpty &&
+                                customer.customerFileUrl != 'N/A')
+                              Padding(
+                                padding: const EdgeInsets.only(top: 12.0),
+                                child: ElevatedButton.icon(
+                                  onPressed: () async {
+                                    final url = Uri.parse(
+                                      customer.customerFileUrl!,
+                                    );
+                                    if (await canLaunchUrl(url)) {
+                                      await launchUrl(
+                                        url,
+                                        mode: LaunchMode.externalApplication,
+                                      );
+                                    } else {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Could not open file'),
+                                        ),
+                                      );
+                                    }
+                                  },
+                                  icon: const Icon(
+                                    Icons.file_download_outlined,
+                                    color: Colors.white,
+                                  ),
+                                  label: Text(
+                                    'VIEW / DOWNLOAD (${customer.fileName ?? "Attachment"})',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.blue.shade700,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 14,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    elevation: 2,
+                                  ),
+                                ),
+                              ),
                           ],
                         ),
                       ),
                       Divider(
                         height: screenHeight * 0.033,
                         thickness: 1,
-                        color: Theme.of(context).primaryColor.withOpacity(0.5),
+                        color: Theme.of(
+                          context,
+                        ).primaryColor.withValues(alpha: 0.5),
                       ),
                       Padding(
                         padding: EdgeInsets.symmetric(
-                          horizontal: screenWidth * 0.06,
+                          horizontal: innerPaddingLeft,
                           vertical: screenHeight * 0.003,
                         ),
                         child: Column(
@@ -1562,14 +1841,14 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                         CrossAxisAlignment.center,
                                     children: [
                                       SizedBox(
-                                        width: screenWidth * 0.075,
+                                        width: iconSizedBoxWidth,
                                         child: Icon(
                                           Icons.location_on,
                                           color: Theme.of(context).primaryColor,
                                           size: getProportionalSize(22),
                                         ),
                                       ),
-                                      SizedBox(width: screenWidth * 0.016),
+                                      SizedBox(width: iconTextSpacing),
                                       Expanded(
                                         child: Text(
                                           customer.address,
@@ -1578,8 +1857,10 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                               context,
                                             ).textTheme.bodyMedium?.color,
                                             fontSize: getProportionalSize(14),
+                                            height: 1.2,
                                           ),
-                                          overflow: TextOverflow.ellipsis,
+                                          maxLines: 3,
+                                          overflow: TextOverflow.visible,
                                         ),
                                       ),
                                     ],
@@ -1592,14 +1873,14 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                         CrossAxisAlignment.center,
                                     children: [
                                       SizedBox(
-                                        width: screenWidth * 0.075,
+                                        width: iconSizedBoxWidth,
                                         child: Icon(
                                           Icons.phone,
                                           color: Theme.of(context).primaryColor,
                                           size: getProportionalSize(22),
                                         ),
                                       ),
-                                      SizedBox(width: screenWidth * 0.016),
+                                      SizedBox(width: iconTextSpacing),
                                       Flexible(
                                         child: Text(
                                           customer.mobileNumber,
@@ -1626,14 +1907,14 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                         CrossAxisAlignment.center,
                                     children: [
                                       SizedBox(
-                                        width: screenWidth * 0.075,
+                                        width: iconSizedBoxWidth,
                                         child: Icon(
                                           Icons.calendar_today,
                                           color: Theme.of(context).primaryColor,
                                           size: getProportionalSize(20),
                                         ),
                                       ),
-                                      SizedBox(width: screenWidth * 0.016),
+                                      SizedBox(width: iconTextSpacing),
                                       Text(
                                         dateString,
                                         style: TextStyle(
@@ -1653,14 +1934,14 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                         CrossAxisAlignment.center,
                                     children: [
                                       SizedBox(
-                                        width: screenWidth * 0.075,
+                                        width: iconSizedBoxWidth,
                                         child: Icon(
                                           Icons.access_time,
                                           color: Theme.of(context).primaryColor,
                                           size: getProportionalSize(20),
                                         ),
                                       ),
-                                      SizedBox(width: screenWidth * 0.016),
+                                      SizedBox(width: iconTextSpacing),
                                       Text(
                                         timeString,
                                         style: TextStyle(
@@ -1685,7 +1966,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                         if (isCanceled)
                           Padding(
                             padding: EdgeInsets.only(
-                              right: screenWidth * 0.06,
+                              right: buttonOuterRightPadding,
                               top: screenHeight * 0.022,
                               bottom: screenHeight * 0.013,
                             ),
@@ -1715,7 +1996,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                     padding:
                                         WidgetStateProperty.all<EdgeInsets>(
                                           EdgeInsets.symmetric(
-                                            horizontal: screenWidth * 0.04,
+                                            horizontal: buttonHPadding,
                                             vertical: screenHeight * 0.013,
                                           ),
                                         ),
@@ -1802,7 +2083,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                         else if (isAppointment)
                           Padding(
                             padding: EdgeInsets.only(
-                              right: screenWidth * 0.06,
+                              right: buttonOuterRightPadding,
                               top: screenHeight * 0.022,
                               bottom: screenHeight * 0.013,
                             ),
@@ -1833,7 +2114,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                     padding:
                                         WidgetStateProperty.all<EdgeInsets>(
                                           EdgeInsets.symmetric(
-                                            horizontal: screenWidth * 0.07,
+                                            horizontal: buttonAssignHPadding,
                                             vertical: screenHeight * 0.013,
                                           ),
                                         ),
@@ -1886,7 +2167,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                     ),
                                   ),
                                 ),
-                                SizedBox(width: screenWidth * 0.02),
+                                SizedBox(width: iconTextSpacing),
                                 // MARK AS ACTIVE Button - to remove appointment status
                                 ElevatedButton(
                                   style: ButtonStyle(
@@ -1911,7 +2192,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                     padding:
                                         WidgetStateProperty.all<EdgeInsets>(
                                           EdgeInsets.symmetric(
-                                            horizontal: screenWidth * 0.04,
+                                            horizontal: buttonHPadding,
                                             vertical: screenHeight * 0.013,
                                           ),
                                         ),
@@ -1996,7 +2277,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                           // For regular active tickets (not appointment, not canceled, not completed)
                           Padding(
                             padding: EdgeInsets.only(
-                              right: screenWidth * 0.06,
+                              right: buttonOuterRightPadding,
                               top: screenHeight * 0.022,
                               bottom: screenHeight * 0.013,
                             ),
@@ -2027,7 +2308,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                     padding:
                                         WidgetStateProperty.all<EdgeInsets>(
                                           EdgeInsets.symmetric(
-                                            horizontal: screenWidth * 0.04,
+                                            horizontal: buttonHPadding,
                                             vertical: screenHeight * 0.013,
                                           ),
                                         ),
@@ -2078,6 +2359,17 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                                   FieldValue.serverTimestamp(),
                                             });
 
+                                        // Add notification for Admin (Acknowledged)
+                                        await NotificationService.sendNotificationToFirestore(
+                                          audience: 'admin',
+                                          title: 'Ticket Acknowledged',
+                                          body:
+                                              'You have scheduled an appointment for ticket ${customer.bookingId} (${customer.customerName})',
+                                          type: 'ticket_acknowledged',
+                                          bookingId: customer.bookingId,
+                                          customerName: customer.customerName,
+                                        );
+
                                         // Show success message
                                         ScaffoldMessenger.of(
                                           context,
@@ -2117,7 +2409,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                     ),
                                   ),
                                 ),
-                                SizedBox(width: screenWidth * 0.02),
+                                SizedBox(width: iconTextSpacing),
                                 // ASSIGN Button for active tickets
                                 ElevatedButton(
                                   style: ButtonStyle(
@@ -2142,7 +2434,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                     padding:
                                         WidgetStateProperty.all<EdgeInsets>(
                                           EdgeInsets.symmetric(
-                                            horizontal: screenWidth * 0.07,
+                                            horizontal: buttonAssignHPadding,
                                             vertical: screenHeight * 0.013,
                                           ),
                                         ),
@@ -2205,8 +2497,8 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                       if (!isCanceled && !isCompleted)
                         Padding(
                           padding: EdgeInsets.only(
-                            right: screenWidth * 0.06,
-                            left: screenWidth * 0.06,
+                            right: buttonOuterRightPadding,
+                            left: buttonOuterRightPadding,
                             bottom: screenHeight * 0.03,
                           ),
                           child: ElevatedButton(
@@ -2229,7 +2521,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                   ),
                               padding: WidgetStateProperty.all<EdgeInsets>(
                                 EdgeInsets.symmetric(
-                                  horizontal: screenWidth * 0.07,
+                                  horizontal: buttonAssignHPadding,
                                   vertical: screenHeight * 0.013,
                                 ),
                               ),
@@ -2265,6 +2557,29 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                       .collection('Admin_details')
                                       .doc(docId)
                                       .update({'adminStatus': 'Canceled'});
+
+                                  // Add notifications for Admin and Customer
+                                  await NotificationService.sendNotificationToFirestore(
+                                    audience: 'customer',
+                                    customerId: customer.customerid,
+                                    title: 'Ticket Canceled',
+                                    body:
+                                        'Your ticket ${customer.bookingId} has been canceled by the administrator.',
+                                    type: 'ticket_canceled',
+                                    bookingId: customer.bookingId,
+                                    customerName: customer.customerName,
+                                  );
+
+                                  await NotificationService.sendNotificationToFirestore(
+                                    audience: 'admin',
+                                    title: 'Ticket Canceled',
+                                    body:
+                                        'You have canceled ticket ${customer.bookingId} (${customer.customerName})',
+                                    type: 'ticket_canceled',
+                                    bookingId: customer.bookingId,
+                                    customerName: customer.customerName,
+                                  );
+
                                   Navigator.pop(context);
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
@@ -2316,7 +2631,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                       // Customer feedback card (always visible)
                       Padding(
                         padding: EdgeInsets.symmetric(
-                          horizontal: screenWidth * 0.06,
+                          horizontal: innerPaddingLeft,
                           vertical: screenHeight * 0.02,
                         ),
                         child: Card(
@@ -2414,7 +2729,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                       // Helpers card with table layout including S.No (always visible)
                       Padding(
                         padding: EdgeInsets.symmetric(
-                          horizontal: screenWidth * 0.06,
+                          horizontal: innerPaddingLeft,
                           vertical: screenHeight * 0.02,
                         ),
                         child: Card(
@@ -2582,7 +2897,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
             child: Text(
               'Job Type',
               style: TextStyle(
-                color: Colors.black.withOpacity(0.5),
+                color: Colors.black.withValues(alpha: 0.5),
                 fontSize: getProportionalSize(14),
                 fontFamily: 'Arial',
               ),
@@ -2605,13 +2920,13 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
         // Table Header
         Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF0B3470).withOpacity(0.1),
+            color: const Color(0xFF0B3470).withValues(alpha: 0.1),
             borderRadius: BorderRadius.only(
               topLeft: Radius.circular(getProportionalSize(8)),
               topRight: Radius.circular(getProportionalSize(8)),
             ),
             border: Border.all(
-              color: const Color(0xFF0B3470).withOpacity(0.3),
+              color: const Color(0xFF0B3470).withValues(alpha: 0.3),
               width: 1,
             ),
           ),
@@ -2627,7 +2942,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                 decoration: BoxDecoration(
                   border: Border(
                     right: BorderSide(
-                      color: const Color(0xFF0B3470).withOpacity(0.3),
+                      color: const Color(0xFF0B3470).withValues(alpha: 0.3),
                       width: 1,
                     ),
                   ),
@@ -2654,7 +2969,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                   decoration: BoxDecoration(
                     border: Border(
                       right: BorderSide(
-                        color: const Color(0xFF0B3470).withOpacity(0.3),
+                        color: const Color(0xFF0B3470).withValues(alpha: 0.3),
                         width: 1,
                       ),
                     ),
@@ -2702,7 +3017,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
           return Container(
             decoration: BoxDecoration(
               border: Border.all(
-                color: const Color(0xFF0B3470).withOpacity(0.2),
+                color: const Color(0xFF0B3470).withValues(alpha: 0.2),
                 width: 1,
               ),
               borderRadius: isLast
@@ -2724,7 +3039,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                   decoration: BoxDecoration(
                     border: Border(
                       right: BorderSide(
-                        color: const Color(0xFF0B3470).withOpacity(0.2),
+                        color: const Color(0xFF0B3470).withValues(alpha: 0.2),
                         width: 1,
                       ),
                     ),
@@ -2751,7 +3066,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                     decoration: BoxDecoration(
                       border: Border(
                         right: BorderSide(
-                          color: const Color(0xFF0B3470).withOpacity(0.2),
+                          color: const Color(0xFF0B3470).withValues(alpha: 0.2),
                           width: 1,
                         ),
                       ),
@@ -2844,7 +3159,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
             child: Text(
               label,
               style: TextStyle(
-                color: Colors.black.withOpacity(0.5),
+                color: Colors.black.withValues(alpha: 0.5),
                 fontSize: getProportionalSize(14),
                 fontFamily: 'Arial',
               ),

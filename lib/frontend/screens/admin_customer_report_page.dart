@@ -4,11 +4,13 @@ import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:open_file/open_file.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:subscription_rooks_app/utils/pdf_utils.dart';
+import 'package:intl/intl.dart';
 import 'dart:io';
-// import 'package:open_file/open_file';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class CustomerReportGenerator extends StatefulWidget {
   const CustomerReportGenerator({super.key});
@@ -18,32 +20,54 @@ class CustomerReportGenerator extends StatefulWidget {
       _CustomerReportGeneratorState();
 }
 
-class _CustomerReportGeneratorState extends State<CustomerReportGenerator> {
+class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
+    with SingleTickerProviderStateMixin {
   final TextEditingController _controller = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
   Map<String, dynamic>? resultData;
   List<Map<String, dynamic>>? multipleResults;
   bool _loading = false;
-  String _debugInfo = '';
+  bool _isPdfViewing = false;
+  bool _isPdfDownloading = false;
+  late AnimationController _animController;
+  late Animation<double> _fadeAnim;
+  late Animation<Offset> _slideAnim;
+
+  Color get _brand => ThemeService.instance.primaryColor;
+  Color get _brandLight => ThemeService.instance.primaryColor.withOpacity(0.1);
+  Color get _accent => ThemeService.instance.secondaryColor;
 
   @override
   void initState() {
     super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+    _fadeAnim = CurvedAnimation(parent: _animController, curve: Curves.easeOut);
+    _slideAnim = Tween<Offset>(
+      begin: const Offset(0, 0.08),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _animController, curve: Curves.easeOut));
   }
 
-  // Track selected rows for multiple results
+  @override
+  void dispose() {
+    _animController.dispose();
+    _controller.dispose();
+    _searchFocusNode.dispose();
+    super.dispose();
+  }
+
   final Map<int, bool> _selectedRows = {};
   bool _allSelected = false;
 
-  Color get primaryColor => Theme.of(context).primaryColor;
+  Color get primaryColor => _brand;
 
   Future<void> _fetchData(String input) async {
     if (input.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Please enter Customer ID, Phone, or Booking ID'),
-          backgroundColor: Colors.orange,
-        ),
-      );
+      _showSnack('Please enter Customer ID, Phone, or Booking ID',
+          color: Colors.orange);
       return;
     }
 
@@ -53,13 +77,10 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator> {
       multipleResults = null;
       _selectedRows.clear();
       _allSelected = false;
-      _debugInfo = 'Searching for: "$input"';
     });
+    _animController.reset();
 
     try {
-      print('Searching for: $input');
-
-      // Try searching in all three fields
       final List<QuerySnapshot> snapshots = await Future.wait([
         FirestoreService.instance
             .collection('Admin_details')
@@ -76,95 +97,51 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator> {
       ]);
 
       if (snapshots[1].docs.isNotEmpty) {
-        // Found multiple entries by mobileNumber
         multipleResults = snapshots[1].docs
             .map((doc) => doc.data() as Map<String, dynamic>)
             .toList();
-
-        // Initialize all checkboxes as unselected
         for (int i = 0; i < multipleResults!.length; i++) {
           _selectedRows[i] = false;
         }
-
-        setState(() {
-          _debugInfo =
-              'Found ${multipleResults!.length} results for mobileNumber: $input';
-          resultData = null;
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Found ${multipleResults!.length} entries for Mobile Number',
-            ),
-            backgroundColor: Colors.green,
-          ),
-        );
+        setState(() {});
+        _animController.forward();
+        _showSnack(
+            'Found ${multipleResults!.length} entries for Mobile Number',
+            color: Colors.green);
       } else {
-        // Check for id or bookingId match (only single record)
         QuerySnapshot? foundSnapshot;
-        String foundInField = '';
-
         for (int i in [0, 2]) {
           if (snapshots[i].docs.isNotEmpty) {
             foundSnapshot = snapshots[i];
-            foundInField = (i == 0) ? 'Id' : 'BookingId';
             break;
           }
         }
-
         if (foundSnapshot != null) {
-          final data = foundSnapshot.docs.first.data() as Map<String, dynamic>;
-          setState(() {
-            resultData = data;
-            multipleResults = null;
-            _selectedRows.clear();
-            _allSelected = false;
-            // _debugInfo =
-            //     'Found in field: $foundInField\nTotal fields: ${data.length}';
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Data found successfully!'),
-              backgroundColor: Colors.green,
-            ),
-          );
+          final data =
+              foundSnapshot.docs.first.data() as Map<String, dynamic>;
+          setState(() => resultData = data);
+          _animController.forward();
+          _showSnack('Record found!', color: Colors.green);
         } else {
-          setState(() {
-            resultData = null;
-            multipleResults = null;
-            _selectedRows.clear();
-            _allSelected = false;
-            _debugInfo =
-                'No documents found in any field\nSearched: Id, MobileNumber, BookingId';
-          });
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('No data found for "$input"'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          setState(() {});
+          _showSnack('No data found for "$input"', color: Colors.red);
         }
       }
     } catch (e) {
-      print('Error: $e');
-      setState(() {
-        resultData = null;
-        multipleResults = null;
-        _selectedRows.clear();
-        _allSelected = false;
-        _debugInfo = 'Error: $e';
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-      );
+      _showSnack('Error: $e', color: Colors.red);
     } finally {
-      setState(() {
-        _loading = false;
-      });
+      setState(() => _loading = false);
     }
+  }
+
+  void _showSnack(String msg, {Color color = Colors.blueGrey}) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg),
+      backgroundColor: color,
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      margin: const EdgeInsets.all(16),
+    ));
   }
 
   void _toggleAllSelection() {
@@ -181,870 +158,1076 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator> {
   void _toggleRowSelection(int index) {
     setState(() {
       _selectedRows[index] = !(_selectedRows[index] ?? false);
-
-      // Update "Select All" checkbox state
       if (multipleResults != null) {
-        _allSelected = _selectedRows.values.every((isSelected) => isSelected);
+        _allSelected = _selectedRows.values.every((v) => v);
       }
     });
   }
 
   List<Map<String, dynamic>> _getSelectedRecords() {
     if (multipleResults != null) {
-      List<Map<String, dynamic>> selected = [];
-      for (int i = 0; i < multipleResults!.length; i++) {
-        if (_selectedRows[i] == true) {
-          selected.add(multipleResults![i]);
-        }
-      }
-      return selected;
+      return [
+        for (int i = 0; i < multipleResults!.length; i++)
+          if (_selectedRows[i] == true) multipleResults![i]
+      ];
     } else if (resultData != null) {
       return [resultData!];
     }
     return [];
   }
 
-  int get _selectedCount {
-    return _selectedRows.values.where((isSelected) => isSelected).length;
+  int get _selectedCount =>
+      _selectedRows.values.where((v) => v).length;
+
+  bool get _canExportReport {
+    if (resultData != null) return true;
+    return multipleResults != null && _selectedCount > 0;
   }
 
-  Future<void> _generatePdf() async {
-    final selectedRecords = _getSelectedRecords();
+  List<Map<String, dynamic>> get _displayRecords {
+    if (multipleResults != null) return multipleResults!;
+    if (resultData != null) return [resultData!];
+    return [];
+  }
 
-    if (selectedRecords.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Please select at least one record to generate PDF'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
+  String _fmt(dynamic v) {
+    final t = v?.toString().trim();
+    return (t == null || t.isEmpty) ? 'N/A' : t;
+  }
+
+  String _fmtAmount(dynamic a) {
+    if (a == null) return 'N/A';
+    final p = double.tryParse(a.toString());
+    if (p == null) return a.toString();
+    return p == p.roundToDouble() ? '₹${p.toInt()}' : '₹${p.toStringAsFixed(2)}';
+  }
+
+  double _totalAmount(List<Map<String, dynamic>> records) =>
+      records.fold(0.0, (s, r) => s + (double.tryParse(r['amount']?.toString() ?? '') ?? 0));
+
+  String _reportPdfName(List<Map<String, dynamic>> records) {
+    final stamp = DateFormat('yyyyMMdd_HHmm').format(DateTime.now());
+    String name;
+    if (records.length == 1) {
+      final id = _fmt(records.first['bookingId']);
+      name = id != 'N/A' ? 'Customer_Report_$id' : 'Customer_Report_$stamp';
+    } else {
+      name = 'Customer_Report_${records.length}_$stamp';
+    }
+    return name.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+  }
+
+  // ─── PDF generation ────────────────────────────────────────────────────────
+
+  PdfColor get _pdfBrand => PdfColor.fromInt(ThemeService.instance.primaryColor.value);
+  PdfColor get _pdfBrandLight => PdfColor.fromInt(ThemeService.instance.primaryColor.withOpacity(0.1).value);
+
+  Future<pw.Document> _buildPdfDocument(
+      List<Map<String, dynamic>> records) async {
+    final pdf = pw.Document();
+    final appName = ThemeService.instance.appName;
+    final generatedAt = DateFormat('dd MMM yyyy, HH:mm').format(DateTime.now());
+
+    pw.MemoryImage? logoImage;
+    final logoUrl = ThemeService.instance.logoUrl;
+    if (logoUrl != null && logoUrl.isNotEmpty) {
+      logoImage = await PdfUtils.fetchNetworkImage(logoUrl);
     }
 
-    try {
-      setState(() {
-        _loading = true;
-      });
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.symmetric(horizontal: 32, vertical: 28),
+        header: (ctx) => _pdfHeader(logoImage, appName, generatedAt),
+        footer: (ctx) => _pdfFooter(ctx, appName),
+        build: (ctx) {
+          final widgets = <pw.Widget>[
+            _pdfSummaryBox(records),
+          ];
+          if (records.length > 1) {
+            widgets
+              ..add(pw.SizedBox(height: 18))
+              ..add(_pdfIndex(records));
+          }
+          for (var i = 0; i < records.length; i++) {
+            widgets
+              ..add(pw.SizedBox(height: 18))
+              ..add(_pdfCard(records[i], i + 1, records.length));
+          }
+          return widgets;
+        },
+      ),
+    );
+    return pdf;
+  }
 
-      final pdf = pw.Document();
-
-      // Load and embed the logo
-      pw.MemoryImage? logoImage;
-      final logoUrl = ThemeService.instance.logoUrl;
-      if (logoUrl != null && logoUrl.isNotEmpty) {
-        logoImage = await PdfUtils.fetchNetworkImage(logoUrl);
-      }
-
-      pdf.addPage(
-        pw.Page(
-          margin: pw.EdgeInsets.all(20),
-          build: (context) {
-            return pw.Column(
+  pw.Widget _pdfHeader(
+      pw.MemoryImage? logo, String appName, String generatedAt) {
+    return pw.Container(
+      margin: const pw.EdgeInsets.only(bottom: 16),
+      padding: const pw.EdgeInsets.only(bottom: 12),
+      decoration: const pw.BoxDecoration(
+        border: pw.Border(
+            bottom: pw.BorderSide(color: PdfColors.grey300, width: 1)),
+      ),
+      child: pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.center,
+        children: [
+          if (logo != null)
+            pw.Container(
+              width: 48,
+              height: 48,
+              margin: const pw.EdgeInsets.only(right: 14),
+              child: pw.Image(logo, fit: pw.BoxFit.contain),
+            ),
+          pw.Expanded(
+            child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
-                // Header with Logo
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        pw.Text(
-                          'CUSTOMER SERVICE REPORT',
-                          style: pw.TextStyle(
-                            fontSize: 20,
-                            fontWeight: pw.FontWeight.bold,
-                            color: PdfColors.blue800,
-                          ),
-                        ),
-                        pw.SizedBox(height: 5),
-                        pw.Text(
-                          ThemeService.instance.appName,
-                          style: pw.TextStyle(
-                            fontSize: 14,
-                            fontWeight: pw.FontWeight.normal,
-                            color: PdfColors.grey700,
-                          ),
-                        ),
-                        pw.SizedBox(height: 5),
-                        pw.Text(
-                          'Generated on: ${DateTime.now().toString().split(' ')[0]}',
-                          style: pw.TextStyle(
-                            fontSize: 10,
-                            color: PdfColors.grey600,
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (logoImage != null)
-                      pw.Container(
-                        height: 60,
-                        width: 60,
-                        child: pw.Image(logoImage),
-                      ),
-                  ],
-                ),
-
-                pw.SizedBox(height: 20),
-                pw.Divider(thickness: 2, color: PdfColors.blue400),
-                pw.SizedBox(height: 20),
-
-                // Report Summary
-                pw.Container(
-                  width: double.infinity,
-                  padding: pw.EdgeInsets.all(12),
-                  decoration: pw.BoxDecoration(
-                    color: PdfColors.blue50,
-                    borderRadius: pw.BorderRadius.circular(8),
-                  ),
-                  child: pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      pw.Text(
-                        'REPORT SUMMARY',
-                        style: pw.TextStyle(
-                          fontSize: 12,
-                          fontWeight: pw.FontWeight.bold,
-                          color: PdfColors.blue800,
-                        ),
-                      ),
-                      pw.SizedBox(height: 5),
-                      pw.Text(
-                        'Total Selected Records: ${selectedRecords.length}',
-                        style: pw.TextStyle(
-                          fontSize: 10,
-                          color: PdfColors.blue700,
-                        ),
-                      ),
-                      if (multipleResults != null)
-                        pw.Text(
-                          'Filtered from ${multipleResults!.length} total records',
-                          style: pw.TextStyle(
-                            fontSize: 9,
-                            color: PdfColors.grey600,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-
-                pw.SizedBox(height: 15),
-
-                // Customer Details Table Title
-                pw.Container(
-                  width: double.infinity,
-                  padding: pw.EdgeInsets.all(10),
-                  decoration: pw.BoxDecoration(
-                    color: PdfColors.grey200,
-                    borderRadius: pw.BorderRadius.circular(6),
-                  ),
-                  child: pw.Text(
-                    'SELECTED CUSTOMER SERVICE DETAILS',
+                pw.Text('CUSTOMER SERVICE REPORT',
                     style: pw.TextStyle(
-                      fontSize: 14,
-                      fontWeight: pw.FontWeight.bold,
-                      color: PdfColors.blue900,
-                    ),
-                  ),
-                ),
-                pw.SizedBox(height: 10),
-
-                // Table with selected details only
-                pw.TableHelper.fromTextArray(
-                  context: context,
-                  border: pw.TableBorder.all(
-                    color: PdfColors.grey400,
-                    width: 0.5,
-                  ),
-                  headerStyle: pw.TextStyle(
-                    fontWeight: pw.FontWeight.bold,
-                    fontSize: 10,
-                    color: PdfColors.white,
-                  ),
-                  cellStyle: pw.TextStyle(fontSize: 9),
-                  headerDecoration: pw.BoxDecoration(
-                    color: PdfColors.blue700,
-                    borderRadius: pw.BorderRadius.only(
-                      topLeft: pw.Radius.circular(4),
-                      topRight: pw.Radius.circular(4),
-                    ),
-                  ),
-                  cellHeight: 25,
-                  cellAlignments: {
-                    0: pw.Alignment.centerLeft,
-                    1: pw.Alignment.centerLeft,
-                    2: pw.Alignment.centerLeft,
-                    3: pw.Alignment.centerLeft,
-                    4: pw.Alignment.centerLeft,
-                    5: pw.Alignment.centerLeft,
-                    6: pw.Alignment.centerLeft,
-                    7: pw.Alignment.centerLeft,
-                    8: pw.Alignment.centerRight,
-                  },
-                  headers: [
-                    'ID',
-                    'CUSTOMER NAME',
-                    'BOOKING ID',
-                    'DEVICE BRAND',
-                    'DEVICE TYPE',
-                    'DEVICE CONDITION',
-                    'ADMIN STATUS',
-                    'ADDRESS',
-                    'AMOUNT',
-                  ],
-                  data: _getPdfTableData(selectedRecords),
-                ),
-
-                pw.SizedBox(height: 25),
-                pw.Divider(thickness: 1, color: PdfColors.grey300),
-
-                // Footer
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Text(
-                      'Page 1 of 1',
-                      style: pw.TextStyle(
-                        fontSize: 8,
-                        color: PdfColors.grey600,
-                      ),
-                    ),
-                    pw.Text(
-                      'Confidential - For Internal Use Only',
-                      style: pw.TextStyle(
-                        fontSize: 8,
-                        color: PdfColors.grey600,
-                      ),
-                    ),
-                  ],
-                ),
+                        fontSize: 15,
+                        fontWeight: pw.FontWeight.bold,
+                        color: _pdfBrand,
+                        letterSpacing: 0.5)),
+                pw.SizedBox(height: 3),
+                pw.Text(appName,
+                    style: const pw.TextStyle(
+                        fontSize: 10, color: PdfColors.grey700)),
+                pw.SizedBox(height: 2),
+                pw.Text('Generated: $generatedAt',
+                    style: const pw.TextStyle(
+                        fontSize: 8, color: PdfColors.grey600)),
               ],
-            );
+            ),
+          ),
+          pw.Container(
+            padding:
+                const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            decoration: pw.BoxDecoration(
+              color: _pdfBrand,
+              borderRadius: pw.BorderRadius.circular(4),
+            ),
+            child: pw.Text('INTERNAL',
+                style: pw.TextStyle(
+                    fontSize: 7,
+                    fontWeight: pw.FontWeight.bold,
+                    color: PdfColors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _pdfFooter(pw.Context ctx, String appName) {
+    return pw.Container(
+      margin: const pw.EdgeInsets.only(top: 12),
+      padding: const pw.EdgeInsets.only(top: 8),
+      decoration: const pw.BoxDecoration(
+        border: pw.Border(
+            top: pw.BorderSide(color: PdfColors.grey300, width: 0.5)),
+      ),
+      child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        children: [
+          pw.Text(appName,
+              style: const pw.TextStyle(
+                  fontSize: 8, color: PdfColors.grey600)),
+          pw.Text('Page ${ctx.pageNumber} of ${ctx.pagesCount}',
+              style: const pw.TextStyle(
+                  fontSize: 8, color: PdfColors.grey600)),
+          pw.Text('Confidential — internal use only',
+              style: const pw.TextStyle(
+                  fontSize: 8, color: PdfColors.grey600)),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _pdfSummaryBox(List<Map<String, dynamic>> records) {
+    final total = _totalAmount(records);
+    return pw.Container(
+      width: double.infinity,
+      padding: const pw.EdgeInsets.all(14),
+      decoration: pw.BoxDecoration(
+        color: _pdfBrandLight,
+        borderRadius: pw.BorderRadius.circular(6),
+        border: pw.Border.all(color: _pdfBrand, width: 0.8),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text('Report Summary',
+              style: pw.TextStyle(
+                  fontSize: 11,
+                  fontWeight: pw.FontWeight.bold,
+                  color: _pdfBrand)),
+          pw.SizedBox(height: 10),
+          pw.Row(
+            children: [
+              pw.Expanded(
+                  child: _pdfMetric('Records', records.length.toString())),
+              pw.Expanded(
+                  child: _pdfMetric('Combined Amount', _fmtAmount(total))),
+              if (multipleResults != null)
+                pw.Expanded(
+                    child: _pdfMetric(
+                        'From Search', '${multipleResults!.length} total')),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _pdfMetric(String label, String value) => pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(label,
+              style: const pw.TextStyle(
+                  fontSize: 8, color: PdfColors.grey700)),
+          pw.SizedBox(height: 3),
+          pw.Text(value,
+              style: pw.TextStyle(
+                  fontSize: 11,
+                  fontWeight: pw.FontWeight.bold,
+                  color: _pdfBrand)),
+        ],
+      );
+
+  pw.Widget _pdfIndex(List<Map<String, dynamic>> records) {
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        _pdfHeading('Quick Reference'),
+        pw.Table(
+          border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.5),
+          columnWidths: {
+            0: const pw.FixedColumnWidth(28),
+            1: const pw.FlexColumnWidth(1.2),
+            2: const pw.FlexColumnWidth(2),
+            3: const pw.FlexColumnWidth(1.5),
+            4: const pw.FlexColumnWidth(1.2),
           },
+          children: [
+            pw.TableRow(
+              decoration: pw.BoxDecoration(color: _pdfBrand),
+              children: ['#', 'ID', 'Customer', 'Booking ID', 'Status']
+                  .map((h) => _pdfCell(h, header: true))
+                  .toList(),
+            ),
+            ...List.generate(records.length, (i) {
+              final r = records[i];
+              return pw.TableRow(
+                decoration: pw.BoxDecoration(
+                    color: i.isOdd ? PdfColors.grey100 : PdfColors.white),
+                children: [
+                  _pdfCell('${i + 1}'),
+                  _pdfCell(_fmt(r['id'])),
+                  _pdfCell(_fmt(r['customerName'])),
+                  _pdfCell(_fmt(r['bookingId'])),
+                  _pdfCell(_fmt(r['adminStatus'])),
+                ],
+              );
+            }),
+          ],
         ),
+      ],
+    );
+  }
+
+  pw.Widget _pdfHeading(String title) => pw.Container(
+        width: double.infinity,
+        margin: const pw.EdgeInsets.only(bottom: 8),
+        padding:
+            const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: pw.BoxDecoration(
+          color: _pdfBrandLight,
+          borderRadius: pw.BorderRadius.circular(4),
+          border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
+        ),
+        child: pw.Text(title,
+            style: pw.TextStyle(
+                fontSize: 10,
+                fontWeight: pw.FontWeight.bold,
+                color: _pdfBrand)),
       );
 
-      // Save PDF to file
-      final output = await getTemporaryDirectory();
-      final file = File(
-        "${output.path}/customer_report_${DateTime.now().millisecondsSinceEpoch}.pdf",
+  pw.Widget _pdfCell(String text, {bool header = false}) => pw.Padding(
+        padding:
+            const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 7),
+        child: pw.Text(text,
+            maxLines: 2,
+            style: pw.TextStyle(
+                fontSize: 8,
+                fontWeight:
+                    header ? pw.FontWeight.bold : pw.FontWeight.normal,
+                color: header ? PdfColors.white : PdfColors.black)),
       );
-      await file.writeAsBytes(await pdf.save());
 
-      // Open the PDF file
-      await OpenFile.open(file.path);
+  pw.Widget _pdfDetailRow(String label, String value,
+      {bool emphasize = false}) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.only(bottom: 6),
+      child: pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.SizedBox(
+            width: 118,
+            child: pw.Text(label,
+                style: const pw.TextStyle(
+                    fontSize: 9, color: PdfColors.grey700)),
+          ),
+          pw.Expanded(
+            child: pw.Text(value,
+                style: pw.TextStyle(
+                    fontSize: 9,
+                    fontWeight: emphasize
+                        ? pw.FontWeight.bold
+                        : pw.FontWeight.normal,
+                    color: emphasize ? _pdfBrand : PdfColors.black)),
+          ),
+        ],
+      ),
+    );
+  }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('PDF generated with $_selectedCount selected records!'),
-          backgroundColor: Colors.green,
-        ),
+  pw.Widget _pdfCard(
+      Map<String, dynamic> r, int index, int total) {
+    return pw.Container(
+      width: double.infinity,
+      padding: const pw.EdgeInsets.all(14),
+      decoration: pw.BoxDecoration(
+        border: pw.Border.all(color: PdfColors.grey400, width: 0.8),
+        borderRadius: pw.BorderRadius.circular(6),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [
+              pw.Text('Record $index of $total',
+                  style: pw.TextStyle(
+                      fontSize: 12,
+                      fontWeight: pw.FontWeight.bold,
+                      color: _pdfBrand)),
+              pw.Container(
+                padding: const pw.EdgeInsets.symmetric(
+                    horizontal: 10, vertical: 4),
+                decoration: pw.BoxDecoration(
+                    color: _pdfBrand,
+                    borderRadius: pw.BorderRadius.circular(12)),
+                child: pw.Text(_fmt(r['adminStatus']),
+                    style: pw.TextStyle(
+                        fontSize: 8,
+                        fontWeight: pw.FontWeight.bold,
+                        color: PdfColors.white)),
+              ),
+            ],
+          ),
+          pw.SizedBox(height: 4),
+          pw.Text('Booking: ${_fmt(r['bookingId'])}',
+              style: const pw.TextStyle(
+                  fontSize: 9, color: PdfColors.grey700)),
+          pw.SizedBox(height: 12),
+          pw.Divider(color: PdfColors.grey300, height: 1),
+          pw.SizedBox(height: 10),
+          _pdfHeading('Customer Details'),
+          _pdfDetailRow('Customer ID', _fmt(r['id'])),
+          _pdfDetailRow('Name', _fmt(r['customerName'])),
+          _pdfDetailRow('Mobile', _fmt(r['mobileNumber'])),
+          _pdfDetailRow('Booking ID', _fmt(r['bookingId'])),
+          pw.SizedBox(height: 6),
+          _pdfHeading('Device Details'),
+          pw.Row(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Expanded(
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    _pdfDetailRow('Brand', _fmt(r['deviceBrand'])),
+                    _pdfDetailRow('Type', _fmt(r['deviceType'])),
+                  ],
+                ),
+              ),
+              pw.Expanded(
+                child: _pdfDetailRow(
+                    'Condition', _fmt(r['deviceCondition'])),
+              ),
+            ],
+          ),
+          pw.SizedBox(height: 6),
+          _pdfHeading('Service & Billing'),
+          _pdfDetailRow('Amount', _fmtAmount(r['amount']),
+              emphasize: true),
+          _pdfDetailRow('Address', _fmt(r['address'])),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _viewReportPdf() async {
+    final records = _getSelectedRecords();
+    if (records.isEmpty) {
+      _showSnack('Select at least one record', color: Colors.orange);
+      return;
+    }
+    setState(() => _isPdfViewing = true);
+    try {
+      final pdf = await _buildPdfDocument(records);
+      if (!mounted) return;
+      await Printing.layoutPdf(
+        onLayout: (fmt) async => pdf.save(),
+        name: _reportPdfName(records),
       );
     } catch (e) {
-      print('PDF Generation Error: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error generating PDF: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) _showSnack('Unable to open PDF: $e', color: Colors.red);
     } finally {
-      setState(() {
-        _loading = false;
-      });
+      if (mounted) setState(() => _isPdfViewing = false);
     }
   }
 
-  List<List<String>> _getPdfTableData(List<Map<String, dynamic>> records) {
-    final fields = [
-      'id',
-      'customerName',
-      'bookingId',
-      'deviceBrand',
-      'deviceType',
-      'deviceCondition',
-      'adminStatus',
-      'address',
-      'amount',
-    ];
-
-    List<List<String>> data = [];
-
-    for (var record in records) {
-      List<String> row = [];
-      for (var key in fields) {
-        row.add(record[key]?.toString() ?? 'N/A');
-      }
-      data.add(row);
+  Future<void> _downloadReportPdf() async {
+    final records = _getSelectedRecords();
+    if (records.isEmpty) {
+      _showSnack('Select at least one record', color: Colors.orange);
+      return;
     }
-
-    return data;
+    setState(() => _isPdfDownloading = true);
+    try {
+      final pdf = await _buildPdfDocument(records);
+      final dir = await getDownloadsDirectory() ??
+          await getApplicationDocumentsDirectory();
+      final file =
+          File('${dir.path}/${_reportPdfName(records)}.pdf');
+      await file.writeAsBytes(await pdf.save());
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('PDF saved to Downloads'),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        action: SnackBarAction(
+          label: 'Open',
+          textColor: Colors.white,
+          onPressed: () => OpenFile.open(file.path),
+        ),
+      ));
+    } catch (e) {
+      if (mounted) _showSnack('Download failed: $e', color: Colors.red);
+    } finally {
+      if (mounted) setState(() => _isPdfDownloading = false);
+    }
   }
+
+  // ─── BUILD ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: const Color(0xFFF4F7FC),
       appBar: AppBar(
-        title: Text(
+        title: const Text(
           'Customer Report Generator',
-          style: TextStyle(fontWeight: FontWeight.w600, color: Colors.white),
+          style: TextStyle(
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+              fontSize: 18,
+              letterSpacing: -0.3),
         ),
-        backgroundColor: primaryColor,
+        backgroundColor: _brand,
         foregroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(bottom: Radius.circular(15)),
+        shape: const RoundedRectangleBorder(
+          borderRadius:
+              BorderRadius.vertical(bottom: Radius.circular(20)),
         ),
       ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final isNarrow = constraints.maxWidth < 600;
-          final hPad = isNarrow ? 12.0 : 20.0;
-          return SafeArea(
-            bottom: false,
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(hPad, 16, hPad, 16),
+      body: SafeArea(
+        bottom: false,
+        child: ResponsiveWrapper(
+          maxWidth: 1200.0,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 500),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Search Card
-                    Card(
-                      elevation: 8,
-                      shadowColor: primaryColor.withOpacity(0.3),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              Theme.of(context).cardColor,
-                              Theme.of(
-                                context,
-                              ).primaryColorLight.withOpacity(0.1),
-                            ],
-                          ),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: MediaQuery.of(context).size.width < 400
-                                ? 14
-                                : 20,
-                            vertical: 20,
-                          ),
-                          child: Column(
-                            children: [
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.search,
-                                    color: primaryColor,
-                                    size: 28,
-                                  ),
-                                  SizedBox(width: 12),
-                                  Expanded(
-                                    child: Text(
-                                      'Find Customer Records',
-                                      style: TextStyle(
-                                        fontSize: isNarrow ? 16 : 18,
-                                        fontWeight: FontWeight.w600,
-                                        color: primaryColor,
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              SizedBox(height: 20),
-                              TextField(
-                                controller: _controller,
-                                decoration: InputDecoration(
-                                  labelText:
-                                      'Enter Customer ID, Phone, or Booking ID',
-                                  labelStyle: TextStyle(
-                                    color: Theme.of(context).hintColor,
-                                  ),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(15),
-                                    borderSide: BorderSide(
-                                      color: Theme.of(context).dividerColor,
-                                    ),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(15),
-                                    borderSide: BorderSide(
-                                      color: primaryColor,
-                                      width: 2,
-                                    ),
-                                  ),
-                                  filled: true,
-                                  fillColor: Theme.of(context).cardColor,
-                                  prefixIcon: Icon(
-                                    Icons.person_search,
-                                    color: primaryColor,
-                                  ),
-                                  contentPadding: EdgeInsets.symmetric(
-                                    horizontal: 20,
-                                    vertical: 16,
-                                  ),
-                                ),
-                                onSubmitted: (value) {
-                                  _fetchData(value.trim());
-                                },
-                              ),
-                              SizedBox(height: 20),
-                              SizedBox(
-                                width: double.infinity,
-                                height: 52,
-                                child: ElevatedButton(
-                                  onPressed: _loading
-                                      ? null
-                                      : () =>
-                                            _fetchData(_controller.text.trim()),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: primaryColor,
-                                    foregroundColor: Colors.white,
-                                    elevation: 4,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(15),
-                                    ),
-                                    shadowColor: primaryColor.withOpacity(0.4),
-                                  ),
-                                  child: _loading
-                                      ? SizedBox(
-                                          width: 24,
-                                          height: 24,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            color: Colors.white,
-                                          ),
-                                        )
-                                      : Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            Icon(Icons.manage_search, size: 22),
-                                            SizedBox(width: 10),
-                                            Text(
-                                              'Search & Generate Report',
-                                              style: TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                ),
-                              ),
-                            ],
-                          ),
+                    _buildSearchCard(),
+                    const SizedBox(height: 20),
+                    if (_loading) _buildLoading(),
+                    if (!_loading && _displayRecords.isNotEmpty)
+                      FadeTransition(
+                        opacity: _fadeAnim,
+                        child: SlideTransition(
+                          position: _slideAnim,
+                          child: _buildResultsSection(),
                         ),
                       ),
-                    ),
-
-                    SizedBox(height: 20),
-
-                    // Debug Info
-                    if (_debugInfo.isNotEmpty)
-                      Container(
-                        width: double.infinity,
-                        padding: EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).cardColor,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: Theme.of(context).dividerColor,
-                          ),
-                        ),
-                        child: Text(
-                          _debugInfo,
-                          style: TextStyle(
-                            color: Theme.of(context).hintColor,
-                            fontSize: 12,
-                            fontFamily: 'Monospace',
-                          ),
-                        ),
-                      ),
-
-                    SizedBox(height: 20),
-
-                    // Selection Info Bar (when multiple results)
-                    if (multipleResults != null && multipleResults!.isNotEmpty)
-                      Container(
-                        width: double.infinity,
-                        padding: EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: _selectedCount > 0
-                              ? Theme.of(
-                                  context,
-                                ).primaryColorLight.withOpacity(0.2)
-                              : Theme.of(context).cardColor,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: _selectedCount > 0
-                                ? Theme.of(context).primaryColorLight
-                                : Theme.of(context).dividerColor,
-                          ),
-                        ),
-                        child: isNarrow
-                            ? Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    '$_selectedCount of ${multipleResults!.length} selected',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      color: _selectedCount > 0
-                                          ? primaryColor
-                                          : Theme.of(context).hintColor,
-                                    ),
-                                  ),
-                                  SizedBox(height: 8),
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(
-                                        'Select All',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: primaryColor,
-                                        ),
-                                      ),
-                                      Checkbox(
-                                        value: _allSelected,
-                                        onChanged: (value) =>
-                                            _toggleAllSelection(),
-                                        activeColor: primaryColor,
-                                        visualDensity: VisualDensity.compact,
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              )
-                            : Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    '$_selectedCount of ${multipleResults!.length} records selected',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      color: _selectedCount > 0
-                                          ? primaryColor
-                                          : Theme.of(context).hintColor,
-                                    ),
-                                  ),
-                                  if (multipleResults!.isNotEmpty)
-                                    Row(
-                                      children: [
-                                        Text(
-                                          'Select All',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: primaryColor,
-                                          ),
-                                        ),
-                                        SizedBox(width: 8),
-                                        Checkbox(
-                                          value: _allSelected,
-                                          onChanged: (value) =>
-                                              _toggleAllSelection(),
-                                          activeColor: primaryColor,
-                                        ),
-                                      ],
-                                    ),
-                                ],
-                              ),
-                      ),
-
-                    SizedBox(height: 10),
-
-                    // Results Section
-                    multipleResults != null && multipleResults!.isNotEmpty
-                        ? _buildMultipleResultsTable()
-                        : resultData == null
-                        ? _buildEmptyState()
-                        : _buildSingleResultTable(),
-
-                    SizedBox(height: 12),
-
-                    // PDF Generation Button
-                    if ((resultData != null) ||
-                        (multipleResults != null &&
-                            multipleResults!.isNotEmpty))
-                      SafeArea(
-                        top: false,
-                        child: Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: SizedBox(
-                            width: double.infinity,
-                            height: 52,
-                            child: ElevatedButton.icon(
-                              onPressed: _loading ? null : _generatePdf,
-                              icon: _loading
-                                  ? SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Colors.white,
-                                      ),
-                                    )
-                                  : Icon(Icons.picture_as_pdf, size: 22),
-                              label: Text(
-                                _loading
-                                    ? 'Generating PDF...'
-                                    : multipleResults != null
-                                    ? 'Generate PDF ($_selectedCount selected)'
-                                    : 'Generate PDF Report',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor:
-                                    _selectedCount > 0 || resultData != null
-                                    ? Colors.red[600]
-                                    : Theme.of(context).disabledColor,
-                                foregroundColor: Colors.white,
-                                elevation: 4,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(15),
-                                ),
-                                shadowColor:
-                                    (_selectedCount > 0 || resultData != null)
-                                    ? Theme.of(
-                                        context,
-                                      ).colorScheme.error.withOpacity(0.3)
-                                    : Theme.of(context).disabledColor,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
+                    if (!_loading &&
+                        resultData == null &&
+                        (multipleResults == null || multipleResults!.isEmpty))
+                      _buildEmptyState(),
                   ],
                 ),
               ),
             ),
-          );
-        },
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildEmptyState() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final iconSize = constraints.maxWidth < 360 ? 80.0 : 120.0;
-        return Center(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+  // ─── SEARCH CARD ────────────────────────────────────────────────────────────
+
+  Widget _buildSearchCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: _brand.withOpacity(0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          )
+        ],
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header row
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: _brandLight,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(Icons.person_search_rounded,
+                    color: _brand, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Find Customer',
+                      style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                          color: _brand,
+                          letterSpacing: -0.3)),
+                  const Text('Search by ID, Phone or Booking ID',
+                      style: TextStyle(
+                          fontSize: 12, color: Color(0xFF8A9BB8))),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          // Search field
+          Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFFF4F7FC),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFDDE4F0)),
+            ),
+            child: Row(
               children: [
-                Container(
-                  width: iconSize,
-                  height: iconSize,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).primaryColorLight.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.assignment_outlined,
-                    size: iconSize * 0.5,
-                    color: primaryColor,
-                  ),
-                ),
-                SizedBox(height: 20),
-                Text(
-                  'No Data Found',
-                  style: TextStyle(
-                    fontSize: constraints.maxWidth < 360 ? 18 : 22,
-                    fontWeight: FontWeight.w600,
-                    color: Theme.of(context).hintColor,
-                  ),
-                ),
-                SizedBox(height: 10),
-                Text(
-                  'Try searching with Customer ID, Phone Number, or Booking ID',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: constraints.maxWidth < 360 ? 13 : 15,
-                    color: Theme.of(context).hintColor,
+                Expanded(
+                  child: TextField(
+                    controller: _controller,
+                    focusNode: _searchFocusNode,
+                    style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                        color: _brand),
+                    decoration: const InputDecoration(
+                      hintText: 'Enter Customer ID, Phone, or Booking ID',
+                      hintStyle: TextStyle(
+                          color: Color(0xFFADB9CC), fontSize: 14),
+                      border: InputBorder.none,
+                      prefixIcon: Icon(Icons.search_rounded,
+                          color: Color(0xFF8A9BB8), size: 20),
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+                    ),
+                    onSubmitted: (v) => _fetchData(v.trim()),
                   ),
                 ),
-                SizedBox(height: 20),
+                if (_controller.text.isNotEmpty)
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded,
+                        color: Color(0xFF8A9BB8), size: 20),
+                    onPressed: () {
+                      _controller.clear();
+                      setState(() {
+                        resultData = null;
+                        multipleResults = null;
+                      });
+                    },
+                  ),
               ],
             ),
           ),
-        );
-      },
+          const SizedBox(height: 14),
+          // Quick-search chips
+          Wrap(
+            spacing: 8,
+            children: ['Customer ID', 'Phone Number', 'Booking ID']
+                .map((label) => _searchChip(label))
+                .toList(),
+          ),
+          const SizedBox(height: 18),
+          // Search button
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton(
+              onPressed: _loading
+                  ? null
+                  : () {
+                      _searchFocusNode.unfocus();
+                      _fetchData(_controller.text.trim());
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _brand,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: _brand.withOpacity(0.4),
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+              ),
+              child: _loading
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2.5, color: Colors.white))
+                  : const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.manage_search_rounded, size: 20),
+                        SizedBox(width: 8),
+                        Text('Search & Generate Report',
+                            style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: -0.2)),
+                      ],
+                    ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildMultipleResultsTable() {
-    return Card(
-      elevation: 6,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
+  Widget _searchChip(String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: _brandLight,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(label,
+          style: TextStyle(
+              fontSize: 11,
+              color: _brand,
+              fontWeight: FontWeight.w600)),
+    );
+  }
+
+  // ─── LOADING ────────────────────────────────────────────────────────────────
+
+  Widget _buildLoading() {
+    return Container(
+      height: 180,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+              color: _brand.withOpacity(0.06),
+              blurRadius: 16,
+              offset: const Offset(0, 4))
+        ],
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(color: _brand, strokeWidth: 3),
+          const SizedBox(height: 16),
+          Text('Searching records…',
+              style: TextStyle(
+                  color: _brand.withOpacity(0.7),
+                  fontWeight: FontWeight.w500,
+                  fontSize: 14)),
+        ],
+      ),
+    );
+  }
+
+  // ─── RESULTS SECTION ────────────────────────────────────────────────────────
+
+  Widget _buildResultsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Stats bar
+        _buildStatsBar(),
+        const SizedBox(height: 14),
+
+        // Select-all bar (multi results only)
+        if (multipleResults != null) ...[
+          _buildSelectAllBar(),
+          const SizedBox(height: 14),
+        ],
+
+        // Record cards
+        ...List.generate(_displayRecords.length, (i) {
+          final record = _displayRecords[i];
+          final isMulti = multipleResults != null;
+          final isSelected =
+              isMulti ? (_selectedRows[i] ?? false) : true;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _buildRecordCard(
+              record: record,
+              index: i,
+              isSelectable: isMulti,
+              isSelected: isSelected,
+              onTap: isMulti ? () => _toggleRowSelection(i) : null,
+            ),
+          );
+        }),
+
+        const SizedBox(height: 4),
+
+        // Export panel
+        _buildExportPanel(),
+      ],
+    );
+  }
+
+  Widget _buildStatsBar() {
+    final selected = _getSelectedRecords();
+    final total = _totalAmount(selected);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [_brand, _brand.withOpacity(0.8)],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          _statItem(
+            icon: Icons.folder_open_rounded,
+            label: 'Found',
+            value: '${_displayRecords.length}',
+          ),
+          _divider(),
+          _statItem(
+            icon: Icons.check_circle_outline_rounded,
+            label: 'Selected',
+            value: multipleResults != null
+                ? '$_selectedCount'
+                : '1',
+          ),
+          _divider(),
+          _statItem(
+            icon: Icons.currency_rupee_rounded,
+            label: 'Total',
+            value: _fmtAmount(total),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statItem(
+      {required IconData icon,
+      required String label,
+      required String value}) {
+    return Expanded(
+      child: Column(
+        children: [
+          Icon(icon, color: Colors.white70, size: 18),
+          const SizedBox(height: 4),
+          Text(value,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16)),
+          Text(label,
+              style: const TextStyle(
+                  color: Colors.white60,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500)),
+        ],
+      ),
+    );
+  }
+
+  Widget _divider() => Container(
+        width: 1,
+        height: 40,
+        color: Colors.white.withOpacity(0.2),
+      );
+
+  Widget _buildSelectAllBar() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
+      decoration: BoxDecoration(
+        color: _selectedCount > 0
+            ? _brand.withOpacity(0.06)
+            : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: _selectedCount > 0
+              ? _brand.withOpacity(0.3)
+              : const Color(0xFFDDE4F0),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.checklist_rounded,
+              size: 18,
+              color:
+                  _selectedCount > 0 ? _brand : const Color(0xFF8A9BB8)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              _selectedCount > 0
+                  ? '$_selectedCount of ${multipleResults!.length} selected for PDF export'
+                  : 'Select records to export',
+              style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: _selectedCount > 0
+                      ? _brand
+                      : const Color(0xFF8A9BB8)),
+            ),
+          ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('All',
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: _brand.withOpacity(0.7))),
+              Checkbox(
+                value: _allSelected,
+                onChanged: (_) => _toggleAllSelection(),
+                activeColor: _brand,
+                visualDensity: VisualDensity.compact,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(4)),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─── RECORD CARD ────────────────────────────────────────────────────────────
+
+  Widget _buildRecordCard({
+    required Map<String, dynamic> record,
+    required int index,
+    required bool isSelectable,
+    required bool isSelected,
+    VoidCallback? onTap,
+  }) {
+    final status = record['adminStatus']?.toString();
+    final statusColor = _getStatusColor(status);
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isSelected && isSelectable
+              ? _brand.withOpacity(0.4)
+              : const Color(0xFFDDE4F0),
+          width: isSelected && isSelectable ? 1.5 : 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: isSelected && isSelectable
+                ? _brand.withOpacity(0.08)
+                : Colors.black.withOpacity(0.04),
+            blurRadius: isSelected ? 12 : 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
         child: Column(
           children: [
-            Row(
-              children: [
-                Icon(Icons.list_alt, color: Colors.green, size: 24),
-                SizedBox(width: 10),
-                Flexible(
-                  child: Text(
-                    'Multiple Records Found (${multipleResults!.length})',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.green[700],
+            // Card header
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+              decoration: BoxDecoration(
+                color: isSelected && isSelectable
+                    ? _brand.withOpacity(0.04)
+                    : const Color(0xFFF8FAFD),
+                borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(16)),
+              ),
+              child: Row(
+                children: [
+                  if (isSelectable) ...[
+                    SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: Checkbox(
+                        value: isSelected,
+                        onChanged: (_) => onTap?.call(),
+                        activeColor: _brand,
+                        visualDensity: VisualDensity.compact,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(4)),
+                      ),
                     ),
-                    overflow: TextOverflow.ellipsis,
+                    const SizedBox(width: 10),
+                  ],
+                  // Avatar
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: _brand.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Center(
+                      child: Text(
+                        (_fmt(record['customerName']).isNotEmpty &&
+                                _fmt(record['customerName']) != 'N/A')
+                            ? _fmt(record['customerName'])[0]
+                                .toUpperCase()
+                            : '?',
+                        style: TextStyle(
+                            color: _brand,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 16),
+                      ),
+                    ),
                   ),
-                ),
-              ],
-            ),
-            SizedBox(height: 16),
-            Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Theme.of(context).dividerColor),
-                ),
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: SingleChildScrollView(
-                    child: DataTable(
-                      headingRowColor: WidgetStateProperty.all(
-                        Color(0xFF0B3470),
-                      ),
-                      headingTextStyle: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 12,
-                      ),
-                      dataRowColor: WidgetStateProperty.resolveWith<Color?>((
-                        Set<WidgetState> states,
-                      ) {
-                        if (states.contains(WidgetState.selected)) {
-                          return Colors.blue[100];
-                        }
-                        return Colors.white;
-                      }),
-                      border: TableBorder.all(
-                        color: Colors.grey[300]!,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      columns: [
-                        DataColumn(
-                          label: SizedBox(width: 40, child: Text('SELECT')),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _fmt(record['customerName']),
+                          style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: _brand,
+                              letterSpacing: -0.2),
                         ),
-                        DataColumn(label: Text('ID')),
-                        DataColumn(label: Text('CUSTOMER NAME')),
-                        DataColumn(label: Text('BOOKING ID')),
-                        DataColumn(label: Text('DEVICE BRAND')),
-                        DataColumn(label: Text('DEVICE TYPE')),
-                        DataColumn(label: Text('CONDITION')),
-                        DataColumn(label: Text('STATUS')),
-                        DataColumn(label: Text('ADDRESS')),
-                        DataColumn(label: Text('AMOUNT'), numeric: true),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Booking: ${_fmt(record['bookingId'])}',
+                          style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF8A9BB8),
+                              fontWeight: FontWeight.w500),
+                        ),
                       ],
-                      rows: multipleResults!.asMap().entries.map((entry) {
-                        int index = entry.key;
-                        Map<String, dynamic> record = entry.value;
-                        bool isSelected = _selectedRows[index] ?? false;
-
-                        return DataRow(
-                          selected: isSelected,
-                          onSelectChanged: (selected) {
-                            _toggleRowSelection(index);
-                          },
-                          cells: [
-                            DataCell(
-                              Checkbox(
-                                value: isSelected,
-                                onChanged: (value) {
-                                  _toggleRowSelection(index);
-                                },
-                                activeColor: primaryColor,
-                              ),
-                            ),
-                            DataCell(Text(record['id']?.toString() ?? 'N/A')),
-                            DataCell(
-                              Text(record['customerName']?.toString() ?? 'N/A'),
-                            ),
-                            DataCell(
-                              Text(record['bookingId']?.toString() ?? 'N/A'),
-                            ),
-                            DataCell(
-                              Text(record['deviceBrand']?.toString() ?? 'N/A'),
-                            ),
-                            DataCell(
-                              Text(record['deviceType']?.toString() ?? 'N/A'),
-                            ),
-                            DataCell(
-                              Text(
-                                record['deviceCondition']?.toString() ?? 'N/A',
-                              ),
-                            ),
-                            DataCell(
-                              Container(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: _getStatusColor(
-                                    record['adminStatus']?.toString(),
-                                  ),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
-                                  record['adminStatus']?.toString() ?? 'N/A',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            DataCell(
-                              SizedBox(
-                                width: 150,
-                                child: Text(
-                                  record['address']?.toString() ?? 'N/A',
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ),
-                            DataCell(
-                              Text(
-                                record['amount']?.toString() ?? 'N/A',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.green[700],
-                                ),
-                              ),
-                            ),
-                          ],
-                        );
-                      }).toList(),
                     ),
                   ),
-                ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: statusColor.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                          color: statusColor.withOpacity(0.3), width: 1),
+                    ),
+                    child: Text(
+                      status ?? 'N/A',
+                      style: TextStyle(
+                          color: statusColor,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Details grid
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                          child: _detailTile(
+                              'Customer ID', _fmt(record['id']),
+                              icon: Icons.badge_outlined)),
+                      const SizedBox(width: 10),
+                      Expanded(
+                          child: _detailTile(
+                              'Mobile', _fmt(record['mobileNumber']),
+                              icon: Icons.phone_outlined)),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                          child: _detailTile(
+                              'Device Brand', _fmt(record['deviceBrand']),
+                              icon: Icons.devices_outlined)),
+                      const SizedBox(width: 10),
+                      Expanded(
+                          child: _detailTile(
+                              'Device Type', _fmt(record['deviceType']),
+                              icon: Icons.phone_android_outlined)),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                          child: _detailTile('Condition',
+                              _fmt(record['deviceCondition']),
+                              icon: Icons.info_outline_rounded)),
+                      const SizedBox(width: 10),
+                      Expanded(
+                          child: _detailTile(
+                              'Amount', _fmtAmount(record['amount']),
+                              icon: Icons.currency_rupee_rounded,
+                              emphasize: true)),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  _detailTile('Service Address', _fmt(record['address']),
+                      icon: Icons.location_on_outlined, fullWidth: true),
+                ],
               ),
             ),
           ],
@@ -1053,174 +1236,343 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator> {
     );
   }
 
-  Widget _buildSingleResultTable() {
-    return Card(
-      elevation: 6,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            Row(
+  Widget _detailTile(String label, String value,
+      {required IconData icon,
+      bool emphasize = false,
+      bool fullWidth = false}) {
+    return Container(
+      width: fullWidth ? double.infinity : null,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF4F7FC),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 14, color: const Color(0xFF8A9BB8)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.verified, color: Colors.green, size: 24),
-                SizedBox(width: 10),
-                Flexible(
-                  child: Text(
-                    'Customer Record Found',
+                Text(label.toUpperCase(),
+                    style: const TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF8A9BB8),
+                        letterSpacing: 0.4)),
+                const SizedBox(height: 3),
+                Text(value,
                     style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.green[700],
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
+                        fontSize: 13,
+                        fontWeight: emphasize
+                            ? FontWeight.w800
+                            : FontWeight.w600,
+                        color: emphasize
+                            ? Colors.green.shade700
+                            : _brand),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis),
               ],
             ),
-            SizedBox(height: 16),
-            Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Theme.of(context).dividerColor),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─── EXPORT PANEL ────────────────────────────────────────────────────────────
+
+  Widget _buildExportPanel() {
+    final canExport = _canExportReport;
+    final exportCount = _getSelectedRecords().length;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+              color: _brand.withOpacity(0.08),
+              blurRadius: 20,
+              offset: const Offset(0, 4))
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Panel header
+          Container(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+            decoration: const BoxDecoration(
+              color: Color(0xFFF4F7FC),
+              borderRadius:
+                  BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: _brand,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.picture_as_pdf_rounded,
+                      color: Colors.white, size: 20),
                 ),
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: DataTable(
-                    headingRowColor: WidgetStateProperty.all(Color(0xFF0B3470)),
-                    headingTextStyle: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12,
-                    ),
-                    border: TableBorder.all(
-                      color: Colors.grey[300]!,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    columns: [
-                      DataColumn(label: Text('ID')),
-                      DataColumn(label: Text('CUSTOMER NAME')),
-                      DataColumn(label: Text('BOOKING ID')),
-                      DataColumn(label: Text('DEVICE BRAND')),
-                      DataColumn(label: Text('DEVICE TYPE')),
-                      DataColumn(label: Text('CONDITION')),
-                      DataColumn(label: Text('STATUS')),
-                      DataColumn(label: Text('ADDRESS')),
-                      DataColumn(label: Text('AMOUNT'), numeric: true),
-                    ],
-                    rows: [
-                      DataRow(
-                        cells: [
-                          DataCell(
-                            Text(resultData?['id']?.toString() ?? 'N/A'),
-                          ),
-                          DataCell(
-                            Text(
-                              resultData?['customerName']?.toString() ?? 'N/A',
-                            ),
-                          ),
-                          DataCell(
-                            Text(resultData?['bookingId']?.toString() ?? 'N/A'),
-                          ),
-                          DataCell(
-                            Text(
-                              resultData?['deviceBrand']?.toString() ?? 'N/A',
-                            ),
-                          ),
-                          DataCell(
-                            Text(
-                              resultData?['deviceType']?.toString() ?? 'N/A',
-                            ),
-                          ),
-                          DataCell(
-                            Text(
-                              resultData?['deviceCondition']?.toString() ??
-                                  'N/A',
-                            ),
-                          ),
-                          DataCell(
-                            Container(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: _getStatusColor(
-                                  resultData?['adminStatus']?.toString(),
-                                ),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                resultData?['adminStatus']?.toString() ?? 'N/A',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                          ),
-                          DataCell(
-                            SizedBox(
-                              width: 150,
-                              child: Text(
-                                resultData?['address']?.toString() ?? 'N/A',
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ),
-                          DataCell(
-                            Text(
-                              resultData?['amount']?.toString() ?? 'N/A',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                color: Colors.green[700],
-                              ),
-                            ),
-                          ),
-                        ],
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Export PDF Report',
+                          style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: _brand,
+                              letterSpacing: -0.3)),
+                      Text(
+                        canExport
+                            ? '$exportCount record${exportCount != 1 ? 's' : ''} ready to export'
+                            : 'Select records above to export',
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: canExport
+                                ? Colors.green.shade600
+                                : const Color(0xFF8A9BB8),
+                            fontWeight: FontWeight.w500),
                       ),
                     ],
                   ),
                 ),
-              ),
+                if (canExport)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                          color: Colors.green.shade200, width: 1),
+                    ),
+                    child: Text('Ready',
+                        style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.green.shade700,
+                            fontWeight: FontWeight.w700)),
+                  ),
+              ],
             ),
-          ],
-        ),
+          ),
+
+          // Buttons
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                // View PDF - primary
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton.icon(
+                    onPressed: canExport &&
+                            !_isPdfViewing &&
+                            !_isPdfDownloading
+                        ? _viewReportPdf
+                        : null,
+                    icon: _isPdfViewing
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: Colors.white))
+                        : const Icon(
+                            Icons.visibility_rounded, size: 20),
+                    label: Text(
+                        _isPdfViewing ? 'Opening…' : 'View PDF Report',
+                        style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: -0.2)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _brand,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor:
+                          const Color(0xFFDDE4F0),
+                      disabledForegroundColor:
+                          const Color(0xFF8A9BB8),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                // Download PDF - secondary
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: OutlinedButton.icon(
+                    onPressed: canExport &&
+                            !_isPdfViewing &&
+                            !_isPdfDownloading
+                        ? _downloadReportPdf
+                        : null,
+                    icon: _isPdfDownloading
+                        ? SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: _brand.withOpacity(0.6)))
+                        : const Icon(
+                            Icons.download_rounded, size: 20),
+                    label: Text(
+                        _isPdfDownloading
+                            ? 'Saving…'
+                            : 'Download PDF',
+                        style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: -0.2)),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _brand,
+                      disabledForegroundColor:
+                          const Color(0xFF8A9BB8),
+                      side: BorderSide(
+                          color: canExport
+                              ? _brand.withOpacity(0.35)
+                              : const Color(0xFFDDE4F0),
+                          width: 1.5),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                    ),
+                  ),
+                ),
+                if (!canExport && multipleResults != null) ...[
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.info_outline_rounded,
+                          size: 14,
+                          color: const Color(0xFF8A9BB8)),
+                      const SizedBox(width: 6),
+                      const Text(
+                        'Tap a record above to select it for export',
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF8A9BB8),
+                            fontStyle: FontStyle.italic),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─── EMPTY STATE ─────────────────────────────────────────────────────────────
+
+  Widget _buildEmptyState() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 16,
+              offset: const Offset(0, 4))
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: _brandLight,
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Icon(Icons.assignment_outlined,
+                size: 40, color: _brand),
+          ),
+          const SizedBox(height: 20),
+          Text('No Records Yet',
+              style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: _brand,
+                  letterSpacing: -0.3)),
+          const SizedBox(height: 8),
+          const Text(
+            'Search by Customer ID, Phone Number\nor Booking ID to generate a report',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+                fontSize: 14,
+                color: Color(0xFF8A9BB8),
+                height: 1.5),
+          ),
+          const SizedBox(height: 24),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.center,
+            children: [
+              _tipChip(Icons.badge_outlined, 'Customer ID'),
+              _tipChip(Icons.phone_outlined, 'Phone Number'),
+              _tipChip(
+                  Icons.confirmation_number_outlined, 'Booking ID'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _tipChip(IconData icon, String label) {
+    return Container(
+      padding:
+          const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(
+        color: _brandLight,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: _brand),
+          const SizedBox(width: 6),
+          Text(label,
+              style: TextStyle(
+                  fontSize: 12,
+                  color: _brand,
+                  fontWeight: FontWeight.w600)),
+        ],
       ),
     );
   }
 
   Color _getStatusColor(String? status) {
-    final normalized = status?.toLowerCase().trim() ?? '';
-    if (normalized == 'assigned' ||
-        normalized == 'completed' ||
-        normalized == 'complete') {
+    final n = status?.toLowerCase().trim() ?? '';
+    if (n == 'assigned' || n == 'completed' || n == 'complete')
       return Colors.green;
-    }
-    if (normalized == 'not assigned' || normalized == 'not assinged') {
-      return Colors.red;
-    }
-    if (normalized.contains('approval')) {
-      return Colors.purple;
-    }
-    if (normalized.contains('spare')) {
-      return Colors.amber;
-    }
-    if (normalized.contains('observation')) {
-      return Colors.cyan;
-    }
-    if (normalized.contains('cancel')) {
-      return Colors.grey;
-    }
-    if (normalized == 'pending' || normalized == 'open') {
-      return Colors.orange;
-    }
-    if (normalized == 'in progress') {
-      return Colors.blue;
-    }
+    if (n == 'not assigned' || n == 'not assinged') return Colors.red;
+    if (n.contains('approval')) return Colors.purple;
+    if (n.contains('spare')) return Colors.amber.shade800;
+    if (n.contains('observation')) return Colors.cyan.shade700;
+    if (n.contains('cancel')) return Colors.grey;
+    if (n == 'pending' || n == 'open') return Colors.orange;
+    if (n == 'in progress') return Colors.blue;
     return Colors.blueGrey;
   }
 }

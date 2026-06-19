@@ -5,6 +5,7 @@ import 'package:subscription_rooks_app/services/auth_state_service.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/subscription/subscription_plans_screen.dart';
 import 'package:subscription_rooks_app/frontend/screens/app_main_page.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({super.key});
@@ -13,22 +14,48 @@ class WelcomeScreen extends StatefulWidget {
   State<WelcomeScreen> createState() => _WelcomeScreenState();
 }
 
-class _WelcomeScreenState extends State<WelcomeScreen> {
-  int _currentStep = 1; // Flow starts at Step 1 (Platform Overview)
+class _WelcomeScreenState extends State<WelcomeScreen>
+    with SingleTickerProviderStateMixin {
+  int _currentStep = 1;
 
-  // Form keys and controllers for Step 2
+  // Form keys and controllers
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _phoneController = TextEditingController();
-  final _referralCodeController = TextEditingController(); // For customers
+  final _referralCodeController = TextEditingController();
+  final _gstNumberController = TextEditingController();
   final String _selectedRole = 'admin';
   bool _isLoading = false;
   bool _obscurePassword = true;
+  bool _hasGST = false;
 
-  // Role is fixed to Administration as per requirements
+  late final AnimationController _transitionController;
+  late final Animation<double> _fadeAnimation;
+  late final Animation<Offset> _slideAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _transitionController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    _fadeAnimation = CurvedAnimation(
+      parent: _transitionController,
+      curve: Curves.easeInOutCubic,
+    );
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0.1, 0), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: _transitionController,
+            curve: Curves.easeOutCubic,
+          ),
+        );
+    _transitionController.forward();
+  }
 
   @override
   void dispose() {
@@ -38,17 +65,16 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     _referralCodeController.dispose();
+    _gstNumberController.dispose();
+    _transitionController.dispose();
     super.dispose();
   }
 
   Future<void> _handleRegister() async {
     if (!_formKey.currentState!.validate()) return;
-
     setState(() => _isLoading = true);
 
     String? linkedAppName;
-
-    // Referral Code Validation for Non-Admins
     if (_selectedRole != 'admin') {
       final code = _referralCodeController.text.trim();
       if (code.isEmpty) {
@@ -58,7 +84,6 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
         );
         return;
       }
-
       final referralData = await FirestoreService.instance
           .validateGlobalReferralCode(code);
       if (referralData == null) {
@@ -73,13 +98,66 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     }
 
     final phone = _phoneController.text.trim();
+    final gstValue = _hasGST
+        ? _gstNumberController.text.trim().toUpperCase()
+        : '';
     final Map<String, dynamic> extraData = {
       if (phone.isNotEmpty) 'phone': phone,
-      if (linkedAppName != null) 'linkedAppName': linkedAppName,
+      'linkedAppName': linkedAppName,
       if (linkedAppName != null)
         'referralCode': _referralCodeController.text.trim(),
+      if (_hasGST && gstValue.isNotEmpty) 'gstNumber': gstValue,
     };
 
+    if (_selectedRole == 'admin') {
+      // For Admins: Defer registration until after payment
+      final result = await AuthStateService.instance.registerUser(
+        name: _nameController.text.trim(),
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+        role: _selectedRole,
+        additionalData: extraData.isNotEmpty ? extraData : null,
+        deferAuth: true,
+      );
+
+      setState(() => _isLoading = false);
+      if (!mounted) return;
+
+      if (result['success']) {
+        final tenantId = FirestoreService.generateTenantId(
+          _nameController.text.trim(),
+        );
+        final pendingUserData = {
+          'name': _nameController.text.trim(),
+          'email': _emailController.text.trim(),
+          'password': _passwordController.text.trim(),
+          'role': _selectedRole,
+          'tenantId': tenantId,
+          ...extraData,
+        };
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Account details saved. Now choose your plan.'),
+          ),
+        );
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) =>
+                SubscriptionPlansScreen(pendingUserData: pendingUserData),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result['message'] ?? 'Failed to save data')),
+        );
+      }
+      return;
+    }
+
+    // For non-admins: Register immediately
     final result = await AuthStateService.instance.registerUser(
       name: _nameController.text.trim(),
       email: _emailController.text.trim(),
@@ -92,20 +170,17 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     setState(() => _isLoading = false);
 
     if (result['success']) {
-      // Determine Navigation
       if (_selectedRole == 'admin') {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Registration successful! Now choose your plan.'),
           ),
         );
-        // Admin -> Subscription Flow
         Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => const SubscriptionPlansScreen()),
         );
       } else {
-        // Customer/User -> Main App (Skip Subscription)
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Registration successful! Welcome.')),
         );
@@ -122,18 +197,45 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     }
   }
 
+  void _changeStep(int newStep) {
+    if (newStep == _currentStep) return;
+    setState(() {
+      _transitionController.reset();
+      _currentStep = newStep;
+      _transitionController.forward();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black),
+          icon: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.9),
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons.arrow_back_ios_new,
+              size: 18,
+              color: Colors.black87,
+            ),
+          ),
           onPressed: () {
             if (_currentStep == 2) {
-              setState(() => _currentStep = 1);
+              _changeStep(1);
             } else {
               Navigator.pop(context);
             }
@@ -141,24 +243,95 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
         ),
         title: _buildStepIndicator(),
         centerTitle: true,
+        toolbarHeight: 90,
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      floatingActionButton: _buildFloatingCTA(),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      body: ResponsiveWrapper(
+        maxWidth: 600,
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Colors.grey.shade50, Colors.white, Colors.grey.shade50],
+            ),
+          ),
+          child: Stack(
             children: [
-              if (_currentStep == 1)
-                _buildStep1Content()
-              else
-                _buildStep2Content(),
-              const SizedBox(height: 120), // Bottom padding for FAB
+              // Decorative background elements
+              Positioned(
+                top: -50,
+                right: -30,
+                child: Container(
+                  width: 200,
+                  height: 200,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        Colors.black.withValues(alpha: 0.03),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                bottom: -80,
+                left: -40,
+                child: Container(
+                  width: 250,
+                  height: 250,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        Colors.black.withValues(alpha: 0.02),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              // Main content
+              SafeArea(
+                child: GestureDetector(
+                  onTap: () => FocusScope.of(context).unfocus(),
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 400),
+                          transitionBuilder: (child, animation) {
+                            return FadeTransition(
+                              opacity: animation,
+                              child: SlideTransition(
+                                position: Tween<Offset>(
+                                  begin: const Offset(0.05, 0),
+                                  end: Offset.zero,
+                                ).animate(animation),
+                                child: child,
+                              ),
+                            );
+                          },
+                          child: _currentStep == 1
+                              ? _buildStep1Content(key: const ValueKey(1))
+                              : _buildStep2Content(key: const ValueKey(2)),
+                        ),
+                        const SizedBox(height: 100),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
       ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButton: _buildFloatingCTA(),
     );
   }
 
@@ -166,151 +339,278 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.grey[100],
-        borderRadius: BorderRadius.circular(20),
+        color: Colors.white.withValues(alpha: 0.95),
+        borderRadius: BorderRadius.circular(40),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _stepDot(1),
-          Container(height: 2, width: 24, color: Colors.grey[300]),
-          _stepDot(2),
+          _stepDot(1, label: 'Overview'),
+          Container(
+            width: 48,
+            height: 2,
+            decoration: BoxDecoration(
+              gradient: _currentStep >= 2
+                  ? const LinearGradient(colors: [Colors.black, Colors.grey])
+                  : null,
+              color: _currentStep >= 2 ? null : Colors.grey.shade300,
+            ),
+            margin: const EdgeInsets.symmetric(horizontal: 8),
+          ),
+          _stepDot(2, label: 'Register'),
         ],
       ),
     );
   }
 
-  Widget _stepDot(int step) {
-    bool isActive = _currentStep == step;
-    bool isCompleted = _currentStep > step;
-    return Container(
-      width: 32,
-      height: 32,
-      decoration: BoxDecoration(
-        color: isActive
-            ? Colors.black
-            : (isCompleted ? Colors.green : Colors.transparent),
-        shape: BoxShape.circle,
-        border: Border.all(
-          color: isActive ? Colors.black : Colors.grey[300]!,
-          width: 2,
-        ),
-      ),
-      child: Center(
-        child: isCompleted
-            ? const Icon(Icons.check, size: 18, color: Colors.white)
-            : Text(
-                '$step',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: isActive ? Colors.white : Colors.grey[500],
-                ),
+  Widget _stepDot(int step, {required String label}) {
+    final isActive = _currentStep == step;
+    final isCompleted = _currentStep > step;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOutCubic,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              gradient: isActive || isCompleted
+                  ? const LinearGradient(colors: [Colors.black, Colors.black87])
+                  : null,
+              color: isActive || isCompleted ? null : Colors.grey.shade100,
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: isActive || isCompleted
+                    ? Colors.black
+                    : Colors.grey.shade300,
+                width: 1.5,
               ),
+              boxShadow: isActive
+                  ? [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.15),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Center(
+              child: isCompleted
+                  ? const Icon(Icons.check, size: 18, color: Colors.white)
+                  : Text(
+                      '$step',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: isActive ? Colors.white : Colors.grey.shade500,
+                      ),
+                    ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+              color: isActive ? Colors.black : Colors.grey.shade500,
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildStep1Content() {
+  Widget _buildStep1Content({Key? key}) {
     return Column(
+      key: key,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Step 1: Platform Overview',
-          style: GoogleFonts.outfit(
-            fontSize: 32,
-            fontWeight: FontWeight.w800,
-            color: Colors.black,
-            letterSpacing: -1.0,
+        const SizedBox(height: 12),
+        ShaderMask(
+          shaderCallback: (bounds) => const LinearGradient(
+            colors: [Colors.black, Colors.black87],
+          ).createShader(bounds),
+          child: Text(
+            'Platform Overview',
+            style: GoogleFonts.outfit(
+              fontSize: 38,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.5,
+              color: Colors.white,
+            ),
           ),
         ),
         const SizedBox(height: 12),
         Text(
-          'Discover how our Service Management Platform can transform your business delivery.',
+          'Discover how our Service Management Platform transforms your business delivery.',
           style: GoogleFonts.inter(
             fontSize: 16,
-            color: Colors.grey[600],
-            height: 1.5,
+            color: Colors.grey.shade700,
+            height: 1.4,
           ),
         ),
-        const SizedBox(height: 40),
+        const SizedBox(height: 32),
         _buildHeroCard(),
         const SizedBox(height: 40),
-        Text(
-          'Key Capabilities',
-          style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.bold),
+        Row(
+          children: [
+            Container(
+              width: 4,
+              height: 24,
+              decoration: BoxDecoration(
+                color: Colors.black,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Key Capabilities',
+              style: GoogleFonts.outfit(
+                fontSize: 24,
+                fontWeight: FontWeight.w700,
+                color: Colors.black87,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 20),
-        _buildFeatureCard(
-          icon: Icons.auto_awesome_mosaic_rounded,
-          title: 'Unified Delivery',
-          description:
-              'Manage technical and maintenance services through one cohesive system.',
-        ),
-        _buildFeatureCard(
-          icon: Icons.smartphone_rounded,
-          title: 'Client Application',
-          description:
-              'Custom branded mobile apps for your customers to raise requests.',
-        ),
-        _buildFeatureCard(
-          icon: Icons.dashboard_customize_rounded,
-          title: 'Full Operational Control',
-          description:
-              'Assigned tickets, engineer tracking, and resolution analytics.',
-        ),
+        const SizedBox(height: 24),
+        ...[
+          'Unified Delivery',
+          'Client Application',
+          'Full Operational Control',
+        ].asMap().entries.map((entry) {
+          final index = entry.key;
+          final title = entry.value;
+          final descriptions = {
+            'Unified Delivery':
+                'Manage technical and maintenance services through one cohesive system.',
+            'Client Application':
+                'Custom branded mobile apps for your customers to raise requests.',
+            'Full Operational Control':
+                'Assigned tickets, engineer tracking, and resolution analytics.',
+          };
+          final icons = {
+            'Unified Delivery': Icons.auto_awesome_mosaic_rounded,
+            'Client Application': Icons.smartphone_rounded,
+            'Full Operational Control': Icons.dashboard_customize_rounded,
+          };
+          return Padding(
+            padding: EdgeInsets.only(bottom: index == 2 ? 0 : 20),
+            child: _buildFeatureCard(
+              icon: icons[title]!,
+              title: title,
+              description: descriptions[title]!,
+            ),
+          );
+        }),
       ],
     );
   }
 
-  Widget _buildStep2Content() {
+  Widget _buildStep2Content({Key? key}) {
     return Form(
       key: _formKey,
       child: Column(
+        key: key,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Step 2: Registration',
-            style: GoogleFonts.outfit(
-              fontSize: 32,
-              fontWeight: FontWeight.w800,
-              color: Colors.black,
-              letterSpacing: -1.0,
+          const SizedBox(height: 12),
+          ShaderMask(
+            shaderCallback: (bounds) => const LinearGradient(
+              colors: [Colors.black, Colors.black87],
+            ).createShader(bounds),
+            child: Text(
+              'Create Account',
+              style: GoogleFonts.outfit(
+                fontSize: 38,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.5,
+                color: Colors.white,
+              ),
             ),
           ),
           const SizedBox(height: 12),
           Text(
-            'Enter your details below to create your organization account.',
-            style: GoogleFonts.inter(fontSize: 16, color: Colors.grey[600]),
+            'Enter your details below to register your organization.',
+            style: GoogleFonts.inter(fontSize: 16, color: Colors.grey.shade700),
           ),
-          const SizedBox(height: 40),
+          const SizedBox(height: 32),
 
-          // Role Selection
-          const Text(
-            'Primary Role',
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 12),
+          // Role selection card - enhanced
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.grey[50],
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.grey[200]!),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Colors.grey.shade50, Colors.white],
+              ),
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(color: Colors.grey.shade200, width: 1),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.02),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
             child: Row(
               children: [
-                const Icon(
-                  Icons.admin_panel_settings_outlined,
-                  color: Colors.black,
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Colors.black, Colors.black87],
+                    ),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.1),
+                        blurRadius: 8,
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.admin_panel_settings,
+                    color: Colors.white,
+                    size: 24,
+                  ),
                 ),
-                const SizedBox(width: 12),
-                Text(
-                  'Administration',
-                  style: GoogleFonts.inter(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Administration Account',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'You are setting up a master admin account.',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -318,21 +618,22 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
           ),
 
           if (_selectedRole != 'admin') ...[
-            const SizedBox(height: 24),
+            const SizedBox(height: 28),
             _buildFormTextField(
               label: 'Referral Code',
               controller: _referralCodeController,
               icon: Icons.vpn_key_outlined,
+              hint: 'Enter your referral code',
               validator: (v) => v!.isEmpty ? 'Referral code is required' : null,
             ),
           ],
 
           const SizedBox(height: 32),
-
           _buildFormTextField(
             label: 'Organization / Full Name',
             controller: _nameController,
             icon: Icons.person_outline,
+            hint: 'e.g., Acme Inc.',
             validator: (v) => v!.isEmpty ? 'Enter name' : null,
           ),
           const SizedBox(height: 24),
@@ -340,6 +641,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
             label: 'Corporate Email',
             controller: _emailController,
             icon: Icons.email_outlined,
+            hint: 'you@company.com',
             keyboardType: TextInputType.emailAddress,
             validator: (v) =>
                 v!.isEmpty || !v.contains('@') ? 'Enter valid email' : null,
@@ -349,7 +651,8 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
             label: 'Phone Number',
             controller: _phoneController,
             icon: Icons.phone_outlined,
-            keyboardType: TextInputType.number,
+            hint: '1234567890',
+            keyboardType: TextInputType.phone,
             inputFormatters: [
               FilteringTextInputFormatter.digitsOnly,
               LengthLimitingTextInputFormatter(10),
@@ -367,10 +670,12 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
             label: 'Secure Password',
             controller: _passwordController,
             icon: Icons.lock_outline,
+            hint: '••••••••',
             obscureText: _obscurePassword,
             suffixIcon: IconButton(
               icon: Icon(
                 _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                color: Colors.grey.shade600,
               ),
               onPressed: () =>
                   setState(() => _obscurePassword = !_obscurePassword),
@@ -383,9 +688,86 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
             label: 'Confirm Password',
             controller: _confirmPasswordController,
             icon: Icons.lock_reset_outlined,
+            hint: '••••••••',
             obscureText: _obscurePassword,
             validator: (v) =>
                 v != _passwordController.text ? 'Passwords do not match' : null,
+          ),
+          const SizedBox(height: 24),
+          // GST Section
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    SizedBox(
+                      height: 24,
+                      width: 24,
+                      child: Checkbox(
+                        value: _hasGST,
+                        onChanged: (value) {
+                          setState(() {
+                            _hasGST = value ?? false;
+                          });
+                        },
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      'Do you have GST?',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade800,
+                      ),
+                    ),
+                  ],
+                ),
+                if (_hasGST) ...[
+                  const SizedBox(height: 16),
+                  _buildFormTextField(
+                    label: 'GST Number',
+                    controller: _gstNumberController,
+                    icon: Icons.receipt_long_outlined,
+                    hint: 'e.g., 29ABCDE1234F1Z5',
+                    textCapitalization: TextCapitalization.characters,
+                    keyboardType: TextInputType.text,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.deny(RegExp(r'[^\dA-Za-z]')),
+                      LengthLimitingTextInputFormatter(15),
+                    ],
+                    validator: (v) {
+                      if (!_hasGST) return null;
+                      if (v == null || v.trim().isEmpty) {
+                        return 'GST number is required';
+                      }
+                      final trimmedValue = v.trim().toUpperCase();
+                      // Indian GST format breakdown:
+                      // 1-2: State code (01-38)
+                      // 3-12: PAN (AAAAA9999A)
+                      // 13: Entity number (1-9 or A-Z)
+                      // 14: Always Z
+                      // 15: Checksum (A-Z 0-9)
+                      final gstRegExp = RegExp(
+                        r'^([0-2][0-9]|3[0-8])[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$',
+                      );
+                      if (!gstRegExp.hasMatch(trimmedValue)) {
+                        return 'Please enter a valid GSTIN (e.g., 29ABCDE1234F1Z5)';
+                      }
+                      return null;
+                    },
+                  ),
+                ],
+              ],
+            ),
           ),
         ],
       ),
@@ -396,10 +778,12 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     required String label,
     required TextEditingController controller,
     required IconData icon,
+    String? hint,
     bool obscureText = false,
     Widget? suffixIcon,
     TextInputType? keyboardType,
     List<TextInputFormatter>? inputFormatters,
+    TextCapitalization textCapitalization = TextCapitalization.none,
     String? Function(String?)? validator,
   }) {
     return Column(
@@ -407,10 +791,10 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
       children: [
         Text(
           label,
-          style: TextStyle(
+          style: GoogleFonts.inter(
             fontSize: 14,
-            fontWeight: FontWeight.bold,
-            color: Colors.grey[700],
+            fontWeight: FontWeight.w600,
+            color: Colors.grey.shade800,
           ),
         ),
         const SizedBox(height: 8),
@@ -419,23 +803,39 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
           obscureText: obscureText,
           keyboardType: keyboardType,
           inputFormatters: inputFormatters,
+          textCapitalization: textCapitalization,
           validator: validator,
+          style: GoogleFonts.inter(fontSize: 16),
           decoration: InputDecoration(
-            prefixIcon: Icon(icon, color: Colors.black87),
+            hintText: hint,
+            hintStyle: GoogleFonts.inter(color: Colors.grey.shade400),
+            prefixIcon: Icon(icon, color: Colors.grey.shade500),
             suffixIcon: suffixIcon,
             filled: true,
-            fillColor: Colors.grey[50],
+            fillColor: Colors.grey.shade50,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 20,
+              vertical: 18,
+            ),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide(color: Colors.grey[200]!),
+              borderRadius: BorderRadius.circular(24),
+              borderSide: BorderSide.none,
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide(color: Colors.grey[200]!),
+              borderRadius: BorderRadius.circular(24),
+              borderSide: BorderSide(color: Colors.grey.shade200),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: const BorderSide(color: Colors.black, width: 2),
+              borderRadius: BorderRadius.circular(24),
+              borderSide: const BorderSide(color: Colors.black, width: 1.5),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(24),
+              borderSide: BorderSide(color: Colors.red.shade300, width: 1),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(24),
+              borderSide: BorderSide(color: Colors.red.shade400, width: 1.5),
             ),
           ),
         ),
@@ -445,43 +845,56 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
 
   Widget _buildHeroCard() {
     return Container(
-      padding: const EdgeInsets.all(24),
+      width: double.infinity,
+      padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
-        color: Colors.black,
-        borderRadius: BorderRadius.circular(24),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Colors.black, Colors.grey.shade900, Colors.black87],
+        ),
+        borderRadius: BorderRadius.circular(32),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withAlpha(26),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+            color: Colors.black.withValues(alpha: 0.2),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
-            Icons.rocket_launch_rounded,
-            color: Colors.white,
-            size: 40,
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: const Icon(
+              Icons.rocket_launch_rounded,
+              color: Colors.white,
+              size: 28,
+            ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
           Text(
             'Ready for Modern Service Delivery',
             style: GoogleFonts.outfit(
-              fontSize: 22,
+              fontSize: 24,
               fontWeight: FontWeight.w700,
               color: Colors.white,
               height: 1.3,
+              letterSpacing: -0.3,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           Text(
-            'Our platform is designed to scale with your business while maintaining a premium brand experience.',
+            'Our platform scales with your business while delivering a premium brand experience.',
             style: GoogleFonts.inter(
               fontSize: 15,
-              color: Colors.white.withAlpha(179),
-              height: 1.5,
+              color: Colors.white.withValues(alpha: 0.85),
+              height: 1.45,
             ),
           ),
         ],
@@ -494,41 +907,66 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     required String title,
     required String description,
   }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+    return TweenAnimationBuilder(
+      tween: Tween<double>(begin: 0, end: 1),
+      duration: Duration(milliseconds: 400 + 100 * title.length),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, 20 * (1 - value)),
+            child: child,
+          ),
+        );
+      },
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.grey[200]!),
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: Colors.grey.shade100, width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.shade100,
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            ),
+          ],
         ),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: Colors.grey[100],
+                gradient: LinearGradient(
+                  colors: [Colors.grey.shade100, Colors.white],
+                ),
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, color: Colors.black),
+              child: Icon(icon, color: Colors.black87, size: 26),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 20),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                    style: GoogleFonts.outfit(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black87,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 8),
                   Text(
                     description,
-                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      color: Colors.grey.shade600,
+                      height: 1.4,
+                    ),
                   ),
                 ],
               ),
@@ -540,73 +978,81 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   }
 
   Widget _buildFloatingCTA() {
-    String label = _currentStep == 1
-        ? 'Continue to Account Setup'
-        : 'Create My Account';
-    IconData icon = _currentStep == 1
+    final isStep1 = _currentStep == 1;
+    final label = isStep1 ? 'Continue to Registration' : 'Create My Account';
+    final icon = isStep1
         ? Icons.arrow_forward_rounded
         : Icons.check_circle_outline;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Container(
-        width: double.infinity,
-        height: 64,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withAlpha(51),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 500),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            width: double.infinity,
+            height: 60,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(40),
+              gradient: const LinearGradient(
+                colors: [Colors.black, Colors.black87],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.25),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: ElevatedButton(
-          onPressed: _isLoading
+            child: ElevatedButton(
+              onPressed: _isLoading
               ? null
               : () {
-                  if (_currentStep == 1) {
-                    setState(() => _currentStep = 2);
+                  if (isStep1) {
+                    _changeStep(2);
                   } else {
                     _handleRegister();
                   }
                 },
           style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.black,
+            backgroundColor: Colors.transparent,
             foregroundColor: Colors.white,
+            shadowColor: Colors.transparent,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(40),
             ),
             elevation: 0,
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (_isLoading)
-                const SizedBox(
-                  height: 24,
-                  width: 24,
+          child: _isLoading
+              ? const SizedBox(
+                  height: 26,
+                  width: 26,
                   child: CircularProgressIndicator(
                     color: Colors.white,
-                    strokeWidth: 3,
+                    strokeWidth: 2.5,
                   ),
                 )
-              else ...[
-                Text(
-                  label,
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                  ),
+              : Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      label,
+                      style: GoogleFonts.inter(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Icon(icon, size: 22),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                Icon(icon, size: 22),
-              ],
-            ],
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class SupportScreen extends StatefulWidget {
   const SupportScreen({super.key});
@@ -43,7 +44,9 @@ class _SupportScreenState extends State<SupportScreen> {
         ),
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
+        child: ResponsiveWrapper(
+          maxWidth: kMaxFormWidth,
+          child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -125,6 +128,7 @@ class _SupportScreenState extends State<SupportScreen> {
               ),
             ],
           ),
+          ),
         ),
       ),
     );
@@ -156,12 +160,12 @@ class _SupportCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: 0.1),
             blurRadius: 24,
             offset: const Offset(0, 8),
           ),
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
+            color: Colors.black.withValues(alpha: 0.02),
             blurRadius: 2,
             offset: const Offset(0, 1),
           ),
@@ -180,7 +184,7 @@ class _SupportCard extends StatelessWidget {
                   width: 64,
                   height: 64,
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
+                    color: color.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Icon(icon, color: color, size: 28),

@@ -422,8 +422,8 @@ class _EngineerAttendanceScreenState extends State<EngineerAttendanceScreen> {
                                               vertical: 6,
                                             ),
                                             decoration: BoxDecoration(
-                                              color: statusColor.withOpacity(
-                                                0.15,
+                                              color: statusColor.withValues(
+                                                alpha: 0.15,
                                               ),
                                               borderRadius:
                                                   BorderRadius.circular(12),
@@ -626,9 +626,9 @@ class _EngineerAttendanceScreenState extends State<EngineerAttendanceScreen> {
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: statusColor.withOpacity(0.1),
+                        color: statusColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: statusColor.withOpacity(0.3)),
+                        border: Border.all(color: statusColor.withValues(alpha: 0.3)),
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,

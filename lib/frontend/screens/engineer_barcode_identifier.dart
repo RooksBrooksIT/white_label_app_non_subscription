@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class EngineerBarcodeIdentifierScreen extends StatefulWidget {
   final String scannedBarcode;
@@ -200,11 +201,16 @@ class _EngineerBarcodeIdentifierScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor,
-        ),
-        child: CustomScrollView(
+      body: ResponsiveWrapper(
+        maxWidth: 1200.0,
+        child: Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
+          ),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 500),
+              child: CustomScrollView(
           slivers: [
             SliverAppBar(
               backgroundColor: Colors.transparent,
@@ -235,7 +241,7 @@ class _EngineerBarcodeIdentifierScreenState
                             decoration: BoxDecoration(
                               color: Theme.of(
                                 context,
-                              ).primaryColor.withOpacity(0.1),
+                              ).primaryColor.withValues(alpha: 0.1),
                               shape: BoxShape.circle,
                             ),
                             child: Icon(
@@ -280,12 +286,12 @@ class _EngineerBarcodeIdentifierScreenState
                             decoration: BoxDecoration(
                               color: Theme.of(
                                 context,
-                              ).primaryColor.withOpacity(0.1),
+                              ).primaryColor.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
                                 color: Theme.of(
                                   context,
-                                ).primaryColor.withOpacity(0.2),
+                                ).primaryColor.withValues(alpha: 0.2),
                               ),
                             ),
                             child: Text(
@@ -352,6 +358,9 @@ class _EngineerBarcodeIdentifierScreenState
             ),
           ],
         ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -365,7 +374,7 @@ class _EngineerBarcodeIdentifierScreenState
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),
@@ -420,10 +429,10 @@ class _EngineerBarcodeIdentifierScreenState
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Theme.of(context).dividerColor.withOpacity(0.1),
+                color: Theme.of(context).dividerColor.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: Theme.of(context).dividerColor.withOpacity(0.3),
+                  color: Theme.of(context).dividerColor.withValues(alpha: 0.3),
                 ),
               ),
               child: CircularProgressIndicator(
@@ -435,10 +444,10 @@ class _EngineerBarcodeIdentifierScreenState
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               decoration: BoxDecoration(
-                color: Theme.of(context).dividerColor.withOpacity(0.1),
+                color: Theme.of(context).dividerColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(15),
                 border: Border.all(
-                  color: Theme.of(context).dividerColor.withOpacity(0.2),
+                  color: Theme.of(context).dividerColor.withValues(alpha: 0.2),
                 ),
               ),
               child: Column(
@@ -533,7 +542,7 @@ class _EngineerBarcodeIdentifierScreenState
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: Theme.of(context).primaryColor.withOpacity(0.1),
+                      color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
@@ -806,7 +815,7 @@ class _EngineerBarcodeIdentifierScreenState
         border: Border.all(color: Theme.of(context).dividerColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),

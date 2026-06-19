@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:subscription_rooks_app/services/app_update_service.dart';
 import 'package:subscription_rooks_app/services/auth_state_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:subscription_rooks_app/utils/location_disclosure_dialog.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -38,39 +40,57 @@ class _SplashScreenState extends State<SplashScreen>
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
 
     _controller.forward();
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initAndNavigate();
-    });
+    _handleInitialLaunch();
   }
 
-  Future<void> _initAndNavigate() async {
-    // Prefetch the target screen in background
-    final Widget target = await AuthStateService.instance.getInitialScreen();
+  Future<void> _handleInitialLaunch() async {
+    final prefs = await SharedPreferences.getInstance();
+    final isFirstLaunch = prefs.getBool('is_first_launch') ?? true;
 
-    // Show disclosure dialog — user must tap Allow or Deny to proceed
-    final result = await LocationDisclosure.showDisclosure(context);
-    if (!mounted) return;
-
-    // If user allowed, trigger the actual OS permission popup
-    if (result == true) {
-      await Geolocator.requestPermission();
+    if (isFirstLaunch) {
+      // Request permissions sequentially on first launch
+      await _requestPermissions();
+      await prefs.setBool('is_first_launch', false);
     }
 
-    // Brief pause so the splash logo is visible after dialog closes
-    await Future.delayed(const Duration(milliseconds: 800));
-    if (!mounted) return;
+    // Check for update
+    await AppUpdateService.instance.checkForUpdate(context);
 
-    // Navigate to role/login page
-    Navigator.of(context).pushReplacement(
-      PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) => target,
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return FadeTransition(opacity: animation, child: child);
-        },
-        transitionDuration: const Duration(milliseconds: 800),
-      ),
-    );
+    _navigateToNext();
+  }
+
+  Future<void> _requestPermissions() async {
+    // 1. Notification Permission
+    await Permission.notification.request();
+
+    // 2. Location Permission
+    try {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        await Geolocator.requestPermission();
+      }
+    } catch (e) {
+      debugPrint('Error requesting location permission in splash: $e');
+    }
+  }
+
+  Future<void> _navigateToNext() async {
+    final Widget target = await AuthStateService.instance.getInitialScreen();
+
+    // Ensure splash is visible for at least some time
+    await Future.delayed(const Duration(seconds: 2));
+
+    if (mounted) {
+      Navigator.of(context).pushReplacement(
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) => target,
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+          transitionDuration: const Duration(milliseconds: 800),
+        ),
+      );
+    }
   }
 
   @override
@@ -82,13 +102,15 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     final theme = ThemeService.instance;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final logoSize = (screenWidth * 0.35).clamp(120.0, 180.0);
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: theme.primaryColor, // Solid orange background
       body: Container(
         width: double.infinity,
         height: double.infinity,
-        color: Colors.white,
+        color: theme.primaryColor,
         child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -99,14 +121,14 @@ class _SplashScreenState extends State<SplashScreen>
                 child: ScaleTransition(
                   scale: _scaleAnimation,
                   child: Container(
-                    width: 160,
-                    height: 160,
+                    width: logoSize,
+                    height: logoSize,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: Colors.white, // Outer white ring
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.15),
+                          color: Colors.black.withValues(alpha: 0.15),
                           blurRadius: 25,
                           spreadRadius: 3,
                         ),
@@ -127,7 +149,7 @@ class _SplashScreenState extends State<SplashScreen>
                             theme.logoUrl != null && theme.logoUrl!.isNotEmpty
                             ? Image.network(
                                 theme.logoUrl!,
-                                fit: BoxFit.cover,
+                                fit: BoxFit.contain,
                                 errorBuilder: (context, error, stackTrace) =>
                                     _buildDefaultLogo(),
                               )
@@ -145,12 +167,11 @@ class _SplashScreenState extends State<SplashScreen>
                 opacity: _fadeAnimation,
                 child: Text(
                   theme.appName,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
-                    color: theme.primaryColor,
+                    color: Colors.white,
                     letterSpacing: 2,
-                    fontFamily: 'Lufga',
                   ),
                 ),
               ),
@@ -164,7 +185,7 @@ class _SplashScreenState extends State<SplashScreen>
                   width: 50,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: theme.primaryColor.withOpacity(0.8),
+                    color: Colors.white.withValues(alpha: 0.8),
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
@@ -179,7 +200,7 @@ class _SplashScreenState extends State<SplashScreen>
   Widget _buildDefaultLogo() {
     return Image.asset(
       'assets/images/logo.png',
-      fit: BoxFit.cover,
+      fit: BoxFit.contain,
       errorBuilder: (context, error, stackTrace) => Icon(
         Icons.rocket_launch_rounded,
         size: 50,

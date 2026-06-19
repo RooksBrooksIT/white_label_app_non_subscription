@@ -65,7 +65,7 @@ class AppMainPage extends StatelessWidget {
             height: 300,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: Colors.grey[100]!.withOpacity(0.5),
+              color: Colors.grey[100]!.withValues(alpha: 0.5),
             ),
           ),
         ),
@@ -77,7 +77,7 @@ class AppMainPage extends StatelessWidget {
             height: 250,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: Colors.grey[50]!.withOpacity(0.5),
+              color: Colors.grey[50]!.withValues(alpha: 0.5),
             ),
           ),
         ),
@@ -89,7 +89,7 @@ class AppMainPage extends StatelessWidget {
             height: 150,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: Theme.of(context).primaryColor.withOpacity(0.02),
+              color: Theme.of(context).primaryColor.withValues(alpha: 0.02),
             ),
           ),
         ),
@@ -109,7 +109,7 @@ class AppMainPage extends StatelessWidget {
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.04),
+                color: Colors.black.withValues(alpha: 0.04),
                 blurRadius: 15,
                 offset: const Offset(0, 5),
               ),
@@ -296,14 +296,14 @@ class AppMainPage extends StatelessWidget {
         boxShadow: backgroundColor == Colors.black
             ? [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.15),
+                  color: Colors.black.withValues(alpha: 0.15),
                   blurRadius: 15,
                   offset: const Offset(0, 8),
                 ),
               ]
             : [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.02),
+                  color: Colors.black.withValues(alpha: 0.02),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
@@ -322,7 +322,7 @@ class AppMainPage extends StatelessWidget {
                   width: 50,
                   height: 50,
                   decoration: BoxDecoration(
-                    color: textColor.withOpacity(0.1),
+                    color: textColor.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(icon, color: textColor, size: 24),
@@ -346,7 +346,7 @@ class AppMainPage extends StatelessWidget {
                         subtitle,
                         style: TextStyle(
                           fontSize: 12,
-                          color: textColor.withOpacity(0.7),
+                          color: textColor.withValues(alpha: 0.7),
                           fontWeight: FontWeight.w400,
                         ),
                         maxLines: 1,
@@ -357,7 +357,7 @@ class AppMainPage extends StatelessWidget {
                 ),
                 Icon(
                   Icons.arrow_forward_ios_rounded,
-                  color: textColor.withOpacity(0.4),
+                  color: textColor.withValues(alpha: 0.4),
                   size: 14,
                 ),
               ],

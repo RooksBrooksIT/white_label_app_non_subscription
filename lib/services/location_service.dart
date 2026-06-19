@@ -1,9 +1,13 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart' as geo;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:subscription_rooks_app/services/theme_service.dart';
 
 class LocationService {
@@ -17,7 +21,7 @@ class LocationService {
   bool _isTracking = false;
   bool get isTracking => _isTracking;
   String? _currentEngineerId;
-
+  DateTime? _lastFirestoreUpdate;
   String _sanitizePath(String path) {
     return path.replaceAll(RegExp(r'[.#$\[\]/]'), '_');
   }
@@ -29,18 +33,23 @@ class LocationService {
         debugPrint(
           'LocationService: No session found. Attempting Anonymous Auth...',
         );
-        final cred = await _auth.signInAnonymously();
-        debugPrint(
-          'LocationService: Anonymous Auth successful. UID: ${cred.user?.uid}',
-        );
+        try {
+          final cred = await _auth.signInAnonymously();
+          debugPrint(
+            'LocationService: Anonymous Auth successful. UID: ${cred.user?.uid}',
+          );
+        } catch (e) {
+          // If Anonymous provider is disabled, log and continue without auth.
+          debugPrint(
+            'LocationService: Anonymous Auth failed (likely disabled): $e',
+          );
+          // Proceed; Realtime Database/Firestore rules must allow unauthenticated writes.
+        }
       } else {
         debugPrint('LocationService: Already authenticated as ${user.uid}');
       }
     } catch (e) {
-      debugPrint('LocationService: Anonymous Auth FATAL ERROR: $e');
-      debugPrint(
-        'Please check if "Anonymous" sign-in provider is enabled in Firebase Console.',
-      );
+      debugPrint('LocationService: Unexpected auth error: $e');
     }
   }
 
@@ -133,14 +142,29 @@ class LocationService {
       final tenantId = ThemeService.instance.databaseName;
       // Use set() or update() depending on preference. update() is safer for existing data.
       final ref = _db.ref('$tenantId/engineers/$sanitizedId/location');
-      await ref.update({
+      final updateData = {
         'lat': position.latitude,
         'lng': position.longitude,
         'heading': position.heading,
         'speed': position.speed,
         'accuracy': position.accuracy,
         'lastUpdate': ServerValue.timestamp,
-      });
+      };
+
+      try {
+        await ref.update(updateData);
+      } catch (e) {
+        // If the existing location node was a primitive (String, etc), update() fails. Fallback to set().
+        await ref.set(updateData);
+      }
+
+      // 5-minute Firestore heartbeat
+      final now = DateTime.now();
+      if (_lastFirestoreUpdate == null ||
+          now.difference(_lastFirestoreUpdate!).inMinutes >= 5) {
+        _lastFirestoreUpdate = now;
+        _updateFirestoreHeartbeat(engineerId, position);
+      }
 
       // If a booking is active, also sync to the order_tracking node
       if (bookingId != null) {
@@ -160,14 +184,55 @@ class LocationService {
     }
   }
 
+  Future<void> _updateFirestoreHeartbeat(
+    String engineerId,
+    Position position,
+  ) async {
+    try {
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('EngineerLogin')
+          .where('Username', isEqualTo: engineerId)
+          .limit(1)
+          .get();
+
+      if (querySnapshot.docs.isNotEmpty) {
+        final docId = querySnapshot.docs.first.id;
+        await FirebaseFirestore.instance
+            .collection('EngineerLogin')
+            .doc(docId)
+            .update({
+              'latitude': position.latitude,
+              'longitude': position.longitude,
+              'lastUpdatedTime': FieldValue.serverTimestamp(),
+            });
+      }
+    } catch (e) {
+      debugPrint('Firestore Heartbeat Error: $e');
+    }
+  }
+
   Future<void> _updateActiveBooking(String engineerId, String bookingId) async {
     await _ensureAuthenticated();
     try {
       final sanitizedId = _sanitizePath(engineerId);
       final tenantId = ThemeService.instance.databaseName;
+      // Update active booking in Realtime Database
       await _db.ref('$tenantId/engineers/$sanitizedId').update({
         'activeBookingId': bookingId,
       });
+      // Also store booking reference in Firestore for consistency
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('EngineerLogin')
+          .where('Username', isEqualTo: engineerId)
+          .limit(1)
+          .get();
+      if (querySnapshot.docs.isNotEmpty) {
+        final docId = querySnapshot.docs.first.id;
+        await FirebaseFirestore.instance
+            .collection('EngineerLogin')
+            .doc(docId)
+            .update({'activeBookingId': bookingId});
+      }
     } catch (e) {
       debugPrint('Error updating active booking: $e');
     }
@@ -198,28 +263,106 @@ class LocationService {
 
   Future<bool> _handlePermissions() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) return false;
-
-    LocationPermission permission = await Geolocator.checkPermission();
-
-    // If permission is denied, we don't request it here because the UI
-    // layer must show the disclosure first and then call Geolocator.requestPermission().
-    if (permission == LocationPermission.denied ||
-        permission == LocationPermission.deniedForever) {
+    if (!serviceEnabled) {
+      debugPrint('LocationService: Location services are disabled.');
+      // Optionally prompt user to enable services
       return false;
     }
 
-    // Background tracking requires "Always" permission
-    if (defaultTargetPlatform == TargetPlatform.android ||
-        defaultTargetPlatform == TargetPlatform.iOS) {
-      var backgroundStatus = await Permission.locationAlways.status;
-      if (!backgroundStatus.isGranted) {
-        // This might still trigger a system popup, but usually after "In Use" is granted.
-        backgroundStatus = await Permission.locationAlways.request();
+    LocationPermission permission = await Geolocator.checkPermission();
+
+    if (permission == LocationPermission.denied) {
+      debugPrint('LocationService: Permission denied. Requesting...');
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        debugPrint('LocationService: Permission denied by user.');
+        return false;
       }
     }
 
+    if (permission == LocationPermission.deniedForever) {
+      debugPrint('LocationService: Permission denied forever.');
+      // Users must manually enable in settings
+      return false;
+    }
+
+    // For background tracking on Android and iOS (skip on web)
+    if (!kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS)) {
+      // Request 'locationAlways' specifically for background support if needed
+      var alwaysStatus = await Permission.locationAlways.status;
+      if (!alwaysStatus.isGranted) {
+        debugPrint(
+          'LocationService: Requesting "Always" permission for background tracking.',
+        );
+        alwaysStatus = await Permission.locationAlways.request();
+
+        if (alwaysStatus.isPermanentlyDenied) {
+          debugPrint(
+            'LocationService: "Always" permission permanently denied.',
+          );
+          // On some versions of Android, user might need to go to settings
+          // openAppSettings();
+        }
+      }
+    }
+
+    debugPrint('LocationService: All necessary permissions granted.');
     return true;
+  }
+
+  /// Fetches the current position and reverse geocodes it to an address string
+  Future<Map<String, dynamic>?> getCurrentLocationData() async {
+    bool hasPermission = await _handlePermissions();
+    if (!hasPermission) return null;
+
+    try {
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      String address = "";
+      if (kIsWeb) {
+        try {
+          final url = Uri.parse(
+            'https://nominatim.openstreetmap.org/reverse?format=json&lat=${position.latitude}&lon=${position.longitude}',
+          );
+          final response = await http.get(url, headers: {
+            'User-Agent': 'subscription_rooks_app/1.0',
+          });
+          if (response.statusCode == 200) {
+            final data = json.decode(response.body);
+            address = data['display_name'] ?? '';
+          }
+        } catch (e) {
+          debugPrint('Web geocoding error: $e');
+        }
+        if (address.isEmpty) {
+          address = "Lat: ${position.latitude}, Lng: ${position.longitude}";
+        }
+      } else {
+        List<geo.Placemark> placemarks = await geo.placemarkFromCoordinates(
+          position.latitude,
+          position.longitude,
+        );
+
+        if (placemarks.isNotEmpty) {
+          geo.Placemark place = placemarks[0];
+          address =
+              "${place.street}, ${place.subLocality}, ${place.locality}, ${place.postalCode}, ${place.country}";
+        }
+      }
+
+      return {
+        'latitude': position.latitude,
+        'longitude': position.longitude,
+        'address': address,
+      };
+    } catch (e) {
+      debugPrint('Error getting current location: $e');
+      return null;
+    }
   }
 
   /// Diagnostic tool to help verify RTDB connection and permissions
