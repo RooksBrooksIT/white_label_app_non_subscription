@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class ContactUsScreen extends StatefulWidget {
   const ContactUsScreen({super.key});
@@ -132,7 +133,9 @@ class _ContactUsScreenState extends State<ContactUsScreen> {
                 : [const Color(0xFFF8F9FA), const Color(0xFFF0F2F5)],
           ),
         ),
-        child: SingleChildScrollView(
+        child: ResponsiveWrapper(
+          maxWidth: kMaxContentWidth,
+          child: SingleChildScrollView(
           child: Column(
             children: [
               // Logo Section
@@ -450,6 +453,7 @@ class _ContactUsScreenState extends State<ContactUsScreen> {
                 ),
               ),
             ],
+          ),
           ),
         ),
       ),

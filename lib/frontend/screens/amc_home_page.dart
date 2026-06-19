@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:subscription_rooks_app/services/auth_state_service.dart';
 import 'package:subscription_rooks_app/frontend/screens/role_selection_screen.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class ProfessionalTheme {
   static Color primary(BuildContext context) => Theme.of(context).primaryColor;
@@ -805,10 +806,13 @@ class _AmcCustomerHomePageState extends State<AmcCustomerHomePage> {
           decoration: BoxDecoration(
             color: Theme.of(context).scaffoldBackgroundColor,
           ),
-          padding: const EdgeInsets.all(20.0),
-          child: Form(
-            key: _formKey,
-            child: ListView(
+          child: ResponsiveWrapper(
+            maxWidth: kMaxFormWidth,
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Form(
+                key: _formKey,
+                child: ListView(
               children: [
                 const SizedBox(height: 20),
                 _buildTextField(
@@ -989,7 +993,9 @@ class _AmcCustomerHomePageState extends State<AmcCustomerHomePage> {
           ),
         ),
       ),
-    );
+    ),
+  ),
+);
   }
 }
 

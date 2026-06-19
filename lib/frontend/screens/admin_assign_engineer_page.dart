@@ -4,6 +4,7 @@ import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/frontend/screens/assign_confirmation_page.dart';
 import 'package:subscription_rooks_app/frontend/screens/customer_var_data_screen.dart';
 import 'package:subscription_rooks_app/services/notification_service.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class AssignEngineerPage extends StatefulWidget {
   final Customer customer;
@@ -44,74 +45,77 @@ class _AssignEngineerPageState extends State<AssignEngineerPage> {
         ),
         backgroundColor: Theme.of(context).primaryColor,
       ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  ElevatedButton(
-                    onPressed: () {
-                      setState(() {
-                        _isEngineerSelected = true;
-                        _showHelperInputs = false;
-                        _selectedHelper = null;
-                        _reasonController.clear();
-                        addedHelpers.clear();
-                      });
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _isEngineerSelected
-                          ? Theme.of(context).primaryColor
-                          : Theme.of(context).disabledColor,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30),
+      body: ResponsiveWrapper(
+        maxWidth: kMaxContentWidth,
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    ElevatedButton(
+                      onPressed: () {
+                        setState(() {
+                          _isEngineerSelected = true;
+                          _showHelperInputs = false;
+                          _selectedHelper = null;
+                          _reasonController.clear();
+                          addedHelpers.clear();
+                        });
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _isEngineerSelected
+                            ? Theme.of(context).primaryColor
+                            : Theme.of(context).disabledColor,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                      ),
+                      child: const Text(
+                        'Engineer',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
-                    child: const Text(
-                      'Engineer',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                    const SizedBox(width: 20),
+                    ElevatedButton(
+                      onPressed: () {
+                        setState(() {
+                          _isEngineerSelected = false;
+                          _showHelperInputs = true;
+                          _selectedHelper = null;
+                          _reasonController.clear();
+                          addedHelpers.clear();
+                        });
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: !_isEngineerSelected
+                            ? Theme.of(context).primaryColor
+                            : Theme.of(context).disabledColor,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                      ),
+                      child: const Text(
+                        'Helper',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 20),
-                  ElevatedButton(
-                    onPressed: () {
-                      setState(() {
-                        _isEngineerSelected = false;
-                        _showHelperInputs = true;
-                        _selectedHelper = null;
-                        _reasonController.clear();
-                        addedHelpers.clear();
-                      });
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: !_isEngineerSelected
-                          ? Theme.of(context).primaryColor
-                          : Theme.of(context).disabledColor,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                    ),
-                    child: const Text(
-                      'Helper',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              _isEngineerSelected ? _buildEngineerView() : _buildHelperView(),
-            ],
+                  ],
+                ),
+                const SizedBox(height: 20),
+                _isEngineerSelected ? _buildEngineerView() : _buildHelperView(),
+              ],
+            ),
           ),
         ),
       ),

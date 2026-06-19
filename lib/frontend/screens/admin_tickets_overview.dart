@@ -9,6 +9,7 @@ import 'package:subscription_rooks_app/services/notification_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:subscription_rooks_app/frontend/screens/customer_var_data_screen.dart'
     as customer_var;
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class AdminPage_CusDetails extends StatefulWidget {
   final customer_var.Customer? newCustomer;
@@ -132,12 +133,15 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
     final screenHeight = mediaQuery.size.height;
 
     double getProportionalSize(double size) {
-      final baseSize = screenWidth < screenHeight ? screenWidth : screenHeight;
+      final rawBaseSize = screenWidth < screenHeight ? screenWidth : screenHeight;
+      final baseSize = rawBaseSize.clamp(320.0, 480.0);
       return size * (baseSize / 375);
     }
 
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: Theme.of(context).brightness == Brightness.dark 
+          ? Theme.of(context).scaffoldBackgroundColor 
+          : Colors.grey[100],
       appBar: AppBar(
         elevation: 0,
         title: Text(
@@ -153,7 +157,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
         centerTitle: false,
         actions: [
           IconButton(
-            icon: Icon(Icons.filter_list, color: Colors.white),
+            icon: const Icon(Icons.filter_list, color: Colors.white),
             onPressed: () {
               _showFilterDialog();
             },
@@ -165,21 +169,28 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
           width: double.infinity,
           height: double.infinity,
           decoration: BoxDecoration(
-            color: Theme.of(context).scaffoldBackgroundColor,
+            color: Theme.of(context).brightness == Brightness.dark 
+                ? Theme.of(context).scaffoldBackgroundColor 
+                : Colors.grey[100],
           ),
-          child: Column(
-            children: [
-              SizedBox(height: screenHeight * 0.014),
-              _buildSearchBar(screenWidth, getProportionalSize),
-              SizedBox(height: screenHeight * 0.014),
-              Expanded(
-                child: _buildCustomerStreamBuilder(
-                  screenWidth,
-                  screenHeight,
-                  getProportionalSize,
-                ),
+          child: Center(
+            child: ResponsiveWrapper(
+              maxWidth: 960.0,
+              child: Column(
+                children: [
+                  SizedBox(height: screenHeight * 0.014),
+                  _buildSearchBar(screenWidth, getProportionalSize),
+                  SizedBox(height: screenHeight * 0.014),
+                  Expanded(
+                    child: _buildCustomerStreamBuilder(
+                      screenWidth,
+                      screenHeight,
+                      getProportionalSize,
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -191,7 +202,9 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
     double Function(double) getProportionalSize,
   ) {
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.04),
+      padding: EdgeInsets.symmetric(
+        horizontal: context.isMobile ? screenWidth * 0.04 : 16.0,
+      ),
       child: Container(
         height: getProportionalSize(48),
         decoration: BoxDecoration(
@@ -480,7 +493,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
 
         return ListView.separated(
           padding: EdgeInsets.symmetric(
-            horizontal: screenWidth * 0.04,
+            horizontal: context.isMobile ? screenWidth * 0.04 : 16.0,
             vertical: screenHeight * 0.01,
           ),
           itemCount: filteredDocs.length,
@@ -632,6 +645,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
           context: context,
           isScrollControlled: true,
           backgroundColor: Colors.transparent,
+          constraints: const BoxConstraints(maxWidth: kMaxCardWidth),
           builder: (context) {
             return _buildTicketDetailSheet(
               context,
@@ -673,7 +687,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
         ),
         padding: EdgeInsets.symmetric(
           vertical: screenHeight * 0.014,
-          horizontal: screenWidth * 0.032,
+          horizontal: context.isMobile ? screenWidth * 0.032 : 16.0,
         ),
         child: Column(
           children: [
@@ -925,7 +939,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                 child: Container(
                   width: double.infinity,
                   padding: EdgeInsets.symmetric(
-                    horizontal: screenWidth * 0.03,
+                    horizontal: context.isMobile ? screenWidth * 0.03 : 12.0,
                     vertical: screenHeight * 0.008,
                   ),
                   decoration: BoxDecoration(
@@ -996,6 +1010,17 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
     // Check if this is an AMC customer
     final isAMC = customer.bookingId.toUpperCase().startsWith('AMC');
 
+    final double sheetPaddingLeftRight = context.isMobile ? screenWidth * 0.045 : 16.0;
+    final double innerPaddingLeft = context.isMobile ? screenWidth * 0.06 : 24.0;
+    final double innerPaddingRight = context.isMobile ? screenWidth * 0.04 : 16.0;
+    final double avatarSize = context.isMobile ? screenWidth * 0.14 : 56.0;
+    final double avatarRadius = context.isMobile ? screenWidth * 0.07 : 28.0;
+    final double iconSizedBoxWidth = context.isMobile ? screenWidth * 0.075 : 24.0;
+    final double iconTextSpacing = context.isMobile ? screenWidth * 0.016 : 8.0;
+    final double buttonHPadding = context.isMobile ? screenWidth * 0.04 : 16.0;
+    final double buttonAssignHPadding = context.isMobile ? screenWidth * 0.07 : 24.0;
+    final double buttonOuterRightPadding = context.isMobile ? screenWidth * 0.06 : 24.0;
+
     return SafeArea(
       top: false,
       child: DraggableScrollableSheet(
@@ -1017,8 +1042,8 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
               controller: controller,
               child: Padding(
                 padding: EdgeInsets.only(
-                  left: screenWidth * 0.045,
-                  right: screenWidth * 0.045,
+                  left: sheetPaddingLeftRight,
+                  right: sheetPaddingLeftRight,
                   bottom: screenHeight * 0.02,
                 ),
                 child: Container(
@@ -1052,28 +1077,28 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                     children: [
                       Padding(
                         padding: EdgeInsets.fromLTRB(
-                          screenWidth * 0.06,
+                          innerPaddingLeft,
                           screenHeight * 0.024,
-                          screenWidth * 0.04,
+                          innerPaddingRight,
                           0,
                         ),
                         child: Row(
                           children: [
                             Container(
-                              width: screenWidth * 0.14,
-                              height: screenWidth * 0.14,
+                              width: avatarSize,
+                              height: avatarSize,
                               decoration: BoxDecoration(
                                 color: isCanceled
                                     ? Colors.grey
                                     : isAppointment
                                     ? Colors.amber
                                     : isAMC
-                                    ? Color(0xFFFFD700)
+                                    ? const Color(0xFFFFD700)
                                     : isCompleted
                                     ? Colors.green
                                     : Theme.of(context).primaryColor,
                                 borderRadius: BorderRadius.circular(
-                                  screenWidth * 0.07,
+                                  avatarRadius,
                                 ),
                               ),
                               child: Center(
@@ -1112,7 +1137,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                       ),
                               ),
                             ),
-                            SizedBox(width: screenWidth * 0.05),
+                            SizedBox(width: iconTextSpacing),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1143,7 +1168,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                           customer.bookingId,
                                           style: TextStyle(
                                             color: isAMC
-                                                ? Color(0xFFFFD700)
+                                                ? const Color(0xFFFFD700)
                                                 : Theme.of(
                                                     context,
                                                   ).textTheme.bodyLarge?.color,
@@ -1153,10 +1178,10 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                           overflow: TextOverflow.ellipsis,
                                         ),
                                       ),
-                                      SizedBox(width: screenWidth * 0.02),
+                                      SizedBox(width: iconTextSpacing),
                                       Container(
                                         padding: EdgeInsets.symmetric(
-                                          horizontal: screenWidth * 0.022,
+                                          horizontal: context.isMobile ? screenWidth * 0.022 : 8.0,
                                           vertical: screenHeight * 0.003,
                                         ),
                                         decoration: BoxDecoration(
@@ -1429,13 +1454,13 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                         Padding(
                           padding: EdgeInsets.only(
                             top: screenHeight * 0.015,
-                            left: screenWidth * 0.06,
-                            right: screenWidth * 0.06,
+                            left: innerPaddingLeft,
+                            right: innerPaddingLeft,
                           ),
                           child: Container(
                             width: double.infinity,
                             padding: EdgeInsets.symmetric(
-                              horizontal: screenWidth * 0.04,
+                              horizontal: innerPaddingRight,
                               vertical: screenHeight * 0.012,
                             ),
                             decoration: BoxDecoration(
@@ -1455,7 +1480,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                   color: Colors.green,
                                   size: getProportionalSize(20),
                                 ),
-                                SizedBox(width: screenWidth * 0.02),
+                                SizedBox(width: iconTextSpacing),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment:
@@ -1489,13 +1514,13 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                         Padding(
                           padding: EdgeInsets.only(
                             top: screenHeight * 0.015,
-                            left: screenWidth * 0.06,
-                            right: screenWidth * 0.06,
+                            left: innerPaddingLeft,
+                            right: innerPaddingLeft,
                           ),
                           child: Container(
                             width: double.infinity,
                             padding: EdgeInsets.symmetric(
-                              horizontal: screenWidth * 0.04,
+                              horizontal: innerPaddingRight,
                               vertical: screenHeight * 0.012,
                             ),
                             decoration: BoxDecoration(
@@ -1517,7 +1542,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                   color: Theme.of(context).colorScheme.error,
                                   size: getProportionalSize(20),
                                 ),
-                                SizedBox(width: screenWidth * 0.02),
+                                SizedBox(width: iconTextSpacing),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment:
@@ -1555,19 +1580,19 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                         Padding(
                           padding: EdgeInsets.only(
                             top: screenHeight * 0.01,
-                            left: screenWidth * 0.06,
-                            right: screenWidth * 0.06,
+                            left: innerPaddingLeft,
+                            right: innerPaddingLeft,
                           ),
                           child: Container(
                             padding: EdgeInsets.symmetric(
-                              horizontal: screenWidth * 0.04,
+                              horizontal: innerPaddingRight,
                               vertical: screenHeight * 0.008,
                             ),
                             decoration: BoxDecoration(
-                              color: Color(0xFFFFD700).withValues(alpha: 0.2),
+                              color: const Color(0xFFFFD700).withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
-                                color: Color(0xFFFFD700),
+                                color: const Color(0xFFFFD700),
                                 width: 1,
                               ),
                             ),
@@ -1576,14 +1601,14 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                               children: [
                                 Icon(
                                   Icons.star,
-                                  color: Color(0xFFFFD700),
+                                  color: const Color(0xFFFFD700),
                                   size: getProportionalSize(16),
                                 ),
                                 SizedBox(width: getProportionalSize(8)),
                                 Text(
                                   'AMC Customer',
                                   style: TextStyle(
-                                    color: Color(0xFFB8860B),
+                                    color: const Color(0xFFB8860B),
                                     fontSize: getProportionalSize(14),
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -1594,8 +1619,8 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                         ),
                       Padding(
                         padding: EdgeInsets.only(
-                          left: screenWidth * 0.06,
-                          right: screenWidth * 0.04,
+                          left: innerPaddingLeft,
+                          right: innerPaddingRight,
                           top: screenHeight * 0.016,
                         ),
                         child: Column(
@@ -1802,7 +1827,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                       ),
                       Padding(
                         padding: EdgeInsets.symmetric(
-                          horizontal: screenWidth * 0.06,
+                          horizontal: innerPaddingLeft,
                           vertical: screenHeight * 0.003,
                         ),
                         child: Column(
@@ -1816,14 +1841,14 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                         CrossAxisAlignment.center,
                                     children: [
                                       SizedBox(
-                                        width: screenWidth * 0.075,
+                                        width: iconSizedBoxWidth,
                                         child: Icon(
                                           Icons.location_on,
                                           color: Theme.of(context).primaryColor,
                                           size: getProportionalSize(22),
                                         ),
                                       ),
-                                      SizedBox(width: screenWidth * 0.016),
+                                      SizedBox(width: iconTextSpacing),
                                       Expanded(
                                         child: Text(
                                           customer.address,
@@ -1848,14 +1873,14 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                         CrossAxisAlignment.center,
                                     children: [
                                       SizedBox(
-                                        width: screenWidth * 0.075,
+                                        width: iconSizedBoxWidth,
                                         child: Icon(
                                           Icons.phone,
                                           color: Theme.of(context).primaryColor,
                                           size: getProportionalSize(22),
                                         ),
                                       ),
-                                      SizedBox(width: screenWidth * 0.016),
+                                      SizedBox(width: iconTextSpacing),
                                       Flexible(
                                         child: Text(
                                           customer.mobileNumber,
@@ -1882,14 +1907,14 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                         CrossAxisAlignment.center,
                                     children: [
                                       SizedBox(
-                                        width: screenWidth * 0.075,
+                                        width: iconSizedBoxWidth,
                                         child: Icon(
                                           Icons.calendar_today,
                                           color: Theme.of(context).primaryColor,
                                           size: getProportionalSize(20),
                                         ),
                                       ),
-                                      SizedBox(width: screenWidth * 0.016),
+                                      SizedBox(width: iconTextSpacing),
                                       Text(
                                         dateString,
                                         style: TextStyle(
@@ -1909,14 +1934,14 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                         CrossAxisAlignment.center,
                                     children: [
                                       SizedBox(
-                                        width: screenWidth * 0.075,
+                                        width: iconSizedBoxWidth,
                                         child: Icon(
                                           Icons.access_time,
                                           color: Theme.of(context).primaryColor,
                                           size: getProportionalSize(20),
                                         ),
                                       ),
-                                      SizedBox(width: screenWidth * 0.016),
+                                      SizedBox(width: iconTextSpacing),
                                       Text(
                                         timeString,
                                         style: TextStyle(
@@ -1941,7 +1966,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                         if (isCanceled)
                           Padding(
                             padding: EdgeInsets.only(
-                              right: screenWidth * 0.06,
+                              right: buttonOuterRightPadding,
                               top: screenHeight * 0.022,
                               bottom: screenHeight * 0.013,
                             ),
@@ -1971,7 +1996,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                     padding:
                                         WidgetStateProperty.all<EdgeInsets>(
                                           EdgeInsets.symmetric(
-                                            horizontal: screenWidth * 0.04,
+                                            horizontal: buttonHPadding,
                                             vertical: screenHeight * 0.013,
                                           ),
                                         ),
@@ -2058,7 +2083,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                         else if (isAppointment)
                           Padding(
                             padding: EdgeInsets.only(
-                              right: screenWidth * 0.06,
+                              right: buttonOuterRightPadding,
                               top: screenHeight * 0.022,
                               bottom: screenHeight * 0.013,
                             ),
@@ -2089,7 +2114,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                     padding:
                                         WidgetStateProperty.all<EdgeInsets>(
                                           EdgeInsets.symmetric(
-                                            horizontal: screenWidth * 0.07,
+                                            horizontal: buttonAssignHPadding,
                                             vertical: screenHeight * 0.013,
                                           ),
                                         ),
@@ -2142,7 +2167,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                     ),
                                   ),
                                 ),
-                                SizedBox(width: screenWidth * 0.02),
+                                SizedBox(width: iconTextSpacing),
                                 // MARK AS ACTIVE Button - to remove appointment status
                                 ElevatedButton(
                                   style: ButtonStyle(
@@ -2167,7 +2192,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                     padding:
                                         WidgetStateProperty.all<EdgeInsets>(
                                           EdgeInsets.symmetric(
-                                            horizontal: screenWidth * 0.04,
+                                            horizontal: buttonHPadding,
                                             vertical: screenHeight * 0.013,
                                           ),
                                         ),
@@ -2252,7 +2277,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                           // For regular active tickets (not appointment, not canceled, not completed)
                           Padding(
                             padding: EdgeInsets.only(
-                              right: screenWidth * 0.06,
+                              right: buttonOuterRightPadding,
                               top: screenHeight * 0.022,
                               bottom: screenHeight * 0.013,
                             ),
@@ -2283,7 +2308,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                     padding:
                                         WidgetStateProperty.all<EdgeInsets>(
                                           EdgeInsets.symmetric(
-                                            horizontal: screenWidth * 0.04,
+                                            horizontal: buttonHPadding,
                                             vertical: screenHeight * 0.013,
                                           ),
                                         ),
@@ -2384,7 +2409,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                     ),
                                   ),
                                 ),
-                                SizedBox(width: screenWidth * 0.02),
+                                SizedBox(width: iconTextSpacing),
                                 // ASSIGN Button for active tickets
                                 ElevatedButton(
                                   style: ButtonStyle(
@@ -2409,7 +2434,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                     padding:
                                         WidgetStateProperty.all<EdgeInsets>(
                                           EdgeInsets.symmetric(
-                                            horizontal: screenWidth * 0.07,
+                                            horizontal: buttonAssignHPadding,
                                             vertical: screenHeight * 0.013,
                                           ),
                                         ),
@@ -2472,8 +2497,8 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                       if (!isCanceled && !isCompleted)
                         Padding(
                           padding: EdgeInsets.only(
-                            right: screenWidth * 0.06,
-                            left: screenWidth * 0.06,
+                            right: buttonOuterRightPadding,
+                            left: buttonOuterRightPadding,
                             bottom: screenHeight * 0.03,
                           ),
                           child: ElevatedButton(
@@ -2496,7 +2521,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                   ),
                               padding: WidgetStateProperty.all<EdgeInsets>(
                                 EdgeInsets.symmetric(
-                                  horizontal: screenWidth * 0.07,
+                                  horizontal: buttonAssignHPadding,
                                   vertical: screenHeight * 0.013,
                                 ),
                               ),
@@ -2606,7 +2631,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                       // Customer feedback card (always visible)
                       Padding(
                         padding: EdgeInsets.symmetric(
-                          horizontal: screenWidth * 0.06,
+                          horizontal: innerPaddingLeft,
                           vertical: screenHeight * 0.02,
                         ),
                         child: Card(
@@ -2704,7 +2729,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                       // Helpers card with table layout including S.No (always visible)
                       Padding(
                         padding: EdgeInsets.symmetric(
-                          horizontal: screenWidth * 0.06,
+                          horizontal: innerPaddingLeft,
                           vertical: screenHeight * 0.02,
                         ),
                         child: Card(

@@ -8,6 +8,7 @@ import 'package:subscription_rooks_app/subscription/subscription_plans_screen.da
 import 'package:subscription_rooks_app/subscription/plan_expired_screen.dart';
 import 'package:subscription_rooks_app/frontend/screens/forgot_password_page.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class UnifiedLoginScreen extends StatefulWidget {
   const UnifiedLoginScreen({super.key});
@@ -105,9 +106,12 @@ class _UnifiedLoginScreenState extends State<UnifiedLoginScreen> {
         ),
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Form(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: kMaxFormWidth),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Form(
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -230,6 +234,8 @@ class _UnifiedLoginScreenState extends State<UnifiedLoginScreen> {
                 ),
                 const SizedBox(height: 40),
               ],
+            ),
+          ),
             ),
           ),
         ),

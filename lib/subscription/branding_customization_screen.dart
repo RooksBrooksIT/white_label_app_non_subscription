@@ -264,9 +264,12 @@ class _BrandingCustomizationScreenState
                   horizontal: horizontalPadding,
                   vertical: 24,
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 500),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                     _buildHeader(),
                     const SizedBox(height: 28),
                     _buildAppInfoSection(),
@@ -282,6 +285,8 @@ class _BrandingCustomizationScreenState
                     _buildContinueButton(),
                     const SizedBox(height: 24),
                   ],
+                ),
+                ),
                 ),
               ),
             ),

@@ -11,6 +11,7 @@ import 'package:subscription_rooks_app/services/location_service.dart';
 import 'package:subscription_rooks_app/services/storage_service.dart';
 import 'package:file_picker/file_picker.dart' as picker;
 import 'dart:io';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 // -- CustomerHomePage now gets these values upon navigation --
 class CustomerHomePage extends StatefulWidget {
@@ -251,18 +252,17 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
         ),
         backgroundColor: Theme.of(context).primaryColor,
         elevation: 0,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(bottom: Radius.circular(15)),
-        ),
       ),
       body: Container(
         decoration: BoxDecoration(
           color: Theme.of(context).scaffoldBackgroundColor,
         ),
-        padding: const EdgeInsets.all(20.0),
-        child: Form(
-          key: _formKey,
-          child: ListView(
+        child: ResponsiveWrapper(
+          maxWidth: 960.0,
+          padding: const EdgeInsets.all(20.0),
+          child: Form(
+            key: _formKey,
+            child: ListView(
             children: [
               const SizedBox(height: 10),
               _buildHeader(),
@@ -466,6 +466,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
             ],
           ),
         ),
+      ),
       ),
     );
   }

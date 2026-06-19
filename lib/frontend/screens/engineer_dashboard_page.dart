@@ -23,6 +23,7 @@ import 'package:subscription_rooks_app/services/storage_service.dart';
 import 'package:subscription_rooks_app/services/attendance_service.dart';
 import 'package:subscription_rooks_app/frontend/screens/engineer_location_screen.dart';
 import 'package:subscription_rooks_app/frontend/screens/engineer_edit_profile_screen.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
@@ -944,70 +945,73 @@ class _EngineerPageState extends State<EngineerPage> {
       context: context,
       builder: (context) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  color: ProfessionalTheme.primary(
-                    context,
-                  ).withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.notifications_active,
-                  color: ProfessionalTheme.primary(context),
-                  size: 32,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                data['type'] == 'new_assignment'
-                    ? 'New Assignment'
-                    : 'Notification',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: ProfessionalTheme.textPrimary(context),
-                ),
-              ),
-              const SizedBox(height: 12),
-              if (data['type'] == 'new_assignment') ...[
-                // const SizedBox(height: 8, width: 8),
-                // _buildNotificationItem('Customer', data['customerName']),
-                // const SizedBox(height: 8),
-                _buildNotificationItem('Booking ID', data['bookingId']),
-              ],
-              if (data['body'] != null) ...[
-                const SizedBox(height: 8),
-                _buildNotificationItem('Message', data['body']),
-              ],
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: ProfessionalTheme.primary(context),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: ProfessionalTheme.primary(
+                      context,
+                    ).withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
                   ),
-                  child: Text(
-                    'Got It',
-                    style: TextStyle(
-                      color: ProfessionalTheme.textInverse(context),
-                      fontWeight: FontWeight.w600,
-                    ),
+                  child: Icon(
+                    Icons.notifications_active,
+                    color: ProfessionalTheme.primary(context),
+                    size: 32,
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 16),
+                Text(
+                  data['type'] == 'new_assignment'
+                      ? 'New Assignment'
+                      : 'Notification',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: ProfessionalTheme.textPrimary(context),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (data['type'] == 'new_assignment') ...[
+                  // const SizedBox(height: 8, width: 8),
+                  // _buildNotificationItem('Customer', data['customerName']),
+                  // const SizedBox(height: 8),
+                  _buildNotificationItem('Booking ID', data['bookingId']),
+                ],
+                if (data['body'] != null) ...[
+                  const SizedBox(height: 8),
+                  _buildNotificationItem('Message', data['body']),
+                ],
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: ProfessionalTheme.primary(context),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: Text(
+                      'Got It',
+                      style: TextStyle(
+                        color: ProfessionalTheme.textInverse(context),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1047,86 +1051,89 @@ class _EngineerPageState extends State<EngineerPage> {
       context: context,
       builder: (context) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  color: ProfessionalTheme.error.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: ProfessionalTheme.error.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.logout,
+                    color: ProfessionalTheme.error,
+                    size: 32,
+                  ),
                 ),
-                child: Icon(
-                  Icons.logout,
-                  color: ProfessionalTheme.error,
-                  size: 32,
+                const SizedBox(height: 16),
+                Text(
+                  'Confirm Logout',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: ProfessionalTheme.textPrimary(context),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Confirm Logout',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: ProfessionalTheme.textPrimary(context),
+                const SizedBox(height: 8),
+                Text(
+                  'Are you sure you want to logout from your account?',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: ProfessionalTheme.textSecondary(context),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Are you sure you want to logout from your account?',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: ProfessionalTheme.textSecondary(context),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: OutlinedButton.styleFrom(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: OutlinedButton.styleFrom(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          side: BorderSide(
+                            color: ProfessionalTheme.borderMedium(context),
+                          ),
                         ),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        side: BorderSide(
-                          color: ProfessionalTheme.borderMedium(context),
-                        ),
-                      ),
-                      child: Text(
-                        'Cancel',
-                        style: TextStyle(
-                          color: ProfessionalTheme.textSecondary(context),
+                        child: Text(
+                          'Cancel',
+                          style: TextStyle(
+                            color: ProfessionalTheme.textSecondary(context),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: _performLogout,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: ProfessionalTheme.error,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: _performLogout,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: ProfessionalTheme.error,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      child: Text(
-                        'Logout',
-                        style: TextStyle(
-                          color: ProfessionalTheme.textInverse(context),
+                        child: Text(
+                          'Logout',
+                          style: TextStyle(
+                            color: ProfessionalTheme.textInverse(context),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1220,7 +1227,6 @@ class _EngineerPageState extends State<EngineerPage> {
 
   Widget _buildTopSection() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 16, 16, 16),
       decoration: BoxDecoration(
         color: ProfessionalTheme.primary(context),
         boxShadow: [
@@ -1231,63 +1237,67 @@ class _EngineerPageState extends State<EngineerPage> {
           ),
         ],
       ),
-      child: Row(
-        children: [
-          // Logo
-          if (ThemeService.instance.logoUrl != null)
-            CircleAvatar(
-              radius: 20,
-              backgroundColor: Colors.white.withValues(alpha: 0.9),
-              backgroundImage: NetworkImage(ThemeService.instance.logoUrl!),
-            ),
-          if (ThemeService.instance.logoUrl != null) const SizedBox(width: 12),
-          // App and User Name
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  ThemeService.instance.appName,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    color: ProfessionalTheme.textInverse(
-                      context,
-                    ).withValues(alpha: 0.9),
-                    letterSpacing: 1.0,
-                  ),
-                ),
-                Text(
-                  widget.userName,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: ProfessionalTheme.textInverse(context),
-                    letterSpacing: -0.5,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-          // Online Toggle
-          _buildOnlineToggle(),
-          const SizedBox(width: 12),
-          // Burger Menu Button (Moved to right)
-          GestureDetector(
-            onTap: () => _scaffoldKey.currentState?.openEndDrawer(),
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.18),
-                borderRadius: BorderRadius.circular(12),
+      child: ResponsiveWrapper(
+        maxWidth: 960.0,
+        padding: const EdgeInsets.fromLTRB(20, 16, 16, 16),
+        child: Row(
+          children: [
+            // Logo
+            if (ThemeService.instance.logoUrl != null)
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: Colors.white.withValues(alpha: 0.9),
+                backgroundImage: NetworkImage(ThemeService.instance.logoUrl!),
               ),
-              child: Icon(Icons.menu_rounded, color: Colors.white, size: 24),
+            if (ThemeService.instance.logoUrl != null) const SizedBox(width: 12),
+            // App and User Name
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    ThemeService.instance.appName,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: ProfessionalTheme.textInverse(
+                        context,
+                      ).withValues(alpha: 0.9),
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+                  Text(
+                    widget.userName,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: ProfessionalTheme.textInverse(context),
+                      letterSpacing: -0.5,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+            // Online Toggle
+            _buildOnlineToggle(),
+            const SizedBox(width: 12),
+            // Burger Menu Button (Moved to right)
+            GestureDetector(
+              onTap: () => _scaffoldKey.currentState?.openEndDrawer(),
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(Icons.menu_rounded, color: Colors.white, size: 24),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1371,45 +1381,48 @@ class _EngineerPageState extends State<EngineerPage> {
 
   Widget _buildDashboardView() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (!_isCheckedIn) _buildCheckInCard(),
-          const SizedBox(height: 24),
-          Text(
-            'Work Summary Dashboard',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: ProfessionalTheme.textPrimary(context),
+      child: ResponsiveWrapper(
+        maxWidth: 960.0,
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (!_isCheckedIn) _buildCheckInCard(),
+            const SizedBox(height: 24),
+            Text(
+              'Work Summary Dashboard',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: ProfessionalTheme.textPrimary(context),
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-          _buildWorkSummaryDashboard(),
-          const SizedBox(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Recent Tasks',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: ProfessionalTheme.textPrimary(context),
+            const SizedBox(height: 16),
+            _buildWorkSummaryDashboard(),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Recent Tasks',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: ProfessionalTheme.textPrimary(context),
+                  ),
                 ),
-              ),
-              TextButton(
-                onPressed: () {
-                  setState(() => _selectedIndex = 1); // Go to Bookings
-                },
-                child: const Text('View All'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _buildRecentTasks(),
-        ],
+                TextButton(
+                  onPressed: () {
+                    setState(() => _selectedIndex = 1); // Go to Bookings
+                  },
+                  child: const Text('View All'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _buildRecentTasks(),
+          ],
+        ),
       ),
     );
   }
@@ -2074,134 +2087,137 @@ class _EngineerPageState extends State<EngineerPage> {
         final address = data['Address'] ?? 'Not provided';
 
         return SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            children: [
-              const SizedBox(height: 16),
+          child: ResponsiveWrapper(
+            maxWidth: kMaxCardWidth,
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              children: [
+                const SizedBox(height: 16),
 
-              // Profile avatar
-              Container(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: ProfessionalTheme.primary(context),
-                    width: 3,
-                  ),
-                  boxShadow: ProfessionalTheme.elevatedShadow,
-                ),
-                child: CircleAvatar(
-                  radius: 52,
-                  backgroundColor: ProfessionalTheme.primaryExtraLight(context),
-                  child: Text(
-                    (widget.userName.isNotEmpty ? widget.userName[0] : 'E')
-                        .toUpperCase(),
-                    style: TextStyle(
-                      fontSize: 40,
-                      fontWeight: FontWeight.w900,
-                      color: ProfessionalTheme.primary(context),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              Text(
-                widget.userName,
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  color: ProfessionalTheme.textPrimary(context),
-                ),
-              ),
-              const SizedBox(height: 4),
-              if (specialization != 'Not provided')
+                // Profile avatar
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 6,
-                  ),
                   decoration: BoxDecoration(
-                    color: ProfessionalTheme.primaryExtraLight(context),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    specialization,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
+                    shape: BoxShape.circle,
+                    border: Border.all(
                       color: ProfessionalTheme.primary(context),
+                      width: 3,
                     ),
+                    boxShadow: ProfessionalTheme.elevatedShadow,
                   ),
-                ),
-              const SizedBox(height: 32),
-
-              // Info cards
-              _buildProfileItem(Icons.email_rounded, 'Email', email),
-              _buildProfileItem(Icons.phone_rounded, 'Mobile Number', phone),
-              _buildProfileItem(
-                Icons.architecture_rounded,
-                'Specialization',
-                specialization,
-              ),
-              _buildProfileItem(Icons.place_rounded, 'Address', address),
-
-              const SizedBox(height: 32),
-
-              // Edit Profile button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () async {
-                    final updated = await Navigator.push<bool>(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => EngineerEditProfileScreen(
-                          engineerName: widget.userName,
-                        ),
+                  child: CircleAvatar(
+                    radius: 52,
+                    backgroundColor: ProfessionalTheme.primaryExtraLight(context),
+                    child: Text(
+                      (widget.userName.isNotEmpty ? widget.userName[0] : 'E')
+                          .toUpperCase(),
+                      style: TextStyle(
+                        fontSize: 40,
+                        fontWeight: FontWeight.w900,
+                        color: ProfessionalTheme.primary(context),
                       ),
-                    );
-                    if (updated == true && mounted) {
-                      setState(() {}); // trigger StreamBuilder refresh
-                    }
-                  },
-                  icon: const Icon(Icons.edit_rounded),
-                  label: const Text(
-                    'Edit Profile',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: ProfessionalTheme.primary(context),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 16),
+                const SizedBox(height: 16),
 
-              // Logout button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _showLogoutConfirmation,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: ProfessionalTheme.error,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                  child: const Text(
-                    'Logout Account',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                Text(
+                  widget.userName,
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    color: ProfessionalTheme.textPrimary(context),
                   ),
                 ),
-              ),
-              const SizedBox(height: 24),
-            ],
+                const SizedBox(height: 4),
+                if (specialization != 'Not provided')
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: ProfessionalTheme.primaryExtraLight(context),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      specialization,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: ProfessionalTheme.primary(context),
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 32),
+
+                // Info cards
+                _buildProfileItem(Icons.email_rounded, 'Email', email),
+                _buildProfileItem(Icons.phone_rounded, 'Mobile Number', phone),
+                _buildProfileItem(
+                  Icons.architecture_rounded,
+                  'Specialization',
+                  specialization,
+                ),
+                _buildProfileItem(Icons.place_rounded, 'Address', address),
+
+                const SizedBox(height: 32),
+
+                // Edit Profile button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      final updated = await Navigator.push<bool>(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => EngineerEditProfileScreen(
+                            engineerName: widget.userName,
+                          ),
+                        ),
+                      );
+                      if (updated == true && mounted) {
+                        setState(() {}); // trigger StreamBuilder refresh
+                      }
+                    },
+                    icon: const Icon(Icons.edit_rounded),
+                    label: const Text(
+                      'Edit Profile',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: ProfessionalTheme.primary(context),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Logout button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _showLogoutConfirmation,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: ProfessionalTheme.error,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: const Text(
+                      'Logout Account',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
+            ),
           ),
         );
       },
@@ -2327,29 +2343,32 @@ class _EngineerPageState extends State<EngineerPage> {
               .length;
         }
 
-        return Column(
-          children: [
-            Padding(
-              padding: _pagePadding(context).copyWith(bottom: 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _sectionHeader('Bookings'),
-                  const SizedBox(height: 12),
-                  _buildSearchField(),
-                  if (_currentSection == 'dashboard') ...[
+        return ResponsiveWrapper(
+          maxWidth: 960.0,
+          child: Column(
+            children: [
+              Padding(
+                padding: _pagePadding(context).copyWith(bottom: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _sectionHeader('Bookings'),
                     const SizedBox(height: 12),
-                    _buildStatusFilterChips(),
+                    _buildSearchField(),
+                    if (_currentSection == 'dashboard') ...[
+                      const SizedBox(height: 12),
+                      _buildStatusFilterChips(),
+                    ],
+                    const SizedBox(height: 12),
+                    _buildResultsMeta(),
                   ],
-                  const SizedBox(height: 12),
-                  _buildResultsMeta(),
-                ],
+                ),
               ),
-            ),
 
-            // Bookings List
-            Expanded(child: _buildSearchResults()),
-          ],
+              // Bookings List
+              Expanded(child: _buildSearchResults()),
+            ],
+          ),
         );
       },
     );
@@ -3089,9 +3108,11 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
       context: context,
       builder: (context) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
@@ -3171,6 +3192,7 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
                 ],
               ),
             ],
+          ),
           ),
         ),
       ),

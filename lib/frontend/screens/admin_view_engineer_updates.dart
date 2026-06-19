@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/services/notification_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class EngineerUpdates extends StatefulWidget {
   const EngineerUpdates({super.key});
@@ -446,9 +447,15 @@ class _EngineerUpdatesState extends State<EngineerUpdates> {
                 child: Divider(height: 1, color: Colors.grey.withValues(alpha: 0.1)),
               ),
       ),
-      body: Column(
-        children: [
-          _buildEnhancedFilterSummary(),
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1200),
+            child: ResponsiveWrapper(
+              maxWidth: 1200.0,
+              child: Column(
+                children: [
+                  _buildEnhancedFilterSummary(),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirestoreService.instance
@@ -557,7 +564,11 @@ class _EngineerUpdatesState extends State<EngineerUpdates> {
               },
             ),
           ),
-        ],
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -1928,9 +1939,12 @@ class _EngineerUpdateCardState extends State<EngineerUpdateCard> {
 
     final Color statusColor = getStatusColor(statusForColor);
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-      decoration: BoxDecoration(
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 500),
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+          decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
@@ -2241,6 +2255,8 @@ class _EngineerUpdateCardState extends State<EngineerUpdateCard> {
             ],
           ],
         ),
+        ),
+      ),
       ),
     );
   }

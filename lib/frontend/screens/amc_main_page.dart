@@ -12,6 +12,7 @@ import 'package:subscription_rooks_app/frontend/screens/customer_createtickets_d
 import 'package:flutter/services.dart';
 import 'package:subscription_rooks_app/services/notification_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class AMCTrackMyService extends StatefulWidget {
   final String customerName;
@@ -1632,9 +1633,11 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
   Widget _buildBody() {
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+      child: ResponsiveWrapper(
+        maxWidth: kMaxContentWidth,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
           // Header Decoration (matching Track My Service style)
           _buildHeaderDecoration(),
 
@@ -1770,6 +1773,7 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
           const SizedBox(height: 40),
         ],
       ),
+    ),
     );
   }
 

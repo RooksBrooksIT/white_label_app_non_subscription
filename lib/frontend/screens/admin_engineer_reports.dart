@@ -11,6 +11,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:subscription_rooks_app/utils/pdf_utils.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class AdminEngineerReports extends StatefulWidget {
   const AdminEngineerReports({super.key});
@@ -481,12 +482,17 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
               ),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
-                  FadeTransition(
-                    opacity: _fadeAnimation,
-                    child: _buildSearchBar(isMobile),
+                  ResponsiveWrapper(
+                    maxWidth: 1200.0,
+                    child: FadeTransition(
+                      opacity: _fadeAnimation,
+                      child: _buildSearchBar(isMobile),
+                    ),
                   ),
                   const SizedBox(height: 24),
-                  StreamBuilder<List<Map<String, dynamic>>>(
+                  ResponsiveWrapper(
+                    maxWidth: 1200.0,
+                    child: StreamBuilder<List<Map<String, dynamic>>>(
                     stream: getEngineerProfiles(),
                     builder: (context, engineerSnapshot) {
                       final engineerProfiles = engineerSnapshot.data ?? [];
@@ -665,6 +671,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                         },
                       );
                     },
+                  ),
                   ),
                 ]),
               ),

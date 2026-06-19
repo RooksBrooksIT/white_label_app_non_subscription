@@ -78,15 +78,48 @@ class AuthStateService extends ChangeNotifier {
   }) async {
     try {
       if (deferAuth) {
-        // Just store the data in memory for now
+        final auth = FirebaseAuth.instance;
+
+        // 1. Validate credentials by actually creating or signing in the Auth account
+        if (auth.currentUser == null || auth.currentUser!.email != email) {
+          try {
+            await auth.createUserWithEmailAndPassword(
+              email: email,
+              password: password,
+            );
+          } on FirebaseAuthException catch (e) {
+            if (e.code == 'email-already-in-use') {
+              try {
+                await auth.signInWithEmailAndPassword(
+                  email: email,
+                  password: password,
+                );
+                debugPrint('User already exists, signed in to validate credentials');
+              } catch (signInError) {
+                return {
+                  'success': false,
+                  'message': 'Auth Error: The email address is already in use and the password provided is incorrect.',
+                };
+              }
+            } else {
+              return {
+                'success': false,
+                'message': 'Auth Error: ${e.message} (Code: ${e.code})',
+              };
+            }
+          }
+        }
+
+        // Just store the data in memory for now, but include the uid
         _pendingRegistrationData = {
+          'uid': auth.currentUser!.uid,
           'name': name,
           'email': email,
           'password': password,
           'role': role,
           'additionalData': additionalData,
         };
-        debugPrint('Account registration deferred for $email');
+        debugPrint('Account auth validated and registration deferred for $email');
         return {'success': true, 'message': 'Account details saved locally.'};
       }
 

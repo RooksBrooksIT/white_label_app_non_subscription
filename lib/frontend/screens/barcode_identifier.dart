@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class BarcodeIdentifierScreen extends StatefulWidget {
   const BarcodeIdentifierScreen({super.key, required String scannedBarcode});
@@ -132,19 +133,24 @@ class _BarcodeIdentifierScreenState extends State<BarcodeIdentifierScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Theme.of(context).primaryColor.withValues(alpha: 0.95),
-              Theme.of(context).primaryColor.withValues(alpha: 0.7),
-              Theme.of(context).primaryColor.withValues(alpha: 0.95),
-            ],
+      body: ResponsiveWrapper(
+        maxWidth: 1200.0,
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Theme.of(context).primaryColor.withValues(alpha: 0.95),
+                Theme.of(context).primaryColor.withValues(alpha: 0.7),
+                Theme.of(context).primaryColor.withValues(alpha: 0.95),
+              ],
+            ),
           ),
-        ),
-        child: CustomScrollView(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 500),
+              child: CustomScrollView(
           slivers: [
             SliverAppBar(
               backgroundColor: Colors.transparent,
@@ -205,6 +211,9 @@ class _BarcodeIdentifierScreenState extends State<BarcodeIdentifierScreen> {
               ]),
             ),
           ],
+        ),
+            ),
+          ),
         ),
       ),
     );

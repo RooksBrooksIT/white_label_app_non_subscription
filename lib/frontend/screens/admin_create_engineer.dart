@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'admin_dashboard.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class EngineerManagementPage extends StatefulWidget {
   static Route route() =>
@@ -160,9 +161,19 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
           ),
           centerTitle: false,
         ),
-        body: TabBarView(
-          controller: _tabController,
-          children: [_buildEngineerForm(), _buildEngineersList()],
+        body: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1200),
+              child: ResponsiveWrapper(
+                maxWidth: 1200.0,
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [_buildEngineerForm(), _buildEngineersList()],
+                ),
+              ),
+            ),
+          ),
         ),
         bottomNavigationBar: Container(
           decoration: BoxDecoration(
@@ -210,7 +221,10 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.all(20),
-      child: Form(
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 500),
+          child: Form(
         key: _formKey,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -465,6 +479,8 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
           ],
         ),
       ),
+        ),
+      ),
     );
   }
 
@@ -578,11 +594,14 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
   Widget _buildEngineersList() {
     return Column(
       children: [
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: const BorderRadius.only(
+        Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 500),
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: const BorderRadius.only(
               bottomLeft: Radius.circular(24),
               bottomRight: Radius.circular(24),
             ),
@@ -643,6 +662,8 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
                 ),
               ),
             ],
+              ),
+            ),
           ),
         ),
         Expanded(
@@ -697,11 +718,14 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
                   itemCount: _filteredEngineers.length,
                   itemBuilder: (context, index) {
                     final engineer = _filteredEngineers[index];
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
+                    return Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 500),
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withValues(alpha: 0.04),
@@ -858,6 +882,8 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
                               ],
                             ),
                           ),
+                        ),
+                      ),
                         ),
                       ),
                     );

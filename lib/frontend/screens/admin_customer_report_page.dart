@@ -10,6 +10,7 @@ import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:subscription_rooks_app/utils/pdf_utils.dart';
 import 'package:intl/intl.dart';
 import 'dart:io';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class CustomerReportGenerator extends StatefulWidget {
   const CustomerReportGenerator({super.key});
@@ -648,27 +649,35 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
       ),
       body: SafeArea(
         bottom: false,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _buildSearchCard(),
-              const SizedBox(height: 20),
-              if (_loading) _buildLoading(),
-              if (!_loading && _displayRecords.isNotEmpty)
-                FadeTransition(
-                  opacity: _fadeAnim,
-                  child: SlideTransition(
-                    position: _slideAnim,
-                    child: _buildResultsSection(),
-                  ),
+        child: ResponsiveWrapper(
+          maxWidth: 1200.0,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 500),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildSearchCard(),
+                    const SizedBox(height: 20),
+                    if (_loading) _buildLoading(),
+                    if (!_loading && _displayRecords.isNotEmpty)
+                      FadeTransition(
+                        opacity: _fadeAnim,
+                        child: SlideTransition(
+                          position: _slideAnim,
+                          child: _buildResultsSection(),
+                        ),
+                      ),
+                    if (!_loading &&
+                        resultData == null &&
+                        (multipleResults == null || multipleResults!.isEmpty))
+                      _buildEmptyState(),
+                  ],
                 ),
-              if (!_loading &&
-                  resultData == null &&
-                  (multipleResults == null || multipleResults!.isEmpty))
-                _buildEmptyState(),
-            ],
+              ),
+            ),
           ),
         ),
       ),

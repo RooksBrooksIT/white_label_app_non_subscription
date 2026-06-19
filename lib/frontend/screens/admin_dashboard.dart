@@ -28,6 +28,7 @@ import 'package:subscription_rooks_app/services/auth_state_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:subscription_rooks_app/services/storage_service.dart';
 import 'package:flutter/services.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 import 'package:subscription_rooks_app/backend/screens/admin_dashboard.dart';
 import 'package:subscription_rooks_app/services/notification_service.dart';
@@ -399,8 +400,11 @@ class _admindashboardState extends State<admindashboard> {
           slivers: [
             _buildAppBar(),
             SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: ResponsiveWrapper(
+                maxWidth: 960.0,
+                padding: EdgeInsets.symmetric(
+                  horizontal: context.responsiveHPadding,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1123,27 +1127,46 @@ class _admindashboardState extends State<admindashboard> {
           ),
         ),
         const SizedBox(height: 16),
-        SizedBox(
-          height: 110,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            children: [
-              _buildMetricCard(
-                'Total Customers',
-                totalCustomers.toString(),
-                Icons.people_rounded,
-                accentColor,
+        context.isMobile
+            ? SizedBox(
+                height: 110,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  children: [
+                    _buildMetricCard(
+                      'Total Customers',
+                      totalCustomers.toString(),
+                      Icons.people_rounded,
+                      accentColor,
+                    ),
+                    _buildMetricCard(
+                      'Active Engineers',
+                      '$activeEngineers/$totalEngineers',
+                      Icons.engineering_rounded,
+                      const Color(0xFF00D2FF),
+                    ),
+                  ],
+                ),
+              )
+            : Wrap(
+                spacing: 16,
+                runSpacing: 16,
+                children: [
+                  _buildMetricCard(
+                    'Total Customers',
+                    totalCustomers.toString(),
+                    Icons.people_rounded,
+                    accentColor,
+                  ),
+                  _buildMetricCard(
+                    'Active Engineers',
+                    '$activeEngineers/$totalEngineers',
+                    Icons.engineering_rounded,
+                    const Color(0xFF00D2FF),
+                  ),
+                ],
               ),
-              _buildMetricCard(
-                'Active Engineers',
-                '$activeEngineers/$totalEngineers',
-                Icons.engineering_rounded,
-                const Color(0xFF00D2FF),
-              ),
-            ],
-          ),
-        ),
       ],
     );
   }
@@ -1156,7 +1179,7 @@ class _admindashboardState extends State<admindashboard> {
   ) {
     return Container(
       width: 160,
-      margin: const EdgeInsets.only(right: 16),
+      margin: context.isMobile ? const EdgeInsets.only(right: 16) : EdgeInsets.zero,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -1307,7 +1330,28 @@ class _admindashboardState extends State<admindashboard> {
           ),
         ),
         const SizedBox(height: 16),
-        ...cards,
+        LayoutBuilder(
+          builder: (context, constraints) {
+            if (context.isMobile) {
+              return Column(
+                children: cards,
+              );
+            } else {
+              const double spacing = 16;
+              final double cardWidth = (constraints.maxWidth - spacing) / 2;
+              return Wrap(
+                spacing: spacing,
+                runSpacing: spacing,
+                children: cards.map((card) {
+                  return SizedBox(
+                    width: cardWidth,
+                    child: card,
+                  );
+                }).toList(),
+              );
+            }
+          },
+        ),
       ],
     );
   }
@@ -1321,7 +1365,7 @@ class _admindashboardState extends State<admindashboard> {
     String? badge,
   }) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: EdgeInsets.only(bottom: context.isMobile ? 12 : 0),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(20),
@@ -1706,6 +1750,7 @@ class _admindashboardState extends State<admindashboard> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
+      constraints: const BoxConstraints(maxWidth: 500),
       builder: (context) {
         return Container(
           decoration: const BoxDecoration(
@@ -1999,9 +2044,11 @@ class _admindashboardState extends State<admindashboard> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(24),
               ),
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 500),
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     // Header
@@ -2218,6 +2265,7 @@ class _admindashboardState extends State<admindashboard> {
                     ),
                   ],
                 ),
+                ),
               ),
             );
           },
@@ -2231,69 +2279,72 @@ class _admindashboardState extends State<admindashboard> {
       context: context,
       builder: (context) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.logout_rounded, color: errorColor, size: 48),
-              const SizedBox(height: 16),
-              const Text(
-                'Logout',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Are you sure you want to log out?',
-                style: TextStyle(color: textLightColor),
-              ),
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: Text(
-                        'Cancel',
-                        style: TextStyle(
-                          color: textLightColor,
-                          fontWeight: FontWeight.w600,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.logout_rounded, color: errorColor, size: 48),
+                const SizedBox(height: 16),
+                const Text(
+                  'Logout',
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Are you sure you want to log out?',
+                  style: TextStyle(color: textLightColor),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: Text(
+                          'Cancel',
+                          style: TextStyle(
+                            color: textLightColor,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        await AuthStateService.instance.logout();
-                        if (context.mounted) {
-                          Navigator.of(context).pushAndRemoveUntil(
-                            MaterialPageRoute(
-                              builder: (context) => const RoleSelectionScreen(),
-                            ),
-                            (route) => false,
-                          );
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: errorColor,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () async {
+                          await AuthStateService.instance.logout();
+                          if (context.mounted) {
+                            Navigator.of(context).pushAndRemoveUntil(
+                              MaterialPageRoute(
+                                builder: (context) => const RoleSelectionScreen(),
+                              ),
+                              (route) => false,
+                            );
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: errorColor,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
-                      ),
-                      child: const Text(
-                        'Logout',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
+                        child: const Text(
+                          'Logout',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),

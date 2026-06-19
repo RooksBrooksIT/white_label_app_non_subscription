@@ -4,6 +4,7 @@ import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/backend/brand_model_backend.dart';
 import 'package:lottie/lottie.dart';
 import 'package:flutter/services.dart';
+import '../../utils/responsive_wrapper.dart';
 
 class CreateTickets extends StatefulWidget {
   final String customerId;
@@ -1327,22 +1328,14 @@ class _CreateTicketsState extends State<CreateTickets> {
         backgroundColor: Theme.of(context).primaryColor,
         foregroundColor: Colors.white,
       ),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Theme.of(context).primaryColor.withValues(alpha: 0.05),
-              Theme.of(context).scaffoldBackgroundColor,
-            ],
-          ),
-        ),
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            padding: const EdgeInsets.all(20),
-            children: [
+      body: ResponsiveWrapper(
+        padding: EdgeInsets.symmetric(horizontal: context.responsiveHPadding),
+        child: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
               _buildSectionHeader('Customer Information', Icons.person_outline),
               const SizedBox(height: 12),
               Row(
@@ -1554,6 +1547,7 @@ class _CreateTicketsState extends State<CreateTickets> {
           ),
         ),
       ),
+    ),
     );
   }
 
