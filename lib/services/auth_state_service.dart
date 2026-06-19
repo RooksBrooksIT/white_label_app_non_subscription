@@ -560,9 +560,12 @@ class AuthStateService extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
 
       // Check for pending payment recovery first
-      final pendingPayment = await PaymentRecoveryService.instance.getPendingPayment();
+      final pendingPayment = await PaymentRecoveryService.instance
+          .getPendingPayment();
       if (pendingPayment != null) {
-        debugPrint('AuthStateService: Found pending payment for recovery, redirecting to PaymentRecoveryScreen');
+        debugPrint(
+          'AuthStateService: Found pending payment for recovery, redirecting to PaymentRecoveryScreen',
+        );
         return PaymentRecoveryScreen(pendingPayment: pendingPayment);
       }
 
@@ -632,7 +635,9 @@ class AuthStateService extends ChangeNotifier {
               tenantId: effectiveTenant,
             );
             if (!isBrandingCompleted) {
-              debugPrint('AuthStateService: Branding incomplete for admin, routing to BrandingCustomizationScreen');
+              debugPrint(
+                'AuthStateService: Branding incomplete for admin, routing to BrandingCustomizationScreen',
+              );
               try {
                 // Fetch latest payment to populate BrandingCustomizationScreen
                 final paymentSnapshot = await FirebaseFirestore.instance
@@ -665,8 +670,7 @@ class AuthStateService extends ChangeNotifier {
                     price: parsedAmount,
                     transactionId: paymentSnapshot.docs.first.id,
                     originalPrice: parsedOriginalPrice,
-                    paymentMethod:
-                        resolvedPaymentMethod.isNotEmpty
+                    paymentMethod: resolvedPaymentMethod.isNotEmpty
                         ? resolvedPaymentMethod
                         : null,
                     limits: paymentData['limits'] as Map<String, dynamic>?,
@@ -677,7 +681,9 @@ class AuthStateService extends ChangeNotifier {
                   );
                 }
               } catch (e) {
-                debugPrint('AuthStateService: Error fetching latest payment for branding: $e');
+                debugPrint(
+                  'AuthStateService: Error fetching latest payment for branding: $e',
+                );
               }
               // Fallback if no payment found
               return const BrandingCustomizationScreen(
@@ -743,7 +749,9 @@ class AuthStateService extends ChangeNotifier {
             tenantId: adminTenantId,
           );
           if (!isBrandingCompleted) {
-            debugPrint('AuthStateService: Branding incomplete for fallback admin session, routing to BrandingCustomizationScreen');
+            debugPrint(
+              'AuthStateService: Branding incomplete for fallback admin session, routing to BrandingCustomizationScreen',
+            );
             return const BrandingCustomizationScreen(
               planName: 'Subscription',
               isYearly: false,

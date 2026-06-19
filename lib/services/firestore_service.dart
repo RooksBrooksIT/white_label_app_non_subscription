@@ -203,8 +203,7 @@ class FirestoreService {
       if (originalPrice != null) 'originalPrice': originalPrice,
       if (customerMobile != null && customerMobile.isNotEmpty)
         'customerMobile': customerMobile,
-      if (gstNumber != null && gstNumber.isNotEmpty)
-        'gstNumber': gstNumber,
+      if (gstNumber != null && gstNumber.isNotEmpty) 'gstNumber': gstNumber,
       if (limits != null) 'limits': limits,
       if (geoLocation != null) 'geoLocation': geoLocation,
       if (attendance != null) 'attendance': attendance,
@@ -651,7 +650,9 @@ class FirestoreService {
         'invoiceDetails': {
           'planName': planName,
           'amount': amount,
-          'billingCycle': isYearly ? 'Yearly' : (isSixMonths ? '6 Months' : 'Monthly'),
+          'billingCycle': isYearly
+              ? 'Yearly'
+              : (isSixMonths ? '6 Months' : 'Monthly'),
           if (customerName != null) 'customerName': customerName,
           if (customerEmail != null) 'customerEmail': customerEmail,
         },
@@ -741,4 +742,3 @@ class FirestoreService {
         .collection('queued_subscriptions');
   }
 }
-
