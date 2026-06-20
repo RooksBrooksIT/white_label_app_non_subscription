@@ -118,8 +118,8 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
     final appBarForegroundColor = Theme.of(context).colorScheme.onPrimary;
 
     return Scaffold(
-      backgroundColor: Theme.of(context).brightness == Brightness.dark 
-          ? Theme.of(context).scaffoldBackgroundColor 
+      backgroundColor: Theme.of(context).brightness == Brightness.dark
+          ? Theme.of(context).scaffoldBackgroundColor
           : Colors.grey[100],
       appBar: AppBar(
         elevation: 0,
@@ -156,10 +156,14 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
                   children: [
                     SizedBox(height: screenHeight * 0.014),
                     _buildSearchBar(responsiveWidth),
-                    if (_selectedFilter != 'All') _buildActiveFilterChip(responsiveWidth),
+                    if (_selectedFilter != 'All')
+                      _buildActiveFilterChip(responsiveWidth),
                     SizedBox(height: screenHeight * 0.014),
                     Expanded(
-                      child: _buildDeliveryStreamBuilder(responsiveWidth, screenHeight),
+                      child: _buildDeliveryStreamBuilder(
+                        responsiveWidth,
+                        screenHeight,
+                      ),
                     ),
                   ],
                 ),
@@ -175,11 +179,7 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
     return IconButton(
       icon: Stack(
         children: [
-          Icon(
-            Icons.filter_list,
-            color: iconColor,
-            size: screenWidth * 0.064,
-          ),
+          Icon(Icons.filter_list, color: iconColor, size: screenWidth * 0.064),
           if (_selectedFilter != 'All')
             Positioned(
               right: 0,
@@ -421,49 +421,51 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
           padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.04),
           child: Container(
             height: screenWidth * 0.117,
-        decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
-          borderRadius: BorderRadius.circular(screenWidth * 0.032),
-          boxShadow: [
-            BoxShadow(
-              color: Theme.of(context).shadowColor.withValues(alpha: 0.1),
-              blurRadius: screenWidth * 0.016,
-              offset: Offset(0, screenWidth * 0.01),
+            decoration: BoxDecoration(
+              color: Theme.of(context).cardColor,
+              borderRadius: BorderRadius.circular(screenWidth * 0.032),
+              boxShadow: [
+                BoxShadow(
+                  color: Theme.of(context).shadowColor.withValues(alpha: 0.1),
+                  blurRadius: screenWidth * 0.016,
+                  offset: Offset(0, screenWidth * 0.01),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: TextField(
-          controller: _searchController,
-          onChanged: (value) {
-            setState(() {
-              searchQuery = value.trim();
-            });
-          },
-          style: TextStyle(
-            fontSize: screenWidth * 0.037,
-            color: Theme.of(context).textTheme.bodyMedium?.color,
-            fontWeight: FontWeight.w500,
-            fontFamily: 'Arial',
-          ),
-          decoration: InputDecoration(
-            prefixIcon: Icon(
-              Icons.search,
-              color: Theme.of(context).primaryColor,
-              size: screenWidth * 0.058,
+            child: TextField(
+              controller: _searchController,
+              onChanged: (value) {
+                setState(() {
+                  searchQuery = value.trim();
+                });
+              },
+              style: TextStyle(
+                fontSize: screenWidth * 0.037,
+                color: Theme.of(context).textTheme.bodyMedium?.color,
+                fontWeight: FontWeight.w500,
+                fontFamily: 'Arial',
+              ),
+              decoration: InputDecoration(
+                prefixIcon: Icon(
+                  Icons.search,
+                  color: Theme.of(context).primaryColor,
+                  size: screenWidth * 0.058,
+                ),
+                hintText: 'Search by Booking ID',
+                hintStyle: TextStyle(
+                  color: Theme.of(context).hintColor,
+                  fontWeight: FontWeight.w700,
+                  fontSize: screenWidth * 0.034,
+                ),
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(
+                  vertical: screenWidth * 0.034,
+                ),
+              ),
             ),
-            hintText: 'Search by Booking ID',
-            hintStyle: TextStyle(
-              color: Theme.of(context).hintColor,
-              fontWeight: FontWeight.w700,
-              fontSize: screenWidth * 0.034,
-            ),
-            border: InputBorder.none,
-            contentPadding: EdgeInsets.symmetric(vertical: screenWidth * 0.034),
           ),
         ),
       ),
-    ),
-    ),
     );
   }
 
@@ -651,17 +653,21 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
     double screenHeight,
   ) {
     final customer = customer_var.Customer(
-      bookingId: _getField(data, ['bookingId']),
+      ticketId: _getField(data, ['ticketId', 'bookingId']),
       customerName: _getField(data, ['customerName', 'CustomerName']),
       deviceType: _getField(data, ['deviceType', 'description']),
       deviceBrand: _getField(data, ['deviceBrand']),
       deviceCondition: _getField(data, ['deviceCondition']),
-      message: _getField(data, ['message', 'Message']),
-      timestamp: _parseTimestamp(data['timestamp']),
+      issueDescription: _getField(data, [
+        'issueDescription',
+        'message',
+        'Message',
+      ]),
+      timestamp: _parseTimestamp(data['createdAt'] ?? data['timestamp']),
       address: _getField(data, ['address', 'Address']),
       mobileNumber: _getField(data, ['mobileNumber', 'MobileNumber']),
       jobType: _getField(data, ['jobType', 'JobType']),
-      amount: _getField(data, ['amount']),
+      amount: _getField(data, ['paymentDetails', 'amount']),
       customerid: _getField(data, ['id', 'Id', 'customerid']),
       customerFileUrl: _getField(data, ['customerFileUrl']),
       fileName: _getField(data, ['fileName']),
@@ -682,7 +688,7 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
       'CustomerName',
     ], 'Customer');
 
-    final isAMC = customer.bookingId.toUpperCase().startsWith('AMC');
+    final isAMC = customer.ticketId.toUpperCase().startsWith('AMC');
     final statusColor = statusInfo.statusColor;
 
     return Center(
@@ -716,7 +722,9 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
               border: isAMC
                   ? Border.all(color: const Color(0xFFFFD700), width: 1.5)
                   : Border.all(
-                      color: Theme.of(context).dividerColor.withValues(alpha: 0.1),
+                      color: Theme.of(
+                        context,
+                      ).dividerColor.withValues(alpha: 0.1),
                     ),
             ),
             padding: EdgeInsets.symmetric(
@@ -738,16 +746,22 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
                           color: isAMC
                               ? const Color(0xFFFFF8E1)
                               : statusColor.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(screenWidth * 0.03),
+                          borderRadius: BorderRadius.circular(
+                            screenWidth * 0.03,
+                          ),
                         ),
                         child: Center(
-                          child: statusInfo.icon ?? Icon(
-                            isAMC
-                                ? Icons.star_rounded
-                                : Icons.local_shipping_outlined,
-                            color: isAMC ? const Color(0xFFFFD700) : statusColor,
-                            size: screenWidth * 0.06,
-                          ),
+                          child:
+                              statusInfo.icon ??
+                              Icon(
+                                isAMC
+                                    ? Icons.star_rounded
+                                    : Icons.local_shipping_outlined,
+                                color: isAMC
+                                    ? const Color(0xFFFFD700)
+                                    : statusColor,
+                                size: screenWidth * 0.06,
+                              ),
                         ),
                       ),
                       SizedBox(width: screenWidth * 0.03),
@@ -757,11 +771,13 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              customer.bookingId,
+                              customer.ticketId,
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: screenWidth * 0.04,
-                                color: Theme.of(context).textTheme.bodyLarge?.color,
+                                color: Theme.of(
+                                  context,
+                                ).textTheme.bodyLarge?.color,
                               ),
                             ),
                             SizedBox(height: screenWidth * 0.01),
@@ -769,7 +785,10 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
                               customerName,
                               style: TextStyle(
                                 fontSize: screenWidth * 0.035,
-                                color: Theme.of(context).textTheme.bodyMedium?.color
+                                color: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.color
                                     ?.withValues(alpha: 0.7),
                                 fontWeight: FontWeight.w500,
                               ),
@@ -787,7 +806,9 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
                         ),
                         decoration: BoxDecoration(
                           color: statusColor.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(screenWidth * 0.05),
+                          borderRadius: BorderRadius.circular(
+                            screenWidth * 0.05,
+                          ),
                         ),
                         child: Text(
                           statusInfo.displayStatus,
@@ -827,7 +848,9 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
                               customer.address,
                               style: TextStyle(
                                 fontSize: screenWidth * 0.035,
-                                color: Theme.of(context).textTheme.bodyMedium?.color,
+                                color: Theme.of(
+                                  context,
+                                ).textTheme.bodyMedium?.color,
                                 height: 1.3,
                               ),
                             ),
@@ -850,7 +873,9 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
                               'Driver: $assignedEmployee',
                               style: TextStyle(
                                 fontSize: screenWidth * 0.035,
-                                color: Theme.of(context).textTheme.bodyMedium?.color,
+                                color: Theme.of(
+                                  context,
+                                ).textTheme.bodyMedium?.color,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
@@ -873,7 +898,9 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
                               'Cust ID: ${customer.customerid}',
                               style: TextStyle(
                                 fontSize: screenWidth * 0.035,
-                                color: Theme.of(context).textTheme.bodyMedium?.color,
+                                color: Theme.of(
+                                  context,
+                                ).textTheme.bodyMedium?.color,
                               ),
                             ),
                           ),
@@ -886,7 +913,10 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
                 if (isCanceledByCustomer)
                   Padding(
                     padding: EdgeInsets.only(top: screenWidth * 0.02),
-                    child: _buildCustomerCanceledMessage(customerName, screenWidth),
+                    child: _buildCustomerCanceledMessage(
+                      customerName,
+                      screenWidth,
+                    ),
                   ),
 
                 if (!isCanceled && !isDelivered && !isCanceledByCustomer)
@@ -898,13 +928,13 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
                       screenWidth,
                     ),
                   ),
-                
-                if (isDelivered) 
+
+                if (isDelivered)
                   Padding(
                     padding: EdgeInsets.only(top: screenWidth * 0.02),
                     child: _buildDeliveredMessage(screenWidth),
                   ),
-                  
+
                 if (isCanceled && !isCanceledByCustomer)
                   Padding(
                     padding: EdgeInsets.only(top: screenWidth * 0.02),
@@ -1554,7 +1584,7 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
                                               children: [
                                                 Expanded(
                                                   child: Text(
-                                                    'Booking ID: ${customer.bookingId}',
+                                                    'Booking ID: ${customer.ticketId}',
                                                     style: TextStyle(
                                                       color: Theme.of(context)
                                                           .textTheme
@@ -1682,7 +1712,7 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
                                       ),
                                       _detailRow(
                                         'Message',
-                                        customer.message,
+                                        customer.issueDescription,
                                         screenWidth,
                                       ),
                                       _detailRow(
@@ -1691,7 +1721,7 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
                                         screenWidth,
                                       ),
                                       _buildPaymentTypeRow(
-                                        customer.bookingId,
+                                        customer.ticketId,
                                         screenWidth,
                                       ),
                                       _detailRow(
@@ -1977,7 +2007,7 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
                                 ],
 
                                 _buildCustomerFeedback(
-                                  customer.bookingId,
+                                  customer.ticketId,
                                   screenWidth,
                                 ),
                               ],

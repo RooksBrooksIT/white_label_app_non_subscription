@@ -11,6 +11,7 @@ import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:subscription_rooks_app/utils/pdf_utils.dart';
 import 'package:intl/intl.dart';
 import 'dart:io';
+import 'dart:async';
 import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class CustomerReportGenerator extends StatefulWidget {
@@ -30,6 +31,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
   bool _loading = false;
   bool _isPdfViewing = false;
   bool _isPdfDownloading = false;
+  StreamSubscription? _ticketsSubscription;
   late AnimationController _animController;
   late Animation<double> _fadeAnim;
   late Animation<Offset> _slideAnim;
@@ -50,14 +52,49 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
       begin: const Offset(0, 0.08),
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _animController, curve: Curves.easeOut));
+    // Load all tickets initially with realtime updates
+    _listenToAllTickets();
   }
 
   @override
   void dispose() {
+    _ticketsSubscription?.cancel();
     _animController.dispose();
     _controller.dispose();
     _searchFocusNode.dispose();
     super.dispose();
+  }
+
+  void _listenToAllTickets() {
+    setState(() {
+      _loading = true;
+    });
+    _ticketsSubscription = FirestoreService.instance
+        .collection('Raised_tickets')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .listen(
+          (snapshot) {
+            setState(() {
+              multipleResults = snapshot.docs
+                  .map((doc) => doc.data() as Map<String, dynamic>)
+                  .toList();
+              resultData = null;
+              _selectedRows.clear();
+              _allSelected = false;
+              _loading = false;
+              if (multipleResults!.isNotEmpty) {
+                _animController.forward();
+              }
+            });
+          },
+          onError: (error) {
+            _showSnack('Error loading tickets: $error', color: Colors.red);
+            setState(() {
+              _loading = false;
+            });
+          },
+        );
   }
 
   final Map<int, bool> _selectedRows = {};
@@ -67,12 +104,14 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
 
   Future<void> _fetchData(String input) async {
     if (input.isEmpty) {
-      _showSnack(
-        'Please enter Customer ID, Phone, or Booking ID',
-        color: Colors.orange,
-      );
+      // If search is cleared, re-listen to all tickets
+      _listenToAllTickets();
       return;
     }
+
+    // Cancel the realtime subscription before searching
+    _ticketsSubscription?.cancel();
+    _ticketsSubscription = null;
 
     setState(() {
       _loading = true;
@@ -86,53 +125,55 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
     try {
       final List<QuerySnapshot> snapshots = await Future.wait([
         FirestoreService.instance
-            .collection('Admin_details')
-            .where('id', isEqualTo: input)
+            .collection('Raised_tickets')
+            .where('customerId', isEqualTo: input)
             .get(),
         FirestoreService.instance
-            .collection('Admin_details')
+            .collection('Raised_tickets')
             .where('mobileNumber', isEqualTo: input)
             .get(),
         FirestoreService.instance
-            .collection('Admin_details')
-            .where('bookingId', isEqualTo: input)
+            .collection('Raised_tickets')
+            .where('ticketId', isEqualTo: input)
             .get(),
       ]);
 
-      if (snapshots[1].docs.isNotEmpty) {
-        multipleResults = snapshots[1].docs
-            .map((doc) => doc.data() as Map<String, dynamic>)
-            .toList();
+      // Combine all unique results
+      final allDocs = <DocumentSnapshot>{};
+      for (var snapshot in snapshots) {
+        allDocs.addAll(snapshot.docs);
+      }
+
+      if (allDocs.isNotEmpty) {
+        multipleResults =
+            allDocs.map((doc) => doc.data() as Map<String, dynamic>).toList()
+              ..sort((a, b) {
+                final aTime = a['createdAt'] as Timestamp?;
+                final bTime = b['createdAt'] as Timestamp?;
+                if (aTime == null && bTime == null) return 0;
+                if (aTime == null) return 1;
+                if (bTime == null) return -1;
+                return bTime.compareTo(aTime);
+              });
         for (int i = 0; i < multipleResults!.length; i++) {
           _selectedRows[i] = false;
         }
-        setState(() {});
+        setState(() {
+          _loading = false;
+        });
         _animController.forward();
         _showSnack(
-          'Found ${multipleResults!.length} entries for Mobile Number',
+          'Found ${multipleResults!.length} matching entries',
           color: Colors.green,
         );
       } else {
-        QuerySnapshot? foundSnapshot;
-        for (int i in [0, 2]) {
-          if (snapshots[i].docs.isNotEmpty) {
-            foundSnapshot = snapshots[i];
-            break;
-          }
-        }
-        if (foundSnapshot != null) {
-          final data = foundSnapshot.docs.first.data() as Map<String, dynamic>;
-          setState(() => resultData = data);
-          _animController.forward();
-          _showSnack('Record found!', color: Colors.green);
-        } else {
-          setState(() {});
-          _showSnack('No data found for "$input"', color: Colors.red);
-        }
+        setState(() {
+          _loading = false;
+        });
+        _showSnack('No data found for "$input"', color: Colors.red);
       }
     } catch (e) {
       _showSnack('Error: $e', color: Colors.red);
-    } finally {
       setState(() => _loading = false);
     }
   }
@@ -208,16 +249,35 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
         : '₹${p.toStringAsFixed(2)}';
   }
 
-  double _totalAmount(List<Map<String, dynamic>> records) => records.fold(
-    0.0,
-    (s, r) => s + (double.tryParse(r['amount']?.toString() ?? '') ?? 0),
-  );
+  double _calculateTotalAmount(Map<String, dynamic> record) {
+    double total = 0.0;
+    // First check if payments array exists
+    if (record['payments'] is List) {
+      for (var payment in record['payments']) {
+        if (payment is Map && payment['amount'] != null) {
+          total += (double.tryParse(payment['amount'].toString()) ?? 0.0);
+        }
+      }
+    }
+    // Fallback to paymentDetails if no payments array
+    if (total == 0 && record['paymentDetails'] != null) {
+      total += (double.tryParse(record['paymentDetails'].toString()) ?? 0.0);
+    }
+    // Also fallback to amount field for compatibility
+    if (total == 0 && record['amount'] != null) {
+      total += (double.tryParse(record['amount'].toString()) ?? 0.0);
+    }
+    return total;
+  }
+
+  double _totalAmount(List<Map<String, dynamic>> records) =>
+      records.fold(0.0, (s, r) => s + _calculateTotalAmount(r));
 
   String _reportPdfName(List<Map<String, dynamic>> records) {
     final stamp = DateFormat('yyyyMMdd_HHmm').format(DateTime.now());
     String name;
     if (records.length == 1) {
-      final id = _fmt(records.first['bookingId']);
+      final id = _fmt(records.first['ticketId']);
       name = id != 'N/A' ? 'Customer_Report_$id' : 'Customer_Report_$stamp';
     } else {
       name = 'Customer_Report_${records.length}_$stamp';
@@ -457,9 +517,9 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
               decoration: pw.BoxDecoration(color: _pdfBrand),
               children: [
                 '#',
-                'ID',
+                'Customer ID',
                 'Customer',
-                'Booking ID',
+                'Ticket ID',
                 'Status',
               ].map((h) => _pdfCell(h, header: true)).toList(),
             ),
@@ -471,9 +531,9 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                 ),
                 children: [
                   _pdfCell('${i + 1}'),
-                  _pdfCell(_fmt(r['id'])),
+                  _pdfCell(_fmt(r['customerId'])),
                   _pdfCell(_fmt(r['customerName'])),
-                  _pdfCell(_fmt(r['bookingId'])),
+                  _pdfCell(_fmt(r['ticketId'])),
                   _pdfCell(_fmt(r['adminStatus'])),
                 ],
               );
@@ -594,17 +654,17 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
           ),
           pw.SizedBox(height: 4),
           pw.Text(
-            'Booking: ${_fmt(r['bookingId'])}',
+            'Ticket: ${_fmt(r['ticketId'])}',
             style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700),
           ),
           pw.SizedBox(height: 12),
           pw.Divider(color: PdfColors.grey300, height: 1),
           pw.SizedBox(height: 10),
           _pdfHeading('Customer Details'),
-          _pdfDetailRow('Customer ID', _fmt(r['id'])),
+          _pdfDetailRow('Customer ID', _fmt(r['customerId'])),
           _pdfDetailRow('Name', _fmt(r['customerName'])),
           _pdfDetailRow('Mobile', _fmt(r['mobileNumber'])),
-          _pdfDetailRow('Booking ID', _fmt(r['bookingId'])),
+          _pdfDetailRow('Ticket ID', _fmt(r['ticketId'])),
           pw.SizedBox(height: 6),
           _pdfHeading('Device Details'),
           pw.Row(
@@ -626,7 +686,20 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
           ),
           pw.SizedBox(height: 6),
           _pdfHeading('Service & Billing'),
-          _pdfDetailRow('Amount', _fmtAmount(r['amount']), emphasize: true),
+          // Show individual payments
+          if (r['payments'] is List && (r['payments'] as List).isNotEmpty)
+            ...(r['payments'] as List).asMap().entries.map((entry) {
+              final payment = entry.value;
+              return _pdfDetailRow(
+                payment['paymentMethod'] ?? 'Payment ${entry.key + 1}',
+                _fmtAmount(payment['amount']),
+              );
+            }),
+          _pdfDetailRow(
+            'Total Amount',
+            _fmtAmount(_calculateTotalAmount(r)),
+            emphasize: true,
+          ),
           _pdfDetailRow('Address', _fmt(r['address'])),
         ],
       ),
@@ -818,7 +891,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                     ),
                   ),
                   const Text(
-                    'Search by ID, Phone or Booking ID',
+                    'Search by Customer ID, Phone or Ticket ID',
                     style: TextStyle(fontSize: 12, color: Color(0xFF8A9BB8)),
                   ),
                 ],
@@ -845,7 +918,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                       color: _brand,
                     ),
                     decoration: const InputDecoration(
-                      hintText: 'Enter Customer ID, Phone, or Booking ID',
+                      hintText: 'Enter Customer ID, Phone, or Ticket ID',
                       hintStyle: TextStyle(
                         color: Color(0xFFADB9CC),
                         fontSize: 14,
@@ -889,7 +962,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
             children: [
               'Customer ID',
               'Phone Number',
-              'Booking ID',
+              'Ticket ID',
             ].map((label) => _searchChip(label)).toList(),
           ),
           const SizedBox(height: 18),
@@ -1272,7 +1345,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          'Booking: ${_fmt(record['bookingId'])}',
+                          'Ticket: ${_fmt(record['ticketId'])}',
                           style: const TextStyle(
                             fontSize: 12,
                             color: Color(0xFF8A9BB8),
@@ -1318,7 +1391,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                       Expanded(
                         child: _detailTile(
                           'Customer ID',
-                          _fmt(record['id']),
+                          _fmt(record['customerId']),
                           icon: Icons.badge_outlined,
                         ),
                       ),
@@ -1362,16 +1435,33 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                           icon: Icons.info_outline_rounded,
                         ),
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _detailTile(
-                          'Amount',
-                          _fmtAmount(record['amount']),
-                          icon: Icons.currency_rupee_rounded,
-                          emphasize: true,
-                        ),
-                      ),
                     ],
+                  ),
+                  // Show individual payments
+                  if (record['payments'] is List &&
+                      (record['payments'] as List).isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    ...(record['payments'] as List).asMap().entries.map((
+                      entry,
+                    ) {
+                      final payment = entry.value;
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8.0),
+                        child: _detailTile(
+                          payment['paymentMethod'] ??
+                              'Payment ${entry.key + 1}',
+                          _fmtAmount(payment['amount']),
+                          icon: Icons.receipt_long_outlined,
+                        ),
+                      );
+                    }),
+                  ],
+                  const SizedBox(height: 10),
+                  _detailTile(
+                    'Total Amount',
+                    _fmtAmount(_calculateTotalAmount(record)),
+                    icon: Icons.currency_rupee_rounded,
+                    emphasize: true,
                   ),
                   const SizedBox(height: 10),
                   _detailTile(
@@ -1693,7 +1783,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
           ),
           const SizedBox(height: 8),
           const Text(
-            'Search by Customer ID, Phone Number\nor Booking ID to generate a report',
+            'Search by Customer ID, Phone Number\nor Ticket ID to generate a report',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 14,
@@ -1709,7 +1799,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
             children: [
               _tipChip(Icons.badge_outlined, 'Customer ID'),
               _tipChip(Icons.phone_outlined, 'Phone Number'),
-              _tipChip(Icons.confirmation_number_outlined, 'Booking ID'),
+              _tipChip(Icons.confirmation_number_outlined, 'Ticket ID'),
             ],
           ),
         ],

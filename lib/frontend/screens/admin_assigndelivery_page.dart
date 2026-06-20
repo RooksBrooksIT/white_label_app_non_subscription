@@ -158,8 +158,8 @@ class _AssigndeliveryCustomerPageState
             const SizedBox(height: 10),
             Divider(color: Theme.of(context).dividerColor, thickness: 1),
             const SizedBox(height: 10),
-            _buildDetailRow('Booking ID', widget.customer.bookingId),
-            _buildDetailRow('Message', widget.customer.message),
+            _buildDetailRow('Booking ID', widget.customer.ticketId),
+            _buildDetailRow('Message', widget.customer.issueDescription),
             _buildDetailRow('Address', widget.customer.address),
             _buildDetailRow('Contact Number', widget.customer.mobileNumber),
             const SizedBox(height: 20),
@@ -202,7 +202,7 @@ class _AssigndeliveryCustomerPageState
     return FutureBuilder<DocumentSnapshot>(
       future: FirestoreService.instance
           .collection('Admin_details')
-          .doc(widget.customer.bookingId)
+          .doc(widget.customer.ticketId)
           .get(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -229,7 +229,10 @@ class _AssigndeliveryCustomerPageState
                     : Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _buildDetailRow('Message', widget.customer.message),
+                          _buildDetailRow(
+                            'Message',
+                            widget.customer.issueDescription,
+                          ),
                         ],
                       ),
                 const SizedBox(height: 20),
@@ -368,7 +371,7 @@ class _AssigndeliveryCustomerPageState
                         try {
                           final docRef = FirestoreService.instance
                               .collection('Admin_details')
-                              .doc(widget.customer.bookingId);
+                              .doc(widget.customer.ticketId);
                           final snapshot = await docRef.get();
 
                           final existingData = snapshot.data() ?? {};
@@ -560,16 +563,16 @@ class _AssigndeliveryCustomerPageState
     try {
       await FirestoreService.instance
           .collection('Admin_details')
-          .doc(widget.customer.bookingId)
+          .doc(widget.customer.ticketId)
           .set({
             'id': widget.customer.customerid,
             'assignedEmployee': engineerName,
             'customerName': widget.customer.customerName,
-            'bookingId': widget.customer.bookingId,
+            'bookingId': widget.customer.ticketId,
             'deviceType': widget.customer.deviceType,
             'deviceBrand': widget.customer.deviceBrand,
             'deviceCondition': widget.customer.deviceCondition,
-            'message': widget.customer.message,
+            'message': widget.customer.issueDescription,
             'address': widget.customer.address,
             'notificationStatus': 'pending',
             'engineerStatus': 'Assigned',

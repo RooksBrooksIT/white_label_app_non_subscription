@@ -337,7 +337,11 @@ class _AmcCustomerHomePageState extends State<AmcCustomerHomePage> {
       });
 
       try {
-        final bookingId = await _generateBookingId();
+        // Generate new ticket ID with customerType "amc"
+        final ticketId = await FirestoreService.instance.generateTicketId(
+          customerName: widget.customerName,
+          customerType: 'amc',
+        );
         final actualDeviceType = deviceType == 'Others'
             ? _customDeviceTypeController.text.trim()
             : deviceType;
@@ -345,52 +349,43 @@ class _AmcCustomerHomePageState extends State<AmcCustomerHomePage> {
             ? _customDeviceBrandController.text.trim()
             : deviceBrand;
 
-        Map<String, dynamic> customerData = {
-          'id': _customerIdController.text,
-          'bookingId': bookingId,
+        Map<String, dynamic> ticketData = {
+          'ticketId': ticketId,
           'customerName': _customerNameController.text,
+          'customerType': 'amc',
           'mobileNumber': _mobileNumberController.text,
           'address': _addressController.text,
-          'categoryName': "",
-          'timestamp': Timestamp.now(),
-          'JobType': jobType,
+          'deviceType': jobType == 'Service' ? actualDeviceType : null,
+          'deviceBrand': jobType == 'Service' ? actualDeviceBrand : null,
+          'issueDescription': _messageController.text.isNotEmpty
+              ? _messageController.text
+              : _descriptionController.text,
+          'customerStatus': 'Ticket Created',
+          'adminStatus': 'Open',
+          'engineerStatus': 'Not Assigned',
+          'assignedEngineer': null,
+          'paymentDetails': null,
+          'uploadedFiles': [],
+          'createdAt': Timestamp.now(),
+          'updatedAt': Timestamp.now(),
+          'completionTimestamp': null,
+          'jobType': jobType,
         };
 
-        if (jobType == 'Service') {
-          customerData.addAll({
-            'deviceType': actualDeviceType,
-            'deviceBrand': actualDeviceBrand,
-            'deviceCondition': deviceCondition,
-            'message': _messageController.text,
-          });
-        } else if (jobType == 'Delivery') {
-          customerData.addAll({'message': _descriptionController.text});
-        }
-
-        final adminData = Map<String, dynamic>.from(customerData);
-        adminData['adminStatus'] = 'Open';
-        adminData['customerStatus'] = 'Ticket Created';
-        adminData['engineerStatus'] = 'Not Assigned';
-
-        String docId = bookingId;
-
+        // Write only to Raised_tickets collection!
         await FirestoreService.instance
-            .collection('customers')
-            .doc(docId)
-            .set(customerData);
-        await FirestoreService.instance
-            .collection('Admin_details')
-            .doc(docId)
-            .set(adminData);
+            .collection('Raised_tickets')
+            .doc(ticketId)
+            .set(ticketData);
 
         // Add real-time notification for Admin
         await NotificationService.sendNotificationToFirestore(
           audience: 'admin',
           title: 'New Ticket Received',
           body:
-              'A new ticket ($bookingId) has been raised by ${_customerNameController.text}',
+              'A new ticket ($ticketId) has been raised by ${_customerNameController.text}',
           type: 'new_ticket',
-          bookingId: bookingId,
+          bookingId: ticketId,
           customerName: _customerNameController.text,
         );
 
@@ -413,6 +408,11 @@ class _AmcCustomerHomePageState extends State<AmcCustomerHomePage> {
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
                 ),
                 const SizedBox(height: 8),
+                Text(
+                  'Ticket ID: $ticketId',
+                  style: const TextStyle(color: Colors.grey),
+                ),
+                const SizedBox(height: 4),
                 const Text(
                   'Our team will contact you soon.',
                   textAlign: TextAlign.center,
@@ -692,6 +692,9 @@ class _AmcCustomerHomePageState extends State<AmcCustomerHomePage> {
               pinned: true,
               backgroundColor: ProfessionalTheme.primary(context),
               elevation: 0,
+              foregroundColor: Colors.white,
+              iconTheme: const IconThemeData(color: Colors.white),
+              actionsIconTheme: const IconThemeData(color: Colors.white),
               actions: [
                 Container(
                   margin: const EdgeInsets.only(right: 8),
@@ -813,189 +816,193 @@ class _AmcCustomerHomePageState extends State<AmcCustomerHomePage> {
               child: Form(
                 key: _formKey,
                 child: ListView(
-              children: [
-                const SizedBox(height: 20),
-                _buildTextField(
-                  'Customer ID',
-                  '',
-                  Icons.perm_identity,
-                  _customerIdController,
-                  enabled: false,
-                ),
-                const SizedBox(height: 20),
-                _buildTextField(
-                  'Customer Name',
-                  '',
-                  Icons.person,
-                  _customerNameController,
-                  enabled: false,
-                ),
-                const SizedBox(height: 20),
-                _buildTextField(
-                  'Mobile Number',
-                  '',
-                  Icons.phone,
-                  _mobileNumberController,
-                  enabled: false,
-                  showLoading: true,
-                ),
-                const SizedBox(height: 20),
-                _buildDropdownField(
-                  'Job Type',
-                  jobTypes,
-                  Icons.work,
-                  (value) {
-                    setState(() {
-                      jobType = value ?? '';
-                      if (jobType == 'Delivery') {
-                        deviceType = '';
-                        deviceBrand = '';
-                        deviceCondition = '';
-                        _messageController.clear();
-                        _customDeviceTypeController.clear();
-                        _customDeviceBrandController.clear();
-                      } else {
-                        _descriptionController.clear();
-                      }
-                    });
-                  },
-                  value: jobType.isNotEmpty ? jobType : null,
-                ),
-                if (jobType == 'Service') ...[
-                  const SizedBox(height: 20),
-                  _isDeviceTypesLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : _buildDropdownField(
-                          'Device Type',
-                          deviceTypes,
-                          Icons.devices,
-                          (value) async {
-                            setState(() {
-                              deviceType = value ?? '';
-                              if (deviceType != 'Others') {
-                                _customDeviceTypeController.clear();
-                              }
-                              deviceBrand = '';
-                              _customDeviceBrandController.clear();
-                            });
-                            if (value != null && value != 'Others') {
-                              await _fetchDeviceBrands(value);
-                            } else {
-                              setState(() {
-                                deviceBrands = [
-                                  'DELL',
-                                  'HP',
-                                  'MAC',
-                                  'LENOVO',
-                                  'ASUS',
-                                  'Others',
-                                ];
-                              });
-                            }
-                          },
-                          value: deviceType.isNotEmpty ? deviceType : null,
-                        ),
-                  if (deviceType == 'Others')
-                    Padding(
-                      padding: const EdgeInsets.only(top: 12.0),
-                      child: _buildTextField(
-                        'Custom Device Type',
-                        'Enter your device type',
-                        Icons.devices_other,
-                        _customDeviceTypeController,
-                      ),
+                  children: [
+                    const SizedBox(height: 20),
+                    _buildTextField(
+                      'Customer ID',
+                      '',
+                      Icons.perm_identity,
+                      _customerIdController,
+                      enabled: false,
                     ),
-                  const SizedBox(height: 20),
-                  _isDeviceBrandsLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : _buildDropdownField(
-                          'Device Brand',
-                          deviceBrands.isNotEmpty
-                              ? deviceBrands
-                              : [
-                                  'DELL',
-                                  'HP',
-                                  'MAC',
-                                  'LENOVO',
-                                  'ASUS',
-                                  'Others',
-                                ],
-                          Icons.branding_watermark,
-                          (value) {
-                            setState(() {
-                              deviceBrand = value ?? '';
-                              if (deviceBrand != 'Others') {
-                                _customDeviceBrandController.clear();
-                              }
-                            });
-                          },
-                          value: deviceBrand.isNotEmpty ? deviceBrand : null,
-                        ),
-                  if (deviceBrand == 'Others')
-                    Padding(
-                      padding: const EdgeInsets.only(top: 12.0),
-                      child: _buildTextField(
-                        'Custom Device Brand',
-                        'Enter your device brand',
-                        Icons.branding_watermark,
-                        _customDeviceBrandController,
-                      ),
+                    const SizedBox(height: 20),
+                    _buildTextField(
+                      'Customer Name',
+                      '',
+                      Icons.person,
+                      _customerNameController,
+                      enabled: false,
                     ),
-                  const SizedBox(height: 20),
-                  _buildDropdownField(
-                    'Device Condition',
-                    currentDeviceConditions,
-                    Icons.build,
-                    (value) {
-                      setState(() {
-                        deviceCondition = value ?? '';
-                      });
-                    },
-                    value: deviceCondition.isNotEmpty ? deviceCondition : null,
-                  ),
-                  const SizedBox(height: 20),
-                  _buildTextField(
-                    'Message',
-                    'Enter additional details',
-                    Icons.message,
-                    _messageController,
-                    maxLines: 3,
-                  ),
-                ],
-                if (jobType == 'Delivery') ...[
-                  const SizedBox(height: 20),
-                  _buildTextField(
-                    'Description',
-                    'Enter delivery description',
-                    Icons.description,
-                    _descriptionController,
-                    maxLines: 3,
-                  ),
-                ],
-                const SizedBox(height: 20),
-                _buildTextField(
-                  'Address',
-                  'Enter your address',
-                  Icons.location_on,
-                  _addressController,
-                ),
-                const SizedBox(height: 30),
-                Center(
-                  child: _isSubmitting
-                      ? const CircularProgressIndicator()
-                      : GradientButton(
-                          onPressed: _handleSubmit,
-                          text: 'Submit',
+                    const SizedBox(height: 20),
+                    _buildTextField(
+                      'Mobile Number',
+                      '',
+                      Icons.phone,
+                      _mobileNumberController,
+                      enabled: false,
+                      showLoading: true,
+                    ),
+                    const SizedBox(height: 20),
+                    _buildDropdownField(
+                      'Job Type',
+                      jobTypes,
+                      Icons.work,
+                      (value) {
+                        setState(() {
+                          jobType = value ?? '';
+                          if (jobType == 'Delivery') {
+                            deviceType = '';
+                            deviceBrand = '';
+                            deviceCondition = '';
+                            _messageController.clear();
+                            _customDeviceTypeController.clear();
+                            _customDeviceBrandController.clear();
+                          } else {
+                            _descriptionController.clear();
+                          }
+                        });
+                      },
+                      value: jobType.isNotEmpty ? jobType : null,
+                    ),
+                    if (jobType == 'Service') ...[
+                      const SizedBox(height: 20),
+                      _isDeviceTypesLoading
+                          ? const Center(child: CircularProgressIndicator())
+                          : _buildDropdownField(
+                              'Device Type',
+                              deviceTypes,
+                              Icons.devices,
+                              (value) async {
+                                setState(() {
+                                  deviceType = value ?? '';
+                                  if (deviceType != 'Others') {
+                                    _customDeviceTypeController.clear();
+                                  }
+                                  deviceBrand = '';
+                                  _customDeviceBrandController.clear();
+                                });
+                                if (value != null && value != 'Others') {
+                                  await _fetchDeviceBrands(value);
+                                } else {
+                                  setState(() {
+                                    deviceBrands = [
+                                      'DELL',
+                                      'HP',
+                                      'MAC',
+                                      'LENOVO',
+                                      'ASUS',
+                                      'Others',
+                                    ];
+                                  });
+                                }
+                              },
+                              value: deviceType.isNotEmpty ? deviceType : null,
+                            ),
+                      if (deviceType == 'Others')
+                        Padding(
+                          padding: const EdgeInsets.only(top: 12.0),
+                          child: _buildTextField(
+                            'Custom Device Type',
+                            'Enter your device type',
+                            Icons.devices_other,
+                            _customDeviceTypeController,
+                          ),
                         ),
+                      const SizedBox(height: 20),
+                      _isDeviceBrandsLoading
+                          ? const Center(child: CircularProgressIndicator())
+                          : _buildDropdownField(
+                              'Device Brand',
+                              deviceBrands.isNotEmpty
+                                  ? deviceBrands
+                                  : [
+                                      'DELL',
+                                      'HP',
+                                      'MAC',
+                                      'LENOVO',
+                                      'ASUS',
+                                      'Others',
+                                    ],
+                              Icons.branding_watermark,
+                              (value) {
+                                setState(() {
+                                  deviceBrand = value ?? '';
+                                  if (deviceBrand != 'Others') {
+                                    _customDeviceBrandController.clear();
+                                  }
+                                });
+                              },
+                              value: deviceBrand.isNotEmpty
+                                  ? deviceBrand
+                                  : null,
+                            ),
+                      if (deviceBrand == 'Others')
+                        Padding(
+                          padding: const EdgeInsets.only(top: 12.0),
+                          child: _buildTextField(
+                            'Custom Device Brand',
+                            'Enter your device brand',
+                            Icons.branding_watermark,
+                            _customDeviceBrandController,
+                          ),
+                        ),
+                      const SizedBox(height: 20),
+                      _buildDropdownField(
+                        'Device Condition',
+                        currentDeviceConditions,
+                        Icons.build,
+                        (value) {
+                          setState(() {
+                            deviceCondition = value ?? '';
+                          });
+                        },
+                        value: deviceCondition.isNotEmpty
+                            ? deviceCondition
+                            : null,
+                      ),
+                      const SizedBox(height: 20),
+                      _buildTextField(
+                        'Message',
+                        'Enter additional details',
+                        Icons.message,
+                        _messageController,
+                        maxLines: 3,
+                      ),
+                    ],
+                    if (jobType == 'Delivery') ...[
+                      const SizedBox(height: 20),
+                      _buildTextField(
+                        'Description',
+                        'Enter delivery description',
+                        Icons.description,
+                        _descriptionController,
+                        maxLines: 3,
+                      ),
+                    ],
+                    const SizedBox(height: 20),
+                    _buildTextField(
+                      'Address',
+                      'Enter your address',
+                      Icons.location_on,
+                      _addressController,
+                    ),
+                    const SizedBox(height: 30),
+                    Center(
+                      child: _isSubmitting
+                          ? const CircularProgressIndicator()
+                          : GradientButton(
+                              onPressed: _handleSubmit,
+                              text: 'Submit',
+                            ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
       ),
-    ),
-  ),
-);
+    );
   }
 }
 

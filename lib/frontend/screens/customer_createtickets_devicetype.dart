@@ -45,7 +45,8 @@ class Device {
       iconData: data['icon']?.toString() ?? 'devices',
       color: parseColor(
         data['color'] ??
-            ThemeService.instance.primaryColor.toARGB32()
+            ThemeService.instance.primaryColor
+                .toARGB32()
                 .toRadixString(16)
                 .padLeft(8, '0'),
       ),
@@ -128,6 +129,7 @@ class CustomerDeviceType extends StatefulWidget {
   final String loggedInName;
   final String phoneNumber;
   final String customerId;
+  final String customerType; // "amc" or "nonamc"
 
   const CustomerDeviceType({
     super.key,
@@ -135,6 +137,7 @@ class CustomerDeviceType extends StatefulWidget {
     required this.loggedInName,
     required this.phoneNumber,
     required this.customerId,
+    required this.customerType,
   });
 
   @override
@@ -213,33 +216,40 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
             padding: EdgeInsets.only(
               top: MediaQuery.of(context).padding.top + 20,
               bottom: 20,
-              left: context.responsiveHPadding > 24 ? context.responsiveHPadding : 24,
-              right: context.responsiveHPadding > 24 ? context.responsiveHPadding : 24,
+              left: context.responsiveHPadding > 24
+                  ? context.responsiveHPadding
+                  : 24,
+              right: context.responsiveHPadding > 24
+                  ? context.responsiveHPadding
+                  : 24,
             ),
             child: Row(
               children: [
-                if (showDeviceSelection)
-                  IconButton(
-                    onPressed: () {
+                IconButton(
+                  onPressed: () {
+                    if (showDeviceSelection) {
                       setState(() {
                         showDeviceSelection = false;
                         selectedDeviceId = null;
                       });
-                    },
-                    icon: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.arrow_back_ios_new_rounded,
-                        size: 18,
-                        color: Colors.white,
-                      ),
+                    } else {
+                      Navigator.pop(context);
+                    }
+                  },
+                  icon: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      size: 18,
+                      color: Colors.white,
                     ),
                   ),
+                ),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -294,10 +304,14 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: kMaxContentWidth),
                   child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: context.responsiveHPadding),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: context.responsiveHPadding,
+                    ),
                     child: ResponsiveWrapper(
                       maxWidth: 960.0,
-                      padding: EdgeInsets.all(ResponsiveHelper.getResponsiveWidth(5)),
+                      padding: EdgeInsets.all(
+                        ResponsiveHelper.getResponsiveWidth(5),
+                      ),
                       child: !showDeviceSelection
                           ? _buildServiceSelection()
                           : _buildDeviceSelection(),
@@ -379,6 +393,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                       customerName: widget.loggedInName,
                       mobileNumber: widget.phoneNumber,
                       categoryName: '',
+                      customerType: widget.customerType,
                       initialJobType: 'Delivery',
                       initialDeviceType: '',
                     ),
@@ -557,7 +572,9 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                   width: 64,
                   height: 64,
                   decoration: BoxDecoration(
-                    color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
+                    color: Theme.of(
+                      context,
+                    ).primaryColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: CircularProgressIndicator(
@@ -615,7 +632,9 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                      color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
+                      color: Theme.of(
+                        context,
+                      ).primaryColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(
@@ -719,7 +738,9 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                     duration: const Duration(milliseconds: 200),
                     decoration: BoxDecoration(
                       color: isOtherSelected
-                          ? Theme.of(context).primaryColor.withValues(alpha: 0.1)
+                          ? Theme.of(
+                              context,
+                            ).primaryColor.withValues(alpha: 0.1)
                           : Theme.of(context).cardColor,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
@@ -768,8 +789,10 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                               fontWeight: FontWeight.w700,
                               color: isOtherSelected
                                   ? Theme.of(context).primaryColor
-                                  : (Theme.of(context).textTheme.bodyMedium?.color ??
-                                      const Color(0xFF1E293B)),
+                                  : (Theme.of(
+                                          context,
+                                        ).textTheme.bodyMedium?.color ??
+                                        const Color(0xFF1E293B)),
                               fontFamily: 'Inter',
                             ),
                           ),
@@ -891,6 +914,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                         categoryName: ThemeService
                             .instance
                             .appName, // Passing app name as category
+                        customerType: widget.customerType,
                         initialJobType: 'Service',
                         initialDeviceType: isOther ? 'Others' : deviceName,
                         initialCustomDeviceType: isOther ? deviceName : null,
@@ -930,7 +954,6 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                     Icon(Icons.arrow_forward_rounded, size: 20),
                   ],
                 ),
-
               ),
           ],
         );
@@ -948,7 +971,9 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         decoration: BoxDecoration(
-          color: isSelected ? device.color.withValues(alpha: 0.1) : Colors.white,
+          color: isSelected
+              ? device.color.withValues(alpha: 0.1)
+              : Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isSelected ? device.color : Colors.grey.shade200,

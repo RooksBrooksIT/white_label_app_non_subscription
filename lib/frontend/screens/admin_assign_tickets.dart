@@ -684,7 +684,10 @@ class _CreateTicketsState extends State<CreateTickets> {
           await _saveCustomerToLoginDetails();
         }
 
-        final bookingId = await _generateBookingId();
+        final ticketId = await FirestoreService.instance.generateTicketId(
+          customerName: _customerNameController.text,
+          customerType: 'non-amc', // default, can add logic later if needed
+        );
         final actualDeviceType = deviceType == 'Others'
             ? _customDeviceTypeController.text.trim()
             : deviceType;
@@ -692,45 +695,37 @@ class _CreateTicketsState extends State<CreateTickets> {
             ? _customDeviceBrandController.text.trim()
             : deviceBrand;
 
-        Map<String, dynamic> customerData = {
+        Map<String, dynamic> ticketData = {
           'id': _customerIdController.text,
-          'bookingId': bookingId,
+          'ticketId': ticketId,
           'customerName': _customerNameController.text,
           'mobileNumber': _mobileNumberController.text,
           'address': _addressController.text,
           'categoryName': widget.categoryName,
-          'timestamp': Timestamp.now(),
+          'createdAt': Timestamp.now(),
+          'updatedAt': Timestamp.now(),
           'JobType': jobType,
           'customerType': _customerType,
+          'adminStatus': 'Open',
+          'customerStatus': 'Ticket Created',
+          'engineerStatus': 'Not Assigned',
         };
 
         if (jobType == 'Service') {
-          customerData.addAll({
+          ticketData.addAll({
             'deviceType': actualDeviceType,
             'deviceBrand': actualDeviceBrand,
             'deviceCondition': deviceCondition,
-            'message': _messageController.text,
+            'issueDescription': _messageController.text,
           });
         } else if (jobType == 'Delivery') {
-          customerData.addAll({'message': _descriptionController.text});
+          ticketData.addAll({'issueDescription': _descriptionController.text});
         }
 
-        final adminData = Map<String, dynamic>.from(customerData);
-        adminData['adminStatus'] = 'Open';
-        adminData['customerStatus'] = 'Ticket Created';
-        adminData['engineerStatus'] = 'Not Assigned';
-
-        String docId = bookingId;
-
         await FirestoreService.instance
-            .collection('customers')
-            .doc(docId)
-            .set(customerData);
-
-        await FirestoreService.instance
-            .collection('Admin_details')
-            .doc(docId)
-            .set(adminData);
+            .collection('Raised_tickets')
+            .doc(ticketId)
+            .set(ticketData);
 
         showDialog(
           context: context,
@@ -767,6 +762,16 @@ class _CreateTicketsState extends State<CreateTickets> {
                       ),
                     ),
                   ),
+                Padding(
+                  padding: const EdgeInsets.only(top: 8.0),
+                  child: Text(
+                    'Ticket ID: $ticketId',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).primaryColor,
+                    ),
+                  ),
+                ),
               ],
             ),
             actions: [

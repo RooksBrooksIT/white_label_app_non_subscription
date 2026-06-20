@@ -124,9 +124,9 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
 
   Map<String, dynamic>? _findEngineerProfile(
     List<Map<String, dynamic>> profiles,
-    String assignedEmployee,
+    String assignedEngineer,
   ) {
-    final key = assignedEmployee.trim().toLowerCase();
+    final key = assignedEngineer.trim().toLowerCase();
     for (final profile in profiles) {
       if (profile['username'] == key) return profile;
     }
@@ -142,11 +142,11 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
   }
 
   String _reportTitle(Map<String, dynamic> data) {
-    final bookingId = data['bookingId']?.toString();
+    final ticketId = data['ticketId']?.toString();
     final customer = data['customerName']?.toString();
     final device = data['deviceType']?.toString();
-    if (bookingId != null && bookingId.isNotEmpty) {
-      return 'Ticket #$bookingId';
+    if (ticketId != null && ticketId.isNotEmpty) {
+      return 'Ticket #$ticketId';
     }
     if (customer != null && customer.isNotEmpty) {
       return device != null && device.isNotEmpty
@@ -164,12 +164,12 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
 
     final filtered = docs.where((doc) {
       final data = doc.data() as Map<String, dynamic>;
-      final assignedEmployee =
-          data['assignedEmployee']?.toString().trim().toLowerCase() ?? '';
-      if (assignedEmployee.isEmpty) return false;
+      final assignedEngineer =
+          data['assignedEngineer']?.toString().trim().toLowerCase() ?? '';
+      if (assignedEngineer.isEmpty) return false;
 
       if (selectedEngineer != null &&
-          assignedEmployee != selectedEngineer!.toLowerCase()) {
+          assignedEngineer != selectedEngineer!.toLowerCase()) {
         return false;
       }
 
@@ -184,16 +184,16 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
         if (_extractLocation(data) != _selectedLocationFilter) return false;
       }
 
-      final timestamp = _parseTimestamp(data['timestamp']);
+      final timestamp = _parseTimestamp(data['createdAt']);
       if (!_matchesDateFilter(timestamp)) return false;
 
       if (query.isNotEmpty) {
         final profile = _findEngineerProfile(
           engineerProfiles,
-          assignedEmployee,
+          assignedEngineer,
         );
         final matchesEngineer =
-            assignedEmployee.contains(query) ||
+            assignedEngineer.contains(query) ||
             (profile?['id']?.toString().toLowerCase().contains(query) ??
                 false) ||
             (profile?['email']?.toString().toLowerCase().contains(query) ??
@@ -204,11 +204,12 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                 ) ??
                 false);
         final matchesTicket =
-            (data['bookingId']?.toString().toLowerCase().contains(query) ??
+            (data['ticketId']?.toString().toLowerCase().contains(query) ??
                 false) ||
             (data['customerName']?.toString().toLowerCase().contains(query) ??
                 false) ||
-            (data['id']?.toString().toLowerCase().contains(query) ?? false);
+            (data['customerId']?.toString().toLowerCase().contains(query) ??
+                false);
         if (!matchesEngineer && !matchesTicket) return false;
       }
 
@@ -216,8 +217,8 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
     }).toList();
 
     filtered.sort((a, b) {
-      final ta = _parseTimestamp((a.data() as Map)['timestamp']);
-      final tb = _parseTimestamp((b.data() as Map)['timestamp']);
+      final ta = _parseTimestamp((a.data() as Map)['createdAt']);
+      final tb = _parseTimestamp((b.data() as Map)['createdAt']);
       return tb.compareTo(ta);
     });
 
@@ -276,7 +277,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
       await Printing.layoutPdf(
         onLayout: (PdfPageFormat format) async => pdf.save(),
         name:
-            'Engineer_Report_${ticket['bookingId'] ?? DateTime.now().millisecondsSinceEpoch}',
+            'Engineer_Report_${ticket['ticketId'] ?? DateTime.now().millisecondsSinceEpoch}',
       );
     } catch (e) {
       if (mounted) {
@@ -296,11 +297,11 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
     setState(() => _downloadingPdfId = rowId);
     try {
       final pdf = await _generatePdf(engineerName, [ticket]);
-      final bookingId =
-          ticket['bookingId']?.toString() ??
+      final ticketId =
+          ticket['ticketId']?.toString() ??
           DateTime.now().millisecondsSinceEpoch.toString();
       final filename =
-          'Engineer_Report_${bookingId}_${DateTime.now().millisecondsSinceEpoch}.pdf';
+          'Engineer_Report_${ticketId}_${DateTime.now().millisecondsSinceEpoch}.pdf';
 
       if (kIsWeb) {
         // Web: Use Printing package to download
@@ -534,7 +535,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                             final docs = snapshot.data?.docs ?? [];
                             for (final doc in docs) {
                               final data = doc.data() as Map<String, dynamic>;
-                              final rawEngineerName = data['assignedEmployee']
+                              final rawEngineerName = data['assignedEngineer']
                                   ?.toString();
                               if (rawEngineerName != null) {
                                 final engineerName = rawEngineerName
@@ -723,7 +724,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
         controller: _searchController,
         decoration: InputDecoration(
           hintText:
-              'Search by engineer name, ID, mobile, email, or booking ID...',
+              'Search by engineer name, ID, mobile, email, or ticket ID...',
           hintStyle: TextStyle(
             color: Colors.grey.shade400,
             fontSize: isMobile ? 13 : 14,
@@ -1467,20 +1468,20 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
     Map<String, dynamic> data,
     List<Map<String, dynamic>> engineerProfiles,
   ) {
-    final assignedEmployee =
-        data['assignedEmployee']?.toString().trim() ?? 'Unknown';
-    final profile = _findEngineerProfile(engineerProfiles, assignedEmployee);
+    final assignedEngineer =
+        data['assignedEngineer']?.toString().trim() ?? 'Unknown';
+    final profile = _findEngineerProfile(engineerProfiles, assignedEngineer);
     final engineerName =
         profile?['displayName']?.toString() ??
-        _capitalizeName(assignedEmployee);
+        _capitalizeName(assignedEngineer);
     final engineerId = profile?['id']?.toString() ?? '—';
     final status = _normalizeStatusKey(data['adminStatus']?.toString() ?? '');
     final statusColor = _getStatusColor(status);
-    final timestamp = _parseTimestamp(data['timestamp']);
+    final timestamp = _parseTimestamp(data['createdAt']);
     final formattedDate = DateFormat(
       'dd MMM yyyy · hh:mm a',
     ).format(timestamp.toDate());
-    final hasPdf = assignedEmployee.isNotEmpty;
+    final hasPdf = assignedEngineer.isNotEmpty;
     final isViewLoading = _loadingPdfId == rowId;
     final isDownloadLoading = _downloadingPdfId == rowId;
 
@@ -1537,7 +1538,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                 icon: Icons.visibility_rounded,
                 isLoading: isViewLoading,
                 enabled: hasPdf && !isViewLoading && !isDownloadLoading,
-                onPressed: () => _viewReportPdf(assignedEmployee, data, rowId),
+                onPressed: () => _viewReportPdf(assignedEngineer, data, rowId),
               ),
               const SizedBox(width: 10),
               _buildPdfActionButton(
@@ -1546,7 +1547,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                 isLoading: isDownloadLoading,
                 enabled: hasPdf && !isViewLoading && !isDownloadLoading,
                 onPressed: () =>
-                    _downloadReportPdf(assignedEmployee, data, rowId),
+                    _downloadReportPdf(assignedEngineer, data, rowId),
               ),
             ],
           ),
@@ -1561,22 +1562,22 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
     bool isMobile,
   ) {
     final data = doc.data() as Map<String, dynamic>;
-    final assignedEmployee =
-        data['assignedEmployee']?.toString().trim() ?? 'Unknown';
-    final profile = _findEngineerProfile(engineerProfiles, assignedEmployee);
+    final assignedEngineer =
+        data['assignedEngineer']?.toString().trim() ?? 'Unknown';
+    final profile = _findEngineerProfile(engineerProfiles, assignedEngineer);
     final engineerName =
         profile?['displayName']?.toString() ??
-        _capitalizeName(assignedEmployee);
+        _capitalizeName(assignedEngineer);
     final engineerId = profile?['id']?.toString() ?? '—';
     final email = profile?['email']?.toString() ?? '';
     final phone = profile?['phone']?.toString() ?? '';
     final status = _normalizeStatusKey(data['adminStatus']?.toString() ?? '');
     final statusColor = _getStatusColor(status);
-    final timestamp = _parseTimestamp(data['timestamp']);
+    final timestamp = _parseTimestamp(data['createdAt']);
     final formattedDate = DateFormat(
       'dd MMM yyyy · hh:mm a',
     ).format(timestamp.toDate());
-    final hasPdf = assignedEmployee.isNotEmpty;
+    final hasPdf = assignedEngineer.isNotEmpty;
     final isViewLoading = _loadingPdfId == doc.id;
     final isDownloadLoading = _downloadingPdfId == doc.id;
 
@@ -1722,7 +1723,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                   expanded: true,
                   enabled: hasPdf && !isViewLoading && !isDownloadLoading,
                   onPressed: () =>
-                      _viewReportPdf(assignedEmployee, data, doc.id),
+                      _viewReportPdf(assignedEngineer, data, doc.id),
                 ),
               ),
               const SizedBox(width: 12),
@@ -1734,7 +1735,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                   expanded: true,
                   enabled: hasPdf && !isViewLoading && !isDownloadLoading,
                   onPressed: () =>
-                      _downloadReportPdf(assignedEmployee, data, doc.id),
+                      _downloadReportPdf(assignedEngineer, data, doc.id),
                 ),
               ),
             ],
@@ -1858,12 +1859,12 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
     final tickets = docs
         .where((doc) {
           final data = doc.data() as Map<String, dynamic>;
-          final assignedEmployee = data['assignedEmployee']
+          final assignedEngineer = data['assignedEngineer']
               ?.toString()
               .trim()
               .toLowerCase();
-          final timestamp = _parseTimestamp(data['timestamp']);
-          return assignedEmployee == selectedEngineer!.toLowerCase() &&
+          final timestamp = _parseTimestamp(data['createdAt']);
+          return assignedEngineer == selectedEngineer!.toLowerCase() &&
               _matchesDateFilter(timestamp);
         })
         .map((doc) => doc.data() as Map<String, dynamic>)
@@ -1873,8 +1874,24 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
     int completedTickets = 0;
 
     for (final ticket in tickets) {
-      final amount = double.tryParse(ticket['amount']?.toString() ?? '0') ?? 0;
-      totalAmount += amount;
+      // Calculate total amount from payments, paymentDetails, or amount
+      double ticketAmount = 0.0;
+      if (ticket['payments'] is List) {
+        for (var payment in ticket['payments']) {
+          if (payment is Map && payment['amount'] != null) {
+            ticketAmount +=
+                double.tryParse(payment['amount'].toString()) ?? 0.0;
+          }
+        }
+      }
+      if (ticketAmount == 0 && ticket['paymentDetails'] != null) {
+        ticketAmount =
+            double.tryParse(ticket['paymentDetails'].toString()) ?? 0.0;
+      }
+      if (ticketAmount == 0 && ticket['amount'] != null) {
+        ticketAmount = double.tryParse(ticket['amount'].toString()) ?? 0.0;
+      }
+      totalAmount += ticketAmount;
 
       final status = _normalizeStatusKey(
         ticket['adminStatus']?.toString() ?? 'Unknown',
@@ -2079,12 +2096,12 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
         final tickets = docs
             .where((doc) {
               final data = doc.data() as Map<String, dynamic>;
-              final assignedEmployee = data['assignedEmployee']
+              final assignedEngineer = data['assignedEngineer']
                   ?.toString()
                   .trim()
                   .toLowerCase();
-              final timestamp = _parseTimestamp(data['timestamp']);
-              return assignedEmployee == selectedEngineer!.toLowerCase() &&
+              final timestamp = _parseTimestamp(data['createdAt']);
+              return assignedEngineer == selectedEngineer!.toLowerCase() &&
                   _matchesDateFilter(timestamp);
             })
             .map((doc) => doc.data() as Map<String, dynamic>)
@@ -2296,9 +2313,9 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
           ).add(const Duration(days: 1)),
         );
         return FirestoreService.instance
-            .collection('Admin_details')
-            .where('timestamp', isGreaterThanOrEqualTo: startOfDay)
-            .where('timestamp', isLessThan: endOfDay)
+            .collection('Raised_tickets')
+            .where('createdAt', isGreaterThanOrEqualTo: startOfDay)
+            .where('createdAt', isLessThan: endOfDay)
             .snapshots();
       } else if (isDateRangeMode && fromDate != null && toDate != null) {
         final startOfDay = Timestamp.fromDate(
@@ -2312,13 +2329,13 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
           ).add(const Duration(days: 1)),
         );
         return FirestoreService.instance
-            .collection('Admin_details')
-            .where('timestamp', isGreaterThanOrEqualTo: startOfDay)
-            .where('timestamp', isLessThan: endOfDay)
+            .collection('Raised_tickets')
+            .where('createdAt', isGreaterThanOrEqualTo: startOfDay)
+            .where('createdAt', isLessThan: endOfDay)
             .snapshots();
       }
     }
-    return FirestoreService.instance.collection('Admin_details').snapshots();
+    return FirestoreService.instance.collection('Raised_tickets').snapshots();
   }
 
   bool _matchesDateFilter(Timestamp? timestamp) {
@@ -2685,7 +2702,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                   7: const pw.FlexColumnWidth(0.8),
                 },
                 headers: [
-                  'Booking ID',
+                  'Ticket ID',
                   'Device Type',
                   'Brand',
                   'Issue Description',
@@ -2695,20 +2712,42 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                   'Date',
                 ],
                 data: tickets.map((ticket) {
+                  // Calculate total amount
+                  double totalAmount = 0.0;
+                  if (ticket['payments'] is List) {
+                    for (var payment in ticket['payments']) {
+                      if (payment is Map && payment['amount'] != null) {
+                        totalAmount +=
+                            double.tryParse(payment['amount'].toString()) ??
+                            0.0;
+                      }
+                    }
+                  }
+                  if (totalAmount == 0 && ticket['paymentDetails'] != null) {
+                    totalAmount =
+                        double.tryParse(ticket['paymentDetails'].toString()) ??
+                        0.0;
+                  }
+                  if (totalAmount == 0 && ticket['amount'] != null) {
+                    totalAmount =
+                        double.tryParse(ticket['amount'].toString()) ?? 0.0;
+                  }
+                  // Get issue description
+                  final issueDesc =
+                      ticket['issueDescription']?.toString() ??
+                      ticket['message']?.toString() ??
+                      'No description';
                   return [
-                    ticket['bookingId']?.toString() ?? 'N/A',
+                    ticket['ticketId']?.toString() ?? 'N/A',
                     ticket['deviceType']?.toString() ?? 'N/A',
                     ticket['deviceBrand']?.toString() ?? 'N/A',
-                    truncateText(
-                      ticket['message']?.toString() ?? 'No description',
-                      maxLength: 35,
-                    ),
-                    '₹${ticket['amount']?.toString() ?? '0'}',
+                    truncateText(issueDesc, maxLength: 35),
+                    '₹${totalAmount.toStringAsFixed(totalAmount == totalAmount.roundToDouble() ? 0 : 2)}',
                     _getStatusAbbr(
                       ticket['engineerStatus']?.toString() ?? 'N/A',
                     ),
                     _getStatusAbbr(ticket['adminStatus']?.toString() ?? 'N/A'),
-                    formatTimestamp(ticket['timestamp'] as Timestamp?),
+                    formatTimestamp(ticket['createdAt'] as Timestamp?),
                   ];
                 }).toList(),
               ),

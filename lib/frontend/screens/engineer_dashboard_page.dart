@@ -136,6 +136,7 @@ class AdminDetails {
   String description;
   String amount;
   List<String> imageUrls;
+  List<Map<String, dynamic>> uploadedFiles;
   String paymentType;
   final String adminStatus;
   final String customerDecision;
@@ -159,6 +160,7 @@ class AdminDetails {
     required this.description,
     required this.amount,
     this.imageUrls = const [],
+    this.uploadedFiles = const [],
     this.paymentType = '',
     required this.adminStatus,
     required this.customerDecision,
@@ -181,9 +183,18 @@ class AdminDetails {
 
   factory AdminDetails.fromFirestore(DocumentSnapshot doc) {
     var data = doc.data() as Map<String, dynamic>;
+    // Parse uploadedFiles
+    List<Map<String, dynamic>> parsedUploadedFiles = [];
+    if (data['uploadedFiles'] is List) {
+      for (var file in data['uploadedFiles']) {
+        if (file is Map<String, dynamic>) {
+          parsedUploadedFiles.add(file);
+        }
+      }
+    }
     return AdminDetails(
       docId: doc.id,
-      bookingId: data['bookingId'] ?? '',
+      bookingId: data['ticketId'] ?? '',
       customerName: data['customerName'] ?? '',
       deviceBrand: data['deviceBrand'] ?? '',
       deviceType: data['deviceType'] ?? '',
@@ -192,17 +203,20 @@ class AdminDetails {
       mobileNumber: data['mobileNumber'] ?? '',
       customerId: data['id']?.toString() ?? '',
       selectedStatus: data['engineerStatus'] ?? data['adminStatus'] ?? '',
-      description: data['description'] ?? '',
-      amount: data['amount']?.toString() ?? '',
-      imageUrls: List<String>.from(data['imageUrls'] ?? []),
+      description: data['issueDescription'] ?? data['description'] ?? '',
+      amount: data['paymentDetails']?.toString() ?? '',
+      imageUrls: List<String>.from(
+        data['uploadedImages'] ?? data['imageUrls'] ?? [],
+      ),
+      uploadedFiles: parsedUploadedFiles,
       paymentType: data['PaymentType'] ?? '',
       adminStatus: data['adminStatus'] ?? '',
       customerDecision: data['Customer_decision'] ?? '',
-      assignedTimestamp: data['AssignedTimestamp'],
+      assignedTimestamp: data['assignedTimestamp'] ?? data['AssignedTimestamp'],
       completedAt: data['completedAt'],
       id: data['id'] ?? '',
-      lat: (data['lat'] as num?)?.toDouble(),
-      lng: (data['lng'] as num?)?.toDouble(),
+      lat: (data['latitude'] as num?)?.toDouble(),
+      lng: (data['longitude'] as num?)?.toDouble(),
     );
   }
 
@@ -845,7 +859,7 @@ class _EngineerPageState extends State<EngineerPage> {
   ) async {
     try {
       final doc = await FirestoreService.instance
-          .collection('Admin_details')
+          .collection('Raised_tickets')
           .doc(bookingId)
           .get();
 
@@ -1249,7 +1263,8 @@ class _EngineerPageState extends State<EngineerPage> {
                 backgroundColor: Colors.white.withValues(alpha: 0.9),
                 backgroundImage: NetworkImage(ThemeService.instance.logoUrl!),
               ),
-            if (ThemeService.instance.logoUrl != null) const SizedBox(width: 12),
+            if (ThemeService.instance.logoUrl != null)
+              const SizedBox(width: 12),
             // App and User Name
             Expanded(
               child: Column(
@@ -1505,8 +1520,8 @@ class _EngineerPageState extends State<EngineerPage> {
   Widget _buildStatsCards() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirestoreService.instance
-          .collection('Admin_details')
-          .where('assignedEmployee', isEqualTo: widget.userName)
+          .collection('Raised_tickets')
+          .where('assignedEngineer', isEqualTo: widget.userName)
           .snapshots(),
       builder: (context, snapshot) {
         int totalCompleted = 0;
@@ -1596,8 +1611,8 @@ class _EngineerPageState extends State<EngineerPage> {
   Widget _buildWorkSummaryDashboard() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirestoreService.instance
-          .collection('Admin_details')
-          .where('assignedEmployee', isEqualTo: widget.userName)
+          .collection('Raised_tickets')
+          .where('assignedEngineer', isEqualTo: widget.userName)
           .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
@@ -1932,8 +1947,8 @@ class _EngineerPageState extends State<EngineerPage> {
   Widget _buildRecentTasks() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirestoreService.instance
-          .collection('Admin_details')
-          .where('assignedEmployee', isEqualTo: widget.userName)
+          .collection('Raised_tickets')
+          .where('assignedEngineer', isEqualTo: widget.userName)
           .where('engineerStatus', isEqualTo: 'Assigned')
           .limit(3)
           .snapshots(),
@@ -2106,7 +2121,9 @@ class _EngineerPageState extends State<EngineerPage> {
                   ),
                   child: CircleAvatar(
                     radius: 52,
-                    backgroundColor: ProfessionalTheme.primaryExtraLight(context),
+                    backgroundColor: ProfessionalTheme.primaryExtraLight(
+                      context,
+                    ),
                     child: Text(
                       (widget.userName.isNotEmpty ? widget.userName[0] : 'E')
                           .toUpperCase(),
@@ -2182,7 +2199,10 @@ class _EngineerPageState extends State<EngineerPage> {
                     icon: const Icon(Icons.edit_rounded),
                     label: const Text(
                       'Edit Profile',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: ProfessionalTheme.primary(context),
@@ -2278,8 +2298,8 @@ class _EngineerPageState extends State<EngineerPage> {
   Widget _buildBookingsView() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirestoreService.instance
-          .collection('Admin_details')
-          .where('assignedEmployee', isEqualTo: widget.userName)
+          .collection('Raised_tickets')
+          .where('assignedEngineer', isEqualTo: widget.userName)
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting && _isLoading) {
@@ -2926,8 +2946,8 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
 
   void _loadExistingPayments() {
     FirestoreService.instance
-        .collection('Admin_details')
-        .where('bookingId', isEqualTo: widget.booking.bookingId)
+        .collection('Raised_tickets')
+        .where('ticketId', isEqualTo: widget.booking.bookingId)
         .get()
         .then((query) {
           if (query.docs.isNotEmpty) {
@@ -3113,86 +3133,86 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  color: ProfessionalTheme.primary(
-                    context,
-                  ).withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: ProfessionalTheme.primary(
+                      context,
+                    ).withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.update,
+                    color: ProfessionalTheme.primary(context),
+                    size: 32,
+                  ),
                 ),
-                child: Icon(
-                  Icons.update,
-                  color: ProfessionalTheme.primary(context),
-                  size: 32,
+                const SizedBox(height: 16),
+                Text(
+                  'Confirm Update',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: ProfessionalTheme.textPrimary(context),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Confirm Update',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: ProfessionalTheme.textPrimary(context),
+                const SizedBox(height: 8),
+                Text(
+                  'Are you sure you want to update this job with the current information?',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: ProfessionalTheme.textSecondary(context),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Are you sure you want to update this job with the current information?',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: ProfessionalTheme.textSecondary(context),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      style: OutlinedButton.styleFrom(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        style: OutlinedButton.styleFrom(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          side: BorderSide(
+                            color: ProfessionalTheme.borderMedium(context),
+                          ),
                         ),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        side: BorderSide(
-                          color: ProfessionalTheme.borderMedium(context),
-                        ),
-                      ),
-                      child: Text(
-                        'Cancel',
-                        style: TextStyle(
-                          color: ProfessionalTheme.textSecondary(context),
+                        child: Text(
+                          'Cancel',
+                          style: TextStyle(
+                            color: ProfessionalTheme.textSecondary(context),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () => Navigator.pop(context, true),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: ProfessionalTheme.primary(context),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: ProfessionalTheme.primary(context),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      child: Text(
-                        'Update',
-                        style: TextStyle(
-                          color: ProfessionalTheme.textInverse(context),
+                        child: Text(
+                          'Update',
+                          style: TextStyle(
+                            color: ProfessionalTheme.textInverse(context),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ],
-          ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -3207,70 +3227,48 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
           ...newImageUrls,
         ];
 
-        var query = await FirestoreService.instance
-            .collection('Admin_details')
-            .where('bookingId', isEqualTo: widget.booking.bookingId)
-            .get();
+        final docRef = FirestoreService.instance
+            .collection('Raised_tickets')
+            .doc(widget.booking.bookingId);
 
-        for (var doc in query.docs) {
-          Map<String, dynamic> updateData = {
-            'engineerStatus': _currentStatus,
-            'description': widget.descriptionController.text,
-            'amount': double.tryParse(_amountController.text.trim()) ?? 0,
-            'imageUrls': allImageUrls,
-            'lastUpdated': FieldValue.serverTimestamp(),
-            'PaymentType': paymentTypeToSave,
-            'lastUpdatedBy': widget.userName,
-          };
+        Map<String, dynamic> updateData = {
+          'engineerStatus': _currentStatus,
+          'issueDescription': widget.descriptionController.text,
+          'paymentDetails': double.tryParse(_amountController.text.trim()) ?? 0,
+          'uploadedImages': allImageUrls,
+          'updatedAt': FieldValue.serverTimestamp(),
+          'PaymentType': paymentTypeToSave,
+          'lastUpdatedBy': widget.userName,
+        };
 
-          // Payments: Use Timestamp.now() for nested timestamps
-          if (_payments.isNotEmpty) {
-            updateData['payments'] = _payments.map((p) {
-              return {
-                ...p,
-                'addedAt': Timestamp.now(), // Use Timestamp.now() here
-              };
-            }).toList();
-          }
-
-          // Status history tracking: Use Timestamp.now() for nested
-          updateData['statusHistory'] = [
-            {
-              'status': _currentStatus,
-              'timestamp': Timestamp.now(), // Use Timestamp.now() here
-              'updatedBy': widget.userName,
-            },
-          ];
-
-          // If status is completed, set both engineerStatus and adminStatus
-          if (_currentStatus.toLowerCase() == 'completed') {
-            updateData['engineerStatus'] = 'Completed';
-            // updateData['adminStatus'] = 'Closed';
-            updateData['completedAt'] = FieldValue.serverTimestamp();
-            updateData['completedBy'] = widget.userName;
-          }
-
-          await doc.reference.set(updateData, SetOptions(merge: true));
+        // Payments: Use Timestamp.now() for nested timestamps
+        if (_payments.isNotEmpty) {
+          updateData['payments'] = _payments.map((p) {
+            return {
+              ...p,
+              'addedAt': Timestamp.now(), // Use Timestamp.now() here
+            };
+          }).toList();
         }
 
-        await FirestoreService.instance
-            .collection('Engineer_updates')
-            .doc(widget.booking.bookingId.trim())
-            .set({
-              'bookingId': widget.booking.bookingId,
-              'PaymentType': paymentTypeToSave,
-              'engineerStatus': _currentStatus,
-              'statusDescription': widget.descriptionController.text.trim(),
-              'amount': double.tryParse(_amountController.text.trim()) ?? 0,
-              'updatedBy': widget.userName,
-              'updatedAt': FieldValue.serverTimestamp(),
-              'imageUrls': allImageUrls,
-              'payments': _payments
-                  .map((p) => {...p, 'addedAt': Timestamp.now()})
-                  .toList(),
-              'lat': _capturedLat,
-              'lng': _capturedLng,
-            }, SetOptions(merge: true));
+        // Status history tracking: Use Timestamp.now() for nested
+        updateData['statusHistory'] = [
+          {
+            'status': _currentStatus,
+            'timestamp': Timestamp.now(), // Use Timestamp.now() here
+            'updatedBy': widget.userName,
+          },
+        ];
+
+        // If status is completed, set both engineerStatus and adminStatus
+        if (_currentStatus.toLowerCase() == 'completed') {
+          updateData['engineerStatus'] = 'Completed';
+          // updateData['adminStatus'] = 'Closed';
+          updateData['completedAt'] = FieldValue.serverTimestamp();
+          updateData['completedBy'] = widget.userName;
+        }
+
+        await docRef.set(updateData, SetOptions(merge: true));
 
         _showSnackBar('Job updated successfully!', ProfessionalTheme.success);
 
@@ -3490,6 +3488,7 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
                 _buildSectionHeader('Job Details', Icons.info_outline),
                 const SizedBox(height: 12),
                 _buildDetailsSection(),
+                _buildUploadedFilesSection(),
                 const SizedBox(height: 24),
                 _buildSectionHeader(
                   'Status Management',
@@ -3534,6 +3533,182 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
           ),
         ),
       ),
+    );
+  }
+
+  void _showImageDialog(BuildContext context, String imageUrl) {
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(20),
+        child: Stack(
+          children: [
+            GestureDetector(
+              onTap: () => Navigator.of(context).pop(),
+              child: Container(
+                color: Colors.black.withValues(alpha: 0.1),
+                child: Center(
+                  child: InteractiveViewer(
+                    child: Image.network(
+                      imageUrl,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        color: Colors.grey[300],
+                        child: const Icon(
+                          Icons.broken_image,
+                          color: Colors.grey,
+                          size: 100,
+                        ),
+                      ),
+                      loadingBuilder: (context, child, progress) {
+                        if (progress == null) return child;
+                        return const Center(child: CircularProgressIndicator());
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 20,
+              right: 20,
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white, size: 30),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUploadedFilesSection() {
+    if (widget.booking.uploadedFiles.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 24),
+        _buildSectionHeader('Uploaded Files', Icons.attach_file_outlined),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 100,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: widget.booking.uploadedFiles.length,
+            separatorBuilder: (context, index) => const SizedBox(width: 10),
+            itemBuilder: (context, idx) {
+              final file = widget.booking.uploadedFiles[idx];
+              final fileUrl = file['url']?.toString() ?? '';
+              final fileName = file['name']?.toString() ?? 'File ${idx + 1}';
+
+              // Check if it's an image
+              final isImage =
+                  fileName.toLowerCase().endsWith('.jpg') ||
+                  fileName.toLowerCase().endsWith('.jpeg') ||
+                  fileName.toLowerCase().endsWith('.png') ||
+                  fileName.toLowerCase().endsWith('.gif') ||
+                  fileName.toLowerCase().endsWith('.webp');
+
+              return GestureDetector(
+                onTap: () {
+                  _showImageDialog(context, fileUrl);
+                },
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    width: 100,
+                    height: 100,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey[300]!),
+                      borderRadius: BorderRadius.circular(8),
+                      color: Colors.grey[50],
+                    ),
+                    child: isImage
+                        ? Image.network(
+                            fileUrl,
+                            width: 100,
+                            height: 100,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) =>
+                                Container(
+                                  color: Colors.grey[100],
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.insert_drive_file,
+                                        color: Colors.grey[400],
+                                        size: 30,
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 4,
+                                        ),
+                                        child: Text(
+                                          fileName,
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                            color: Colors.grey[500],
+                                            fontSize: 8,
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                            loadingBuilder: (context, child, progress) {
+                              if (progress == null) return child;
+                              return Container(
+                                color: Colors.grey[100],
+                                child: const Center(
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                              );
+                            },
+                          )
+                        : Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.insert_drive_file,
+                                color: Colors.grey[400],
+                                size: 30,
+                              ),
+                              const SizedBox(height: 4),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                ),
+                                child: Text(
+                                  fileName,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: Colors.grey[500],
+                                    fontSize: 8,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -3706,12 +3881,6 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
             label: 'Condition',
             value: widget.booking.deviceCondition,
             icon: Icons.build_circle_outlined,
-          ),
-          Divider(height: 1, color: ProfessionalTheme.borderLight(context)),
-          _buildEnhancedDetailRow(
-            label: 'Assigned',
-            value: widget.booking.assignedDateTimeFormatted,
-            icon: Icons.event_available_outlined,
           ),
           if (widget.booking.selectedStatus.toLowerCase() == 'completed' &&
               widget.booking.completionMessage.isNotEmpty) ...[

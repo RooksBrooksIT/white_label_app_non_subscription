@@ -98,6 +98,50 @@ class FirestoreService {
     return null;
   }
 
+  /// Generates a new ticket ID in the format: <CustomerNamePrefix>_<CustomerType>_<RunningNumber>
+  Future<String> generateTicketId({
+    required String customerName,
+    required String customerType, // "amc" or "nonamc"
+  }) async {
+    // Get first 3 characters of customer name, lowercase
+    final namePrefix = customerName
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z]'), '')
+        .padLeft(3, 'x')
+        .substring(0, 3);
+
+    // Ensure customer type is "amc" or "nonamc"
+    final type = customerType.toLowerCase().trim() == 'amc' ? 'amc' : 'nonamc';
+
+    // Reference to counter document
+    final counterRef = collection('counters').doc('ticket_counter');
+
+    return runTransaction((transaction) async {
+      final snapshot = await transaction.get(counterRef);
+
+      // Get current counter value (or start at 0
+      int currentCount = 0;
+      if (snapshot.exists && snapshot.data() != null) {
+        final data = snapshot.data()!['lastTicketCount'] as int? ?? 0;
+        currentCount = data;
+      }
+
+      // Increment counter
+      final newCount = currentCount + 1;
+
+      // Update counter
+      transaction.set(counterRef, {
+        'lastTicketCount': newCount,
+      }, SetOptions(merge: true));
+
+      // Generate padded to 3 digits
+      final paddedNumber = newCount.toString().padLeft(3, '0');
+
+      // Return final ticket ID
+      return '${namePrefix}_${type}_${paddedNumber}';
+    });
+  }
+
   /// New: Get User Role and Org/App associations
   Future<Map<String, dynamic>?> getUserMetadata(String uid) async {
     try {
@@ -203,8 +247,7 @@ class FirestoreService {
       if (originalPrice != null) 'originalPrice': originalPrice,
       if (customerMobile != null && customerMobile.isNotEmpty)
         'customerMobile': customerMobile,
-      if (gstNumber != null && gstNumber.isNotEmpty)
-        'gstNumber': gstNumber,
+      if (gstNumber != null && gstNumber.isNotEmpty) 'gstNumber': gstNumber,
       if (limits != null) 'limits': limits,
       if (geoLocation != null) 'geoLocation': geoLocation,
       if (attendance != null) 'attendance': attendance,
@@ -651,7 +694,9 @@ class FirestoreService {
         'invoiceDetails': {
           'planName': planName,
           'amount': amount,
-          'billingCycle': isYearly ? 'Yearly' : (isSixMonths ? '6 Months' : 'Monthly'),
+          'billingCycle': isYearly
+              ? 'Yearly'
+              : (isSixMonths ? '6 Months' : 'Monthly'),
           if (customerName != null) 'customerName': customerName,
           if (customerEmail != null) 'customerEmail': customerEmail,
         },
@@ -741,4 +786,3 @@ class FirestoreService {
         .collection('queued_subscriptions');
   }
 }
-

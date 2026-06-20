@@ -96,34 +96,12 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
     };
   }
 
-  // Helper method to safely get customer document stream
+  // Helper method to safely get customer document stream (no longer needed, returns empty)
   Stream<DocumentSnapshot> _getCustomerIdStream(
     customer_var.Customer customer,
   ) {
-    try {
-      String customerId = customer.customerid;
-
-      // Validate and clean the customer ID
-      if (customerId.isEmpty ||
-          customerId.toLowerCase() == 'n/a' ||
-          customerId.contains('/') ||
-          customerId.trim().isEmpty) {
-        customerId = customer.bookingId;
-      }
-
-      // Final validation
-      if (customerId.isEmpty || customerId.contains('/')) {
-        return Stream<DocumentSnapshot>.empty();
-      }
-
-      return FirestoreService.instance
-          .collection('customers')
-          .doc(customerId)
-          .snapshots();
-    } catch (e) {
-      // Return empty stream if any error occurs during setup
-      return Stream<DocumentSnapshot>.empty();
-    }
+    // All ticket data now lives in Raised_tickets, so no need for customers collection
+    return Stream<DocumentSnapshot>.empty();
   }
 
   @override
@@ -133,14 +111,16 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
     final screenHeight = mediaQuery.size.height;
 
     double getProportionalSize(double size) {
-      final rawBaseSize = screenWidth < screenHeight ? screenWidth : screenHeight;
+      final rawBaseSize = screenWidth < screenHeight
+          ? screenWidth
+          : screenHeight;
       final baseSize = rawBaseSize.clamp(320.0, 480.0);
       return size * (baseSize / 375);
     }
 
     return Scaffold(
-      backgroundColor: Theme.of(context).brightness == Brightness.dark 
-          ? Theme.of(context).scaffoldBackgroundColor 
+      backgroundColor: Theme.of(context).brightness == Brightness.dark
+          ? Theme.of(context).scaffoldBackgroundColor
           : Colors.grey[100],
       appBar: AppBar(
         elevation: 0,
@@ -169,8 +149,8 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
           width: double.infinity,
           height: double.infinity,
           decoration: BoxDecoration(
-            color: Theme.of(context).brightness == Brightness.dark 
-                ? Theme.of(context).scaffoldBackgroundColor 
+            color: Theme.of(context).brightness == Brightness.dark
+                ? Theme.of(context).scaffoldBackgroundColor
                 : Colors.grey[100],
           ),
           child: Center(
@@ -394,10 +374,10 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
     double screenHeight,
     double Function(double) getProportionalSize,
   ) {
-    // Modified query to order by bookingId in descending order
+    // Modified query to order by ticketId in descending order
     Query query = FirestoreService.instance
-        .collection('Admin_details')
-        .orderBy('bookingId', descending: true);
+        .collection('Raised_tickets')
+        .orderBy('createdAt', descending: true);
 
     return StreamBuilder<QuerySnapshot>(
       stream: query.snapshots(),
@@ -431,7 +411,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
           final adminStatusRaw = getField(data, [
             'adminStatus',
           ], '').toLowerCase();
-          final bookingId = getField(data, ['bookingId'], '').toLowerCase();
+          final ticketId = getField(data, ['ticketId'], '').toLowerCase();
           final customerName = getField(data, [
             'customerName',
             'CustomerName',
@@ -443,7 +423,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
 
           if (searchQuery.isNotEmpty) {
             final query = searchQuery.toLowerCase();
-            if (!bookingId.contains(query) &&
+            if (!ticketId.contains(query) &&
                 !customerName.contains(query) &&
                 !mobileNumber.contains(query)) {
               return false;
@@ -503,17 +483,21 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
             if (data == null) return const SizedBox.shrink();
 
             final customer = customer_var.Customer(
-              bookingId: getField(data, ['bookingId']),
+              ticketId: getField(data, ['ticketId']),
               customerName: getField(data, ['customerName', 'CustomerName']),
               deviceType: getField(data, ['deviceType', 'description']),
               deviceBrand: getField(data, ['deviceBrand']),
               deviceCondition: getField(data, ['deviceCondition']),
-              message: getField(data, ['message', 'Message']),
-              timestamp: parseTimestamp(data['timestamp']),
+              issueDescription: getField(data, [
+                'issueDescription',
+                'message',
+                'Message',
+              ]),
+              timestamp: parseTimestamp(data['createdAt']),
               address: getField(data, ['address', 'Address']),
               mobileNumber: getField(data, ['mobileNumber', 'MobileNumber']),
               jobType: getField(data, ['jobType', 'JobType']),
-              amount: getField(data, ['amount']),
+              amount: getField(data, ['paymentDetails']),
               customerid: getField(data, ['customerid', 'id', 'Id']),
               customerFileUrl: getField(data, ['customerFileUrl']),
               fileName: getField(data, ['fileName']),
@@ -549,6 +533,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                 : status;
 
             final assignedEmployee = getField(data, [
+              'assignedEngineer',
               'assignedEmployee',
             ], 'Not Assigned');
             final bool isCompleted = status.toLowerCase().contains('complete');
@@ -636,7 +621,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
     }
 
     // Check if this is an AMC customer
-    final isAMC = customer.bookingId.toUpperCase().startsWith('AMC');
+    final isAMC = customer.ticketId.toUpperCase().startsWith('AMC');
     final statusColor = getStatusColor(status);
 
     return GestureDetector(
@@ -731,7 +716,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          customer.bookingId,
+                          customer.ticketId,
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: getProportionalSize(16),
@@ -1008,18 +993,30 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
         : status;
 
     // Check if this is an AMC customer
-    final isAMC = customer.bookingId.toUpperCase().startsWith('AMC');
+    final isAMC = customer.ticketId.toUpperCase().startsWith('AMC');
 
-    final double sheetPaddingLeftRight = context.isMobile ? screenWidth * 0.045 : 16.0;
-    final double innerPaddingLeft = context.isMobile ? screenWidth * 0.06 : 24.0;
-    final double innerPaddingRight = context.isMobile ? screenWidth * 0.04 : 16.0;
+    final double sheetPaddingLeftRight = context.isMobile
+        ? screenWidth * 0.045
+        : 16.0;
+    final double innerPaddingLeft = context.isMobile
+        ? screenWidth * 0.06
+        : 24.0;
+    final double innerPaddingRight = context.isMobile
+        ? screenWidth * 0.04
+        : 16.0;
     final double avatarSize = context.isMobile ? screenWidth * 0.14 : 56.0;
     final double avatarRadius = context.isMobile ? screenWidth * 0.07 : 28.0;
-    final double iconSizedBoxWidth = context.isMobile ? screenWidth * 0.075 : 24.0;
+    final double iconSizedBoxWidth = context.isMobile
+        ? screenWidth * 0.075
+        : 24.0;
     final double iconTextSpacing = context.isMobile ? screenWidth * 0.016 : 8.0;
     final double buttonHPadding = context.isMobile ? screenWidth * 0.04 : 16.0;
-    final double buttonAssignHPadding = context.isMobile ? screenWidth * 0.07 : 24.0;
-    final double buttonOuterRightPadding = context.isMobile ? screenWidth * 0.06 : 24.0;
+    final double buttonAssignHPadding = context.isMobile
+        ? screenWidth * 0.07
+        : 24.0;
+    final double buttonOuterRightPadding = context.isMobile
+        ? screenWidth * 0.06
+        : 24.0;
 
     return SafeArea(
       top: false,
@@ -1165,7 +1162,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                       ),
                                       Expanded(
                                         child: Text(
-                                          customer.bookingId,
+                                          customer.ticketId,
                                           style: TextStyle(
                                             color: isAMC
                                                 ? const Color(0xFFFFD700)
@@ -1181,7 +1178,9 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                       SizedBox(width: iconTextSpacing),
                                       Container(
                                         padding: EdgeInsets.symmetric(
-                                          horizontal: context.isMobile ? screenWidth * 0.022 : 8.0,
+                                          horizontal: context.isMobile
+                                              ? screenWidth * 0.022
+                                              : 8.0,
                                           vertical: screenHeight * 0.003,
                                         ),
                                         decoration: BoxDecoration(
@@ -1589,7 +1588,9 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                               vertical: screenHeight * 0.008,
                             ),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFFFD700).withValues(alpha: 0.2),
+                              color: const Color(
+                                0xFFFFD700,
+                              ).withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
                                 color: const Color(0xFFFFD700),
@@ -1646,7 +1647,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                             ),
                             _ticketDetailRow(
                               'Message',
-                              customer.message,
+                              customer.issueDescription,
                               getProportionalSize,
                             ),
                             _ticketDetailRow(
@@ -1669,8 +1670,8 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                             // Payment Type field
                             StreamBuilder<DocumentSnapshot>(
                               stream: FirestoreService.instance
-                                  .collection('Admin_details')
-                                  .doc(customer.bookingId)
+                                  .collection('Raised_tickets')
+                                  .doc(customer.ticketId)
                                   .snapshots(),
                               builder: (context, snapshot) {
                                 String paymentType = 'N/A';
@@ -1731,7 +1732,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                           customerLat: customerLat,
                                           customerLng: customerLng,
                                           customerAddress: customer.address,
-                                          bookingId: customer.bookingId,
+                                          bookingId: customer.ticketId,
                                           customerName: customer.customerName,
                                           jobType: customer.jobType,
                                           deviceType: customer.deviceType,
@@ -2123,7 +2124,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                     try {
                                       final docRef = FirestoreService.instance
                                           .collection('Admin_details')
-                                          .doc(customer.bookingId);
+                                          .doc(customer.ticketId);
                                       final docSnapshot = await docRef.get();
                                       if (docSnapshot.exists) {
                                         final data = docSnapshot.data() ?? {};
@@ -2364,9 +2365,9 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                           audience: 'admin',
                                           title: 'Ticket Acknowledged',
                                           body:
-                                              'You have scheduled an appointment for ticket ${customer.bookingId} (${customer.customerName})',
+                                              'You have scheduled an appointment for ticket ${customer.ticketId} (${customer.customerName})',
                                           type: 'ticket_acknowledged',
-                                          bookingId: customer.bookingId,
+                                          bookingId: customer.ticketId,
                                           customerName: customer.customerName,
                                         );
 
@@ -2443,7 +2444,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                     try {
                                       final docRef = FirestoreService.instance
                                           .collection('Admin_details')
-                                          .doc(customer.bookingId);
+                                          .doc(customer.ticketId);
                                       final docSnapshot = await docRef.get();
                                       if (docSnapshot.exists) {
                                         final data = docSnapshot.data() ?? {};
@@ -2564,9 +2565,9 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                     customerId: customer.customerid,
                                     title: 'Ticket Canceled',
                                     body:
-                                        'Your ticket ${customer.bookingId} has been canceled by the administrator.',
+                                        'Your ticket ${customer.ticketId} has been canceled by the administrator.',
                                     type: 'ticket_canceled',
-                                    bookingId: customer.bookingId,
+                                    bookingId: customer.ticketId,
                                     customerName: customer.customerName,
                                   );
 
@@ -2574,9 +2575,9 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                     audience: 'admin',
                                     title: 'Ticket Canceled',
                                     body:
-                                        'You have canceled ticket ${customer.bookingId} (${customer.customerName})',
+                                        'You have canceled ticket ${customer.ticketId} (${customer.customerName})',
                                     type: 'ticket_canceled',
-                                    bookingId: customer.bookingId,
+                                    bookingId: customer.ticketId,
                                     customerName: customer.customerName,
                                   );
 
@@ -2673,7 +2674,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                 StreamBuilder<DocumentSnapshot>(
                                   stream: FirestoreService.instance
                                       .collection('Admin_details')
-                                      .doc(customer.bookingId)
+                                      .doc(customer.ticketId)
                                       .snapshots(),
                                   builder: (context, snapshot) {
                                     if (snapshot.connectionState ==
@@ -2771,7 +2772,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                 StreamBuilder<DocumentSnapshot>(
                                   stream: FirestoreService.instance
                                       .collection('Admin_details')
-                                      .doc(customer.bookingId)
+                                      .doc(customer.ticketId)
                                       .snapshots(),
                                   builder: (context, snapshot) {
                                     if (snapshot.connectionState ==
