@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:open_file/open_file.dart';
@@ -66,8 +67,10 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
 
   Future<void> _fetchData(String input) async {
     if (input.isEmpty) {
-      _showSnack('Please enter Customer ID, Phone, or Booking ID',
-          color: Colors.orange);
+      _showSnack(
+        'Please enter Customer ID, Phone, or Booking ID',
+        color: Colors.orange,
+      );
       return;
     }
 
@@ -106,8 +109,9 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
         setState(() {});
         _animController.forward();
         _showSnack(
-            'Found ${multipleResults!.length} entries for Mobile Number',
-            color: Colors.green);
+          'Found ${multipleResults!.length} entries for Mobile Number',
+          color: Colors.green,
+        );
       } else {
         QuerySnapshot? foundSnapshot;
         for (int i in [0, 2]) {
@@ -117,8 +121,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
           }
         }
         if (foundSnapshot != null) {
-          final data =
-              foundSnapshot.docs.first.data() as Map<String, dynamic>;
+          final data = foundSnapshot.docs.first.data() as Map<String, dynamic>;
           setState(() => resultData = data);
           _animController.forward();
           _showSnack('Record found!', color: Colors.green);
@@ -135,13 +138,15 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
   }
 
   void _showSnack(String msg, {Color color = Colors.blueGrey}) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg),
-      backgroundColor: color,
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      margin: const EdgeInsets.all(16),
-    ));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
   }
 
   void _toggleAllSelection() {
@@ -168,7 +173,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
     if (multipleResults != null) {
       return [
         for (int i = 0; i < multipleResults!.length; i++)
-          if (_selectedRows[i] == true) multipleResults![i]
+          if (_selectedRows[i] == true) multipleResults![i],
       ];
     } else if (resultData != null) {
       return [resultData!];
@@ -176,8 +181,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
     return [];
   }
 
-  int get _selectedCount =>
-      _selectedRows.values.where((v) => v).length;
+  int get _selectedCount => _selectedRows.values.where((v) => v).length;
 
   bool get _canExportReport {
     if (resultData != null) return true;
@@ -199,11 +203,15 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
     if (a == null) return 'N/A';
     final p = double.tryParse(a.toString());
     if (p == null) return a.toString();
-    return p == p.roundToDouble() ? '₹${p.toInt()}' : '₹${p.toStringAsFixed(2)}';
+    return p == p.roundToDouble()
+        ? '₹${p.toInt()}'
+        : '₹${p.toStringAsFixed(2)}';
   }
 
-  double _totalAmount(List<Map<String, dynamic>> records) =>
-      records.fold(0.0, (s, r) => s + (double.tryParse(r['amount']?.toString() ?? '') ?? 0));
+  double _totalAmount(List<Map<String, dynamic>> records) => records.fold(
+    0.0,
+    (s, r) => s + (double.tryParse(r['amount']?.toString() ?? '') ?? 0),
+  );
 
   String _reportPdfName(List<Map<String, dynamic>> records) {
     final stamp = DateFormat('yyyyMMdd_HHmm').format(DateTime.now());
@@ -219,11 +227,15 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
 
   // ─── PDF generation ────────────────────────────────────────────────────────
 
-  PdfColor get _pdfBrand => PdfColor.fromInt(ThemeService.instance.primaryColor.value);
-  PdfColor get _pdfBrandLight => PdfColor.fromInt(ThemeService.instance.primaryColor.withOpacity(0.1).value);
+  PdfColor get _pdfBrand =>
+      PdfColor.fromInt(ThemeService.instance.primaryColor.value);
+  PdfColor get _pdfBrandLight => PdfColor.fromInt(
+    ThemeService.instance.primaryColor.withOpacity(0.1).value,
+  );
 
   Future<pw.Document> _buildPdfDocument(
-      List<Map<String, dynamic>> records) async {
+    List<Map<String, dynamic>> records,
+  ) async {
     final pdf = pw.Document();
     final appName = ThemeService.instance.appName;
     final generatedAt = DateFormat('dd MMM yyyy, HH:mm').format(DateTime.now());
@@ -241,9 +253,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
         header: (ctx) => _pdfHeader(logoImage, appName, generatedAt),
         footer: (ctx) => _pdfFooter(ctx, appName),
         build: (ctx) {
-          final widgets = <pw.Widget>[
-            _pdfSummaryBox(records),
-          ];
+          final widgets = <pw.Widget>[_pdfSummaryBox(records)];
           if (records.length > 1) {
             widgets
               ..add(pw.SizedBox(height: 18))
@@ -262,13 +272,17 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
   }
 
   pw.Widget _pdfHeader(
-      pw.MemoryImage? logo, String appName, String generatedAt) {
+    pw.MemoryImage? logo,
+    String appName,
+    String generatedAt,
+  ) {
     return pw.Container(
       margin: const pw.EdgeInsets.only(bottom: 16),
       padding: const pw.EdgeInsets.only(bottom: 12),
       decoration: const pw.BoxDecoration(
         border: pw.Border(
-            bottom: pw.BorderSide(color: PdfColors.grey300, width: 1)),
+          bottom: pw.BorderSide(color: PdfColors.grey300, width: 1),
+        ),
       ),
       child: pw.Row(
         crossAxisAlignment: pw.CrossAxisAlignment.center,
@@ -284,35 +298,48 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
             child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
-                pw.Text('CUSTOMER SERVICE REPORT',
-                    style: pw.TextStyle(
-                        fontSize: 15,
-                        fontWeight: pw.FontWeight.bold,
-                        color: _pdfBrand,
-                        letterSpacing: 0.5)),
+                pw.Text(
+                  'CUSTOMER SERVICE REPORT',
+                  style: pw.TextStyle(
+                    fontSize: 15,
+                    fontWeight: pw.FontWeight.bold,
+                    color: _pdfBrand,
+                    letterSpacing: 0.5,
+                  ),
+                ),
                 pw.SizedBox(height: 3),
-                pw.Text(appName,
-                    style: const pw.TextStyle(
-                        fontSize: 10, color: PdfColors.grey700)),
+                pw.Text(
+                  appName,
+                  style: const pw.TextStyle(
+                    fontSize: 10,
+                    color: PdfColors.grey700,
+                  ),
+                ),
                 pw.SizedBox(height: 2),
-                pw.Text('Generated: $generatedAt',
-                    style: const pw.TextStyle(
-                        fontSize: 8, color: PdfColors.grey600)),
+                pw.Text(
+                  'Generated: $generatedAt',
+                  style: const pw.TextStyle(
+                    fontSize: 8,
+                    color: PdfColors.grey600,
+                  ),
+                ),
               ],
             ),
           ),
           pw.Container(
-            padding:
-                const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 5),
             decoration: pw.BoxDecoration(
               color: _pdfBrand,
               borderRadius: pw.BorderRadius.circular(4),
             ),
-            child: pw.Text('INTERNAL',
-                style: pw.TextStyle(
-                    fontSize: 7,
-                    fontWeight: pw.FontWeight.bold,
-                    color: PdfColors.white)),
+            child: pw.Text(
+              'INTERNAL',
+              style: pw.TextStyle(
+                fontSize: 7,
+                fontWeight: pw.FontWeight.bold,
+                color: PdfColors.white,
+              ),
+            ),
           ),
         ],
       ),
@@ -325,20 +352,24 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
       padding: const pw.EdgeInsets.only(top: 8),
       decoration: const pw.BoxDecoration(
         border: pw.Border(
-            top: pw.BorderSide(color: PdfColors.grey300, width: 0.5)),
+          top: pw.BorderSide(color: PdfColors.grey300, width: 0.5),
+        ),
       ),
       child: pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         children: [
-          pw.Text(appName,
-              style: const pw.TextStyle(
-                  fontSize: 8, color: PdfColors.grey600)),
-          pw.Text('Page ${ctx.pageNumber} of ${ctx.pagesCount}',
-              style: const pw.TextStyle(
-                  fontSize: 8, color: PdfColors.grey600)),
-          pw.Text('Confidential — internal use only',
-              style: const pw.TextStyle(
-                  fontSize: 8, color: PdfColors.grey600)),
+          pw.Text(
+            appName,
+            style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600),
+          ),
+          pw.Text(
+            'Page ${ctx.pageNumber} of ${ctx.pagesCount}',
+            style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600),
+          ),
+          pw.Text(
+            'Confidential — internal use only',
+            style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600),
+          ),
         ],
       ),
     );
@@ -357,22 +388,30 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
       child: pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          pw.Text('Report Summary',
-              style: pw.TextStyle(
-                  fontSize: 11,
-                  fontWeight: pw.FontWeight.bold,
-                  color: _pdfBrand)),
+          pw.Text(
+            'Report Summary',
+            style: pw.TextStyle(
+              fontSize: 11,
+              fontWeight: pw.FontWeight.bold,
+              color: _pdfBrand,
+            ),
+          ),
           pw.SizedBox(height: 10),
           pw.Row(
             children: [
               pw.Expanded(
-                  child: _pdfMetric('Records', records.length.toString())),
+                child: _pdfMetric('Records', records.length.toString()),
+              ),
               pw.Expanded(
-                  child: _pdfMetric('Combined Amount', _fmtAmount(total))),
+                child: _pdfMetric('Combined Amount', _fmtAmount(total)),
+              ),
               if (multipleResults != null)
                 pw.Expanded(
-                    child: _pdfMetric(
-                        'From Search', '${multipleResults!.length} total')),
+                  child: _pdfMetric(
+                    'From Search',
+                    '${multipleResults!.length} total',
+                  ),
+                ),
             ],
           ),
         ],
@@ -381,19 +420,23 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
   }
 
   pw.Widget _pdfMetric(String label, String value) => pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.Text(label,
-              style: const pw.TextStyle(
-                  fontSize: 8, color: PdfColors.grey700)),
-          pw.SizedBox(height: 3),
-          pw.Text(value,
-              style: pw.TextStyle(
-                  fontSize: 11,
-                  fontWeight: pw.FontWeight.bold,
-                  color: _pdfBrand)),
-        ],
-      );
+    crossAxisAlignment: pw.CrossAxisAlignment.start,
+    children: [
+      pw.Text(
+        label,
+        style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
+      ),
+      pw.SizedBox(height: 3),
+      pw.Text(
+        value,
+        style: pw.TextStyle(
+          fontSize: 11,
+          fontWeight: pw.FontWeight.bold,
+          color: _pdfBrand,
+        ),
+      ),
+    ],
+  );
 
   pw.Widget _pdfIndex(List<Map<String, dynamic>> records) {
     return pw.Column(
@@ -412,15 +455,20 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
           children: [
             pw.TableRow(
               decoration: pw.BoxDecoration(color: _pdfBrand),
-              children: ['#', 'ID', 'Customer', 'Booking ID', 'Status']
-                  .map((h) => _pdfCell(h, header: true))
-                  .toList(),
+              children: [
+                '#',
+                'ID',
+                'Customer',
+                'Booking ID',
+                'Status',
+              ].map((h) => _pdfCell(h, header: true)).toList(),
             ),
             ...List.generate(records.length, (i) {
               final r = records[i];
               return pw.TableRow(
                 decoration: pw.BoxDecoration(
-                    color: i.isOdd ? PdfColors.grey100 : PdfColors.white),
+                  color: i.isOdd ? PdfColors.grey100 : PdfColors.white,
+                ),
                 children: [
                   _pdfCell('${i + 1}'),
                   _pdfCell(_fmt(r['id'])),
@@ -437,36 +485,42 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
   }
 
   pw.Widget _pdfHeading(String title) => pw.Container(
-        width: double.infinity,
-        margin: const pw.EdgeInsets.only(bottom: 8),
-        padding:
-            const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: pw.BoxDecoration(
-          color: _pdfBrandLight,
-          borderRadius: pw.BorderRadius.circular(4),
-          border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
-        ),
-        child: pw.Text(title,
-            style: pw.TextStyle(
-                fontSize: 10,
-                fontWeight: pw.FontWeight.bold,
-                color: _pdfBrand)),
-      );
+    width: double.infinity,
+    margin: const pw.EdgeInsets.only(bottom: 8),
+    padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+    decoration: pw.BoxDecoration(
+      color: _pdfBrandLight,
+      borderRadius: pw.BorderRadius.circular(4),
+      border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
+    ),
+    child: pw.Text(
+      title,
+      style: pw.TextStyle(
+        fontSize: 10,
+        fontWeight: pw.FontWeight.bold,
+        color: _pdfBrand,
+      ),
+    ),
+  );
 
   pw.Widget _pdfCell(String text, {bool header = false}) => pw.Padding(
-        padding:
-            const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 7),
-        child: pw.Text(text,
-            maxLines: 2,
-            style: pw.TextStyle(
-                fontSize: 8,
-                fontWeight:
-                    header ? pw.FontWeight.bold : pw.FontWeight.normal,
-                color: header ? PdfColors.white : PdfColors.black)),
-      );
+    padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 7),
+    child: pw.Text(
+      text,
+      maxLines: 2,
+      style: pw.TextStyle(
+        fontSize: 8,
+        fontWeight: header ? pw.FontWeight.bold : pw.FontWeight.normal,
+        color: header ? PdfColors.white : PdfColors.black,
+      ),
+    ),
+  );
 
-  pw.Widget _pdfDetailRow(String label, String value,
-      {bool emphasize = false}) {
+  pw.Widget _pdfDetailRow(
+    String label,
+    String value, {
+    bool emphasize = false,
+  }) {
     return pw.Padding(
       padding: const pw.EdgeInsets.only(bottom: 6),
       child: pw.Row(
@@ -474,26 +528,29 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
         children: [
           pw.SizedBox(
             width: 118,
-            child: pw.Text(label,
-                style: const pw.TextStyle(
-                    fontSize: 9, color: PdfColors.grey700)),
+            child: pw.Text(
+              label,
+              style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700),
+            ),
           ),
           pw.Expanded(
-            child: pw.Text(value,
-                style: pw.TextStyle(
-                    fontSize: 9,
-                    fontWeight: emphasize
-                        ? pw.FontWeight.bold
-                        : pw.FontWeight.normal,
-                    color: emphasize ? _pdfBrand : PdfColors.black)),
+            child: pw.Text(
+              value,
+              style: pw.TextStyle(
+                fontSize: 9,
+                fontWeight: emphasize
+                    ? pw.FontWeight.bold
+                    : pw.FontWeight.normal,
+                color: emphasize ? _pdfBrand : PdfColors.black,
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 
-  pw.Widget _pdfCard(
-      Map<String, dynamic> r, int index, int total) {
+  pw.Widget _pdfCard(Map<String, dynamic> r, int index, int total) {
     return pw.Container(
       width: double.infinity,
       padding: const pw.EdgeInsets.all(14),
@@ -507,29 +564,39 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
           pw.Row(
             mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
             children: [
-              pw.Text('Record $index of $total',
-                  style: pw.TextStyle(
-                      fontSize: 12,
-                      fontWeight: pw.FontWeight.bold,
-                      color: _pdfBrand)),
+              pw.Text(
+                'Record $index of $total',
+                style: pw.TextStyle(
+                  fontSize: 12,
+                  fontWeight: pw.FontWeight.bold,
+                  color: _pdfBrand,
+                ),
+              ),
               pw.Container(
                 padding: const pw.EdgeInsets.symmetric(
-                    horizontal: 10, vertical: 4),
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: pw.BoxDecoration(
-                    color: _pdfBrand,
-                    borderRadius: pw.BorderRadius.circular(12)),
-                child: pw.Text(_fmt(r['adminStatus']),
-                    style: pw.TextStyle(
-                        fontSize: 8,
-                        fontWeight: pw.FontWeight.bold,
-                        color: PdfColors.white)),
+                  color: _pdfBrand,
+                  borderRadius: pw.BorderRadius.circular(12),
+                ),
+                child: pw.Text(
+                  _fmt(r['adminStatus']),
+                  style: pw.TextStyle(
+                    fontSize: 8,
+                    fontWeight: pw.FontWeight.bold,
+                    color: PdfColors.white,
+                  ),
+                ),
               ),
             ],
           ),
           pw.SizedBox(height: 4),
-          pw.Text('Booking: ${_fmt(r['bookingId'])}',
-              style: const pw.TextStyle(
-                  fontSize: 9, color: PdfColors.grey700)),
+          pw.Text(
+            'Booking: ${_fmt(r['bookingId'])}',
+            style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700),
+          ),
           pw.SizedBox(height: 12),
           pw.Divider(color: PdfColors.grey300, height: 1),
           pw.SizedBox(height: 10),
@@ -553,15 +620,13 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                 ),
               ),
               pw.Expanded(
-                child: _pdfDetailRow(
-                    'Condition', _fmt(r['deviceCondition'])),
+                child: _pdfDetailRow('Condition', _fmt(r['deviceCondition'])),
               ),
             ],
           ),
           pw.SizedBox(height: 6),
           _pdfHeading('Service & Billing'),
-          _pdfDetailRow('Amount', _fmtAmount(r['amount']),
-              emphasize: true),
+          _pdfDetailRow('Amount', _fmtAmount(r['amount']), emphasize: true),
           _pdfDetailRow('Address', _fmt(r['address'])),
         ],
       ),
@@ -598,24 +663,44 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
     setState(() => _isPdfDownloading = true);
     try {
       final pdf = await _buildPdfDocument(records);
-      final dir = await getDownloadsDirectory() ??
-          await getApplicationDocumentsDirectory();
-      final file =
-          File('${dir.path}/${_reportPdfName(records)}.pdf');
-      await file.writeAsBytes(await pdf.save());
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: const Text('PDF saved to Downloads'),
-        backgroundColor: Colors.green,
-        behavior: SnackBarBehavior.floating,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        action: SnackBarAction(
-          label: 'Open',
-          textColor: Colors.white,
-          onPressed: () => OpenFile.open(file.path),
-        ),
-      ));
+      if (kIsWeb) {
+        // Web: Use Printing package to download
+        await Printing.sharePdf(
+          bytes: await pdf.save(),
+          filename: '${_reportPdfName(records)}.pdf',
+        );
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('PDF downloaded successfully'),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      } else {
+        // Mobile/Desktop: Use path_provider and open_file
+        final dir =
+            await getDownloadsDirectory() ??
+            await getApplicationDocumentsDirectory();
+        final file = File('${dir.path}/${_reportPdfName(records)}.pdf');
+        await file.writeAsBytes(await pdf.save());
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('PDF saved to Downloads'),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            action: SnackBarAction(
+              label: 'Open',
+              textColor: Colors.white,
+              onPressed: () => OpenFile.open(file.path),
+            ),
+          ),
+        );
+      }
     } catch (e) {
       if (mounted) _showSnack('Download failed: $e', color: Colors.red);
     } finally {
@@ -633,18 +718,18 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
         title: const Text(
           'Customer Report Generator',
           style: TextStyle(
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
-              fontSize: 18,
-              letterSpacing: -0.3),
+            fontWeight: FontWeight.w700,
+            color: Colors.white,
+            fontSize: 18,
+            letterSpacing: -0.3,
+          ),
         ),
         backgroundColor: _brand,
         foregroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
         shape: const RoundedRectangleBorder(
-          borderRadius:
-              BorderRadius.vertical(bottom: Radius.circular(20)),
+          borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
         ),
       ),
       body: SafeArea(
@@ -696,7 +781,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
             color: _brand.withOpacity(0.08),
             blurRadius: 20,
             offset: const Offset(0, 4),
-          )
+          ),
         ],
       ),
       padding: const EdgeInsets.all(20),
@@ -713,22 +798,29 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                   color: _brandLight,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(Icons.person_search_rounded,
-                    color: _brand, size: 22),
+                child: Icon(
+                  Icons.person_search_rounded,
+                  color: _brand,
+                  size: 22,
+                ),
               ),
               const SizedBox(width: 12),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Find Customer',
-                      style: TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w700,
-                          color: _brand,
-                          letterSpacing: -0.3)),
-                  const Text('Search by ID, Phone or Booking ID',
-                      style: TextStyle(
-                          fontSize: 12, color: Color(0xFF8A9BB8))),
+                  Text(
+                    'Find Customer',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: _brand,
+                      letterSpacing: -0.3,
+                    ),
+                  ),
+                  const Text(
+                    'Search by ID, Phone or Booking ID',
+                    style: TextStyle(fontSize: 12, color: Color(0xFF8A9BB8)),
+                  ),
                 ],
               ),
             ],
@@ -748,26 +840,37 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                     controller: _controller,
                     focusNode: _searchFocusNode,
                     style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w500,
-                        color: _brand),
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                      color: _brand,
+                    ),
                     decoration: const InputDecoration(
                       hintText: 'Enter Customer ID, Phone, or Booking ID',
                       hintStyle: TextStyle(
-                          color: Color(0xFFADB9CC), fontSize: 14),
+                        color: Color(0xFFADB9CC),
+                        fontSize: 14,
+                      ),
                       border: InputBorder.none,
-                      prefixIcon: Icon(Icons.search_rounded,
-                          color: Color(0xFF8A9BB8), size: 20),
-                      contentPadding:
-                          EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+                      prefixIcon: Icon(
+                        Icons.search_rounded,
+                        color: Color(0xFF8A9BB8),
+                        size: 20,
+                      ),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 15,
+                      ),
                     ),
                     onSubmitted: (v) => _fetchData(v.trim()),
                   ),
                 ),
                 if (_controller.text.isNotEmpty)
                   IconButton(
-                    icon: const Icon(Icons.close_rounded,
-                        color: Color(0xFF8A9BB8), size: 20),
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      color: Color(0xFF8A9BB8),
+                      size: 20,
+                    ),
                     onPressed: () {
                       _controller.clear();
                       setState(() {
@@ -783,9 +886,11 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
           // Quick-search chips
           Wrap(
             spacing: 8,
-            children: ['Customer ID', 'Phone Number', 'Booking ID']
-                .map((label) => _searchChip(label))
-                .toList(),
+            children: [
+              'Customer ID',
+              'Phone Number',
+              'Booking ID',
+            ].map((label) => _searchChip(label)).toList(),
           ),
           const SizedBox(height: 18),
           // Search button
@@ -805,24 +910,31 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                 disabledBackgroundColor: _brand.withOpacity(0.4),
                 elevation: 0,
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
+                  borderRadius: BorderRadius.circular(14),
+                ),
               ),
               child: _loading
                   ? const SizedBox(
                       width: 22,
                       height: 22,
                       child: CircularProgressIndicator(
-                          strokeWidth: 2.5, color: Colors.white))
+                        strokeWidth: 2.5,
+                        color: Colors.white,
+                      ),
+                    )
                   : const Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(Icons.manage_search_rounded, size: 20),
                         SizedBox(width: 8),
-                        Text('Search & Generate Report',
-                            style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: -0.2)),
+                        Text(
+                          'Search & Generate Report',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: -0.2,
+                          ),
+                        ),
                       ],
                     ),
             ),
@@ -839,11 +951,14 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
         color: _brandLight,
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Text(label,
-          style: TextStyle(
-              fontSize: 11,
-              color: _brand,
-              fontWeight: FontWeight.w600)),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          color: _brand,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     );
   }
 
@@ -857,9 +972,10 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-              color: _brand.withOpacity(0.06),
-              blurRadius: 16,
-              offset: const Offset(0, 4))
+            color: _brand.withOpacity(0.06),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
       child: Column(
@@ -867,11 +983,14 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
         children: [
           CircularProgressIndicator(color: _brand, strokeWidth: 3),
           const SizedBox(height: 16),
-          Text('Searching records…',
-              style: TextStyle(
-                  color: _brand.withOpacity(0.7),
-                  fontWeight: FontWeight.w500,
-                  fontSize: 14)),
+          Text(
+            'Searching records…',
+            style: TextStyle(
+              color: _brand.withOpacity(0.7),
+              fontWeight: FontWeight.w500,
+              fontSize: 14,
+            ),
+          ),
         ],
       ),
     );
@@ -897,8 +1016,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
         ...List.generate(_displayRecords.length, (i) {
           final record = _displayRecords[i];
           final isMulti = multipleResults != null;
-          final isSelected =
-              isMulti ? (_selectedRows[i] ?? false) : true;
+          final isSelected = isMulti ? (_selectedRows[i] ?? false) : true;
           return Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: _buildRecordCard(
@@ -943,9 +1061,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
           _statItem(
             icon: Icons.check_circle_outline_rounded,
             label: 'Selected',
-            value: multipleResults != null
-                ? '$_selectedCount'
-                : '1',
+            value: multipleResults != null ? '$_selectedCount' : '1',
           ),
           _divider(),
           _statItem(
@@ -958,43 +1074,45 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
     );
   }
 
-  Widget _statItem(
-      {required IconData icon,
-      required String label,
-      required String value}) {
+  Widget _statItem({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
     return Expanded(
       child: Column(
         children: [
           Icon(icon, color: Colors.white70, size: 18),
           const SizedBox(height: 4),
-          Text(value,
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 16)),
-          Text(label,
-              style: const TextStyle(
-                  color: Colors.white60,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500)),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+              fontSize: 16,
+            ),
+          ),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white60,
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _divider() => Container(
-        width: 1,
-        height: 40,
-        color: Colors.white.withOpacity(0.2),
-      );
+  Widget _divider() =>
+      Container(width: 1, height: 40, color: Colors.white.withOpacity(0.2));
 
   Widget _buildSelectAllBar() {
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
       decoration: BoxDecoration(
-        color: _selectedCount > 0
-            ? _brand.withOpacity(0.06)
-            : Colors.white,
+        color: _selectedCount > 0 ? _brand.withOpacity(0.06) : Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: _selectedCount > 0
@@ -1004,10 +1122,11 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
       ),
       child: Row(
         children: [
-          Icon(Icons.checklist_rounded,
-              size: 18,
-              color:
-                  _selectedCount > 0 ? _brand : const Color(0xFF8A9BB8)),
+          Icon(
+            Icons.checklist_rounded,
+            size: 18,
+            color: _selectedCount > 0 ? _brand : const Color(0xFF8A9BB8),
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -1015,28 +1134,31 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                   ? '$_selectedCount of ${multipleResults!.length} selected for PDF export'
                   : 'Select records to export',
               style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: _selectedCount > 0
-                      ? _brand
-                      : const Color(0xFF8A9BB8)),
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: _selectedCount > 0 ? _brand : const Color(0xFF8A9BB8),
+              ),
             ),
           ),
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('All',
-                  style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: _brand.withOpacity(0.7))),
+              Text(
+                'All',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: _brand.withOpacity(0.7),
+                ),
+              ),
               Checkbox(
                 value: _allSelected,
                 onChanged: (_) => _toggleAllSelection(),
                 activeColor: _brand,
                 visualDensity: VisualDensity.compact,
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(4)),
+                  borderRadius: BorderRadius.circular(4),
+                ),
               ),
             ],
           ),
@@ -1091,7 +1213,8 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                     ? _brand.withOpacity(0.04)
                     : const Color(0xFFF8FAFD),
                 borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(16)),
+                  top: Radius.circular(16),
+                ),
               ),
               child: Row(
                 children: [
@@ -1105,7 +1228,8 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                         activeColor: _brand,
                         visualDensity: VisualDensity.compact,
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(4)),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -1122,13 +1246,13 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                       child: Text(
                         (_fmt(record['customerName']).isNotEmpty &&
                                 _fmt(record['customerName']) != 'N/A')
-                            ? _fmt(record['customerName'])[0]
-                                .toUpperCase()
+                            ? _fmt(record['customerName'])[0].toUpperCase()
                             : '?',
                         style: TextStyle(
-                            color: _brand,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 16),
+                          color: _brand,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 16,
+                        ),
                       ),
                     ),
                   ),
@@ -1140,37 +1264,44 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                         Text(
                           _fmt(record['customerName']),
                           style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: _brand,
-                              letterSpacing: -0.2),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: _brand,
+                            letterSpacing: -0.2,
+                          ),
                         ),
                         const SizedBox(height: 2),
                         Text(
                           'Booking: ${_fmt(record['bookingId'])}',
                           style: const TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFF8A9BB8),
-                              fontWeight: FontWeight.w500),
+                            fontSize: 12,
+                            color: Color(0xFF8A9BB8),
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ],
                     ),
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 5),
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
                     decoration: BoxDecoration(
                       color: statusColor.withOpacity(0.12),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                          color: statusColor.withOpacity(0.3), width: 1),
+                        color: statusColor.withOpacity(0.3),
+                        width: 1,
+                      ),
                     ),
                     child: Text(
                       status ?? 'N/A',
                       style: TextStyle(
-                          color: statusColor,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700),
+                        color: statusColor,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ],
@@ -1185,48 +1316,70 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                   Row(
                     children: [
                       Expanded(
-                          child: _detailTile(
-                              'Customer ID', _fmt(record['id']),
-                              icon: Icons.badge_outlined)),
+                        child: _detailTile(
+                          'Customer ID',
+                          _fmt(record['id']),
+                          icon: Icons.badge_outlined,
+                        ),
+                      ),
                       const SizedBox(width: 10),
                       Expanded(
-                          child: _detailTile(
-                              'Mobile', _fmt(record['mobileNumber']),
-                              icon: Icons.phone_outlined)),
+                        child: _detailTile(
+                          'Mobile',
+                          _fmt(record['mobileNumber']),
+                          icon: Icons.phone_outlined,
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 10),
                   Row(
                     children: [
                       Expanded(
-                          child: _detailTile(
-                              'Device Brand', _fmt(record['deviceBrand']),
-                              icon: Icons.devices_outlined)),
+                        child: _detailTile(
+                          'Device Brand',
+                          _fmt(record['deviceBrand']),
+                          icon: Icons.devices_outlined,
+                        ),
+                      ),
                       const SizedBox(width: 10),
                       Expanded(
-                          child: _detailTile(
-                              'Device Type', _fmt(record['deviceType']),
-                              icon: Icons.phone_android_outlined)),
+                        child: _detailTile(
+                          'Device Type',
+                          _fmt(record['deviceType']),
+                          icon: Icons.phone_android_outlined,
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 10),
                   Row(
                     children: [
                       Expanded(
-                          child: _detailTile('Condition',
-                              _fmt(record['deviceCondition']),
-                              icon: Icons.info_outline_rounded)),
+                        child: _detailTile(
+                          'Condition',
+                          _fmt(record['deviceCondition']),
+                          icon: Icons.info_outline_rounded,
+                        ),
+                      ),
                       const SizedBox(width: 10),
                       Expanded(
-                          child: _detailTile(
-                              'Amount', _fmtAmount(record['amount']),
-                              icon: Icons.currency_rupee_rounded,
-                              emphasize: true)),
+                        child: _detailTile(
+                          'Amount',
+                          _fmtAmount(record['amount']),
+                          icon: Icons.currency_rupee_rounded,
+                          emphasize: true,
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 10),
-                  _detailTile('Service Address', _fmt(record['address']),
-                      icon: Icons.location_on_outlined, fullWidth: true),
+                  _detailTile(
+                    'Service Address',
+                    _fmt(record['address']),
+                    icon: Icons.location_on_outlined,
+                    fullWidth: true,
+                  ),
                 ],
               ),
             ),
@@ -1236,10 +1389,13 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
     );
   }
 
-  Widget _detailTile(String label, String value,
-      {required IconData icon,
-      bool emphasize = false,
-      bool fullWidth = false}) {
+  Widget _detailTile(
+    String label,
+    String value, {
+    required IconData icon,
+    bool emphasize = false,
+    bool fullWidth = false,
+  }) {
     return Container(
       width: fullWidth ? double.infinity : null,
       padding: const EdgeInsets.all(10),
@@ -1256,24 +1412,26 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label.toUpperCase(),
-                    style: const TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF8A9BB8),
-                        letterSpacing: 0.4)),
+                Text(
+                  label.toUpperCase(),
+                  style: const TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF8A9BB8),
+                    letterSpacing: 0.4,
+                  ),
+                ),
                 const SizedBox(height: 3),
-                Text(value,
-                    style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: emphasize
-                            ? FontWeight.w800
-                            : FontWeight.w600,
-                        color: emphasize
-                            ? Colors.green.shade700
-                            : _brand),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: emphasize ? FontWeight.w800 : FontWeight.w600,
+                    color: emphasize ? Colors.green.shade700 : _brand,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ],
             ),
           ),
@@ -1294,9 +1452,10 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-              color: _brand.withOpacity(0.08),
-              blurRadius: 20,
-              offset: const Offset(0, 4))
+            color: _brand.withOpacity(0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
       child: Column(
@@ -1307,8 +1466,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
             decoration: const BoxDecoration(
               color: Color(0xFFF4F7FC),
-              borderRadius:
-                  BorderRadius.vertical(top: Radius.circular(20)),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
             ),
             child: Row(
               children: [
@@ -1319,30 +1477,37 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                     color: _brand,
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.picture_as_pdf_rounded,
-                      color: Colors.white, size: 20),
+                  child: const Icon(
+                    Icons.picture_as_pdf_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Export PDF Report',
-                          style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: _brand,
-                              letterSpacing: -0.3)),
+                      Text(
+                        'Export PDF Report',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: _brand,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
                       Text(
                         canExport
                             ? '$exportCount record${exportCount != 1 ? 's' : ''} ready to export'
                             : 'Select records above to export',
                         style: TextStyle(
-                            fontSize: 12,
-                            color: canExport
-                                ? Colors.green.shade600
-                                : const Color(0xFF8A9BB8),
-                            fontWeight: FontWeight.w500),
+                          fontSize: 12,
+                          color: canExport
+                              ? Colors.green.shade600
+                              : const Color(0xFF8A9BB8),
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ],
                   ),
@@ -1350,18 +1515,25 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                 if (canExport)
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 4),
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.green.shade50,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                          color: Colors.green.shade200, width: 1),
+                        color: Colors.green.shade200,
+                        width: 1,
+                      ),
                     ),
-                    child: Text('Ready',
-                        style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.green.shade700,
-                            fontWeight: FontWeight.w700)),
+                    child: Text(
+                      'Ready',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.green.shade700,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
               ],
             ),
@@ -1377,9 +1549,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                   width: double.infinity,
                   height: 50,
                   child: ElevatedButton.icon(
-                    onPressed: canExport &&
-                            !_isPdfViewing &&
-                            !_isPdfDownloading
+                    onPressed: canExport && !_isPdfViewing && !_isPdfDownloading
                         ? _viewReportPdf
                         : null,
                     icon: _isPdfViewing
@@ -1387,26 +1557,28 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                             width: 18,
                             height: 18,
                             child: CircularProgressIndicator(
-                                strokeWidth: 2.5,
-                                color: Colors.white))
-                        : const Icon(
-                            Icons.visibility_rounded, size: 20),
+                              strokeWidth: 2.5,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.visibility_rounded, size: 20),
                     label: Text(
-                        _isPdfViewing ? 'Opening…' : 'View PDF Report',
-                        style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: -0.2)),
+                      _isPdfViewing ? 'Opening…' : 'View PDF Report',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _brand,
                       foregroundColor: Colors.white,
-                      disabledBackgroundColor:
-                          const Color(0xFFDDE4F0),
-                      disabledForegroundColor:
-                          const Color(0xFF8A9BB8),
+                      disabledBackgroundColor: const Color(0xFFDDE4F0),
+                      disabledForegroundColor: const Color(0xFF8A9BB8),
                       elevation: 0,
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14)),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
                     ),
                   ),
                 ),
@@ -1416,9 +1588,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                   width: double.infinity,
                   height: 50,
                   child: OutlinedButton.icon(
-                    onPressed: canExport &&
-                            !_isPdfViewing &&
-                            !_isPdfDownloading
+                    onPressed: canExport && !_isPdfViewing && !_isPdfDownloading
                         ? _downloadReportPdf
                         : null,
                     icon: _isPdfDownloading
@@ -1426,29 +1596,31 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                             width: 18,
                             height: 18,
                             child: CircularProgressIndicator(
-                                strokeWidth: 2.5,
-                                color: _brand.withOpacity(0.6)))
-                        : const Icon(
-                            Icons.download_rounded, size: 20),
+                              strokeWidth: 2.5,
+                              color: _brand.withOpacity(0.6),
+                            ),
+                          )
+                        : const Icon(Icons.download_rounded, size: 20),
                     label: Text(
-                        _isPdfDownloading
-                            ? 'Saving…'
-                            : 'Download PDF',
-                        style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: -0.2)),
+                      _isPdfDownloading ? 'Saving…' : 'Download PDF',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: _brand,
-                      disabledForegroundColor:
-                          const Color(0xFF8A9BB8),
+                      disabledForegroundColor: const Color(0xFF8A9BB8),
                       side: BorderSide(
-                          color: canExport
-                              ? _brand.withOpacity(0.35)
-                              : const Color(0xFFDDE4F0),
-                          width: 1.5),
+                        color: canExport
+                            ? _brand.withOpacity(0.35)
+                            : const Color(0xFFDDE4F0),
+                        width: 1.5,
+                      ),
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14)),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
                     ),
                   ),
                 ),
@@ -1457,16 +1629,19 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.info_outline_rounded,
-                          size: 14,
-                          color: const Color(0xFF8A9BB8)),
+                      Icon(
+                        Icons.info_outline_rounded,
+                        size: 14,
+                        color: const Color(0xFF8A9BB8),
+                      ),
                       const SizedBox(width: 6),
                       const Text(
                         'Tap a record above to select it for export',
                         style: TextStyle(
-                            fontSize: 12,
-                            color: Color(0xFF8A9BB8),
-                            fontStyle: FontStyle.italic),
+                          fontSize: 12,
+                          color: Color(0xFF8A9BB8),
+                          fontStyle: FontStyle.italic,
+                        ),
                       ),
                     ],
                   ),
@@ -1489,9 +1664,10 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 16,
-              offset: const Offset(0, 4))
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
       child: Column(
@@ -1503,24 +1679,27 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
               color: _brandLight,
               borderRadius: BorderRadius.circular(24),
             ),
-            child: Icon(Icons.assignment_outlined,
-                size: 40, color: _brand),
+            child: Icon(Icons.assignment_outlined, size: 40, color: _brand),
           ),
           const SizedBox(height: 20),
-          Text('No Records Yet',
-              style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  color: _brand,
-                  letterSpacing: -0.3)),
+          Text(
+            'No Records Yet',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: _brand,
+              letterSpacing: -0.3,
+            ),
+          ),
           const SizedBox(height: 8),
           const Text(
             'Search by Customer ID, Phone Number\nor Booking ID to generate a report',
             textAlign: TextAlign.center,
             style: TextStyle(
-                fontSize: 14,
-                color: Color(0xFF8A9BB8),
-                height: 1.5),
+              fontSize: 14,
+              color: Color(0xFF8A9BB8),
+              height: 1.5,
+            ),
           ),
           const SizedBox(height: 24),
           Wrap(
@@ -1530,8 +1709,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
             children: [
               _tipChip(Icons.badge_outlined, 'Customer ID'),
               _tipChip(Icons.phone_outlined, 'Phone Number'),
-              _tipChip(
-                  Icons.confirmation_number_outlined, 'Booking ID'),
+              _tipChip(Icons.confirmation_number_outlined, 'Booking ID'),
             ],
           ),
         ],
@@ -1541,8 +1719,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
 
   Widget _tipChip(IconData icon, String label) {
     return Container(
-      padding:
-          const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
         color: _brandLight,
         borderRadius: BorderRadius.circular(20),
@@ -1552,11 +1729,14 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
         children: [
           Icon(icon, size: 14, color: _brand),
           const SizedBox(width: 6),
-          Text(label,
-              style: TextStyle(
-                  fontSize: 12,
-                  color: _brand,
-                  fontWeight: FontWeight.w600)),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: _brand,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );

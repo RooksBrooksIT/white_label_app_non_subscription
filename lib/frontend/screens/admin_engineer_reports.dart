@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:intl/intl.dart';
 import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
@@ -298,30 +299,48 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
       final bookingId =
           ticket['bookingId']?.toString() ??
           DateTime.now().millisecondsSinceEpoch.toString();
-      final directory =
-          await getDownloadsDirectory() ??
-          await getApplicationDocumentsDirectory();
-      final file = File(
-        '${directory.path}/Engineer_Report_${bookingId}_${DateTime.now().millisecondsSinceEpoch}.pdf',
-      );
-      await file.writeAsBytes(await pdf.save());
+      final filename =
+          'Engineer_Report_${bookingId}_${DateTime.now().millisecondsSinceEpoch}.pdf';
 
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+      if (kIsWeb) {
+        // Web: Use Printing package to download
+        await Printing.sharePdf(bytes: await pdf.save(), filename: filename);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            backgroundColor: Colors.green.shade700,
+            content: const Text('PDF downloaded successfully'),
           ),
-          backgroundColor: Colors.green.shade700,
-          content: const Text('PDF downloaded successfully'),
-          action: SnackBarAction(
-            label: 'Open',
-            textColor: Colors.white,
-            onPressed: () => OpenFile.open(file.path),
+        );
+      } else {
+        // Mobile/Desktop: Use path_provider and open_file
+        final directory =
+            await getDownloadsDirectory() ??
+            await getApplicationDocumentsDirectory();
+        final file = File('${directory.path}/$filename');
+        await file.writeAsBytes(await pdf.save());
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            backgroundColor: Colors.green.shade700,
+            content: const Text('PDF downloaded successfully'),
+            action: SnackBarAction(
+              label: 'Open',
+              textColor: Colors.white,
+              onPressed: () => OpenFile.open(file.path),
+            ),
           ),
-        ),
-      );
+        );
+      }
     } catch (e) {
       if (mounted) _showPdfError('Download failed: $e');
     } finally {
@@ -493,65 +512,92 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                   ResponsiveWrapper(
                     maxWidth: 1200.0,
                     child: StreamBuilder<List<Map<String, dynamic>>>(
-                    stream: getEngineerProfiles(),
-                    builder: (context, engineerSnapshot) {
-                      final engineerProfiles = engineerSnapshot.data ?? [];
-                      return StreamBuilder<QuerySnapshot>(
-                        stream: adminDetailsStream,
-                        builder: (context, snapshot) {
-                          if (snapshot.connectionState ==
-                              ConnectionState.waiting) {
-                            return _buildLoadingState(isMobile);
-                          }
-                          if (snapshot.hasError) {
-                            return _buildErrorState(snapshot.error.toString());
-                          }
-
-                          engineerStatusCounts.clear();
-                          allStatuses.clear();
-
-                          final docs = snapshot.data?.docs ?? [];
-                          for (final doc in docs) {
-                            final data = doc.data() as Map<String, dynamic>;
-                            final rawEngineerName = data['assignedEmployee']
-                                ?.toString();
-                            if (rawEngineerName != null) {
-                              final engineerName = rawEngineerName
-                                  .trim()
-                                  .toLowerCase();
-                              final normalizedStatus = _normalizeStatusKey(
-                                data['adminStatus']?.toString() ?? '',
-                              );
-                              allStatuses.add(normalizedStatus);
-                              engineerStatusCounts.putIfAbsent(
-                                engineerName,
-                                () => {},
-                              );
-                              engineerStatusCounts[engineerName]![normalizedStatus] =
-                                  (engineerStatusCounts[engineerName]![normalizedStatus] ??
-                                      0) +
-                                  1;
+                      stream: getEngineerProfiles(),
+                      builder: (context, engineerSnapshot) {
+                        final engineerProfiles = engineerSnapshot.data ?? [];
+                        return StreamBuilder<QuerySnapshot>(
+                          stream: adminDetailsStream,
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState ==
+                                ConnectionState.waiting) {
+                              return _buildLoadingState(isMobile);
                             }
-                          }
+                            if (snapshot.hasError) {
+                              return _buildErrorState(
+                                snapshot.error.toString(),
+                              );
+                            }
 
-                          final filteredReports = _filterReports(
-                            docs,
-                            engineerProfiles,
-                          );
-                          final locations = _collectLocations(docs).toList()
-                            ..sort();
-                          final statusOptions = allStatuses.toList()..sort();
-                          final visibleCount =
-                              (_currentPage * _pageSize) >
-                                  filteredReports.length
-                              ? filteredReports.length
-                              : _currentPage * _pageSize;
-                          final paginatedReports = filteredReports
-                              .take(visibleCount)
-                              .toList();
-                          final hasMore = visibleCount < filteredReports.length;
+                            engineerStatusCounts.clear();
+                            allStatuses.clear();
 
-                          if (filteredReports.isEmpty) {
+                            final docs = snapshot.data?.docs ?? [];
+                            for (final doc in docs) {
+                              final data = doc.data() as Map<String, dynamic>;
+                              final rawEngineerName = data['assignedEmployee']
+                                  ?.toString();
+                              if (rawEngineerName != null) {
+                                final engineerName = rawEngineerName
+                                    .trim()
+                                    .toLowerCase();
+                                final normalizedStatus = _normalizeStatusKey(
+                                  data['adminStatus']?.toString() ?? '',
+                                );
+                                allStatuses.add(normalizedStatus);
+                                engineerStatusCounts.putIfAbsent(
+                                  engineerName,
+                                  () => {},
+                                );
+                                engineerStatusCounts[engineerName]![normalizedStatus] =
+                                    (engineerStatusCounts[engineerName]![normalizedStatus] ??
+                                        0) +
+                                    1;
+                              }
+                            }
+
+                            final filteredReports = _filterReports(
+                              docs,
+                              engineerProfiles,
+                            );
+                            final locations = _collectLocations(docs).toList()
+                              ..sort();
+                            final statusOptions = allStatuses.toList()..sort();
+                            final visibleCount =
+                                (_currentPage * _pageSize) >
+                                    filteredReports.length
+                                ? filteredReports.length
+                                : _currentPage * _pageSize;
+                            final paginatedReports = filteredReports
+                                .take(visibleCount)
+                                .toList();
+                            final hasMore =
+                                visibleCount < filteredReports.length;
+
+                            if (filteredReports.isEmpty) {
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  FadeTransition(
+                                    opacity: _fadeAnimation,
+                                    child: _buildFilterSection(
+                                      isMobile,
+                                      isTablet,
+                                      isDesktop,
+                                      statusOptions: statusOptions,
+                                      locationOptions: locations,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 24),
+                                  _buildEmptyState(isMobile),
+                                ],
+                              );
+                            }
+
+                            final selectedCounts = selectedEngineer != null
+                                ? engineerStatusCounts[selectedEngineer!
+                                      .toLowerCase()]
+                                : null;
+
                             return Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -566,112 +612,90 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                                   ),
                                 ),
                                 const SizedBox(height: 24),
-                                _buildEmptyState(isMobile),
-                              ],
-                            );
-                          }
-
-                          final selectedCounts = selectedEngineer != null
-                              ? engineerStatusCounts[selectedEngineer!
-                                    .toLowerCase()]
-                              : null;
-
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              FadeTransition(
-                                opacity: _fadeAnimation,
-                                child: _buildFilterSection(
-                                  isMobile,
-                                  isTablet,
-                                  isDesktop,
-                                  statusOptions: statusOptions,
-                                  locationOptions: locations,
-                                ),
-                              ),
-                              const SizedBox(height: 24),
-                              _buildReportsSummaryHeader(
-                                filteredReports.length,
-                                isMobile,
-                                isDesktop,
-                              ),
-                              if (_showAnalytics &&
-                                  selectedEngineer != null &&
-                                  selectedCounts != null &&
-                                  selectedCounts.isNotEmpty) ...[
-                                const SizedBox(height: 24),
-                                _buildDashboard(
-                                  context,
-                                  selectedCounts,
+                                _buildReportsSummaryHeader(
                                   filteredReports.length,
-                                  docs,
                                   isMobile,
-                                  isTablet,
                                   isDesktop,
                                 ),
-                              ],
-                              const SizedBox(height: 28),
-                              _buildReportsListHeader(
-                                filteredReports.length,
-                                isMobile,
-                                docs,
-                              ),
-                              const SizedBox(height: 16),
-                              if (isDesktop)
-                                _buildReportsTable(
-                                  paginatedReports,
-                                  engineerProfiles,
-                                )
-                              else
-                                ...paginatedReports.map(
-                                  (doc) => Padding(
-                                    padding: const EdgeInsets.only(bottom: 16),
-                                    child: _buildReportCard(
-                                      doc,
-                                      engineerProfiles,
-                                      isMobile,
+                                if (_showAnalytics &&
+                                    selectedEngineer != null &&
+                                    selectedCounts != null &&
+                                    selectedCounts.isNotEmpty) ...[
+                                  const SizedBox(height: 24),
+                                  _buildDashboard(
+                                    context,
+                                    selectedCounts,
+                                    filteredReports.length,
+                                    docs,
+                                    isMobile,
+                                    isTablet,
+                                    isDesktop,
+                                  ),
+                                ],
+                                const SizedBox(height: 28),
+                                _buildReportsListHeader(
+                                  filteredReports.length,
+                                  isMobile,
+                                  docs,
+                                ),
+                                const SizedBox(height: 16),
+                                if (isDesktop)
+                                  _buildReportsTable(
+                                    paginatedReports,
+                                    engineerProfiles,
+                                  )
+                                else
+                                  ...paginatedReports.map(
+                                    (doc) => Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 16,
+                                      ),
+                                      child: _buildReportCard(
+                                        doc,
+                                        engineerProfiles,
+                                        isMobile,
+                                      ),
                                     ),
                                   ),
-                                ),
-                              if (hasMore)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 16),
-                                  child: Center(
-                                    child: OutlinedButton.icon(
-                                      onPressed: () =>
-                                          setState(() => _currentPage += 1),
-                                      icon: const Icon(Icons.expand_more),
-                                      label: Text(
-                                        'Load more (${filteredReports.length - visibleCount} remaining)',
-                                      ),
-                                      style: OutlinedButton.styleFrom(
-                                        foregroundColor: Theme.of(
-                                          context,
-                                        ).primaryColor,
-                                        side: BorderSide(
-                                          color: Theme.of(
+                                if (hasMore)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 16),
+                                    child: Center(
+                                      child: OutlinedButton.icon(
+                                        onPressed: () =>
+                                            setState(() => _currentPage += 1),
+                                        icon: const Icon(Icons.expand_more),
+                                        label: Text(
+                                          'Load more (${filteredReports.length - visibleCount} remaining)',
+                                        ),
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: Theme.of(
                                             context,
-                                          ).primaryColor.withValues(alpha: 0.3),
-                                        ),
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 28,
-                                          vertical: 14,
-                                        ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            16,
+                                          ).primaryColor,
+                                          side: BorderSide(
+                                            color: Theme.of(context)
+                                                .primaryColor
+                                                .withValues(alpha: 0.3),
+                                          ),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 28,
+                                            vertical: 14,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              16,
+                                            ),
                                           ),
                                         ),
                                       ),
                                     ),
                                   ),
-                                ),
-                            ],
-                          );
-                        },
-                      );
-                    },
-                  ),
+                              ],
+                            );
+                          },
+                        );
+                      },
+                    ),
                   ),
                 ]),
               ),
@@ -1868,7 +1892,8 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
       builder: (context, constraints) {
         final crossAxisCount = isMobile ? 2 : 4;
         final availableWidth = constraints.maxWidth;
-        final itemWidth = (availableWidth - (16.0 * (crossAxisCount - 1))) / crossAxisCount;
+        final itemWidth =
+            (availableWidth - (16.0 * (crossAxisCount - 1))) / crossAxisCount;
         final childAspectRatio = itemWidth / 150.0;
 
         return GridView.count(
@@ -1879,33 +1904,33 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
           mainAxisSpacing: 16,
           childAspectRatio: childAspectRatio,
           children: [
-        _buildKPICard(
-          'Total Tasks',
-          totalTickets.toString(),
-          Icons.assignment_rounded,
-          Colors.blue.shade600,
-        ),
-        _buildKPICard(
-          'Completed',
-          completedTickets.toString(),
-          Icons.check_circle_rounded,
-          Colors.green.shade600,
-        ),
-        _buildKPICard(
-          'Completion Rate',
-          '$completionRate%',
-          Icons.trending_up_rounded,
-          Colors.orange.shade600,
-        ),
-        _buildKPICard(
-          'Total Revenue',
-          '₹${totalAmount.toStringAsFixed(0)}',
-          Icons.currency_rupee_rounded,
-          Colors.purple.shade600,
-        ),
-      ],
-    );
-    },
+            _buildKPICard(
+              'Total Tasks',
+              totalTickets.toString(),
+              Icons.assignment_rounded,
+              Colors.blue.shade600,
+            ),
+            _buildKPICard(
+              'Completed',
+              completedTickets.toString(),
+              Icons.check_circle_rounded,
+              Colors.green.shade600,
+            ),
+            _buildKPICard(
+              'Completion Rate',
+              '$completionRate%',
+              Icons.trending_up_rounded,
+              Colors.orange.shade600,
+            ),
+            _buildKPICard(
+              'Total Revenue',
+              '₹${totalAmount.toStringAsFixed(0)}',
+              Icons.currency_rupee_rounded,
+              Colors.purple.shade600,
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -1971,7 +1996,8 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
       builder: (context, constraints) {
         final crossAxisCount = isMobile ? 2 : (isTablet ? 3 : 4);
         final availableWidth = constraints.maxWidth;
-        final itemWidth = (availableWidth - (16.0 * (crossAxisCount - 1))) / crossAxisCount;
+        final itemWidth =
+            (availableWidth - (16.0 * (crossAxisCount - 1))) / crossAxisCount;
         final childAspectRatio = itemWidth / 165.0;
 
         return GridView.builder(
@@ -1985,65 +2011,65 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
           ),
           itemCount: selectedCounts.length,
           itemBuilder: (context, index) {
-        final entry = selectedCounts.entries.elementAt(index);
-        final status = entry.key;
-        final count = entry.value;
-        final color = _getStatusColor(status);
-        final icon = _getStatusIcon(status);
+            final entry = selectedCounts.entries.elementAt(index);
+            final status = entry.key;
+            final count = entry.value;
+            final color = _getStatusColor(status);
+            final icon = _getStatusIcon(status);
 
-        return Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                color: color.withValues(alpha: 0.08),
-                blurRadius: 20,
-                offset: const Offset(0, 8),
+            return Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: color.withValues(alpha: 0.08),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+                border: Border.all(color: color.withValues(alpha: 0.15)),
               ),
-            ],
-            border: Border.all(color: color.withValues(alpha: 0.15)),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, color: color, size: 26),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(icon, color: color, size: 26),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    count.toString(),
+                    style: const TextStyle(
+                      color: Colors.black87,
+                      fontSize: 28,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    status,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.grey.shade700,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 10),
-              Text(
-                count.toString(),
-                style: const TextStyle(
-                  color: Colors.black87,
-                  fontSize: 28,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.5,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                status,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: Colors.grey.shade700,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
+            );
+          },
         );
       },
-    );
-    },
     );
   }
 
@@ -2388,10 +2414,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
 
     pdf.addPage(
       pw.MultiPage(
-        theme: pw.ThemeData.withFont(
-          base: robotoRegular,
-          bold: robotoBold,
-        ),
+        theme: pw.ThemeData.withFont(base: robotoRegular, bold: robotoBold),
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(25),
         header: (context) {

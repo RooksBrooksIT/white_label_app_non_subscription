@@ -53,6 +53,8 @@ class admindashboard extends StatefulWidget {
 class _admindashboardState extends State<admindashboard> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   int engineerUpdateCount = 0;
+  int serviceTicketCount = 0;
+  int callLogCount = 0;
   int totalCustomers = 0;
   int activeEngineers = 0;
   int totalEngineers = 0;
@@ -107,6 +109,12 @@ class _admindashboardState extends State<admindashboard> {
     _initAdminNotificationListener();
     AdminDashboardBackend.getEngineerUpdateCountStream().listen((count) {
       if (mounted) setState(() => engineerUpdateCount = count);
+    });
+    AdminDashboardBackend.getServiceTicketCountStream().listen((count) {
+      if (mounted) setState(() => serviceTicketCount = count);
+    });
+    AdminDashboardBackend.getCallLogCountStream().listen((count) {
+      if (mounted) setState(() => callLogCount = count);
     });
     AdminDashboardBackend.getTotalCustomersStream().listen((count) {
       if (mounted) setState(() => totalCustomers = count);
@@ -282,12 +290,14 @@ class _admindashboardState extends State<admindashboard> {
     }
 
     final prefs = await SharedPreferences.getInstance();
-    final bool welcomeViewed = prefs.getBool('subscriptionWelcomeViewed') ?? false;
+    final bool welcomeViewed =
+        prefs.getBool('subscriptionWelcomeViewed') ?? false;
     final String? lastPlanName = prefs.getString('lastWelcomePlanName');
     final String? lastStartedAt = prefs.getString('lastWelcomeStartedAt');
     final String? lastStatus = prefs.getString('lastWelcomeStatus');
 
-    final bool shouldShow = !welcomeViewed ||
+    final bool shouldShow =
+        !welcomeViewed ||
         lastPlanName != planName ||
         lastStartedAt != startedAt ||
         (lastStatus != 'active' && status == 'active');
@@ -324,7 +334,8 @@ class _admindashboardState extends State<admindashboard> {
                   MaterialPageRoute(
                     builder: (_) => SubscriptionPlansScreen(
                       currentPlanName: planName,
-                      hideTrial: planName.toLowerCase().contains('trial') != true,
+                      hideTrial:
+                          planName.toLowerCase().contains('trial') != true,
                       remainingDays: remainingDays,
                       billingCycle: calculatedCycle,
                     ),
@@ -419,6 +430,9 @@ class _admindashboardState extends State<admindashboard> {
                         subtitle: 'Manage support requests',
                         icon: Icons.confirmation_number_rounded,
                         color: const Color(0xFF0984E3),
+                        badge: serviceTicketCount > 0
+                            ? serviceTicketCount.toString()
+                            : null,
                         onTap: () {
                           Navigator.push(
                             context,
@@ -434,6 +448,9 @@ class _admindashboardState extends State<admindashboard> {
                         subtitle: 'Track interactions',
                         icon: Icons.phone_callback_rounded,
                         color: const Color(0xFF00B894),
+                        badge: callLogCount > 0
+                            ? callLogCount.toString()
+                            : null,
                         onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -690,8 +707,8 @@ class _admindashboardState extends State<admindashboard> {
 
   /// 1.0 = fully expanded, 0.0 = fully collapsed.
   double _appBarExpandRatio(BuildContext context) {
-    final settings =
-        context.dependOnInheritedWidgetOfExactType<FlexibleSpaceBarSettings>();
+    final settings = context
+        .dependOnInheritedWidgetOfExactType<FlexibleSpaceBarSettings>();
     if (settings == null || settings.maxExtent <= settings.minExtent) {
       return 1;
     }
@@ -751,8 +768,7 @@ class _admindashboardState extends State<admindashboard> {
       ),
       child: CircleAvatar(
         radius: radius,
-        backgroundColor:
-            backgroundColor ?? Colors.white.withValues(alpha: 0.2),
+        backgroundColor: backgroundColor ?? Colors.white.withValues(alpha: 0.2),
         child: ClipOval(
           child: imageUrl != null && imageUrl.isNotEmpty
               ? Image.network(
@@ -782,10 +798,7 @@ class _admindashboardState extends State<admindashboard> {
                     );
                   },
                 )
-              : _profileImagePlaceholder(
-                  size: diameter,
-                  icon: fallbackIcon,
-                ),
+              : _profileImagePlaceholder(size: diameter, icon: fallbackIcon),
         ),
       ),
     );
@@ -1179,7 +1192,9 @@ class _admindashboardState extends State<admindashboard> {
   ) {
     return Container(
       width: 160,
-      margin: context.isMobile ? const EdgeInsets.only(right: 16) : EdgeInsets.zero,
+      margin: context.isMobile
+          ? const EdgeInsets.only(right: 16)
+          : EdgeInsets.zero,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -1333,9 +1348,7 @@ class _admindashboardState extends State<admindashboard> {
         LayoutBuilder(
           builder: (context, constraints) {
             if (context.isMobile) {
-              return Column(
-                children: cards,
-              );
+              return Column(children: cards);
             } else {
               const double spacing = 16;
               final double cardWidth = (constraints.maxWidth - spacing) / 2;
@@ -1343,10 +1356,7 @@ class _admindashboardState extends State<admindashboard> {
                 spacing: spacing,
                 runSpacing: spacing,
                 children: cards.map((card) {
-                  return SizedBox(
-                    width: cardWidth,
-                    child: card,
-                  );
+                  return SizedBox(width: cardWidth, child: card);
                 }).toList(),
               );
             }
@@ -1538,7 +1548,6 @@ class _admindashboardState extends State<admindashboard> {
                 ),
                 const Divider(indent: 20, endIndent: 20),
 
-                
                 _buildDrawerItem(
                   icon: Icons.contact_mail_rounded,
                   title: 'Contact Us',
@@ -1809,7 +1818,9 @@ class _admindashboardState extends State<admindashboard> {
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: _appBarSubscriptionColor.withValues(alpha: 0.1),
+                            color: _appBarSubscriptionColor.withValues(
+                              alpha: 0.1,
+                            ),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
@@ -1826,10 +1837,7 @@ class _admindashboardState extends State<admindashboard> {
                     const SizedBox(height: 8),
                     Text(
                       'Expires in: ${remainingDays ?? 0} days',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: textLightColor,
-                      ),
+                      style: TextStyle(fontSize: 14, color: textLightColor),
                     ),
                   ],
                 ),
@@ -1851,12 +1859,14 @@ class _admindashboardState extends State<admindashboard> {
                     return const SizedBox.shrink();
                   }
 
-                  final queuedPlanName = queuedData['planName'] ?? 'Unknown Plan';
+                  final queuedPlanName =
+                      queuedData['planName'] ?? 'Unknown Plan';
                   final scheduledDate = queuedData['scheduledActivationDate'];
                   String formattedDate = 'On current plan expiry';
                   if (scheduledDate is Timestamp) {
-                    formattedDate = DateFormat('dd MMM yyyy')
-                        .format(scheduledDate.toDate().toLocal());
+                    formattedDate = DateFormat(
+                      'dd MMM yyyy',
+                    ).format(scheduledDate.toDate().toLocal());
                   }
 
                   return Container(
@@ -1917,17 +1927,21 @@ class _admindashboardState extends State<admindashboard> {
                                   final confirm = await showDialog<bool>(
                                     context: context,
                                     builder: (ctx) => AlertDialog(
-                                      title: const Text('Activate Immediately?'),
+                                      title: const Text(
+                                        'Activate Immediately?',
+                                      ),
                                       content: const Text(
                                         'Turning this off will immediately activate the queued plan, replacing your current plan. This cannot be undone. Are you sure?',
                                       ),
                                       actions: [
                                         TextButton(
-                                          onPressed: () => Navigator.pop(ctx, false),
+                                          onPressed: () =>
+                                              Navigator.pop(ctx, false),
                                           child: const Text('Cancel'),
                                         ),
                                         TextButton(
-                                          onPressed: () => Navigator.pop(ctx, true),
+                                          onPressed: () =>
+                                              Navigator.pop(ctx, true),
                                           child: const Text('Activate Now'),
                                         ),
                                       ],
@@ -1938,13 +1952,22 @@ class _admindashboardState extends State<admindashboard> {
                                     if (!context.mounted) return;
                                     Navigator.pop(context); // close sheet
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Activating plan...')),
+                                      const SnackBar(
+                                        content: Text('Activating plan...'),
+                                      ),
                                     );
                                     await SubscriptionQueueService.instance
-                                        .activateQueuedPlan(tenantId: tenantId, uid: user.uid);
+                                        .activateQueuedPlan(
+                                          tenantId: tenantId,
+                                          uid: user.uid,
+                                        );
                                     if (!context.mounted) return;
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Plan activated successfully!')),
+                                      const SnackBar(
+                                        content: Text(
+                                          'Plan activated successfully!',
+                                        ),
+                                      ),
                                     );
                                   }
                                 }
@@ -1965,12 +1988,15 @@ class _admindashboardState extends State<admindashboard> {
                                   ),
                                   actions: [
                                     TextButton(
-                                      onPressed: () => Navigator.pop(ctx, false),
+                                      onPressed: () =>
+                                          Navigator.pop(ctx, false),
                                       child: const Text('Keep Plan'),
                                     ),
                                     TextButton(
                                       onPressed: () => Navigator.pop(ctx, true),
-                                      style: TextButton.styleFrom(foregroundColor: Colors.red),
+                                      style: TextButton.styleFrom(
+                                        foregroundColor: Colors.red,
+                                      ),
                                       child: const Text('Cancel Plan'),
                                     ),
                                   ],
@@ -1979,10 +2005,16 @@ class _admindashboardState extends State<admindashboard> {
 
                               if (confirm == true) {
                                 await SubscriptionQueueService.instance
-                                    .clearQueuedPlan(tenantId: tenantId, uid: user.uid);
+                                    .clearQueuedPlan(
+                                      tenantId: tenantId,
+                                      uid: user.uid,
+                                    );
                               }
                             },
-                            child: const Text('Cancel Queued Plan', style: TextStyle(color: Colors.red)),
+                            child: const Text(
+                              'Cancel Queued Plan',
+                              style: TextStyle(color: Colors.red),
+                            ),
                           ),
                         ),
                       ],
@@ -2049,222 +2081,222 @@ class _admindashboardState extends State<admindashboard> {
                 child: Padding(
                   padding: const EdgeInsets.all(24),
                   child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Header
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: primaryColor.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Icon(
-                            Icons.qr_code_2_rounded,
-                            color: primaryColor,
-                            size: 28,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'QR Code Upload',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w800,
-                                  color: textColor,
-                                ),
-                              ),
-                              Text(
-                                'Upload a payment QR code for engineers',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: textLightColor,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    // Current QR preview
-                    FutureBuilder<String?>(
-                      future: StorageService.instance.getQRCodeUrl(),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return Container(
-                            height: 180,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Header
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
-                              color: Colors.grey.shade100,
+                              color: primaryColor.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: Center(
-                              child: CircularProgressIndicator(
-                                color: primaryColor,
-                              ),
-                            ),
-                          );
-                        }
-                        if (snapshot.hasData && snapshot.data != null) {
-                          return Column(
-                            children: [
-                              Text(
-                                'Current QR Code',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: textLightColor,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
-                                child: Image.network(
-                                  snapshot.data!,
-                                  height: 180,
-                                  width: 180,
-                                  fit: BoxFit.contain,
-                                  errorBuilder: (_, _, _) => Icon(
-                                    Icons.broken_image_outlined,
-                                    size: 60,
-                                    color: textLightColor,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Tap below to replace',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: textLightColor,
-                                  fontStyle: FontStyle.italic,
-                                ),
-                              ),
-                            ],
-                          );
-                        }
-                        return Container(
-                          height: 120,
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: Colors.grey.shade300,
-                              style: BorderStyle.solid,
+                            child: Icon(
+                              Icons.qr_code_2_rounded,
+                              color: primaryColor,
+                              size: 28,
                             ),
                           ),
-                          child: Center(
+                          const SizedBox(width: 12),
+                          Expanded(
                             child: Column(
-                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Icon(
-                                  Icons.upload_file_outlined,
-                                  size: 40,
-                                  color: textLightColor,
-                                ),
-                                const SizedBox(height: 8),
                                 Text(
-                                  'No QR code uploaded yet',
+                                  'QR Code Upload',
                                   style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w800,
+                                    color: textColor,
+                                  ),
+                                ),
+                                Text(
+                                  'Upload a payment QR code for engineers',
+                                  style: TextStyle(
+                                    fontSize: 12,
                                     color: textLightColor,
-                                    fontSize: 13,
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 20),
-                    // Upload button
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _isUploadingQR
-                            ? null
-                            : () async {
-                                final picker = ImagePicker();
-                                final picked = await picker.pickImage(
-                                  source: ImageSource.gallery,
-                                  imageQuality: 90,
-                                );
-                                if (picked == null) return;
-
-                                setDialogState(() {});
-                                setState(() => _isUploadingQR = true);
-
-                                final file = File(picked.path);
-                                final url = await StorageService.instance
-                                    .uploadQRCode(file: file);
-
-                                setState(() => _isUploadingQR = false);
-
-                                if (context.mounted) {
-                                  Navigator.pop(dialogContext);
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        url != null
-                                            ? 'QR code uploaded successfully!'
-                                            : 'Upload failed. Please try again.',
-                                      ),
-                                      backgroundColor: url != null
-                                          ? Colors.green
-                                          : errorColor,
-                                      behavior: SnackBarBehavior.floating,
-                                    ),
-                                  );
-                                }
-                              },
-                        icon: _isUploadingQR
-                            ? SizedBox(
-                                width: 18,
-                                height: 18,
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      // Current QR preview
+                      FutureBuilder<String?>(
+                        future: StorageService.instance.getQRCodeUrl(),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return Container(
+                              height: 180,
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade100,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Center(
                                 child: CircularProgressIndicator(
-                                  strokeWidth: 2,
+                                  color: primaryColor,
+                                ),
+                              ),
+                            );
+                          }
+                          if (snapshot.hasData && snapshot.data != null) {
+                            return Column(
+                              children: [
+                                Text(
+                                  'Current QR Code',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: textLightColor,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Image.network(
+                                    snapshot.data!,
+                                    height: 180,
+                                    width: 180,
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (_, _, _) => Icon(
+                                      Icons.broken_image_outlined,
+                                      size: 60,
+                                      color: textLightColor,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Tap below to replace',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: textLightColor,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                              ],
+                            );
+                          }
+                          return Container(
+                            height: 120,
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: Colors.grey.shade300,
+                                style: BorderStyle.solid,
+                              ),
+                            ),
+                            child: Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.upload_file_outlined,
+                                    size: 40,
+                                    color: textLightColor,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'No QR code uploaded yet',
+                                    style: TextStyle(
+                                      color: textLightColor,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 20),
+                      // Upload button
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _isUploadingQR
+                              ? null
+                              : () async {
+                                  final picker = ImagePicker();
+                                  final picked = await picker.pickImage(
+                                    source: ImageSource.gallery,
+                                    imageQuality: 90,
+                                  );
+                                  if (picked == null) return;
+
+                                  setDialogState(() {});
+                                  setState(() => _isUploadingQR = true);
+
+                                  final file = File(picked.path);
+                                  final url = await StorageService.instance
+                                      .uploadQRCode(file: file);
+
+                                  setState(() => _isUploadingQR = false);
+
+                                  if (context.mounted) {
+                                    Navigator.pop(dialogContext);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          url != null
+                                              ? 'QR code uploaded successfully!'
+                                              : 'Upload failed. Please try again.',
+                                        ),
+                                        backgroundColor: url != null
+                                            ? Colors.green
+                                            : errorColor,
+                                        behavior: SnackBarBehavior.floating,
+                                      ),
+                                    );
+                                  }
+                                },
+                          icon: _isUploadingQR
+                              ? SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.upload_rounded,
                                   color: Colors.white,
                                 ),
-                              )
-                            : const Icon(
-                                Icons.upload_rounded,
-                                color: Colors.white,
-                              ),
-                        label: Text(
-                          _isUploadingQR ? 'Uploading...' : 'Upload QR Code',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
+                          label: Text(
+                            _isUploadingQR ? 'Uploading...' : 'Upload QR Code',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: primaryColor,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primaryColor,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 10),
-                    TextButton(
-                      onPressed: () => Navigator.pop(dialogContext),
-                      child: Text(
-                        'Cancel',
-                        style: TextStyle(
-                          color: textLightColor,
-                          fontWeight: FontWeight.w600,
+                      const SizedBox(height: 10),
+                      TextButton(
+                        onPressed: () => Navigator.pop(dialogContext),
+                        child: Text(
+                          'Cancel',
+                          style: TextStyle(
+                            color: textLightColor,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
                 ),
               ),
             );
@@ -2320,7 +2352,8 @@ class _admindashboardState extends State<admindashboard> {
                           if (context.mounted) {
                             Navigator.of(context).pushAndRemoveUntil(
                               MaterialPageRoute(
-                                builder: (context) => const RoleSelectionScreen(),
+                                builder: (context) =>
+                                    const RoleSelectionScreen(),
                               ),
                               (route) => false,
                             );
