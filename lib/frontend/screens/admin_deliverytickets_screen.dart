@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_assigndelivery_page.dart';
 import 'package:subscription_rooks_app/frontend/screens/customer_var_data_screen.dart'
     as customer_var;
+import 'dart:math';
 
 class AdminDeliveryTickets extends StatefulWidget {
   final customer_var.Customer? newCustomer;
@@ -111,11 +113,14 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
     final mediaQuery = MediaQuery.of(context);
     final screenWidth = mediaQuery.size.width;
     final screenHeight = mediaQuery.size.height;
+    final responsiveWidth = min(screenWidth, 500.0);
 
     final appBarForegroundColor = Theme.of(context).colorScheme.onPrimary;
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: Theme.of(context).brightness == Brightness.dark
+          ? Theme.of(context).scaffoldBackgroundColor
+          : Colors.grey[100],
       appBar: AppBar(
         elevation: 0,
         foregroundColor: appBarForegroundColor,
@@ -123,7 +128,7 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
           'Delivery Tickets',
           style: TextStyle(
             fontWeight: FontWeight.bold,
-            fontSize: screenWidth * 0.05,
+            fontSize: responsiveWidth * 0.05,
           ),
         ),
 
@@ -132,26 +137,38 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
         iconTheme: IconThemeData(color: appBarForegroundColor),
         actions: [
           Padding(
-            padding: EdgeInsets.only(right: screenWidth * 0.04),
-            child: _buildFilterButton(screenWidth, appBarForegroundColor),
+            padding: EdgeInsets.only(right: responsiveWidth * 0.04),
+            child: _buildFilterButton(responsiveWidth, appBarForegroundColor),
           ),
         ],
       ),
       body: SafeArea(
-        child: Container(
-          width: double.infinity,
-          height: double.infinity,
-          color: Theme.of(context).scaffoldBackgroundColor,
-          child: Column(
-            children: [
-              SizedBox(height: screenHeight * 0.014),
-              _buildSearchBar(screenWidth),
-              if (_selectedFilter != 'All') _buildActiveFilterChip(screenWidth),
-              SizedBox(height: screenHeight * 0.014),
-              Expanded(
-                child: _buildDeliveryStreamBuilder(screenWidth, screenHeight),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: 1200),
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: screenWidth > 1024 ? 48.0 : 16.0,
               ),
-            ],
+              child: ResponsiveWrapper(
+                maxWidth: 1200.0,
+                child: Column(
+                  children: [
+                    SizedBox(height: screenHeight * 0.014),
+                    _buildSearchBar(responsiveWidth),
+                    if (_selectedFilter != 'All')
+                      _buildActiveFilterChip(responsiveWidth),
+                    SizedBox(height: screenHeight * 0.014),
+                    Expanded(
+                      child: _buildDeliveryStreamBuilder(
+                        responsiveWidth,
+                        screenHeight,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         ),
       ),
@@ -162,11 +179,7 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
     return IconButton(
       icon: Stack(
         children: [
-          Icon(
-            Icons.filter_list,
-            color: iconColor,
-            size: screenWidth * 0.064,
-          ),
+          Icon(Icons.filter_list, color: iconColor, size: screenWidth * 0.064),
           if (_selectedFilter != 'All')
             Positioned(
               right: 0,
@@ -233,6 +246,7 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true, // Added to prevent overflow
+      constraints: BoxConstraints(maxWidth: 500),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
           top: Radius.circular(screenWidth * 0.053),
@@ -400,48 +414,55 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
   }
 
   Widget _buildSearchBar(double screenWidth) {
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.04),
-      child: Container(
-        height: screenWidth * 0.117,
-        decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
-          borderRadius: BorderRadius.circular(screenWidth * 0.032),
-          boxShadow: [
-            BoxShadow(
-              color: Theme.of(context).shadowColor.withValues(alpha: 0.1),
-              blurRadius: screenWidth * 0.016,
-              offset: Offset(0, screenWidth * 0.01),
+    return Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: 500),
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.04),
+          child: Container(
+            height: screenWidth * 0.117,
+            decoration: BoxDecoration(
+              color: Theme.of(context).cardColor,
+              borderRadius: BorderRadius.circular(screenWidth * 0.032),
+              boxShadow: [
+                BoxShadow(
+                  color: Theme.of(context).shadowColor.withValues(alpha: 0.1),
+                  blurRadius: screenWidth * 0.016,
+                  offset: Offset(0, screenWidth * 0.01),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: TextField(
-          controller: _searchController,
-          onChanged: (value) {
-            setState(() {
-              searchQuery = value.trim();
-            });
-          },
-          style: TextStyle(
-            fontSize: screenWidth * 0.037,
-            color: Theme.of(context).textTheme.bodyMedium?.color,
-            fontWeight: FontWeight.w500,
-            fontFamily: 'Arial',
-          ),
-          decoration: InputDecoration(
-            prefixIcon: Icon(
-              Icons.search,
-              color: Theme.of(context).primaryColor,
-              size: screenWidth * 0.058,
+            child: TextField(
+              controller: _searchController,
+              onChanged: (value) {
+                setState(() {
+                  searchQuery = value.trim();
+                });
+              },
+              style: TextStyle(
+                fontSize: screenWidth * 0.037,
+                color: Theme.of(context).textTheme.bodyMedium?.color,
+                fontWeight: FontWeight.w500,
+                fontFamily: 'Arial',
+              ),
+              decoration: InputDecoration(
+                prefixIcon: Icon(
+                  Icons.search,
+                  color: Theme.of(context).primaryColor,
+                  size: screenWidth * 0.058,
+                ),
+                hintText: 'Search by Booking ID',
+                hintStyle: TextStyle(
+                  color: Theme.of(context).hintColor,
+                  fontWeight: FontWeight.w700,
+                  fontSize: screenWidth * 0.034,
+                ),
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(
+                  vertical: screenWidth * 0.034,
+                ),
+              ),
             ),
-            hintText: 'Search by Booking ID',
-            hintStyle: TextStyle(
-              color: Theme.of(context).hintColor,
-              fontWeight: FontWeight.w700,
-              fontSize: screenWidth * 0.034,
-            ),
-            border: InputBorder.none,
-            contentPadding: EdgeInsets.symmetric(vertical: screenWidth * 0.034),
           ),
         ),
       ),
@@ -632,17 +653,21 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
     double screenHeight,
   ) {
     final customer = customer_var.Customer(
-      bookingId: _getField(data, ['bookingId']),
+      ticketId: _getField(data, ['ticketId', 'bookingId']),
       customerName: _getField(data, ['customerName', 'CustomerName']),
       deviceType: _getField(data, ['deviceType', 'description']),
       deviceBrand: _getField(data, ['deviceBrand']),
       deviceCondition: _getField(data, ['deviceCondition']),
-      message: _getField(data, ['message', 'Message']),
-      timestamp: _parseTimestamp(data['timestamp']),
+      issueDescription: _getField(data, [
+        'issueDescription',
+        'message',
+        'Message',
+      ]),
+      timestamp: _parseTimestamp(data['createdAt'] ?? data['timestamp']),
       address: _getField(data, ['address', 'Address']),
       mobileNumber: _getField(data, ['mobileNumber', 'MobileNumber']),
       jobType: _getField(data, ['jobType', 'JobType']),
-      amount: _getField(data, ['amount']),
+      amount: _getField(data, ['paymentDetails', 'amount']),
       customerid: _getField(data, ['id', 'Id', 'customerid']),
       customerFileUrl: _getField(data, ['customerFileUrl']),
       fileName: _getField(data, ['fileName']),
@@ -663,175 +688,261 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
       'CustomerName',
     ], 'Customer');
 
-    return GestureDetector(
-      onTap: () {
-        _showDeliveryDetailSheet(
-          context,
-          customer,
-          serialNumber,
-          statusInfo,
-          assignedEmployee,
-          docId,
-          screenWidth,
-          screenHeight,
-        );
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          color: statusInfo.backgroundColor,
-          borderRadius: BorderRadius.circular(screenWidth * 0.032),
-          boxShadow: [
-            BoxShadow(
-              color: Theme.of(context).shadowColor.withValues(alpha: 0.1),
-              blurRadius: screenWidth * 0.016,
-              offset: Offset(screenWidth * 0.005, screenWidth * 0.01),
+    final isAMC = customer.ticketId.toUpperCase().startsWith('AMC');
+    final statusColor = statusInfo.statusColor;
+
+    return Center(
+      child: GestureDetector(
+        onTap: () {
+          _showDeliveryDetailSheet(
+            context,
+            customer,
+            serialNumber,
+            statusInfo,
+            assignedEmployee,
+            docId,
+            screenWidth,
+            screenHeight,
+          );
+        },
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 500),
+          child: Container(
+            margin: EdgeInsets.only(bottom: screenWidth * 0.042),
+            decoration: BoxDecoration(
+              color: Theme.of(context).cardColor,
+              borderRadius: BorderRadius.circular(screenWidth * 0.032),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: screenWidth * 0.016,
+                  offset: Offset(0, screenWidth * 0.01),
+                ),
+              ],
+              border: isAMC
+                  ? Border.all(color: const Color(0xFFFFD700), width: 1.5)
+                  : Border.all(
+                      color: Theme.of(
+                        context,
+                      ).dividerColor.withValues(alpha: 0.1),
+                    ),
             ),
-          ],
-          border: statusInfo.hasBorder
-              ? Border.all(color: statusInfo.borderColor!, width: 2)
-              : null,
-        ),
-        padding: EdgeInsets.symmetric(
-          vertical: screenHeight * 0.014,
-          horizontal: screenWidth * 0.032,
-        ),
-        child: Column(
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
+            padding: EdgeInsets.symmetric(
+              vertical: screenHeight * 0.014,
+              horizontal: screenWidth * 0.032,
+            ),
+            child: Column(
               children: [
-                Container(
-                  width: screenWidth * 0.14,
-                  height: screenWidth * 0.14,
-                  decoration: BoxDecoration(
-                    color: statusInfo.iconColor,
-                    borderRadius: BorderRadius.circular(screenWidth * 0.07),
-                  ),
-                  child: Center(
-                    child:
-                        statusInfo.icon ??
-                        Text(
-                          serialNumber.toString(),
-                          style: TextStyle(
-                            color: Theme.of(
-                              context,
-                            ).textTheme.bodyMedium?.color,
-                            fontSize: screenWidth * 0.064,
-                            fontFamily: 'Arial',
-                            fontWeight: FontWeight.w400,
+                // Header Section
+                Padding(
+                  padding: EdgeInsets.all(screenWidth * 0.02),
+                  child: Row(
+                    children: [
+                      // Icon Box
+                      Container(
+                        width: screenWidth * 0.12,
+                        height: screenWidth * 0.12,
+                        decoration: BoxDecoration(
+                          color: isAMC
+                              ? const Color(0xFFFFF8E1)
+                              : statusColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(
+                            screenWidth * 0.03,
                           ),
                         ),
-                  ),
-                ),
-                SizedBox(width: screenWidth * 0.034),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            'Booking ID',
-                            style: TextStyle(
-                              color: Theme.of(
-                                context,
-                              ).textTheme.bodyMedium?.color,
-                              fontSize: screenWidth * 0.037,
-                              fontFamily: 'Arial',
-                              fontWeight: FontWeight.w400,
-                            ),
-                          ),
-                          Text(
-                            ' : ',
-                            style: TextStyle(
-                              color: Theme.of(
-                                context,
-                              ).textTheme.bodyMedium?.color,
-                              fontSize: screenWidth * 0.037,
-                              fontWeight: FontWeight.w400,
-                            ),
-                          ),
-                          Flexible(
-                            child: Text(
-                              customer.bookingId,
-                              overflow: TextOverflow.ellipsis,
+                        child: Center(
+                          child:
+                              statusInfo.icon ??
+                              Icon(
+                                isAMC
+                                    ? Icons.star_rounded
+                                    : Icons.local_shipping_outlined,
+                                color: isAMC
+                                    ? const Color(0xFFFFD700)
+                                    : statusColor,
+                                size: screenWidth * 0.06,
+                              ),
+                        ),
+                      ),
+                      SizedBox(width: screenWidth * 0.03),
+                      // Titles
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              customer.ticketId,
                               style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: screenWidth * 0.04,
                                 color: Theme.of(
                                   context,
                                 ).textTheme.bodyLarge?.color,
-                                fontWeight: FontWeight.bold,
-                                fontSize: screenWidth * 0.037,
                               ),
                             ),
-                          ),
-                          const Spacer(),
-                          Container(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: screenWidth * 0.03,
-                              vertical: screenHeight * 0.005,
-                            ),
-                            decoration: BoxDecoration(
-                              color: statusInfo.statusColor,
-                              borderRadius: BorderRadius.circular(100),
-                            ),
-                            child: Text(
-                              statusInfo.displayStatus,
+                            SizedBox(height: screenWidth * 0.01),
+                            Text(
+                              customerName,
                               style: TextStyle(
+                                fontSize: screenWidth * 0.035,
+                                color: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.color
+                                    ?.withValues(alpha: 0.7),
+                                fontWeight: FontWeight.w500,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Status Chip
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: screenWidth * 0.03,
+                          vertical: screenWidth * 0.015,
+                        ),
+                        decoration: BoxDecoration(
+                          color: statusColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(
+                            screenWidth * 0.05,
+                          ),
+                        ),
+                        child: Text(
+                          statusInfo.displayStatus,
+                          style: TextStyle(
+                            color: statusColor,
+                            fontWeight: FontWeight.bold,
+                            fontSize: screenWidth * 0.03,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                Divider(
+                  height: 1,
+                  color: Theme.of(context).dividerColor.withValues(alpha: 0.1),
+                ),
+
+                // Details Section
+                Padding(
+                  padding: EdgeInsets.all(screenWidth * 0.02),
+                  child: Column(
+                    children: [
+                      // Address Row
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.location_on_outlined,
+                            size: screenWidth * 0.04,
+                            color: Theme.of(context).hintColor,
+                          ),
+                          SizedBox(width: screenWidth * 0.02),
+                          Expanded(
+                            child: Text(
+                              customer.address,
+                              style: TextStyle(
+                                fontSize: screenWidth * 0.035,
                                 color: Theme.of(
                                   context,
                                 ).textTheme.bodyMedium?.color,
-                                fontSize: screenWidth * 0.034,
-                                fontFamily: 'Arial',
-                                fontWeight: FontWeight.w400,
+                                height: 1.3,
                               ),
                             ),
                           ),
                         ],
                       ),
-                      SizedBox(height: screenHeight * 0.005),
-                      _buildInfoRow(
-                        'Customer',
-                        customer.customerName,
-                        screenWidth,
+                      SizedBox(height: screenWidth * 0.02),
+                      // Assigned Driver Row
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.person_outline,
+                            size: screenWidth * 0.04,
+                            color: Theme.of(context).hintColor,
+                          ),
+                          SizedBox(width: screenWidth * 0.02),
+                          Expanded(
+                            child: Text(
+                              'Driver: $assignedEmployee',
+                              style: TextStyle(
+                                fontSize: screenWidth * 0.035,
+                                color: Theme.of(
+                                  context,
+                                ).textTheme.bodyMedium?.color,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      SizedBox(height: screenHeight * 0.002),
-                      _buildInfoRow(
-                        'Customer Id',
-                        customer.customerid,
-                        screenWidth,
-                      ),
-                      SizedBox(height: screenHeight * 0.002),
-                      _buildInfoRow(
-                        'Delivery Address',
-                        customer.address,
-                        screenWidth,
-                      ),
-                      SizedBox(height: screenHeight * 0.002),
-                      _buildInfoRow(
-                        'Assigned Driver',
-                        assignedEmployee,
-                        screenWidth,
+                      SizedBox(height: screenWidth * 0.02),
+                      // Customer ID Row
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.badge_outlined,
+                            size: screenWidth * 0.04,
+                            color: Theme.of(context).hintColor,
+                          ),
+                          SizedBox(width: screenWidth * 0.02),
+                          Expanded(
+                            child: Text(
+                              'Cust ID: ${customer.customerid}',
+                              style: TextStyle(
+                                fontSize: screenWidth * 0.035,
+                                color: Theme.of(
+                                  context,
+                                ).textTheme.bodyMedium?.color,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
                 ),
+
+                if (isCanceledByCustomer)
+                  Padding(
+                    padding: EdgeInsets.only(top: screenWidth * 0.02),
+                    child: _buildCustomerCanceledMessage(
+                      customerName,
+                      screenWidth,
+                    ),
+                  ),
+
+                if (!isCanceled && !isDelivered && !isCanceledByCustomer)
+                  Padding(
+                    padding: EdgeInsets.only(top: screenWidth * 0.02),
+                    child: _buildDeliveryStatusDropdown(
+                      docId,
+                      currentAdminStatus,
+                      screenWidth,
+                    ),
+                  ),
+
+                if (isDelivered)
+                  Padding(
+                    padding: EdgeInsets.only(top: screenWidth * 0.02),
+                    child: _buildDeliveredMessage(screenWidth),
+                  ),
+
+                if (isCanceled && !isCanceledByCustomer)
+                  Padding(
+                    padding: EdgeInsets.only(top: screenWidth * 0.02),
+                    child: _buildCanceledMessage(screenWidth),
+                  ),
               ],
             ),
-            SizedBox(height: screenHeight * 0.01),
-
-            if (isCanceledByCustomer)
-              _buildCustomerCanceledMessage(customerName, screenWidth),
-
-            if (!isCanceled && !isDelivered && !isCanceledByCustomer)
-              _buildDeliveryStatusDropdown(
-                docId,
-                currentAdminStatus,
-                screenWidth,
-              ),
-            if (isDelivered) _buildDeliveredMessage(screenWidth),
-            if (isCanceled && !isCanceledByCustomer)
-              _buildCanceledMessage(screenWidth),
-          ],
+          ),
         ),
       ),
     );
@@ -1296,6 +1407,7 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
+      constraints: BoxConstraints(maxWidth: 500),
       builder: (context) {
         return SafeArea(
           top: false,
@@ -1472,7 +1584,7 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
                                               children: [
                                                 Expanded(
                                                   child: Text(
-                                                    'Booking ID: ${customer.bookingId}',
+                                                    'Booking ID: ${customer.ticketId}',
                                                     style: TextStyle(
                                                       color: Theme.of(context)
                                                           .textTheme
@@ -1600,7 +1712,7 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
                                       ),
                                       _detailRow(
                                         'Message',
-                                        customer.message,
+                                        customer.issueDescription,
                                         screenWidth,
                                       ),
                                       _detailRow(
@@ -1609,7 +1721,7 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
                                         screenWidth,
                                       ),
                                       _buildPaymentTypeRow(
-                                        customer.bookingId,
+                                        customer.ticketId,
                                         screenWidth,
                                       ),
                                       _detailRow(
@@ -1895,7 +2007,7 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
                                 ],
 
                                 _buildCustomerFeedback(
-                                  customer.bookingId,
+                                  customer.ticketId,
                                   screenWidth,
                                 ),
                               ],

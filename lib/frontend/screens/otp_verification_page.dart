@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'reset_password_page.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class OTPVerificationPage extends StatefulWidget {
   final String email;
@@ -57,9 +58,12 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: kMaxFormWidth),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
@@ -114,6 +118,8 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
               ),
             ),
           ],
+          ),
+          ),
         ),
       ),
     );

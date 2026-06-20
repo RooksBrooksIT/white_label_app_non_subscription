@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class AdminTransactionsScreen extends StatefulWidget {
   const AdminTransactionsScreen({super.key});
@@ -54,9 +55,14 @@ class _AdminTransactionsScreenState extends State<AdminTransactionsScreen> {
           ),
         ],
       ),
-      body: Container(
-        color: Colors.grey[50],
-        child: Column(
+      body: ResponsiveWrapper(
+        maxWidth: 1200.0,
+        child: Container(
+          color: Colors.grey[50],
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 500),
+              child: Column(
           children: [
             // Search and Filter Section
             Container(
@@ -305,6 +311,9 @@ class _AdminTransactionsScreenState extends State<AdminTransactionsScreen> {
               ),
             ),
           ],
+        ),
+            ),
+          ),
         ),
       ),
     );

@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:subscription_rooks_app/subscription/terms_and_conditions_screen.dart';
 import 'package:subscription_rooks_app/frontend/screens/unified_login_screen.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class AuthSelectionScreen extends StatefulWidget {
   const AuthSelectionScreen({super.key});
@@ -119,9 +120,12 @@ class _AuthSelectionScreenState extends State<AuthSelectionScreen>
               opacity: _fadeAnimation,
               child: SlideTransition(
                 position: _slideAnimation,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Column(
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: kMaxFormWidth),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Column(
                     children: [
                       const Spacer(flex: 2),
 
@@ -275,6 +279,8 @@ class _AuthSelectionScreenState extends State<AuthSelectionScreen>
 
                       const SizedBox(height: 20),
                     ],
+                    ),
+                    ),
                   ),
                 ),
               ),

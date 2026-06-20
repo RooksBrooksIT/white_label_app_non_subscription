@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class AboutUsScreen extends StatelessWidget {
   const AboutUsScreen({super.key});
@@ -29,8 +30,10 @@ class AboutUsScreen extends StatelessWidget {
                 : [const Color(0xFFF8F9FA), const Color(0xFFF0F2F5)],
           ),
         ),
-        child: SingleChildScrollView(
-          child: Column(
+        child: ResponsiveWrapper(
+          maxWidth: kMaxContentWidth,
+          child: SingleChildScrollView(
+            child: Column(
             children: [
               // Hero Section with Logo
               Container(
@@ -281,6 +284,7 @@ class AboutUsScreen extends StatelessWidget {
                 ),
               ),
             ],
+          ),
           ),
         ),
       ),

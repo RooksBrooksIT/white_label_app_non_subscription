@@ -41,9 +41,9 @@ class ThemeService extends ChangeNotifier {
       appBarTheme: AppBarTheme(
         backgroundColor: _backgroundColor,
         foregroundColor:
-            _isDarkMode || _backgroundColor.computeLuminance() < 0.5
-            ? Colors.white
-            : Colors.black,
+            _isDarkMode || _backgroundColor.computeLuminance() < 0.5 || _primaryColor.computeLuminance() < 0.5
+                ? Colors.white
+                : Colors.black,
         elevation: 0,
       ),
     );

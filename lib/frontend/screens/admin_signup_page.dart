@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/subscription/subscription_plans_screen.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class AdminSignup extends StatefulWidget {
   const AdminSignup({super.key});
@@ -79,11 +80,13 @@ class _AdminSignupState extends State<AdminSignup> {
           ),
         ),
         child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: kMaxFormWidth),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
                 const SizedBox(height: 20),
                 Card(
                   elevation: 12,
@@ -210,6 +213,7 @@ class _AdminSignupState extends State<AdminSignup> {
                   ),
                 ),
               ],
+            ),
             ),
           ),
         ),

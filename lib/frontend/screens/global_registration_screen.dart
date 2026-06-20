@@ -3,6 +3,7 @@ import 'package:subscription_rooks_app/services/auth_state_service.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:subscription_rooks_app/subscription/subscription_plans_screen.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class GlobalRegistrationScreen extends StatefulWidget {
   const GlobalRegistrationScreen({super.key});
@@ -109,9 +110,11 @@ class _GlobalRegistrationScreenState extends State<GlobalRegistrationScreen> {
         ),
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Form(
+        child: ResponsiveWrapper(
+          maxWidth: kMaxFormWidth,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Form(
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -241,6 +244,7 @@ class _GlobalRegistrationScreenState extends State<GlobalRegistrationScreen> {
                 const SizedBox(height: 40),
               ],
             ),
+          ),
           ),
         ),
       ),

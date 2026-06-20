@@ -4,6 +4,7 @@ import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/frontend/screens/assign_confirmation_page.dart';
 import 'package:subscription_rooks_app/frontend/screens/customer_var_data_screen.dart';
 import 'package:subscription_rooks_app/services/notification_service.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class AssignEngineerPage extends StatefulWidget {
   final Customer customer;
@@ -44,74 +45,77 @@ class _AssignEngineerPageState extends State<AssignEngineerPage> {
         ),
         backgroundColor: Theme.of(context).primaryColor,
       ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  ElevatedButton(
-                    onPressed: () {
-                      setState(() {
-                        _isEngineerSelected = true;
-                        _showHelperInputs = false;
-                        _selectedHelper = null;
-                        _reasonController.clear();
-                        addedHelpers.clear();
-                      });
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _isEngineerSelected
-                          ? Theme.of(context).primaryColor
-                          : Theme.of(context).disabledColor,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30),
+      body: ResponsiveWrapper(
+        maxWidth: kMaxContentWidth,
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    ElevatedButton(
+                      onPressed: () {
+                        setState(() {
+                          _isEngineerSelected = true;
+                          _showHelperInputs = false;
+                          _selectedHelper = null;
+                          _reasonController.clear();
+                          addedHelpers.clear();
+                        });
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _isEngineerSelected
+                            ? Theme.of(context).primaryColor
+                            : Theme.of(context).disabledColor,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                      ),
+                      child: const Text(
+                        'Engineer',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
-                    child: const Text(
-                      'Engineer',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                    const SizedBox(width: 20),
+                    ElevatedButton(
+                      onPressed: () {
+                        setState(() {
+                          _isEngineerSelected = false;
+                          _showHelperInputs = true;
+                          _selectedHelper = null;
+                          _reasonController.clear();
+                          addedHelpers.clear();
+                        });
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: !_isEngineerSelected
+                            ? Theme.of(context).primaryColor
+                            : Theme.of(context).disabledColor,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                      ),
+                      child: const Text(
+                        'Helper',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 20),
-                  ElevatedButton(
-                    onPressed: () {
-                      setState(() {
-                        _isEngineerSelected = false;
-                        _showHelperInputs = true;
-                        _selectedHelper = null;
-                        _reasonController.clear();
-                        addedHelpers.clear();
-                      });
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: !_isEngineerSelected
-                          ? Theme.of(context).primaryColor
-                          : Theme.of(context).disabledColor,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                    ),
-                    child: const Text(
-                      'Helper',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              _isEngineerSelected ? _buildEngineerView() : _buildHelperView(),
-            ],
+                  ],
+                ),
+                const SizedBox(height: 20),
+                _isEngineerSelected ? _buildEngineerView() : _buildHelperView(),
+              ],
+            ),
           ),
         ),
       ),
@@ -157,11 +161,11 @@ class _AssignEngineerPageState extends State<AssignEngineerPage> {
             const SizedBox(height: 10),
             Divider(color: Theme.of(context).dividerColor, thickness: 1),
             const SizedBox(height: 10),
-            _buildDetailRow('Booking ID', widget.customer.bookingId),
+            _buildDetailRow('Booking ID', widget.customer.ticketId),
             _buildDetailRow('Device', widget.customer.deviceType),
             _buildDetailRow('Brand', widget.customer.deviceBrand),
             _buildDetailRow('Condition', widget.customer.deviceCondition),
-            _buildDetailRow('Message', widget.customer.message),
+            _buildDetailRow('Message', widget.customer.issueDescription),
             _buildDetailRow('Address', widget.customer.address),
             _buildDetailRow('Contact Number', widget.customer.mobileNumber),
             const SizedBox(height: 20),
@@ -203,8 +207,8 @@ class _AssignEngineerPageState extends State<AssignEngineerPage> {
   Widget _buildHelperView() {
     return FutureBuilder<DocumentSnapshot>(
       future: FirestoreService.instance
-          .collection('Admin_details')
-          .doc(widget.customer.bookingId)
+          .collection('Raised_tickets')
+          .doc(widget.customer.ticketId)
           .get(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -214,7 +218,7 @@ class _AssignEngineerPageState extends State<AssignEngineerPage> {
           return Center(child: Text('Error: ${snapshot.error}'));
         }
         final data = snapshot.data?.data() as Map<String, dynamic>? ?? {};
-        final assignedEmployee = data['assignedEmployee'] as String? ?? '';
+        final assignedEmployee = data['assignedEngineer'] as String? ?? '';
 
         return Card(
           elevation: 5,
@@ -237,7 +241,10 @@ class _AssignEngineerPageState extends State<AssignEngineerPage> {
                             widget.customer.deviceCondition,
                           ),
                           _buildDetailRow('Device', widget.customer.deviceType),
-                          _buildDetailRow('Message', widget.customer.message),
+                          _buildDetailRow(
+                            'Message',
+                            widget.customer.issueDescription,
+                          ),
                         ],
                       ),
                 const SizedBox(height: 20),
@@ -374,8 +381,8 @@ class _AssignEngineerPageState extends State<AssignEngineerPage> {
                       onPressed: () async {
                         try {
                           final docRef = FirestoreService.instance
-                              .collection('Admin_details')
-                              .doc(widget.customer.bookingId);
+                              .collection('Raised_tickets')
+                              .doc(widget.customer.ticketId);
                           final snapshot = await docRef.get();
 
                           final existingData = snapshot.data() ?? {};
@@ -392,7 +399,9 @@ class _AssignEngineerPageState extends State<AssignEngineerPage> {
                             }
                           });
 
-                          Map<String, dynamic> fieldsToUpdate = {};
+                          Map<String, dynamic> fieldsToUpdate = {
+                            'updatedAt': FieldValue.serverTimestamp(),
+                          };
 
                           for (int i = 0; i < addedHelpers.length; i++) {
                             final index = maxIndex + i + 1;
@@ -570,22 +579,25 @@ class _AssignEngineerPageState extends State<AssignEngineerPage> {
 
       // Save the assignment details - this will trigger the Cloud Function to send the notification
       await FirestoreService.instance
-          .collection('Admin_details')
-          .doc(widget.customer.bookingId)
+          .collection('Raised_tickets')
+          .doc(widget.customer.ticketId)
           .set({
-            'id': widget.customer.customerid, // Ensure id is passed for notifications
-            'assignedEmployee': engineerName.trim(),
+            'id': widget
+                .customer
+                .customerid, // Ensure id is passed for notifications
+            'assignedEngineer': engineerName.trim(),
             'customerName': widget.customer.customerName,
-            'bookingId': widget.customer.bookingId,
+            'ticketId': widget.customer.ticketId,
             'deviceType': widget.customer.deviceType,
             'deviceBrand': widget.customer.deviceBrand,
             'deviceCondition': widget.customer.deviceCondition,
-            'message': widget.customer.message,
+            'issueDescription': widget.customer.issueDescription,
             'address': widget.customer.address,
             'notificationStatus': 'pending',
+            'adminStatus': 'Assigned',
             'engineerStatus': 'Assigned',
-            'timestamp': FieldValue.serverTimestamp(),
-            'AssignedTimestamp': assignedTimestamp,
+            'updatedAt': FieldValue.serverTimestamp(),
+            'assignedTimestamp': assignedTimestamp,
             'mobileNumber': widget.customer.mobileNumber,
           }, SetOptions(merge: true));
 
@@ -596,10 +608,11 @@ class _AssignEngineerPageState extends State<AssignEngineerPage> {
         audience: 'engineer',
         engineerName: engineerName,
         type: 'new_assignment',
-        bookingId: widget.customer.bookingId,
-        body: 'You have been assigned a new task: ${widget.customer.bookingId}',
+        bookingId: widget.customer.ticketId,
+        body: 'You have been assigned a new task: ${widget.customer.ticketId}',
         customerName: widget.customer.customerName,
-        additionalData: {'processed': false, 'status': 'pending'}, title: '',
+        additionalData: {'processed': false, 'status': 'pending'},
+        title: '',
       );
 
       if (mounted) {

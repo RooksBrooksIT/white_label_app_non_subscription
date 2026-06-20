@@ -111,6 +111,28 @@ class AdminDashboardBackend {
         );
   }
 
+  static Stream<int> getServiceTicketCountStream() {
+    return FirestoreService.instance
+        .collection('Admin_details')
+        .snapshots()
+        .map((snapshot) => snapshot.docs.where((doc) {
+              final data = doc.data();
+              final jobType = (data['jobType']?.toString() ?? data['JobType']?.toString() ?? '').toLowerCase().trim();
+              return jobType == 'service';
+            }).length);
+  }
+
+  static Stream<int> getCallLogCountStream() {
+    return FirestoreService.instance
+        .collection('Admin_details')
+        .snapshots()
+        .map((snapshot) => snapshot.docs.where((doc) {
+              final data = doc.data();
+              final jobType = (data['jobType']?.toString() ?? data['JobType']?.toString() ?? '').toLowerCase().trim();
+              return jobType.contains('delivery');
+            }).length);
+  }
+
   static Future<void> logout() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.clear();

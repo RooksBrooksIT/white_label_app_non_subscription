@@ -23,6 +23,7 @@ import 'package:subscription_rooks_app/services/storage_service.dart';
 import 'package:subscription_rooks_app/services/attendance_service.dart';
 import 'package:subscription_rooks_app/frontend/screens/engineer_location_screen.dart';
 import 'package:subscription_rooks_app/frontend/screens/engineer_edit_profile_screen.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
@@ -135,6 +136,7 @@ class AdminDetails {
   String description;
   String amount;
   List<String> imageUrls;
+  List<Map<String, dynamic>> uploadedFiles;
   String paymentType;
   final String adminStatus;
   final String customerDecision;
@@ -158,6 +160,7 @@ class AdminDetails {
     required this.description,
     required this.amount,
     this.imageUrls = const [],
+    this.uploadedFiles = const [],
     this.paymentType = '',
     required this.adminStatus,
     required this.customerDecision,
@@ -180,9 +183,18 @@ class AdminDetails {
 
   factory AdminDetails.fromFirestore(DocumentSnapshot doc) {
     var data = doc.data() as Map<String, dynamic>;
+    // Parse uploadedFiles
+    List<Map<String, dynamic>> parsedUploadedFiles = [];
+    if (data['uploadedFiles'] is List) {
+      for (var file in data['uploadedFiles']) {
+        if (file is Map<String, dynamic>) {
+          parsedUploadedFiles.add(file);
+        }
+      }
+    }
     return AdminDetails(
       docId: doc.id,
-      bookingId: data['bookingId'] ?? '',
+      bookingId: data['ticketId'] ?? '',
       customerName: data['customerName'] ?? '',
       deviceBrand: data['deviceBrand'] ?? '',
       deviceType: data['deviceType'] ?? '',
@@ -191,17 +203,20 @@ class AdminDetails {
       mobileNumber: data['mobileNumber'] ?? '',
       customerId: data['id']?.toString() ?? '',
       selectedStatus: data['engineerStatus'] ?? data['adminStatus'] ?? '',
-      description: data['description'] ?? '',
-      amount: data['amount']?.toString() ?? '',
-      imageUrls: List<String>.from(data['imageUrls'] ?? []),
+      description: data['issueDescription'] ?? data['description'] ?? '',
+      amount: data['paymentDetails']?.toString() ?? '',
+      imageUrls: List<String>.from(
+        data['uploadedImages'] ?? data['imageUrls'] ?? [],
+      ),
+      uploadedFiles: parsedUploadedFiles,
       paymentType: data['PaymentType'] ?? '',
       adminStatus: data['adminStatus'] ?? '',
       customerDecision: data['Customer_decision'] ?? '',
-      assignedTimestamp: data['AssignedTimestamp'],
+      assignedTimestamp: data['assignedTimestamp'] ?? data['AssignedTimestamp'],
       completedAt: data['completedAt'],
       id: data['id'] ?? '',
-      lat: (data['lat'] as num?)?.toDouble(),
-      lng: (data['lng'] as num?)?.toDouble(),
+      lat: (data['latitude'] as num?)?.toDouble(),
+      lng: (data['longitude'] as num?)?.toDouble(),
     );
   }
 
@@ -844,7 +859,7 @@ class _EngineerPageState extends State<EngineerPage> {
   ) async {
     try {
       final doc = await FirestoreService.instance
-          .collection('Admin_details')
+          .collection('Raised_tickets')
           .doc(bookingId)
           .get();
 
@@ -944,70 +959,73 @@ class _EngineerPageState extends State<EngineerPage> {
       context: context,
       builder: (context) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  color: ProfessionalTheme.primary(
-                    context,
-                  ).withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.notifications_active,
-                  color: ProfessionalTheme.primary(context),
-                  size: 32,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                data['type'] == 'new_assignment'
-                    ? 'New Assignment'
-                    : 'Notification',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: ProfessionalTheme.textPrimary(context),
-                ),
-              ),
-              const SizedBox(height: 12),
-              if (data['type'] == 'new_assignment') ...[
-                // const SizedBox(height: 8, width: 8),
-                // _buildNotificationItem('Customer', data['customerName']),
-                // const SizedBox(height: 8),
-                _buildNotificationItem('Booking ID', data['bookingId']),
-              ],
-              if (data['body'] != null) ...[
-                const SizedBox(height: 8),
-                _buildNotificationItem('Message', data['body']),
-              ],
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: ProfessionalTheme.primary(context),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: ProfessionalTheme.primary(
+                      context,
+                    ).withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
                   ),
-                  child: Text(
-                    'Got It',
-                    style: TextStyle(
-                      color: ProfessionalTheme.textInverse(context),
-                      fontWeight: FontWeight.w600,
-                    ),
+                  child: Icon(
+                    Icons.notifications_active,
+                    color: ProfessionalTheme.primary(context),
+                    size: 32,
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 16),
+                Text(
+                  data['type'] == 'new_assignment'
+                      ? 'New Assignment'
+                      : 'Notification',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: ProfessionalTheme.textPrimary(context),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (data['type'] == 'new_assignment') ...[
+                  // const SizedBox(height: 8, width: 8),
+                  // _buildNotificationItem('Customer', data['customerName']),
+                  // const SizedBox(height: 8),
+                  _buildNotificationItem('Booking ID', data['bookingId']),
+                ],
+                if (data['body'] != null) ...[
+                  const SizedBox(height: 8),
+                  _buildNotificationItem('Message', data['body']),
+                ],
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: ProfessionalTheme.primary(context),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: Text(
+                      'Got It',
+                      style: TextStyle(
+                        color: ProfessionalTheme.textInverse(context),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1047,86 +1065,89 @@ class _EngineerPageState extends State<EngineerPage> {
       context: context,
       builder: (context) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  color: ProfessionalTheme.error.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: ProfessionalTheme.error.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.logout,
+                    color: ProfessionalTheme.error,
+                    size: 32,
+                  ),
                 ),
-                child: Icon(
-                  Icons.logout,
-                  color: ProfessionalTheme.error,
-                  size: 32,
+                const SizedBox(height: 16),
+                Text(
+                  'Confirm Logout',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: ProfessionalTheme.textPrimary(context),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Confirm Logout',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: ProfessionalTheme.textPrimary(context),
+                const SizedBox(height: 8),
+                Text(
+                  'Are you sure you want to logout from your account?',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: ProfessionalTheme.textSecondary(context),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Are you sure you want to logout from your account?',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: ProfessionalTheme.textSecondary(context),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: OutlinedButton.styleFrom(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: OutlinedButton.styleFrom(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          side: BorderSide(
+                            color: ProfessionalTheme.borderMedium(context),
+                          ),
                         ),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        side: BorderSide(
-                          color: ProfessionalTheme.borderMedium(context),
-                        ),
-                      ),
-                      child: Text(
-                        'Cancel',
-                        style: TextStyle(
-                          color: ProfessionalTheme.textSecondary(context),
+                        child: Text(
+                          'Cancel',
+                          style: TextStyle(
+                            color: ProfessionalTheme.textSecondary(context),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: _performLogout,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: ProfessionalTheme.error,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: _performLogout,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: ProfessionalTheme.error,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      child: Text(
-                        'Logout',
-                        style: TextStyle(
-                          color: ProfessionalTheme.textInverse(context),
+                        child: Text(
+                          'Logout',
+                          style: TextStyle(
+                            color: ProfessionalTheme.textInverse(context),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1220,7 +1241,6 @@ class _EngineerPageState extends State<EngineerPage> {
 
   Widget _buildTopSection() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 16, 16, 16),
       decoration: BoxDecoration(
         color: ProfessionalTheme.primary(context),
         boxShadow: [
@@ -1231,63 +1251,68 @@ class _EngineerPageState extends State<EngineerPage> {
           ),
         ],
       ),
-      child: Row(
-        children: [
-          // Logo
-          if (ThemeService.instance.logoUrl != null)
-            CircleAvatar(
-              radius: 20,
-              backgroundColor: Colors.white.withValues(alpha: 0.9),
-              backgroundImage: NetworkImage(ThemeService.instance.logoUrl!),
-            ),
-          if (ThemeService.instance.logoUrl != null) const SizedBox(width: 12),
-          // App and User Name
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  ThemeService.instance.appName,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    color: ProfessionalTheme.textInverse(
-                      context,
-                    ).withValues(alpha: 0.9),
-                    letterSpacing: 1.0,
-                  ),
-                ),
-                Text(
-                  widget.userName,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: ProfessionalTheme.textInverse(context),
-                    letterSpacing: -0.5,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-          // Online Toggle
-          _buildOnlineToggle(),
-          const SizedBox(width: 12),
-          // Burger Menu Button (Moved to right)
-          GestureDetector(
-            onTap: () => _scaffoldKey.currentState?.openEndDrawer(),
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.18),
-                borderRadius: BorderRadius.circular(12),
+      child: ResponsiveWrapper(
+        maxWidth: 960.0,
+        padding: const EdgeInsets.fromLTRB(20, 16, 16, 16),
+        child: Row(
+          children: [
+            // Logo
+            if (ThemeService.instance.logoUrl != null)
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: Colors.white.withValues(alpha: 0.9),
+                backgroundImage: NetworkImage(ThemeService.instance.logoUrl!),
               ),
-              child: Icon(Icons.menu_rounded, color: Colors.white, size: 24),
+            if (ThemeService.instance.logoUrl != null)
+              const SizedBox(width: 12),
+            // App and User Name
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    ThemeService.instance.appName,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: ProfessionalTheme.textInverse(
+                        context,
+                      ).withValues(alpha: 0.9),
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+                  Text(
+                    widget.userName,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: ProfessionalTheme.textInverse(context),
+                      letterSpacing: -0.5,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+            // Online Toggle
+            _buildOnlineToggle(),
+            const SizedBox(width: 12),
+            // Burger Menu Button (Moved to right)
+            GestureDetector(
+              onTap: () => _scaffoldKey.currentState?.openEndDrawer(),
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(Icons.menu_rounded, color: Colors.white, size: 24),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1371,45 +1396,48 @@ class _EngineerPageState extends State<EngineerPage> {
 
   Widget _buildDashboardView() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (!_isCheckedIn) _buildCheckInCard(),
-          const SizedBox(height: 24),
-          Text(
-            'Work Summary Dashboard',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: ProfessionalTheme.textPrimary(context),
+      child: ResponsiveWrapper(
+        maxWidth: 960.0,
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (!_isCheckedIn) _buildCheckInCard(),
+            const SizedBox(height: 24),
+            Text(
+              'Work Summary Dashboard',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: ProfessionalTheme.textPrimary(context),
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-          _buildWorkSummaryDashboard(),
-          const SizedBox(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Recent Tasks',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: ProfessionalTheme.textPrimary(context),
+            const SizedBox(height: 16),
+            _buildWorkSummaryDashboard(),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Recent Tasks',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: ProfessionalTheme.textPrimary(context),
+                  ),
                 ),
-              ),
-              TextButton(
-                onPressed: () {
-                  setState(() => _selectedIndex = 1); // Go to Bookings
-                },
-                child: const Text('View All'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _buildRecentTasks(),
-        ],
+                TextButton(
+                  onPressed: () {
+                    setState(() => _selectedIndex = 1); // Go to Bookings
+                  },
+                  child: const Text('View All'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _buildRecentTasks(),
+          ],
+        ),
       ),
     );
   }
@@ -1492,8 +1520,8 @@ class _EngineerPageState extends State<EngineerPage> {
   Widget _buildStatsCards() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirestoreService.instance
-          .collection('Admin_details')
-          .where('assignedEmployee', isEqualTo: widget.userName)
+          .collection('Raised_tickets')
+          .where('assignedEngineer', isEqualTo: widget.userName)
           .snapshots(),
       builder: (context, snapshot) {
         int totalCompleted = 0;
@@ -1583,8 +1611,8 @@ class _EngineerPageState extends State<EngineerPage> {
   Widget _buildWorkSummaryDashboard() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirestoreService.instance
-          .collection('Admin_details')
-          .where('assignedEmployee', isEqualTo: widget.userName)
+          .collection('Raised_tickets')
+          .where('assignedEngineer', isEqualTo: widget.userName)
           .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
@@ -1919,8 +1947,8 @@ class _EngineerPageState extends State<EngineerPage> {
   Widget _buildRecentTasks() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirestoreService.instance
-          .collection('Admin_details')
-          .where('assignedEmployee', isEqualTo: widget.userName)
+          .collection('Raised_tickets')
+          .where('assignedEngineer', isEqualTo: widget.userName)
           .where('engineerStatus', isEqualTo: 'Assigned')
           .limit(3)
           .snapshots(),
@@ -2074,134 +2102,142 @@ class _EngineerPageState extends State<EngineerPage> {
         final address = data['Address'] ?? 'Not provided';
 
         return SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            children: [
-              const SizedBox(height: 16),
+          child: ResponsiveWrapper(
+            maxWidth: kMaxCardWidth,
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              children: [
+                const SizedBox(height: 16),
 
-              // Profile avatar
-              Container(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: ProfessionalTheme.primary(context),
-                    width: 3,
-                  ),
-                  boxShadow: ProfessionalTheme.elevatedShadow,
-                ),
-                child: CircleAvatar(
-                  radius: 52,
-                  backgroundColor: ProfessionalTheme.primaryExtraLight(context),
-                  child: Text(
-                    (widget.userName.isNotEmpty ? widget.userName[0] : 'E')
-                        .toUpperCase(),
-                    style: TextStyle(
-                      fontSize: 40,
-                      fontWeight: FontWeight.w900,
-                      color: ProfessionalTheme.primary(context),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              Text(
-                widget.userName,
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  color: ProfessionalTheme.textPrimary(context),
-                ),
-              ),
-              const SizedBox(height: 4),
-              if (specialization != 'Not provided')
+                // Profile avatar
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 6,
-                  ),
                   decoration: BoxDecoration(
-                    color: ProfessionalTheme.primaryExtraLight(context),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    specialization,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
+                    shape: BoxShape.circle,
+                    border: Border.all(
                       color: ProfessionalTheme.primary(context),
+                      width: 3,
                     ),
+                    boxShadow: ProfessionalTheme.elevatedShadow,
                   ),
-                ),
-              const SizedBox(height: 32),
-
-              // Info cards
-              _buildProfileItem(Icons.email_rounded, 'Email', email),
-              _buildProfileItem(Icons.phone_rounded, 'Mobile Number', phone),
-              _buildProfileItem(
-                Icons.architecture_rounded,
-                'Specialization',
-                specialization,
-              ),
-              _buildProfileItem(Icons.place_rounded, 'Address', address),
-
-              const SizedBox(height: 32),
-
-              // Edit Profile button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () async {
-                    final updated = await Navigator.push<bool>(
+                  child: CircleAvatar(
+                    radius: 52,
+                    backgroundColor: ProfessionalTheme.primaryExtraLight(
                       context,
-                      MaterialPageRoute(
-                        builder: (context) => EngineerEditProfileScreen(
-                          engineerName: widget.userName,
-                        ),
+                    ),
+                    child: Text(
+                      (widget.userName.isNotEmpty ? widget.userName[0] : 'E')
+                          .toUpperCase(),
+                      style: TextStyle(
+                        fontSize: 40,
+                        fontWeight: FontWeight.w900,
+                        color: ProfessionalTheme.primary(context),
                       ),
-                    );
-                    if (updated == true && mounted) {
-                      setState(() {}); // trigger StreamBuilder refresh
-                    }
-                  },
-                  icon: const Icon(Icons.edit_rounded),
-                  label: const Text(
-                    'Edit Profile',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: ProfessionalTheme.primary(context),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 16),
+                const SizedBox(height: 16),
 
-              // Logout button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _showLogoutConfirmation,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: ProfessionalTheme.error,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                  child: const Text(
-                    'Logout Account',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                Text(
+                  widget.userName,
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    color: ProfessionalTheme.textPrimary(context),
                   ),
                 ),
-              ),
-              const SizedBox(height: 24),
-            ],
+                const SizedBox(height: 4),
+                if (specialization != 'Not provided')
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: ProfessionalTheme.primaryExtraLight(context),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      specialization,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: ProfessionalTheme.primary(context),
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 32),
+
+                // Info cards
+                _buildProfileItem(Icons.email_rounded, 'Email', email),
+                _buildProfileItem(Icons.phone_rounded, 'Mobile Number', phone),
+                _buildProfileItem(
+                  Icons.architecture_rounded,
+                  'Specialization',
+                  specialization,
+                ),
+                _buildProfileItem(Icons.place_rounded, 'Address', address),
+
+                const SizedBox(height: 32),
+
+                // Edit Profile button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      final updated = await Navigator.push<bool>(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => EngineerEditProfileScreen(
+                            engineerName: widget.userName,
+                          ),
+                        ),
+                      );
+                      if (updated == true && mounted) {
+                        setState(() {}); // trigger StreamBuilder refresh
+                      }
+                    },
+                    icon: const Icon(Icons.edit_rounded),
+                    label: const Text(
+                      'Edit Profile',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: ProfessionalTheme.primary(context),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Logout button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _showLogoutConfirmation,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: ProfessionalTheme.error,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: const Text(
+                      'Logout Account',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
+            ),
           ),
         );
       },
@@ -2262,8 +2298,8 @@ class _EngineerPageState extends State<EngineerPage> {
   Widget _buildBookingsView() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirestoreService.instance
-          .collection('Admin_details')
-          .where('assignedEmployee', isEqualTo: widget.userName)
+          .collection('Raised_tickets')
+          .where('assignedEngineer', isEqualTo: widget.userName)
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting && _isLoading) {
@@ -2327,29 +2363,32 @@ class _EngineerPageState extends State<EngineerPage> {
               .length;
         }
 
-        return Column(
-          children: [
-            Padding(
-              padding: _pagePadding(context).copyWith(bottom: 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _sectionHeader('Bookings'),
-                  const SizedBox(height: 12),
-                  _buildSearchField(),
-                  if (_currentSection == 'dashboard') ...[
+        return ResponsiveWrapper(
+          maxWidth: 960.0,
+          child: Column(
+            children: [
+              Padding(
+                padding: _pagePadding(context).copyWith(bottom: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _sectionHeader('Bookings'),
                     const SizedBox(height: 12),
-                    _buildStatusFilterChips(),
+                    _buildSearchField(),
+                    if (_currentSection == 'dashboard') ...[
+                      const SizedBox(height: 12),
+                      _buildStatusFilterChips(),
+                    ],
+                    const SizedBox(height: 12),
+                    _buildResultsMeta(),
                   ],
-                  const SizedBox(height: 12),
-                  _buildResultsMeta(),
-                ],
+                ),
               ),
-            ),
 
-            // Bookings List
-            Expanded(child: _buildSearchResults()),
-          ],
+              // Bookings List
+              Expanded(child: _buildSearchResults()),
+            ],
+          ),
         );
       },
     );
@@ -2907,8 +2946,8 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
 
   void _loadExistingPayments() {
     FirestoreService.instance
-        .collection('Admin_details')
-        .where('bookingId', isEqualTo: widget.booking.bookingId)
+        .collection('Raised_tickets')
+        .where('ticketId', isEqualTo: widget.booking.bookingId)
         .get()
         .then((query) {
           if (query.docs.isNotEmpty) {
@@ -3089,88 +3128,91 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
       context: context,
       builder: (context) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  color: ProfessionalTheme.primary(
-                    context,
-                  ).withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: ProfessionalTheme.primary(
+                      context,
+                    ).withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.update,
+                    color: ProfessionalTheme.primary(context),
+                    size: 32,
+                  ),
                 ),
-                child: Icon(
-                  Icons.update,
-                  color: ProfessionalTheme.primary(context),
-                  size: 32,
+                const SizedBox(height: 16),
+                Text(
+                  'Confirm Update',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: ProfessionalTheme.textPrimary(context),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Confirm Update',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: ProfessionalTheme.textPrimary(context),
+                const SizedBox(height: 8),
+                Text(
+                  'Are you sure you want to update this job with the current information?',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: ProfessionalTheme.textSecondary(context),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Are you sure you want to update this job with the current information?',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: ProfessionalTheme.textSecondary(context),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      style: OutlinedButton.styleFrom(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        style: OutlinedButton.styleFrom(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          side: BorderSide(
+                            color: ProfessionalTheme.borderMedium(context),
+                          ),
                         ),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        side: BorderSide(
-                          color: ProfessionalTheme.borderMedium(context),
-                        ),
-                      ),
-                      child: Text(
-                        'Cancel',
-                        style: TextStyle(
-                          color: ProfessionalTheme.textSecondary(context),
+                        child: Text(
+                          'Cancel',
+                          style: TextStyle(
+                            color: ProfessionalTheme.textSecondary(context),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () => Navigator.pop(context, true),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: ProfessionalTheme.primary(context),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: ProfessionalTheme.primary(context),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      child: Text(
-                        'Update',
-                        style: TextStyle(
-                          color: ProfessionalTheme.textInverse(context),
+                        child: Text(
+                          'Update',
+                          style: TextStyle(
+                            color: ProfessionalTheme.textInverse(context),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -3185,70 +3227,48 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
           ...newImageUrls,
         ];
 
-        var query = await FirestoreService.instance
-            .collection('Admin_details')
-            .where('bookingId', isEqualTo: widget.booking.bookingId)
-            .get();
+        final docRef = FirestoreService.instance
+            .collection('Raised_tickets')
+            .doc(widget.booking.bookingId);
 
-        for (var doc in query.docs) {
-          Map<String, dynamic> updateData = {
-            'engineerStatus': _currentStatus,
-            'description': widget.descriptionController.text,
-            'amount': double.tryParse(_amountController.text.trim()) ?? 0,
-            'imageUrls': allImageUrls,
-            'lastUpdated': FieldValue.serverTimestamp(),
-            'PaymentType': paymentTypeToSave,
-            'lastUpdatedBy': widget.userName,
-          };
+        Map<String, dynamic> updateData = {
+          'engineerStatus': _currentStatus,
+          'issueDescription': widget.descriptionController.text,
+          'paymentDetails': double.tryParse(_amountController.text.trim()) ?? 0,
+          'uploadedImages': allImageUrls,
+          'updatedAt': FieldValue.serverTimestamp(),
+          'PaymentType': paymentTypeToSave,
+          'lastUpdatedBy': widget.userName,
+        };
 
-          // Payments: Use Timestamp.now() for nested timestamps
-          if (_payments.isNotEmpty) {
-            updateData['payments'] = _payments.map((p) {
-              return {
-                ...p,
-                'addedAt': Timestamp.now(), // Use Timestamp.now() here
-              };
-            }).toList();
-          }
-
-          // Status history tracking: Use Timestamp.now() for nested
-          updateData['statusHistory'] = [
-            {
-              'status': _currentStatus,
-              'timestamp': Timestamp.now(), // Use Timestamp.now() here
-              'updatedBy': widget.userName,
-            },
-          ];
-
-          // If status is completed, set both engineerStatus and adminStatus
-          if (_currentStatus.toLowerCase() == 'completed') {
-            updateData['engineerStatus'] = 'Completed';
-            // updateData['adminStatus'] = 'Closed';
-            updateData['completedAt'] = FieldValue.serverTimestamp();
-            updateData['completedBy'] = widget.userName;
-          }
-
-          await doc.reference.set(updateData, SetOptions(merge: true));
+        // Payments: Use Timestamp.now() for nested timestamps
+        if (_payments.isNotEmpty) {
+          updateData['payments'] = _payments.map((p) {
+            return {
+              ...p,
+              'addedAt': Timestamp.now(), // Use Timestamp.now() here
+            };
+          }).toList();
         }
 
-        await FirestoreService.instance
-            .collection('Engineer_updates')
-            .doc(widget.booking.bookingId.trim())
-            .set({
-              'bookingId': widget.booking.bookingId,
-              'PaymentType': paymentTypeToSave,
-              'engineerStatus': _currentStatus,
-              'statusDescription': widget.descriptionController.text.trim(),
-              'amount': double.tryParse(_amountController.text.trim()) ?? 0,
-              'updatedBy': widget.userName,
-              'updatedAt': FieldValue.serverTimestamp(),
-              'imageUrls': allImageUrls,
-              'payments': _payments
-                  .map((p) => {...p, 'addedAt': Timestamp.now()})
-                  .toList(),
-              'lat': _capturedLat,
-              'lng': _capturedLng,
-            }, SetOptions(merge: true));
+        // Status history tracking: Use Timestamp.now() for nested
+        updateData['statusHistory'] = [
+          {
+            'status': _currentStatus,
+            'timestamp': Timestamp.now(), // Use Timestamp.now() here
+            'updatedBy': widget.userName,
+          },
+        ];
+
+        // If status is completed, set both engineerStatus and adminStatus
+        if (_currentStatus.toLowerCase() == 'completed') {
+          updateData['engineerStatus'] = 'Completed';
+          // updateData['adminStatus'] = 'Closed';
+          updateData['completedAt'] = FieldValue.serverTimestamp();
+          updateData['completedBy'] = widget.userName;
+        }
+
+        await docRef.set(updateData, SetOptions(merge: true));
 
         _showSnackBar('Job updated successfully!', ProfessionalTheme.success);
 
@@ -3468,6 +3488,7 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
                 _buildSectionHeader('Job Details', Icons.info_outline),
                 const SizedBox(height: 12),
                 _buildDetailsSection(),
+                _buildUploadedFilesSection(),
                 const SizedBox(height: 24),
                 _buildSectionHeader(
                   'Status Management',
@@ -3512,6 +3533,182 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
           ),
         ),
       ),
+    );
+  }
+
+  void _showImageDialog(BuildContext context, String imageUrl) {
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(20),
+        child: Stack(
+          children: [
+            GestureDetector(
+              onTap: () => Navigator.of(context).pop(),
+              child: Container(
+                color: Colors.black.withValues(alpha: 0.1),
+                child: Center(
+                  child: InteractiveViewer(
+                    child: Image.network(
+                      imageUrl,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        color: Colors.grey[300],
+                        child: const Icon(
+                          Icons.broken_image,
+                          color: Colors.grey,
+                          size: 100,
+                        ),
+                      ),
+                      loadingBuilder: (context, child, progress) {
+                        if (progress == null) return child;
+                        return const Center(child: CircularProgressIndicator());
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 20,
+              right: 20,
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white, size: 30),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUploadedFilesSection() {
+    if (widget.booking.uploadedFiles.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 24),
+        _buildSectionHeader('Uploaded Files', Icons.attach_file_outlined),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 100,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: widget.booking.uploadedFiles.length,
+            separatorBuilder: (context, index) => const SizedBox(width: 10),
+            itemBuilder: (context, idx) {
+              final file = widget.booking.uploadedFiles[idx];
+              final fileUrl = file['url']?.toString() ?? '';
+              final fileName = file['name']?.toString() ?? 'File ${idx + 1}';
+
+              // Check if it's an image
+              final isImage =
+                  fileName.toLowerCase().endsWith('.jpg') ||
+                  fileName.toLowerCase().endsWith('.jpeg') ||
+                  fileName.toLowerCase().endsWith('.png') ||
+                  fileName.toLowerCase().endsWith('.gif') ||
+                  fileName.toLowerCase().endsWith('.webp');
+
+              return GestureDetector(
+                onTap: () {
+                  _showImageDialog(context, fileUrl);
+                },
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    width: 100,
+                    height: 100,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey[300]!),
+                      borderRadius: BorderRadius.circular(8),
+                      color: Colors.grey[50],
+                    ),
+                    child: isImage
+                        ? Image.network(
+                            fileUrl,
+                            width: 100,
+                            height: 100,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) =>
+                                Container(
+                                  color: Colors.grey[100],
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.insert_drive_file,
+                                        color: Colors.grey[400],
+                                        size: 30,
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 4,
+                                        ),
+                                        child: Text(
+                                          fileName,
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                            color: Colors.grey[500],
+                                            fontSize: 8,
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                            loadingBuilder: (context, child, progress) {
+                              if (progress == null) return child;
+                              return Container(
+                                color: Colors.grey[100],
+                                child: const Center(
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                              );
+                            },
+                          )
+                        : Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.insert_drive_file,
+                                color: Colors.grey[400],
+                                size: 30,
+                              ),
+                              const SizedBox(height: 4),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                ),
+                                child: Text(
+                                  fileName,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: Colors.grey[500],
+                                    fontSize: 8,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -3684,12 +3881,6 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
             label: 'Condition',
             value: widget.booking.deviceCondition,
             icon: Icons.build_circle_outlined,
-          ),
-          Divider(height: 1, color: ProfessionalTheme.borderLight(context)),
-          _buildEnhancedDetailRow(
-            label: 'Assigned',
-            value: widget.booking.assignedDateTimeFormatted,
-            icon: Icons.event_available_outlined,
           ),
           if (widget.booking.selectedStatus.toLowerCase() == 'completed' &&
               widget.booking.completionMessage.isNotEmpty) ...[

@@ -5,6 +5,7 @@ import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:subscription_rooks_app/subscription/branding_customization_screen.dart';
 import 'package:subscription_rooks_app/subscription/welcome_screen.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class TermsAndConditionsScreen extends StatefulWidget {
   final bool isFirstTimeRegistration;
@@ -507,8 +508,10 @@ class _TermsAndConditionsScreenState extends State<TermsAndConditionsScreen>
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
       body: SafeArea(
-        child: Column(
-          children: [
+  child: ResponsiveWrapper(
+    maxWidth: kMaxContentWidth,
+    child: Column(
+      children: [
             // Professional Header
             Container(
               decoration: const BoxDecoration(
@@ -994,6 +997,7 @@ class _TermsAndConditionsScreenState extends State<TermsAndConditionsScreen>
           ],
         ),
       ),
+    ),
     );
   }
 

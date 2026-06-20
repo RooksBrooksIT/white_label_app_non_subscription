@@ -4,6 +4,7 @@ import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/backend/brand_model_backend.dart';
 import 'package:lottie/lottie.dart';
 import 'package:flutter/services.dart';
+import '../../utils/responsive_wrapper.dart';
 
 class CreateTickets extends StatefulWidget {
   final String customerId;
@@ -683,7 +684,10 @@ class _CreateTicketsState extends State<CreateTickets> {
           await _saveCustomerToLoginDetails();
         }
 
-        final bookingId = await _generateBookingId();
+        final ticketId = await FirestoreService.instance.generateTicketId(
+          customerName: _customerNameController.text,
+          customerType: 'non-amc', // default, can add logic later if needed
+        );
         final actualDeviceType = deviceType == 'Others'
             ? _customDeviceTypeController.text.trim()
             : deviceType;
@@ -691,45 +695,37 @@ class _CreateTicketsState extends State<CreateTickets> {
             ? _customDeviceBrandController.text.trim()
             : deviceBrand;
 
-        Map<String, dynamic> customerData = {
+        Map<String, dynamic> ticketData = {
           'id': _customerIdController.text,
-          'bookingId': bookingId,
+          'ticketId': ticketId,
           'customerName': _customerNameController.text,
           'mobileNumber': _mobileNumberController.text,
           'address': _addressController.text,
           'categoryName': widget.categoryName,
-          'timestamp': Timestamp.now(),
+          'createdAt': Timestamp.now(),
+          'updatedAt': Timestamp.now(),
           'JobType': jobType,
           'customerType': _customerType,
+          'adminStatus': 'Open',
+          'customerStatus': 'Ticket Created',
+          'engineerStatus': 'Not Assigned',
         };
 
         if (jobType == 'Service') {
-          customerData.addAll({
+          ticketData.addAll({
             'deviceType': actualDeviceType,
             'deviceBrand': actualDeviceBrand,
             'deviceCondition': deviceCondition,
-            'message': _messageController.text,
+            'issueDescription': _messageController.text,
           });
         } else if (jobType == 'Delivery') {
-          customerData.addAll({'message': _descriptionController.text});
+          ticketData.addAll({'issueDescription': _descriptionController.text});
         }
 
-        final adminData = Map<String, dynamic>.from(customerData);
-        adminData['adminStatus'] = 'Open';
-        adminData['customerStatus'] = 'Ticket Created';
-        adminData['engineerStatus'] = 'Not Assigned';
-
-        String docId = bookingId;
-
         await FirestoreService.instance
-            .collection('customers')
-            .doc(docId)
-            .set(customerData);
-
-        await FirestoreService.instance
-            .collection('Admin_details')
-            .doc(docId)
-            .set(adminData);
+            .collection('Raised_tickets')
+            .doc(ticketId)
+            .set(ticketData);
 
         showDialog(
           context: context,
@@ -766,6 +762,16 @@ class _CreateTicketsState extends State<CreateTickets> {
                       ),
                     ),
                   ),
+                Padding(
+                  padding: const EdgeInsets.only(top: 8.0),
+                  child: Text(
+                    'Ticket ID: $ticketId',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).primaryColor,
+                    ),
+                  ),
+                ),
               ],
             ),
             actions: [
@@ -1327,22 +1333,14 @@ class _CreateTicketsState extends State<CreateTickets> {
         backgroundColor: Theme.of(context).primaryColor,
         foregroundColor: Colors.white,
       ),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Theme.of(context).primaryColor.withValues(alpha: 0.05),
-              Theme.of(context).scaffoldBackgroundColor,
-            ],
-          ),
-        ),
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            padding: const EdgeInsets.all(20),
-            children: [
+      body: ResponsiveWrapper(
+        padding: EdgeInsets.symmetric(horizontal: context.responsiveHPadding),
+        child: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
               _buildSectionHeader('Customer Information', Icons.person_outline),
               const SizedBox(height: 12),
               Row(
@@ -1554,6 +1552,7 @@ class _CreateTicketsState extends State<CreateTickets> {
           ),
         ),
       ),
+    ),
     );
   }
 

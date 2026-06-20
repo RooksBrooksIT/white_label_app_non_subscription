@@ -5,6 +5,7 @@ import 'package:subscription_rooks_app/services/auth_state_service.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/subscription/subscription_plans_screen.dart';
 import 'package:subscription_rooks_app/frontend/screens/app_main_page.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({super.key});
@@ -244,89 +245,89 @@ class _WelcomeScreenState extends State<WelcomeScreen>
         centerTitle: true,
         toolbarHeight: 90,
       ),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Colors.grey.shade50, Colors.white, Colors.grey.shade50],
+      body: ResponsiveWrapper(
+        maxWidth: 600,
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Colors.grey.shade50, Colors.white, Colors.grey.shade50],
+            ),
           ),
-        ),
-        child: Stack(
-          children: [
-            // Decorative background elements
-            Positioned(
-              top: -50,
-              right: -30,
-              child: Container(
-                width: 200,
-                height: 200,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      Colors.black.withValues(alpha: 0.03),
-                      Colors.transparent,
-                    ],
+          child: Stack(
+            children: [
+              // Decorative background elements
+              Positioned(
+                top: -50,
+                right: -30,
+                child: Container(
+                  width: 200,
+                  height: 200,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        Colors.black.withValues(alpha: 0.03),
+                        Colors.transparent,
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
-            Positioned(
-              bottom: -80,
-              left: -40,
-              child: Container(
-                width: 250,
-                height: 250,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      Colors.black.withValues(alpha: 0.02),
-                      Colors.transparent,
-                    ],
+              Positioned(
+                bottom: -80,
+                left: -40,
+                child: Container(
+                  width: 250,
+                  height: 250,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        Colors.black.withValues(alpha: 0.02),
+                        Colors.transparent,
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
-            // Main content
-            SafeArea(
-              child: GestureDetector(
-                onTap: () => FocusScope.of(context).unfocus(),
-                child: SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 16,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 400),
-                        transitionBuilder: (child, animation) {
-                          return FadeTransition(
-                            opacity: animation,
-                            child: SlideTransition(
-                              position: Tween<Offset>(
-                                begin: const Offset(0.05, 0),
-                                end: Offset.zero,
-                              ).animate(animation),
-                              child: child,
-                            ),
-                          );
-                        },
-                        child: _currentStep == 1
-                            ? _buildStep1Content(key: const ValueKey(1))
-                            : _buildStep2Content(key: const ValueKey(2)),
-                      ),
-                      const SizedBox(height: 100),
-                    ],
+              // Main content
+              SafeArea(
+                child: GestureDetector(
+                  onTap: () => FocusScope.of(context).unfocus(),
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 400),
+                          transitionBuilder: (child, animation) {
+                            return FadeTransition(
+                              opacity: animation,
+                              child: SlideTransition(
+                                position: Tween<Offset>(
+                                  begin: const Offset(0.05, 0),
+                                  end: Offset.zero,
+                                ).animate(animation),
+                                child: child,
+                              ),
+                            );
+                          },
+                          child: _currentStep == 1
+                              ? _buildStep1Content(key: const ValueKey(1))
+                              : _buildStep2Content(key: const ValueKey(2)),
+                        ),
+                        const SizedBox(height: 100),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
@@ -983,27 +984,31 @@ class _WelcomeScreenState extends State<WelcomeScreen>
         ? Icons.arrow_forward_rounded
         : Icons.check_circle_outline;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        width: double.infinity,
-        height: 60,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(40),
-          gradient: const LinearGradient(
-            colors: [Colors.black, Colors.black87],
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.25),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 500),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            width: double.infinity,
+            height: 60,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(40),
+              gradient: const LinearGradient(
+                colors: [Colors.black, Colors.black87],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.25),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: ElevatedButton(
-          onPressed: _isLoading
+            child: ElevatedButton(
+              onPressed: _isLoading
               ? null
               : () {
                   if (isStep1) {
@@ -1044,8 +1049,10 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                     Icon(icon, size: 22),
                   ],
                 ),
+          ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }

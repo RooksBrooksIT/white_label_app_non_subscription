@@ -2,11 +2,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Customer {
   final String customerName;
-  final String bookingId;
+  final String ticketId;
   final String deviceType;
   final String deviceBrand;
   final String deviceCondition;
-  final String message;
+  final String issueDescription;
   final String address;
   final String mobileNumber;
   final String jobType; // Add jobType field
@@ -27,11 +27,11 @@ class Customer {
   // Constructor
   Customer({
     required this.customerName,
-    required this.bookingId,
+    required this.ticketId,
     required this.deviceType,
     required this.deviceBrand,
     required this.deviceCondition,
-    required this.message,
+    required this.issueDescription,
     required this.address,
     required this.mobileNumber,
     required this.jobType,
@@ -48,11 +48,11 @@ class Customer {
   // CopyWith method
   Customer copyWith({
     String? customerName,
-    String? bookingId,
+    String? ticketId,
     String? deviceType,
     String? deviceBrand,
     String? deviceCondition,
-    String? message,
+    String? issueDescription,
     String? address,
     String? mobileNumber,
     String? jobType,
@@ -66,11 +66,11 @@ class Customer {
   }) {
     return Customer(
       customerName: customerName ?? this.customerName,
-      bookingId: bookingId ?? this.bookingId,
+      ticketId: ticketId ?? this.ticketId,
       deviceType: deviceType ?? this.deviceType,
       deviceBrand: deviceBrand ?? this.deviceBrand,
       deviceCondition: deviceCondition ?? this.deviceCondition,
-      message: message ?? this.message,
+      issueDescription: issueDescription ?? this.issueDescription,
       address: address ?? this.address,
       mobileNumber: mobileNumber ?? this.mobileNumber,
       jobType: jobType ?? this.jobType,
@@ -89,19 +89,19 @@ class Customer {
   Map<String, dynamic> toMap() {
     return {
       "customerName": customerName,
-      "bookingId": bookingId,
+      "ticketId": ticketId,
       "deviceType": deviceType,
       "deviceBrand": deviceBrand,
       "deviceCondition": deviceCondition,
-      "message": message,
+      "issueDescription": issueDescription,
       "address": address,
       "mobileNumber": mobileNumber,
       "JobType": jobType,
-      "amount": amount, // Include amount in the map
+      "paymentDetails": amount, // Include paymentDetails in the map
       "DeviceName": deviceName,
       "Problem": problem,
-      "AssignedEngineer": assignedEngineer,
-      "timestamp": timestamp,
+      "assignedEngineer": assignedEngineer,
+      "createdAt": timestamp,
       "customerFileUrl": customerFileUrl,
       "fileName": fileName,
     };
@@ -116,19 +116,23 @@ class Customer {
 
     return Customer(
       customerName: data?['customerName'] ?? '',
-      bookingId: data?['bookingId'] ?? '',
+      ticketId: data?['ticketId'] ?? data?['bookingId'] ?? '',
       deviceType: data?['deviceType'] ?? '',
       deviceBrand: data?['deviceBrand'] ?? '',
       deviceCondition: data?['deviceCondition'] ?? '',
-      message: data?['message'] ?? '',
+      issueDescription: data?['issueDescription'] ?? data?['message'] ?? '',
       address: data?['address'] ?? '',
       mobileNumber: data?['mobileNumber'] ?? "",
       jobType: data?['JobType'] ?? '',
-      amount: data?['amount'] ?? '', // Handle amount from Firestore
+      amount:
+          data?['paymentDetails']?.toString() ??
+          data?['amount']?.toString() ??
+          '', // Handle paymentDetails from Firestore
       deviceName: data?['DeviceName'] ?? '',
       problem: data?['Problem'] ?? '',
-      assignedEngineer: data?['AssignedEngineer'] ?? '',
-      timestamp: _parseTimestamp(data?['timestamp']),
+      assignedEngineer:
+          data?['assignedEngineer'] ?? data?['AssignedEngineer'] ?? '',
+      timestamp: _parseTimestamp(data?['createdAt'] ?? data?['timestamp']),
       customerid: data?['id'] ?? '',
       customerFileUrl: data?['customerFileUrl'],
       fileName: data?['fileName'],
@@ -179,11 +183,11 @@ class Customer {
   String formatCustomerDetails() {
     return '''
 Customer Name: $customerName
-Booking ID: $bookingId
+Ticket ID: $ticketId
 Device Type: $deviceType
 Device Brand: $deviceBrand
 Device Condition: $deviceCondition
-Message: $message
+Issue Description: $issueDescription
 Address: $address
 Device Name: $deviceName
 Problem: $problem

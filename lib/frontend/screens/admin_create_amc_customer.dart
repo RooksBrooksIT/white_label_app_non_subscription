@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class AMCCreatePage extends StatefulWidget {
   const AMCCreatePage({super.key});
@@ -374,7 +375,9 @@ class _AMCCreatePageState extends State<AMCCreatePage>
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
       elevation: 0,
       backgroundColor: Colors.transparent,
-      child: Container(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 400),
+        child: Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
           color: Colors.white,
@@ -461,6 +464,7 @@ class _AMCCreatePageState extends State<AMCCreatePage>
             ),
           ],
         ),
+      ),
       ),
     );
   }
@@ -689,7 +693,9 @@ class _AMCCreatePageState extends State<AMCCreatePage>
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
       elevation: 0,
       backgroundColor: Colors.transparent,
-      child: Container(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 400),
+        child: Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
           color: Colors.white,
@@ -780,6 +786,7 @@ class _AMCCreatePageState extends State<AMCCreatePage>
           ],
         ),
       ),
+      ),
     );
   }
 
@@ -788,7 +795,9 @@ class _AMCCreatePageState extends State<AMCCreatePage>
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
       elevation: 0,
       backgroundColor: Colors.transparent,
-      child: Container(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 400),
+        child: Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
           color: Theme.of(context).cardColor,
@@ -867,6 +876,7 @@ class _AMCCreatePageState extends State<AMCCreatePage>
           ],
         ),
       ),
+      ),
     );
   }
 
@@ -924,9 +934,12 @@ class _AMCCreatePageState extends State<AMCCreatePage>
         ),
         centerTitle: false,
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [_buildCustomerForm(), _buildCustomerDirectory()],
+      body: ResponsiveWrapper(
+        maxWidth: 1200.0,
+        child: TabBarView(
+          controller: _tabController,
+          children: [_buildCustomerForm(), _buildCustomerDirectory()],
+        ),
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
@@ -972,9 +985,12 @@ class _AMCCreatePageState extends State<AMCCreatePage>
   Widget _buildCustomerForm() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
-      child: Form(
-        key: _formKey,
-        child: Column(
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 500),
+          child: Form(
+            key: _formKey,
+            child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
@@ -1140,6 +1156,8 @@ class _AMCCreatePageState extends State<AMCCreatePage>
             ),
             const SizedBox(height: 20),
           ],
+        ),
+      ),
         ),
       ),
     );
@@ -1405,8 +1423,11 @@ class _AMCCreatePageState extends State<AMCCreatePage>
   Widget _buildCustomerDirectory() {
     return Column(
       children: [
-        Container(
-          padding: const EdgeInsets.all(20),
+        Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 500),
+            child: Container(
+              padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: const BorderRadius.only(
@@ -1472,6 +1493,8 @@ class _AMCCreatePageState extends State<AMCCreatePage>
             ],
           ),
         ),
+          ),
+        ),
         Expanded(
           child: _filteredCustomers.isEmpty
               ? Center(
@@ -1526,9 +1549,12 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                     final String email = customer['email'] ?? 'No Email';
                     final String phone = customer['Phone Number'] ?? 'No Phone';
 
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 16),
-                      decoration: BoxDecoration(
+                    return Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 500),
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 16),
+                          decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [
@@ -1689,6 +1715,8 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                               ],
                             ),
                           ),
+                        ),
+                      ),
                         ),
                       ),
                     );

@@ -7,6 +7,7 @@ import 'package:printing/printing.dart';
 import 'package:intl/intl.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:subscription_rooks_app/utils/pdf_utils.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class AdminAttendanceReportsPage extends StatefulWidget {
   const AdminAttendanceReportsPage({super.key});
@@ -113,19 +114,27 @@ class _AdminAttendanceReportsPageState
         foregroundColor: Colors.white,
         elevation: 0,
       ),
-      body: Column(
-        children: [
-          _buildFilterSection(),
-          Expanded(child: _buildAttendanceList()),
-        ],
+      body: SafeArea(
+        child: ResponsiveWrapper(
+          maxWidth: 1200.0,
+          child: Column(
+            children: [
+              _buildFilterSection(),
+              Expanded(child: _buildAttendanceList()),
+            ],
+          ),
+        ),
       ),
     );
   }
 
   Widget _buildFilterSection() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 500),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(24),
@@ -250,6 +259,8 @@ class _AdminAttendanceReportsPageState
               ),
             ),
         ],
+      ),
+        ),
       ),
     );
   }
@@ -454,13 +465,16 @@ class _AdminAttendanceReportsPageState
                 horizontal: 16.0,
                 vertical: 8.0,
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Details',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                  ),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 500),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Details',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                      ),
                   ElevatedButton.icon(
                     onPressed: () => _generateProfessionalPDF(
                       list,
@@ -481,7 +495,9 @@ class _AdminAttendanceReportsPageState
                       ),
                     ),
                   ),
-                ],
+                    ],
+                  ),
+                ),
               ),
             ),
             Expanded(
@@ -508,10 +524,13 @@ class _AdminAttendanceReportsPageState
     int totalEngineers,
     String displayDate,
   ) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 500),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -540,6 +559,8 @@ class _AdminAttendanceReportsPageState
             ],
           ),
         ],
+      ),
+        ),
       ),
     );
   }
@@ -639,9 +660,12 @@ class _AdminAttendanceReportsPageState
     }
     if (status == 'OT') statusColor = Colors.blue;
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      decoration: BoxDecoration(
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 500),
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
@@ -717,6 +741,8 @@ class _AdminAttendanceReportsPageState
               fontSize: 11,
             ),
           ),
+        ),
+      ),
         ),
       ),
     );

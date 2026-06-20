@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../backend/brand_model_backend.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class BrandModelPage extends StatefulWidget {
   const BrandModelPage({super.key});
@@ -424,7 +425,9 @@ class _BrandModelPageState extends State<BrandModelPage> with RouteAware {
         ),
         iconTheme: const IconThemeData(color: Colors.white),
       ),
-      body: isInitializing
+      body: ResponsiveWrapper(
+        maxWidth: 1200.0,
+        child: isInitializing
           ? Center(
               child: CircularProgressIndicator(
                 valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
@@ -436,11 +439,14 @@ class _BrandModelPageState extends State<BrandModelPage> with RouteAware {
                 valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
               ),
             )
-          : SingleChildScrollView(
-              padding: EdgeInsets.all(isSmallScreen ? 12.0 : 16.0),
-              child: Form(
-                key: _formKey,
-                child: Column(
+          : Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 500),
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.all(isSmallScreen ? 12.0 : 16.0),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Container(
@@ -822,6 +828,9 @@ class _BrandModelPageState extends State<BrandModelPage> with RouteAware {
                 ),
               ),
             ),
+          ),
+        ),
+      ),
     );
   }
 

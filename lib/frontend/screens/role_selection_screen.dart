@@ -4,6 +4,7 @@ import 'package:subscription_rooks_app/frontend/screens/auth_selection_screen.da
 import 'package:subscription_rooks_app/frontend/screens/engineer_login_page.dart';
 import 'package:subscription_rooks_app/frontend/screens/amc_customerlogin_page.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class RoleSelectionScreen extends StatefulWidget {
   const RoleSelectionScreen({super.key});
@@ -118,107 +119,122 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                 Expanded(
                   child: SingleChildScrollView(
                     physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 32,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Logo and Branding
-                        Center(
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints:
+                            const BoxConstraints(maxWidth: kMaxCardWidth),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 32,
+                          ),
                           child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Container(
-                                width: 100,
-                                height: 100,
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  color: theme.cardColor,
-                                  borderRadius: BorderRadius.circular(28),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withValues(alpha: 0.04),
-                                      blurRadius: 20,
-                                      offset: const Offset(0, 10),
+                              // Logo and Branding
+                              Center(
+                                child: Column(
+                                  children: [
+                                    Container(
+                                      width: 100,
+                                      height: 100,
+                                      padding: const EdgeInsets.all(16),
+                                      decoration: BoxDecoration(
+                                        color: theme.cardColor,
+                                        borderRadius:
+                                            BorderRadius.circular(28),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black
+                                                .withValues(alpha: 0.04),
+                                            blurRadius: 20,
+                                            offset: const Offset(0, 10),
+                                          ),
+                                        ],
+                                      ),
+                                      child: logoUrl != null &&
+                                              logoUrl.isNotEmpty
+                                          ? Image.network(
+                                              logoUrl,
+                                              fit: BoxFit.contain,
+                                              errorBuilder: (context, error,
+                                                      stackTrace) =>
+                                                  _buildDefaultLogo(theme),
+                                            )
+                                          : _buildDefaultLogo(theme),
+                                    ),
+                                    const SizedBox(height: 24),
+                                    Text(
+                                      "Welcome to ${ThemeService.instance.appName}",
+                                      style: GoogleFonts.inter(
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: -0.5,
+                                        color: theme
+                                            .textTheme.displayLarge?.color,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      "Please select your access level to begin",
+                                      style: GoogleFonts.inter(
+                                        fontSize: 15,
+                                        color: theme.hintColor,
+                                        fontWeight: FontWeight.w400,
+                                      ),
                                     ),
                                   ],
                                 ),
-                                child: logoUrl != null && logoUrl.isNotEmpty
-                                    ? Image.network(
-                                        logoUrl,
-                                        fit: BoxFit.contain,
-                                        errorBuilder:
-                                            (context, error, stackTrace) =>
-                                                _buildDefaultLogo(theme),
-                                      )
-                                    : _buildDefaultLogo(theme),
                               ),
-                              const SizedBox(height: 24),
-                              Text(
-                                "Welcome to ${ThemeService.instance.appName}",
-                                style: GoogleFonts.inter(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: -0.5,
-                                  color: theme.textTheme.displayLarge?.color,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                "Please select your access level to begin",
-                                style: GoogleFonts.inter(
-                                  fontSize: 15,
-                                  color: theme.hintColor,
-                                  fontWeight: FontWeight.w400,
-                                ),
-                              ),
+                              const SizedBox(height: 48),
+
+                              // Role Selection List
+                              ..._roles.map((role) {
+                                final isSelected =
+                                    _selectedRole == role['id'];
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 16),
+                                  child: _RoleCard(
+                                    label: role['label'],
+                                    subtitle: role['subtitle'],
+                                    icon: role['icon'],
+                                    color: role['color'],
+                                    isSelected: isSelected,
+                                    onTap: () {
+                                      setState(() {
+                                        _selectedRole = role['id'];
+                                      });
+                                    },
+                                  ),
+                                );
+                              }),
                             ],
                           ),
                         ),
-                        const SizedBox(height: 48),
-
-                        // Role Selection List
-                        ..._roles.map((role) {
-                          final isSelected = _selectedRole == role['id'];
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 16),
-                            child: _RoleCard(
-                              label: role['label'],
-                              subtitle: role['subtitle'],
-                              icon: role['icon'],
-                              color: role['color'],
-                              isSelected: isSelected,
-                              onTap: () {
-                                setState(() {
-                                  _selectedRole = role['id'];
-                                });
-                              },
-                            ),
-                          );
-                        }),
-                      ],
+                      ),
                     ),
                   ),
                 ),
 
                 // Footer Section
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: theme.scaffoldBackgroundColor,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.03),
-                        blurRadius: 10,
-                        offset: const Offset(0, -5),
+                Center(
+                  child: ConstrainedBox(
+                    constraints:
+                        const BoxConstraints(maxWidth: kMaxCardWidth),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: theme.scaffoldBackgroundColor,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.03),
+                            blurRadius: 10,
+                            offset: const Offset(0, -5),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(
+                      child: SizedBox(
                         width: double.infinity,
                         height: 58,
                         child: ElevatedButton(
@@ -241,7 +257,7 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                           ),
                         ),
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ],
@@ -282,7 +298,9 @@ class _RoleCard extends StatelessWidget {
         curve: Curves.easeInOut,
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: isSelected ? primaryColor.withValues(alpha: 0.05) : theme.cardColor,
+          color: isSelected
+              ? primaryColor.withValues(alpha: 0.05)
+              : theme.cardColor,
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
             color: isSelected

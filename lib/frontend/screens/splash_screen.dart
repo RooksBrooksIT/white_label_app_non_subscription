@@ -102,6 +102,8 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     final theme = ThemeService.instance;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final logoSize = (screenWidth * 0.35).clamp(120.0, 180.0);
 
     return Scaffold(
       backgroundColor: theme.primaryColor, // Solid orange background
@@ -119,8 +121,8 @@ class _SplashScreenState extends State<SplashScreen>
                 child: ScaleTransition(
                   scale: _scaleAnimation,
                   child: Container(
-                    width: 160,
-                    height: 160,
+                    width: logoSize,
+                    height: logoSize,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: Colors.white, // Outer white ring

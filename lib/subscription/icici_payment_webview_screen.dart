@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:webview_flutter/webview_flutter.dart';
-import 'package:webview_flutter_android/webview_flutter_android.dart';
+import 'webview_wrapper.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -76,7 +77,9 @@ class _IciciPaymentWebViewScreenState
   @override
   void initState() {
     super.initState();
-    if (!_isUpiIntent) {
+    if (kIsWeb) {
+      _launchWebPaymentUrl();
+    } else if (!_isUpiIntent) {
       _initWebView();
     } else {
       _launchUpiIntent();
@@ -135,6 +138,23 @@ class _IciciPaymentWebViewScreenState
     _sessionTimer?.cancel();
     if (mounted) {
       Navigator.pop(context, result);
+    }
+  }
+
+  // ── Web Payment URL Launcher ───────────────────────────────────────────────
+  Future<void> _launchWebPaymentUrl() async {
+    final uri = Uri.parse(widget.paymentUrl);
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        debugPrint('[IciciWebView] Cannot launch Web payment URL');
+      }
+    } catch (e) {
+      debugPrint('[IciciWebView] Web payment URL launch error: $e');
+    }
+    if (mounted) {
+      setState(() => _isLoading = false);
     }
   }
 
@@ -270,10 +290,9 @@ class _IciciPaymentWebViewScreenState
     }
   }
 
-  // ── Back / Cancel Guard ─────────────────────────────────────────────────────
   Future<void> _onWillPop() async {
     // Allow WebView internal back navigation first
-    if (!_isUpiIntent && await _controller.canGoBack()) {
+    if (!kIsWeb && !_isUpiIntent && await _controller.canGoBack()) {
       _controller.goBack();
       return;
     }
@@ -329,7 +348,9 @@ class _IciciPaymentWebViewScreenState
         backgroundColor: Colors.white,
         appBar: AppBar(
           title: Text(
-            _isUpiIntent ? 'UPI Payment' : 'Secure Payment',
+            kIsWeb
+                ? 'Payment Window'
+                : (_isUpiIntent ? 'UPI Payment' : 'Secure Payment'),
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
           ),
           backgroundColor: Colors.white,
@@ -352,7 +373,9 @@ class _IciciPaymentWebViewScreenState
                 )
               : null,
         ),
-        body: _isUpiIntent ? _buildUpiWaitingBody() : _buildWebViewBody(),
+        body: kIsWeb
+            ? _buildWebWaitingBody()
+            : (_isUpiIntent ? _buildUpiWaitingBody() : _buildWebViewBody()),
       ),
     );
   }
@@ -363,20 +386,7 @@ class _IciciPaymentWebViewScreenState
         // Use Hybrid Composition on Android to prevent the
         // "ID too large, must fit 32-bit integer" crash that prevents
         // TransactionCompletedScreen from being shown after payment.
-        () {
-          if (WebViewPlatform.instance is AndroidWebViewPlatform) {
-            return WebViewWidget.fromPlatformCreationParams(
-              params: AndroidWebViewWidgetCreationParams
-                  .fromPlatformWebViewWidgetCreationParams(
-                PlatformWebViewWidgetCreationParams(
-                  controller: _controller.platform,
-                ),
-                displayWithHybridComposition: true,
-              ),
-            );
-          }
-          return WebViewWidget(controller: _controller);
-        }(),
+        buildHybridWebView(_controller),
         // Full-page loader only during initial load
         if (_isLoading && _loadingProgress < 0.3)
           const Center(
@@ -430,6 +440,47 @@ class _IciciPaymentWebViewScreenState
                     const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 side: const BorderSide(color: Color(0xFF1A237E)),
                 foregroundColor: const Color(0xFF1A237E),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWebWaitingBody() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(color: Color(0xFF1A237E)),
+            const SizedBox(height: 24),
+            const Text(
+              'Waiting for payment…',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Please complete the payment in the newly opened tab or window.\n'
+              'Do not close this screen. Once confirmed, you will be redirected automatically.',
+              style: TextStyle(color: Colors.black54, fontSize: 15),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 40),
+            ElevatedButton.icon(
+              onPressed: _launchWebPaymentUrl,
+              icon: const Icon(Icons.open_in_new, size: 18),
+              label: const Text('Re-open Payment Page'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1A237E),
+                foregroundColor: Colors.white,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
           ],

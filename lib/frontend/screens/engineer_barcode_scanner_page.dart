@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class BarcodeScannerScreen extends StatefulWidget {
   final String userName;
@@ -189,11 +190,16 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor,
-        ),
-        child: CustomScrollView(
+      body: ResponsiveWrapper(
+        maxWidth: 1200.0,
+        child: Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
+          ),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 500),
+              child: CustomScrollView(
           slivers: [
             // App Bar with Glass Effect
             SliverAppBar(
@@ -225,6 +231,9 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
               ]),
             ),
           ],
+        ),
+            ),
+          ),
         ),
       ),
     );

@@ -5,6 +5,7 @@ import 'package:subscription_rooks_app/services/notification_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:intl/intl.dart';
 import 'package:subscription_rooks_app/models/notification_model.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class AdminNotificationsPage extends StatelessWidget {
   const AdminNotificationsPage({super.key});
@@ -31,11 +32,13 @@ class AdminNotificationsPage extends StatelessWidget {
           ),
         ],
       ),
-      body: StreamBuilder<List<Map<String, dynamic>>>(
-        stream: NotificationService.instance.getAdminNotificationsStream(
-          tenantId,
-        ),
-        builder: (context, snapshot) {
+      body: ResponsiveWrapper(
+        maxWidth: kMaxContentWidth,
+        child: StreamBuilder<List<Map<String, dynamic>>>(
+          stream: NotificationService.instance.getAdminNotificationsStream(
+            tenantId,
+          ),
+          builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -171,8 +174,9 @@ class AdminNotificationsPage extends StatelessWidget {
           );
         },
       ),
-    );
-  }
+    ),
+  );
+}
 
   IconData _getIconForType(String? type) {
     switch (type) {

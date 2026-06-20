@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class AdminDeviceConfigurationPage extends StatefulWidget {
   const AdminDeviceConfigurationPage({super.key});
@@ -458,34 +459,42 @@ class _AdminDeviceConfigurationPageState
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.black),
       ),
-      body: CustomScrollView(
-        slivers: [
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildHeader(),
-                  const SizedBox(height: 24),
-                  _buildAddDeviceCard(),
-                  const SizedBox(height: 32),
-                  const Text(
-                    'Configured Devices',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.5,
+      body: ResponsiveWrapper(
+        maxWidth: kMaxContentWidth,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 500),
+            child: CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildHeader(),
+                    const SizedBox(height: 24),
+                    _buildAddDeviceCard(),
+                    const SizedBox(height: 32),
+                    const Text(
+                      'Configured Devices',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                ],
+                    const SizedBox(height: 16),
+                  ],
+                ),
               ),
             ),
+            _buildDeviceGrid(),
+            const SliverToBoxAdapter(child: SizedBox(height: 40)),
+          ],
+        ),
           ),
-          _buildDeviceGrid(),
-          const SliverToBoxAdapter(child: SizedBox(height: 40)),
-        ],
+        ),
       ),
     );
   }
