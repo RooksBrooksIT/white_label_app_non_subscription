@@ -350,12 +350,6 @@
       "languageVersion": "2.14"
     },
     {
-      "name": "flutter_dotenv",
-      "rootUri": "file:///C:/Users/Sajin/AppData/Local/Pub/Cache/hosted/pub.dev/flutter_dotenv-6.0.0",
-      "packageUri": "lib/",
-      "languageVersion": "2.12"
-    },
-    {
       "name": "flutter_launcher_icons",
       "rootUri": "file:///C:/Users/Sajin/AppData/Local/Pub/Cache/hosted/pub.dev/flutter_launcher_icons-0.13.1",
       "packageUri": "lib/",
