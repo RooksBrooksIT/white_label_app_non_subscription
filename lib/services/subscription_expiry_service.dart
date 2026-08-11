@@ -125,17 +125,19 @@ class SubscriptionExpiryService {
       bool queuedActivated = false;
       if (targetDocId.isNotEmpty) {
         try {
-          queuedActivated = await SubscriptionQueueService.instance.activateQueuedPlan(
-            tenantId: tenantId,
-            uid: targetDocId,
-          );
+          queuedActivated = await SubscriptionQueueService.instance
+              .activateQueuedPlan(tenantId: tenantId, uid: targetDocId);
         } catch (e) {
-          debugPrint('SubscriptionExpiryService: Error activating queued plan: $e');
+          debugPrint(
+            'SubscriptionExpiryService: Error activating queued plan: $e',
+          );
         }
       }
 
       if (queuedActivated) {
-        debugPrint('SubscriptionExpiryService: Queued plan activated successfully. Avoiding expiry redirect.');
+        debugPrint(
+          'SubscriptionExpiryService: Queued plan activated successfully. Avoiding expiry redirect.',
+        );
         // _isRedirectedToExpired is false by default, just return.
         return;
       }
