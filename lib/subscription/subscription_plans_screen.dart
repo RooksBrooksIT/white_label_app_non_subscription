@@ -141,11 +141,11 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
       'yearlyOriginalPrice': 17988,
       'subtitle': 'Best for enterprises & unlimited usage',
       'limits': {
-        'maxCustomers': 999, 
+        'maxCustomers': 999,
         'maxEngineers': 999,
         'maxPhotosPerCustomer': 999,
         'maxPdfUploadsPerCustomer': 999,
-        'maxStorageGB': 100, 
+        'maxStorageGB': 100,
       },
       'features': [
         'Unlimited Customers',
@@ -175,7 +175,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
     'limits': {
       'maxCustomers': 3,
       'maxEngineers': 2,
-      'maxPhotosPerCustomer':10,
+      'maxPhotosPerCustomer': 10,
       'maxPdfUploadsPerCustomer': 5,
       'maxStorageGB': 1,
     },
@@ -430,212 +430,212 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
                     maxWidth: 1200.0,
                     child: Column(
                       children: [
-                      // Header with Glassy Effect
-                      ClipRRect(
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
+                        // Header with Glassy Effect
+                        ClipRRect(
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                              color: Colors.white.withValues(alpha: 0.2),
+                              child: Row(
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.arrow_back),
+                                    onPressed: () => Navigator.pop(context),
+                                  ),
+                                  Expanded(
+                                    child: Column(
+                                      children: [
+                                        const Text(
+                                          'CHOOSE WHAT FITS YOU',
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                            letterSpacing: 0.5,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        const Text(
+                                          'Choose the plan that suits your Workflow best',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.black54,
+                                          ),
+                                        ),
+                                        if (_fetchedPlanName != null) ...[
+                                          const SizedBox(height: 6),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 10,
+                                              vertical: 3,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: Colors.blue.shade50,
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                              border: Border.all(
+                                                color: Colors.blue.shade200,
+                                              ),
+                                            ),
+                                            child: Text(
+                                              'Active: $_fetchedPlanName',
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                                color: Colors.blue.shade700,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 48),
+                                ],
+                              ),
                             ),
-                            color: Colors.white.withValues(alpha: 0.2),
+                          ),
+                        ),
+
+                        // Active Plan Status Card (shown when managing existing plan)
+                        if (_fetchedPlanName != null) _buildActivePlanCard(),
+
+                        // Plan Duration Selector (Tabs)
+                        Padding(
+                          padding: const EdgeInsets.all(24.0),
+                          child: Container(
+                            height: 50,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.5),
+                              borderRadius: BorderRadius.circular(25),
+                            ),
                             child: Row(
                               children: [
-                                IconButton(
-                                  icon: const Icon(Icons.arrow_back),
-                                  onPressed: () => Navigator.pop(context),
-                                ),
-                                Expanded(
-                                  child: Column(
-                                    children: [
-                                      const Text(
-                                        'CHOOSE WHAT FITS YOU',
-                                        style: TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                          letterSpacing: 0.5,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      const Text(
-                                        'Choose the plan that suits your Workflow best',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.black54,
-                                        ),
-                                      ),
-                                      if (_fetchedPlanName != null) ...[
-                                        const SizedBox(height: 6),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 10,
-                                            vertical: 3,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: Colors.blue.shade50,
-                                            borderRadius: BorderRadius.circular(
-                                              12,
-                                            ),
-                                            border: Border.all(
-                                              color: Colors.blue.shade200,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            'Active: $_fetchedPlanName',
-                                            style: TextStyle(
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w600,
-                                              color: Colors.blue.shade700,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 48),
+                                if (!widget.hideTrial)
+                                  _buildTab(PlanType.freeTrial, 'Free Trial'),
+                                _buildTab(PlanType.monthly, 'Monthly'),
+                                _buildTab(PlanType.sixMonths, '6 Months'),
+                                _buildTab(PlanType.yearly, 'Yearly'),
                               ],
                             ),
                           ),
                         ),
-                      ),
 
-                      // Active Plan Status Card (shown when managing existing plan)
-                      if (_fetchedPlanName != null) _buildActivePlanCard(),
-
-                      // Plan Duration Selector (Tabs)
-                      Padding(
-                        padding: const EdgeInsets.all(24.0),
-                        child: Container(
-                          height: 50,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.5),
-                            borderRadius: BorderRadius.circular(25),
-                          ),
-                          child: Row(
-                            children: [
-                              if (!widget.hideTrial)
-                                _buildTab(PlanType.freeTrial, 'Free Trial'),
-                              _buildTab(PlanType.monthly, 'Monthly'),
-                              _buildTab(PlanType.sixMonths, '6 Months'),
-                              _buildTab(PlanType.yearly, 'Yearly'),
-                            ],
+                        // Main Plan Card
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 24),
+                            child: selectedPlanType == PlanType.freeTrial
+                                ? _buildMainCard(trialPlan, isTrial: true)
+                                : _buildMainCard(
+                                    plans[selectedPlanIndex],
+                                    isYearly:
+                                        selectedPlanType == PlanType.yearly,
+                                    isSixMonths:
+                                        selectedPlanType == PlanType.sixMonths,
+                                  ),
                           ),
                         ),
-                      ),
 
-                      // Main Plan Card
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 24),
-                          child: selectedPlanType == PlanType.freeTrial
-                              ? _buildMainCard(trialPlan, isTrial: true)
-                              : _buildMainCard(
-                                  plans[selectedPlanIndex],
+                        const SizedBox(height: 20),
+
+                        // Bottom Selectors (Hidden for Trial)
+                        if (selectedPlanType != PlanType.freeTrial)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 24),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: List.generate(plans.length, (index) {
+                                return _buildBottomSelector(index);
+                              }),
+                            ),
+                          ),
+
+                        const SizedBox(height: 20),
+
+                        // Subscribe Button
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 20,
+                          ),
+                          child: SizedBox(
+                            width: double.infinity,
+                            height: 56,
+                            child: Builder(
+                              builder: (context) {
+                                final isTrialSelected =
+                                    selectedPlanType == PlanType.freeTrial;
+                                final currentSelectedPlan = isTrialSelected
+                                    ? trialPlan
+                                    : plans[selectedPlanIndex];
+                                final isAlreadyCurrentPlan = _isCurrentPlan(
+                                  currentSelectedPlan,
                                   isYearly: selectedPlanType == PlanType.yearly,
                                   isSixMonths:
                                       selectedPlanType == PlanType.sixMonths,
-                                ),
-                        ),
-                      ),
+                                  isTrial: isTrialSelected,
+                                );
 
-                      const SizedBox(height: 20),
-
-                      // Bottom Selectors (Hidden for Trial)
-                      if (selectedPlanType != PlanType.freeTrial)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 24),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: List.generate(plans.length, (index) {
-                              return _buildBottomSelector(index);
-                            }),
+                                return ElevatedButton(
+                                  onPressed: isAlreadyCurrentPlan
+                                      ? null // Disable if it's already the current plan
+                                      : () {
+                                          if (isTrialSelected) {
+                                            _handlePlanSelection(
+                                              context,
+                                              trialPlan,
+                                              isTrial: true,
+                                            );
+                                          } else {
+                                            _handlePlanSelection(
+                                              context,
+                                              plans[selectedPlanIndex],
+                                              isYearly:
+                                                  selectedPlanType ==
+                                                  PlanType.yearly,
+                                              isSixMonths:
+                                                  selectedPlanType ==
+                                                  PlanType.sixMonths,
+                                            );
+                                          }
+                                        },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: isAlreadyCurrentPlan
+                                        ? Colors.grey.shade300
+                                        : Colors.white,
+                                    foregroundColor: isAlreadyCurrentPlan
+                                        ? Colors.grey.shade600
+                                        : Colors.black,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    elevation: isAlreadyCurrentPlan ? 0 : 4,
+                                  ),
+                                  child: Text(
+                                    isAlreadyCurrentPlan
+                                        ? 'Your Current Plan'
+                                        : (isTrialSelected
+                                              ? 'Start 7-Day Free Trial'
+                                              : 'Subscribe now'),
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: isAlreadyCurrentPlan
+                                          ? Colors.grey.shade700
+                                          : const Color.fromARGB(255, 0, 0, 0),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
                           ),
                         ),
-
-                      const SizedBox(height: 20),
-
-                      // Subscribe Button
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 20,
-                        ),
-                        child: SizedBox(
-                          width: double.infinity,
-                          height: 56,
-                          child: Builder(
-                            builder: (context) {
-                              final isTrialSelected =
-                                  selectedPlanType == PlanType.freeTrial;
-                              final currentSelectedPlan = isTrialSelected
-                                  ? trialPlan
-                                  : plans[selectedPlanIndex];
-                              final isAlreadyCurrentPlan = _isCurrentPlan(
-                                currentSelectedPlan,
-                                isYearly: selectedPlanType == PlanType.yearly,
-                                isSixMonths:
-                                    selectedPlanType == PlanType.sixMonths,
-                                isTrial: isTrialSelected,
-                              );
-
-                              return ElevatedButton(
-                                onPressed: isAlreadyCurrentPlan
-                                    ? null // Disable if it's already the current plan
-                                    : () {
-                                        if (isTrialSelected) {
-                                          _handlePlanSelection(
-                                            context,
-                                            trialPlan,
-                                            isTrial: true,
-                                          );
-                                        } else {
-                                          _handlePlanSelection(
-                                            context,
-                                            plans[selectedPlanIndex],
-                                            isYearly:
-                                                selectedPlanType ==
-                                                PlanType.yearly,
-                                            isSixMonths:
-                                                selectedPlanType ==
-                                                PlanType.sixMonths,
-                                          );
-                                        }
-                                      },
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: isAlreadyCurrentPlan
-                                      ? Colors.grey.shade300
-                                      : Colors.white,
-                                  foregroundColor: isAlreadyCurrentPlan
-                                      ? Colors.grey.shade600
-                                      : Colors.black,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  elevation: isAlreadyCurrentPlan ? 0 : 4,
-                                ),
-                                child: Text(
-                                  isAlreadyCurrentPlan
-                                      ? 'Your Current Plan'
-                                      : (isTrialSelected
-                                            ? 'Start 7-Day Free Trial'
-                                            : 'Subscribe now'),
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: isAlreadyCurrentPlan
-                                        ? Colors.grey.shade700
-                                        : const Color.fromARGB(255, 0, 0, 0),
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
                   ),
           ),
         ),
@@ -1301,9 +1301,13 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
             barcode: selectedPlan['barcode'],
             reportExport: selectedPlan['reportExport'],
             pendingUserData: widget.pendingUserData,
-            hasActiveSubscription: widget.currentPlanName != null && widget.currentPlanName!.isNotEmpty,
+            hasActiveSubscription:
+                widget.currentPlanName != null &&
+                widget.currentPlanName!.isNotEmpty,
             currentActivePlanName: widget.currentPlanName,
-            activePlanExpiryDate: widget.remainingDays != null ? DateTime.now().add(Duration(days: widget.remainingDays!)) : null,
+            activePlanExpiryDate: widget.remainingDays != null
+                ? DateTime.now().add(Duration(days: widget.remainingDays!))
+                : null,
           ),
         ),
       );

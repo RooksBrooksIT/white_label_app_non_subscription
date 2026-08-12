@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:open_file/open_file.dart';
@@ -251,21 +252,17 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
 
   double _calculateTotalAmount(Map<String, dynamic> record) {
     double total = 0.0;
-    // First check if payments array exists
+    // Add admin's amount
+    if (record['amount'] != null) {
+      total += (double.tryParse(record['amount'].toString()) ?? 0.0);
+    }
+    // Add all engineer's payments
     if (record['payments'] is List) {
       for (var payment in record['payments']) {
         if (payment is Map && payment['amount'] != null) {
           total += (double.tryParse(payment['amount'].toString()) ?? 0.0);
         }
       }
-    }
-    // Fallback to paymentDetails if no payments array
-    if (total == 0 && record['paymentDetails'] != null) {
-      total += (double.tryParse(record['paymentDetails'].toString()) ?? 0.0);
-    }
-    // Also fallback to amount field for compatibility
-    if (total == 0 && record['amount'] != null) {
-      total += (double.tryParse(record['amount'].toString()) ?? 0.0);
     }
     return total;
   }
@@ -293,12 +290,31 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
     ThemeService.instance.primaryColor.withOpacity(0.1).value,
   );
 
+  // Helper to create text style with font and fallback
+  pw.TextStyle _pdfTextStyle({
+    double? fontSize,
+    pw.FontWeight? fontWeight,
+    PdfColor? color,
+    double? letterSpacing,
+    required pw.Font font,
+    List<pw.Font>? fontFallback,
+  }) {
+    return pw.TextStyle(
+      fontSize: fontSize,
+      fontWeight: fontWeight,
+      color: color,
+      letterSpacing: letterSpacing,
+      font: font,
+      fontFallback: fontFallback ?? [pw.Font.helvetica()],
+    );
+  }
+
   Future<pw.Document> _buildPdfDocument(
     List<Map<String, dynamic>> records,
   ) async {
     final pdf = pw.Document();
     final appName = ThemeService.instance.appName;
-    final generatedAt = DateFormat('dd MMM yyyy, HH:mm').format(DateTime.now());
+    final generatedAt = DateFormat('yyyy-MM-dd').format(DateTime.now());
 
     pw.MemoryImage? logoImage;
     final logoUrl = ThemeService.instance.logoUrl;
@@ -306,24 +322,59 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
       logoImage = await PdfUtils.fetchNetworkImage(logoUrl);
     }
 
+    // Load fonts with fallback
+    pw.Font regularFont = pw.Font.helvetica();
+    pw.Font boldFont = pw.Font.helveticaBold();
+    pw.Font mediumFont = pw.Font.helvetica();
+
+    try {
+      // Try loading with assets/ prefix
+      regularFont = await pw.Font.ttf(
+        await rootBundle.load('assets/fonts/LufgaRegular.ttf'),
+      );
+      boldFont = await pw.Font.ttf(
+        await rootBundle.load('assets/fonts/LufgaBold.ttf'),
+      );
+      mediumFont = await pw.Font.ttf(
+        await rootBundle.load('assets/fonts/LufgaMedium.ttf'),
+      );
+    } catch (e) {
+      try {
+        // Try loading without assets/ prefix
+        regularFont = await pw.Font.ttf(
+          await rootBundle.load('fonts/LufgaRegular.ttf'),
+        );
+        boldFont = await pw.Font.ttf(
+          await rootBundle.load('fonts/LufgaBold.ttf'),
+        );
+        mediumFont = await pw.Font.ttf(
+          await rootBundle.load('fonts/LufgaMedium.ttf'),
+        );
+      } catch (e2) {
+        // Fall back to default fonts
+        print('Failed to load Lufga fonts, using defaults: $e, $e2');
+      }
+    }
+
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.symmetric(horizontal: 32, vertical: 28),
-        header: (ctx) => _pdfHeader(logoImage, appName, generatedAt),
-        footer: (ctx) => _pdfFooter(ctx, appName),
+        margin: const pw.EdgeInsets.symmetric(horizontal: 40, vertical: 40),
+        header: (ctx) =>
+            _pdfHeader(logoImage, appName, generatedAt, boldFont, regularFont),
+        footer: (ctx) => _pdfFooter(ctx, appName, regularFont),
         build: (ctx) {
-          final widgets = <pw.Widget>[_pdfSummaryBox(records)];
-          if (records.length > 1) {
-            widgets
-              ..add(pw.SizedBox(height: 18))
-              ..add(_pdfIndex(records));
-          }
-          for (var i = 0; i < records.length; i++) {
-            widgets
-              ..add(pw.SizedBox(height: 18))
-              ..add(_pdfCard(records[i], i + 1, records.length));
-          }
+          final widgets = <pw.Widget>[];
+
+          // Summary Section
+          widgets.add(_pdfSummarySection(records, boldFont, regularFont));
+          widgets.add(pw.SizedBox(height: 20));
+
+          // Tickets Table
+          widgets.add(
+            _pdfTicketsTable(records, boldFont, regularFont, mediumFont),
+          );
+
           return widgets;
         },
       ),
@@ -335,11 +386,13 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
     pw.MemoryImage? logo,
     String appName,
     String generatedAt,
+    pw.Font boldFont,
+    pw.Font regularFont,
   ) {
     return pw.Container(
-      margin: const pw.EdgeInsets.only(bottom: 16),
-      padding: const pw.EdgeInsets.only(bottom: 12),
-      decoration: const pw.BoxDecoration(
+      margin: const pw.EdgeInsets.only(bottom: 20),
+      padding: const pw.EdgeInsets.only(bottom: 16),
+      decoration: pw.BoxDecoration(
         border: pw.Border(
           bottom: pw.BorderSide(color: PdfColors.grey300, width: 1),
         ),
@@ -349,9 +402,9 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
         children: [
           if (logo != null)
             pw.Container(
-              width: 48,
-              height: 48,
-              margin: const pw.EdgeInsets.only(right: 14),
+              width: 50,
+              height: 50,
+              margin: const pw.EdgeInsets.only(right: 12),
               child: pw.Image(logo, fit: pw.BoxFit.contain),
             ),
           pw.Expanded(
@@ -360,45 +413,32 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
               children: [
                 pw.Text(
                   'CUSTOMER SERVICE REPORT',
-                  style: pw.TextStyle(
-                    fontSize: 15,
+                  style: _pdfTextStyle(
+                    fontSize: 20,
                     fontWeight: pw.FontWeight.bold,
                     color: _pdfBrand,
-                    letterSpacing: 0.5,
+                    letterSpacing: 1.5,
+                    font: boldFont,
                   ),
                 ),
-                pw.SizedBox(height: 3),
+                pw.SizedBox(height: 4),
                 pw.Text(
                   appName,
-                  style: const pw.TextStyle(
-                    fontSize: 10,
-                    color: PdfColors.grey700,
-                  ),
-                ),
-                pw.SizedBox(height: 2),
-                pw.Text(
-                  'Generated: $generatedAt',
-                  style: const pw.TextStyle(
-                    fontSize: 8,
+                  style: _pdfTextStyle(
+                    fontSize: 11,
                     color: PdfColors.grey600,
+                    font: regularFont,
                   ),
                 ),
               ],
             ),
           ),
-          pw.Container(
-            padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-            decoration: pw.BoxDecoration(
-              color: _pdfBrand,
-              borderRadius: pw.BorderRadius.circular(4),
-            ),
-            child: pw.Text(
-              'INTERNAL',
-              style: pw.TextStyle(
-                fontSize: 7,
-                fontWeight: pw.FontWeight.bold,
-                color: PdfColors.white,
-              ),
+          pw.Text(
+            'Generated on $generatedAt',
+            style: _pdfTextStyle(
+              fontSize: 10,
+              color: PdfColors.grey600,
+              font: regularFont,
             ),
           ),
         ],
@@ -406,11 +446,11 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
     );
   }
 
-  pw.Widget _pdfFooter(pw.Context ctx, String appName) {
+  pw.Widget _pdfFooter(pw.Context ctx, String appName, pw.Font regularFont) {
     return pw.Container(
-      margin: const pw.EdgeInsets.only(top: 12),
-      padding: const pw.EdgeInsets.only(top: 8),
-      decoration: const pw.BoxDecoration(
+      margin: const pw.EdgeInsets.only(top: 16),
+      padding: const pw.EdgeInsets.only(top: 12),
+      decoration: pw.BoxDecoration(
         border: pw.Border(
           top: pw.BorderSide(color: PdfColors.grey300, width: 0.5),
         ),
@@ -420,189 +460,103 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
         children: [
           pw.Text(
             appName,
-            style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600),
-          ),
-          pw.Text(
-            'Page ${ctx.pageNumber} of ${ctx.pagesCount}',
-            style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600),
-          ),
-          pw.Text(
-            'Confidential — internal use only',
-            style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600),
-          ),
-        ],
-      ),
-    );
-  }
-
-  pw.Widget _pdfSummaryBox(List<Map<String, dynamic>> records) {
-    final total = _totalAmount(records);
-    return pw.Container(
-      width: double.infinity,
-      padding: const pw.EdgeInsets.all(14),
-      decoration: pw.BoxDecoration(
-        color: _pdfBrandLight,
-        borderRadius: pw.BorderRadius.circular(6),
-        border: pw.Border.all(color: _pdfBrand, width: 0.8),
-      ),
-      child: pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.Text(
-            'Report Summary',
-            style: pw.TextStyle(
-              fontSize: 11,
-              fontWeight: pw.FontWeight.bold,
-              color: _pdfBrand,
+            style: _pdfTextStyle(
+              fontSize: 9,
+              color: PdfColors.grey600,
+              font: regularFont,
             ),
           ),
-          pw.SizedBox(height: 10),
-          pw.Row(
-            children: [
-              pw.Expanded(
-                child: _pdfMetric('Records', records.length.toString()),
-              ),
-              pw.Expanded(
-                child: _pdfMetric('Combined Amount', _fmtAmount(total)),
-              ),
-              if (multipleResults != null)
-                pw.Expanded(
-                  child: _pdfMetric(
-                    'From Search',
-                    '${multipleResults!.length} total',
-                  ),
-                ),
-            ],
+          pw.Text(
+            'Page ${ctx.pageNumber}',
+            style: _pdfTextStyle(
+              fontSize: 9,
+              color: PdfColors.grey600,
+              font: regularFont,
+            ),
           ),
         ],
       ),
     );
   }
 
-  pw.Widget _pdfMetric(String label, String value) => pw.Column(
-    crossAxisAlignment: pw.CrossAxisAlignment.start,
-    children: [
-      pw.Text(
-        label,
-        style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
-      ),
-      pw.SizedBox(height: 3),
-      pw.Text(
-        value,
-        style: pw.TextStyle(
-          fontSize: 11,
-          fontWeight: pw.FontWeight.bold,
-          color: _pdfBrand,
-        ),
-      ),
-    ],
-  );
+  pw.Widget _pdfSummarySection(
+    List<Map<String, dynamic>> records,
+    pw.Font boldFont,
+    pw.Font regularFont,
+  ) {
+    final totalAmount = _totalAmount(records);
+    final totalTickets = records.length;
 
-  pw.Widget _pdfIndex(List<Map<String, dynamic>> records) {
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
-        _pdfHeading('Quick Reference'),
-        pw.Table(
-          border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.5),
-          columnWidths: {
-            0: const pw.FixedColumnWidth(28),
-            1: const pw.FlexColumnWidth(1.2),
-            2: const pw.FlexColumnWidth(2),
-            3: const pw.FlexColumnWidth(1.5),
-            4: const pw.FlexColumnWidth(1.2),
-          },
-          children: [
-            pw.TableRow(
-              decoration: pw.BoxDecoration(color: _pdfBrand),
-              children: [
-                '#',
-                'Customer ID',
-                'Customer',
-                'Ticket ID',
-                'Status',
-              ].map((h) => _pdfCell(h, header: true)).toList(),
-            ),
-            ...List.generate(records.length, (i) {
-              final r = records[i];
-              return pw.TableRow(
-                decoration: pw.BoxDecoration(
-                  color: i.isOdd ? PdfColors.grey100 : PdfColors.white,
-                ),
-                children: [
-                  _pdfCell('${i + 1}'),
-                  _pdfCell(_fmt(r['customerId'])),
-                  _pdfCell(_fmt(r['customerName'])),
-                  _pdfCell(_fmt(r['ticketId'])),
-                  _pdfCell(_fmt(r['adminStatus'])),
-                ],
-              );
-            }),
-          ],
+        pw.Text(
+          'Report Summary',
+          style: _pdfTextStyle(
+            fontSize: 16,
+            fontWeight: pw.FontWeight.bold,
+            color: _pdfBrand,
+            font: boldFont,
+          ),
+        ),
+        pw.SizedBox(height: 12),
+        pw.Container(
+          padding: const pw.EdgeInsets.all(16),
+          decoration: pw.BoxDecoration(
+            border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
+            borderRadius: pw.BorderRadius.circular(4),
+          ),
+          child: pw.Row(
+            children: [
+              _pdfSummaryItem(
+                'Total Tickets',
+                totalTickets.toString(),
+                boldFont,
+                regularFont,
+              ),
+              _pdfDivider(),
+              _pdfSummaryItem(
+                'Combined Amount',
+                _fmtAmount(totalAmount),
+                boldFont,
+                regularFont,
+              ),
+              _pdfDivider(),
+              _pdfSummaryItem('Status', 'All', boldFont, regularFont),
+            ],
+          ),
         ),
       ],
     );
   }
 
-  pw.Widget _pdfHeading(String title) => pw.Container(
-    width: double.infinity,
-    margin: const pw.EdgeInsets.only(bottom: 8),
-    padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-    decoration: pw.BoxDecoration(
-      color: _pdfBrandLight,
-      borderRadius: pw.BorderRadius.circular(4),
-      border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
-    ),
-    child: pw.Text(
-      title,
-      style: pw.TextStyle(
-        fontSize: 10,
-        fontWeight: pw.FontWeight.bold,
-        color: _pdfBrand,
-      ),
-    ),
-  );
-
-  pw.Widget _pdfCell(String text, {bool header = false}) => pw.Padding(
-    padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 7),
-    child: pw.Text(
-      text,
-      maxLines: 2,
-      style: pw.TextStyle(
-        fontSize: 8,
-        fontWeight: header ? pw.FontWeight.bold : pw.FontWeight.normal,
-        color: header ? PdfColors.white : PdfColors.black,
-      ),
-    ),
-  );
-
-  pw.Widget _pdfDetailRow(
+  pw.Widget _pdfSummaryItem(
     String label,
-    String value, {
-    bool emphasize = false,
-  }) {
-    return pw.Padding(
-      padding: const pw.EdgeInsets.only(bottom: 6),
-      child: pw.Row(
+    String value,
+    pw.Font boldFont,
+    pw.Font regularFont,
+  ) {
+    return pw.Expanded(
+      child: pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          pw.SizedBox(
-            width: 118,
-            child: pw.Text(
-              label,
-              style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700),
+          pw.Text(
+            label,
+            style: _pdfTextStyle(
+              fontSize: 10,
+              color: PdfColors.grey600,
+              fontWeight: pw.FontWeight.bold,
+              font: boldFont,
             ),
           ),
-          pw.Expanded(
-            child: pw.Text(
-              value,
-              style: pw.TextStyle(
-                fontSize: 9,
-                fontWeight: emphasize
-                    ? pw.FontWeight.bold
-                    : pw.FontWeight.normal,
-                color: emphasize ? _pdfBrand : PdfColors.black,
-              ),
+          pw.SizedBox(height: 4),
+          pw.Text(
+            value,
+            style: _pdfTextStyle(
+              fontSize: 14,
+              fontWeight: pw.FontWeight.bold,
+              color: _pdfBrand,
+              font: boldFont,
             ),
           ),
         ],
@@ -610,100 +564,181 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
     );
   }
 
-  pw.Widget _pdfCard(Map<String, dynamic> r, int index, int total) {
+  pw.Widget _pdfDivider() {
     return pw.Container(
-      width: double.infinity,
-      padding: const pw.EdgeInsets.all(14),
-      decoration: pw.BoxDecoration(
-        border: pw.Border.all(color: PdfColors.grey400, width: 0.8),
-        borderRadius: pw.BorderRadius.circular(6),
-      ),
-      child: pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.Row(
-            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-            children: [
-              pw.Text(
-                'Record $index of $total',
-                style: pw.TextStyle(
-                  fontSize: 12,
-                  fontWeight: pw.FontWeight.bold,
-                  color: _pdfBrand,
-                ),
-              ),
-              pw.Container(
-                padding: const pw.EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: pw.BoxDecoration(
-                  color: _pdfBrand,
-                  borderRadius: pw.BorderRadius.circular(12),
-                ),
-                child: pw.Text(
-                  _fmt(r['adminStatus']),
-                  style: pw.TextStyle(
-                    fontSize: 8,
-                    fontWeight: pw.FontWeight.bold,
-                    color: PdfColors.white,
+      width: 1,
+      height: 40,
+      margin: const pw.EdgeInsets.symmetric(horizontal: 16),
+      color: PdfColors.grey300,
+    );
+  }
+
+  pw.Widget _pdfTicketsTable(
+    List<Map<String, dynamic>> records,
+    pw.Font boldFont,
+    pw.Font regularFont,
+    pw.Font mediumFont,
+  ) {
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Text(
+          'Ticket Details',
+          style: _pdfTextStyle(
+            fontSize: 16,
+            fontWeight: pw.FontWeight.bold,
+            color: _pdfBrand,
+            font: boldFont,
+          ),
+        ),
+        pw.SizedBox(height: 8),
+        pw.Text(
+          'Total: ${records.length} tickets',
+          style: _pdfTextStyle(
+            fontSize: 11,
+            color: PdfColors.grey600,
+            font: regularFont,
+          ),
+        ),
+        pw.SizedBox(height: 12),
+        pw.Table(
+          border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.5),
+          columnWidths: {
+            0: const pw.FlexColumnWidth(1.5),
+            1: const pw.FlexColumnWidth(1.2),
+            2: const pw.FlexColumnWidth(1.2),
+            3: const pw.FlexColumnWidth(2),
+            4: const pw.FlexColumnWidth(1.2),
+            5: const pw.FlexColumnWidth(1.2),
+            6: const pw.FlexColumnWidth(1.2),
+            7: const pw.FlexColumnWidth(1.2),
+          },
+          children: [
+            // Header row
+            pw.TableRow(
+              decoration: pw.BoxDecoration(color: _pdfBrand),
+              children: [
+                'Ticket ID',
+                'Device Type',
+                'Brand',
+                'Issue Description',
+                'Amount',
+                'Eng Status',
+                'Admin Status',
+                'Date',
+              ].map((h) => _pdfHeaderCell(h, boldFont)).toList(),
+            ),
+            // Data rows
+            ...records.map((record) {
+              final status = record['adminStatus']?.toString() ?? '';
+              final statusColor = _getPdfStatusColor(status);
+
+              return pw.TableRow(
+                decoration: pw.BoxDecoration(color: PdfColors.white),
+                children: [
+                  _pdfDataCell(_fmt(record['ticketId']), regularFont),
+                  _pdfDataCell(_fmt(record['deviceType']), regularFont),
+                  _pdfDataCell(_fmt(record['deviceBrand']), regularFont),
+                  _pdfDataCell(
+                    _fmt(
+                      record['issueDescription'] ?? record['issue'] ?? 'N/A',
+                    ),
+                    regularFont,
                   ),
-                ),
-              ),
-            ],
-          ),
-          pw.SizedBox(height: 4),
-          pw.Text(
-            'Ticket: ${_fmt(r['ticketId'])}',
-            style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700),
-          ),
-          pw.SizedBox(height: 12),
-          pw.Divider(color: PdfColors.grey300, height: 1),
-          pw.SizedBox(height: 10),
-          _pdfHeading('Customer Details'),
-          _pdfDetailRow('Customer ID', _fmt(r['customerId'])),
-          _pdfDetailRow('Name', _fmt(r['customerName'])),
-          _pdfDetailRow('Mobile', _fmt(r['mobileNumber'])),
-          _pdfDetailRow('Ticket ID', _fmt(r['ticketId'])),
-          pw.SizedBox(height: 6),
-          _pdfHeading('Device Details'),
-          pw.Row(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Expanded(
-                child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    _pdfDetailRow('Brand', _fmt(r['deviceBrand'])),
-                    _pdfDetailRow('Type', _fmt(r['deviceType'])),
-                  ],
-                ),
-              ),
-              pw.Expanded(
-                child: _pdfDetailRow('Condition', _fmt(r['deviceCondition'])),
-              ),
-            ],
-          ),
-          pw.SizedBox(height: 6),
-          _pdfHeading('Service & Billing'),
-          // Show individual payments
-          if (r['payments'] is List && (r['payments'] as List).isNotEmpty)
-            ...(r['payments'] as List).asMap().entries.map((entry) {
-              final payment = entry.value;
-              return _pdfDetailRow(
-                payment['paymentMethod'] ?? 'Payment ${entry.key + 1}',
-                _fmtAmount(payment['amount']),
+                  _pdfDataCell(_fmtAmount(record['amount']), regularFont),
+                  _pdfDataCell(
+                    _fmt(record['engineerStatus'] ?? 'N/A'),
+                    regularFont,
+                  ),
+                  _pdfDataCell(
+                    _fmt(record['adminStatus']),
+                    regularFont,
+                    statusColor: statusColor,
+                  ),
+                  _pdfDataCell(_formatDate(record['createdAt']), regularFont),
+                ],
               );
-            }),
-          _pdfDetailRow(
-            'Total Amount',
-            _fmtAmount(_calculateTotalAmount(r)),
-            emphasize: true,
+            }).toList(),
+          ],
+        ),
+        // Amount summary row
+        pw.SizedBox(height: 12),
+        pw.Container(
+          alignment: pw.Alignment.centerRight,
+          child: pw.Text(
+            'Total Amount: ${_fmtAmount(_totalAmount(records))}',
+            style: _pdfTextStyle(
+              fontSize: 12,
+              fontWeight: pw.FontWeight.bold,
+              color: _pdfBrand,
+              font: boldFont,
+            ),
           ),
-          _pdfDetailRow('Address', _fmt(r['address'])),
-        ],
+        ),
+      ],
+    );
+  }
+
+  pw.Widget _pdfHeaderCell(String text, pw.Font boldFont) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      child: pw.Text(
+        text,
+        style: _pdfTextStyle(
+          fontSize: 9,
+          fontWeight: pw.FontWeight.bold,
+          color: PdfColors.white,
+          font: boldFont,
+        ),
       ),
     );
+  }
+
+  pw.Widget _pdfDataCell(
+    String text,
+    pw.Font regularFont, {
+    PdfColor? statusColor,
+  }) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      child: pw.Text(
+        text,
+        style: _pdfTextStyle(
+          fontSize: 9,
+          color: statusColor ?? PdfColors.black,
+          fontWeight: statusColor != null
+              ? pw.FontWeight.bold
+              : pw.FontWeight.normal,
+          font: regularFont,
+        ),
+      ),
+    );
+  }
+
+  String _formatDate(dynamic timestamp) {
+    if (timestamp == null) return 'N/A';
+    try {
+      if (timestamp is Timestamp) {
+        return DateFormat('dd/MM/yyyy').format(timestamp.toDate());
+      }
+      return timestamp.toString();
+    } catch (e) {
+      return 'N/A';
+    }
+  }
+
+  PdfColor _getPdfStatusColor(String status) {
+    final n = status.toLowerCase().trim();
+    if (n == 'assigned' || n == 'completed' || n == 'complete')
+      return PdfColors.green;
+    if (n == 'not assigned' || n == 'not assinged') return PdfColors.red;
+    if (n.contains('approval')) return PdfColors.purple;
+    if (n.contains('spare')) return PdfColors.orange;
+    if (n.contains('observation')) return PdfColors.cyan;
+    if (n.contains('cancel')) return PdfColors.grey;
+    if (n == 'pending' || n == 'open') return PdfColors.orange;
+    if (n == 'in progress') return PdfColors.blue;
+    return PdfColors.blueGrey;
   }
 
   Future<void> _viewReportPdf() async {
@@ -737,7 +772,6 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
     try {
       final pdf = await _buildPdfDocument(records);
       if (kIsWeb) {
-        // Web: Use Printing package to download
         await Printing.sharePdf(
           bytes: await pdf.save(),
           filename: '${_reportPdfName(records)}.pdf',
@@ -751,7 +785,6 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
           ),
         );
       } else {
-        // Mobile/Desktop: Use path_provider and open_file
         final dir =
             await getDownloadsDirectory() ??
             await getApplicationDocumentsDirectory();
@@ -1437,7 +1470,16 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                       ),
                     ],
                   ),
-                  // Show individual payments
+                  // Show admin's amount
+                  if (record['amount'] != null) ...[
+                    const SizedBox(height: 10),
+                    _detailTile(
+                      'Admin Amount',
+                      _fmtAmount(record['amount']),
+                      icon: Icons.payment_outlined,
+                    ),
+                  ],
+                  // Show individual engineer's payments
                   if (record['payments'] is List &&
                       (record['payments'] as List).isNotEmpty) ...[
                     const SizedBox(height: 10),

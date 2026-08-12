@@ -8,27 +8,33 @@ class FirestoreService {
 
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  /// Generates a consistent tenant ID based on organization name and current date.
-  /// Format: {CleanName}_YYYYMMDD
-  static String generateTenantId(String name) {
-    final now = DateTime.now();
-    final dateStr =
-        "${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}";
-    // Clean name: alphanumeric only, remove spaces
+  /// Generates a consistent tenant ID based on user/organization name and registration date.
+  /// Format: {CleanName}_{YYYYMMDD} (e.g. Abi_20260610)
+  static String generateTenantId(String name, [DateTime? registrationDate]) {
+    final date = registrationDate ?? DateTime.now();
+    final yearStr = date.year.toString();
+    final monthStr = date.month.toString().padLeft(2, '0');
+    final dayStr = date.day.toString().padLeft(2, '0');
+    final dateStr = "$yearStr$monthStr$dayStr";
+    // Clean name: alphanumeric only, remove spaces/special chars (preserve case)
     final cleanName = name.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '');
     return "${cleanName}_$dateStr";
   }
 
   /// Returns a collection reference rooted under:
-  /// {organizationName}_{createdDate} (coll) -> {documentId} (doc) -> {subCollectionName} (coll)
-  /// This follows the format: OrganizationName_createdDate
+  /// {tenantId} (coll) -> {appId} (doc) -> {collectionName} (coll)
   /// Standardized tenant collection path: {tenantId} (coll) -> data (doc) -> {subCollection} (coll)
   CollectionReference<Map<String, dynamic>> collection(
     String collectionName, {
     String? tenantId,
     String? appId,
   }) {
-    final effectiveTenant = tenantId ?? ThemeService.instance.databaseName;
+    String effectiveTenant = (tenantId != null && tenantId.isNotEmpty)
+        ? tenantId
+        : ThemeService.instance.databaseName;
+    if (effectiveTenant.isEmpty) {
+      effectiveTenant = 'global_user_directory';
+    }
     final effectiveApp = appId ?? 'data';
     return _db
         .collection(effectiveTenant)
@@ -98,28 +104,18 @@ class FirestoreService {
     return null;
   }
 
-  /// Generates a new ticket ID in the format: <CustomerNamePrefix>_<CustomerType>_<RunningNumber>
+  /// Generates a new ticket ID in the sequential format: T001, T002, T003...
   Future<String> generateTicketId({
-    required String customerName,
-    required String customerType, // "amc" or "nonamc"
+    String? customerName,
+    String? customerType,
   }) async {
-    // Get first 3 characters of customer name, lowercase
-    final namePrefix = customerName
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^a-z]'), '')
-        .padLeft(3, 'x')
-        .substring(0, 3);
-
-    // Ensure customer type is "amc" or "nonamc"
-    final type = customerType.toLowerCase().trim() == 'amc' ? 'amc' : 'nonamc';
-
     // Reference to counter document
     final counterRef = collection('counters').doc('ticket_counter');
 
     return runTransaction((transaction) async {
       final snapshot = await transaction.get(counterRef);
 
-      // Get current counter value (or start at 0
+      // Get current counter value (or start at 0)
       int currentCount = 0;
       if (snapshot.exists && snapshot.data() != null) {
         final data = snapshot.data()!['lastTicketCount'] as int? ?? 0;
@@ -134,11 +130,10 @@ class FirestoreService {
         'lastTicketCount': newCount,
       }, SetOptions(merge: true));
 
-      // Generate padded to 3 digits
+      // Generate padded to 3 digits (e.g. T001, T002...)
       final paddedNumber = newCount.toString().padLeft(3, '0');
 
-      // Return final ticket ID
-      return '${namePrefix}_${type}_${paddedNumber}';
+      return 'T$paddedNumber';
     });
   }
 

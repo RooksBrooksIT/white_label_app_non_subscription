@@ -242,20 +242,17 @@ class AuthStateService extends ChangeNotifier {
       final role = _pendingRegistrationData!['role'];
       final additionalData = _pendingRegistrationData!['additionalData'];
 
-      // Determine proper scope (Company DB)
-      String targetScope = ThemeService.instance.appName;
-
-      if (role == 'admin' || role == 'Owner') {
-        // Generate dynamic collection name: OrganizationName_YYYYMMDD
-        final now = DateTime.now();
-        final dateStr =
-            "${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}";
-        // Clean organization name (remove spaces)
-        final cleanOrgName = name.replaceAll(' ', '');
-        targetScope = "${cleanOrgName}_$dateStr";
+      // Determine proper scope (User/Company DB)
+      String targetScope = '';
+      if (_pendingRegistrationData != null &&
+          _pendingRegistrationData!.containsKey('tenantId') &&
+          (_pendingRegistrationData!['tenantId'] as String).isNotEmpty) {
+        targetScope = _pendingRegistrationData!['tenantId'];
       } else if (additionalData != null &&
           additionalData.containsKey('linkedAppName')) {
         targetScope = additionalData['linkedAppName'];
+      } else {
+        targetScope = FirestoreService.generateTenantId(name);
       }
 
       // 2. Store details in Firestore (Isolated to Company DB)

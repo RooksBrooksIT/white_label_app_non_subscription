@@ -12,7 +12,7 @@ class ThemeService extends ChangeNotifier {
   bool _isDarkMode = false;
   String _fontFamily = 'Roboto';
   String _appName = 'ServNex';
-  String _databaseName = 'default_db';
+  String _databaseName = '';
   String? _logoUrl;
 
   Color get primaryColor => _primaryColor;
@@ -38,6 +38,9 @@ class ThemeService extends ChangeNotifier {
       textTheme: GoogleFonts.getTextTheme(_fontFamily, base.textTheme),
       scaffoldBackgroundColor: _backgroundColor,
       canvasColor: _backgroundColor,
+      snackBarTheme: const SnackBarThemeData(
+        behavior: SnackBarBehavior.fixed,
+      ),
       appBarTheme: AppBarTheme(
         backgroundColor: _backgroundColor,
         foregroundColor:
@@ -68,6 +71,9 @@ class ThemeService extends ChangeNotifier {
       textTheme: GoogleFonts.getTextTheme(fontFamily, base.textTheme),
       scaffoldBackgroundColor: background,
       canvasColor: background,
+      snackBarTheme: const SnackBarThemeData(
+        behavior: SnackBarBehavior.fixed,
+      ),
       appBarTheme: const AppBarTheme(
         backgroundColor: background,
         foregroundColor: Colors.black,
@@ -100,7 +106,7 @@ class ThemeService extends ChangeNotifier {
     // Support both 'tenantId' and 'databaseName' keys for backward compatibility and consistency
     final storedTenantId = prefs.getString('tenantId');
     final storedDatabaseName = prefs.getString('databaseName');
-    _databaseName = storedTenantId ?? storedDatabaseName ?? 'default_db';
+    _databaseName = storedTenantId ?? storedDatabaseName ?? '';
 
     _logoUrl = prefs.getString('logoUrl');
     notifyListeners();

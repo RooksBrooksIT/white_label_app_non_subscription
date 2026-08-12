@@ -1100,6 +1100,14 @@ class _BrandingCustomizationScreenState
           );
 
           try {
+            final String resolvedTenantId = widget.pendingUserData?['tenantId'] ??
+                (ThemeService.instance.databaseName.isNotEmpty
+                    ? ThemeService.instance.databaseName
+                    : (widget.pendingUserData?['name'] != null
+                        ? FirestoreService.generateTenantId(
+                            widget.pendingUserData!['name'])
+                        : ''));
+
             final brandingData = {
               'appName': _appNameController.text,
               'primaryColor': _primaryColor.toARGB32(),
@@ -1107,7 +1115,7 @@ class _BrandingCustomizationScreenState
               'backgroundColor': _backgroundColor.toARGB32(),
               'useDarkMode': _useDarkMode,
               'fontFamily': _selectedFont,
-              'databaseName': ThemeService.instance.databaseName,
+              'databaseName': resolvedTenantId,
             };
 
             String? uid = AuthStateService.instance.currentUser?.uid;
@@ -1152,7 +1160,7 @@ class _BrandingCustomizationScreenState
               brandingData['logoUrl'] = _existingLogoUrl!;
             }
 
-            final tenantId = ThemeService.instance.databaseName;
+            final tenantId = resolvedTenantId;
 
             if (widget.isEditMode) {
               await FirestoreService.instance.saveAppBranding(

@@ -4,7 +4,7 @@ description: "ServNex Project"
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 
 
-version: 1.0.0+7
+version: 1.0.0+8
 
 environment:
   sdk: ^3.10.4
@@ -92,6 +92,7 @@ flutter:
   assets:
     - .env
     - assets/images/
+    - assets/fonts/
     - assets/phone_login.json
     - assets/empty_box.json
     - assets/loading_animation.json

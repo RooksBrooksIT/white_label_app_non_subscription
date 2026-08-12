@@ -108,12 +108,15 @@ class _admindashboardState extends State<admindashboard> {
   void _initStreams() {
     _initAdminNotificationListener();
     AdminDashboardBackend.getEngineerUpdateCountStream().listen((count) {
+      print('Engineer Update Count: $count');
       if (mounted) setState(() => engineerUpdateCount = count);
     });
     AdminDashboardBackend.getServiceTicketCountStream().listen((count) {
+      print('Service Ticket Count: $count');
       if (mounted) setState(() => serviceTicketCount = count);
     });
     AdminDashboardBackend.getCallLogCountStream().listen((count) {
+      print('Call Log Count: $count');
       if (mounted) setState(() => callLogCount = count);
     });
     AdminDashboardBackend.getTotalCustomersStream().listen((count) {
