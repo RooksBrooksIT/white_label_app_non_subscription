@@ -206,15 +206,16 @@ class _AmcCustomerHomePageState extends State<AmcCustomerHomePage> {
     });
     try {
       final snapshot = await FirestoreService.instance
-          .collection('deviceDetails')
+          .collection('Devices')
           .get();
       final types = snapshot.docs
-          .map((doc) => doc['deviceType']?.toString())
+          .map((doc) => doc['deviceName']?.toString().trim())
           .where((t) => t != null && t.isNotEmpty)
           .cast<String>()
-          .toSet()
+          .toSet() // removes duplicates (multiple Laptop docs → one "Laptop")
           .toList();
 
+      types.sort();
       if (!types.contains('Others')) types.add('Others');
 
       setState(() {
@@ -238,55 +239,21 @@ class _AmcCustomerHomePageState extends State<AmcCustomerHomePage> {
     });
 
     try {
-      String? collectionName;
-      switch (deviceType.toLowerCase()) {
-        case 'desktop':
-          collectionName = 'desktopBrands';
-          break;
-        case 'laptop':
-          collectionName = 'laptopBrands';
-          break;
-        case 'cctv':
-          collectionName = 'cctvBrands';
-          break;
-        case 'projector':
-          collectionName = 'projectorBrands';
-          break;
-        case 'printer':
-          collectionName = 'printerBrands';
-          break;
-        default:
-          collectionName = null;
-      }
+      final snapshot =
+          await FirestoreService.instance.collection('Devices').get();
+      final brands = snapshot.docs
+          .map((doc) => doc['brandName']?.toString().trim())
+          .where((b) => b != null && b.isNotEmpty)
+          .cast<String>()
+          .toSet() // removes duplicates (multiple Lenovo docs → one "Lenovo")
+          .toList()
+        ..sort();
 
-      if (collectionName != null) {
-        final snapshot = await FirestoreService.instance
-            .collection(collectionName)
-            .get();
-        final brands =
-            snapshot.docs
-                .map(
-                  (doc) =>
-                      doc['brandName']?.toString() ??
-                      doc['name']?.toString() ??
-                      doc['brand']?.toString() ??
-                      '',
-                )
-                .where((b) => b.isNotEmpty)
-                .toSet()
-                .toList()
-              ..sort();
+      if (!brands.contains('Others')) brands.add('Others');
 
-        if (!brands.contains('Others')) brands.add('Others');
-
-        setState(() {
-          deviceBrands = brands;
-        });
-      } else {
-        setState(() {
-          deviceBrands = ['DELL', 'HP', 'MAC', 'LENOVO', 'ASUS', 'Others'];
-        });
-      }
+      setState(() {
+        deviceBrands = brands;
+      });
     } catch (_) {
       setState(() {
         deviceBrands = ['DELL', 'HP', 'MAC', 'LENOVO', 'ASUS', 'Others'];
@@ -378,7 +345,7 @@ class _AmcCustomerHomePageState extends State<AmcCustomerHomePage> {
             .doc(docId)
             .set(customerData);
         await FirestoreService.instance
-            .collection('Admin_details')
+            .collection('Admin_ticket_entry')
             .doc(docId)
             .set(adminData);
 

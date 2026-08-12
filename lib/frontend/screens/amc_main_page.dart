@@ -132,7 +132,7 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
               Expanded(
                 child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                   stream: FirestoreService.instance
-                      .collection('Admin_details')
+                      .collection('Admin_ticket_entry')
                       .where('id', isEqualTo: widget.customerId)
                       .snapshots(),
                   builder: (context, snapshot) {
@@ -857,7 +857,7 @@ class _CancelTicketDialogState extends State<CancelTicketDialog> {
 
     try {
       await FirestoreService.instance
-          .collection('Admin_details')
+          .collection('Admin_ticket_entry')
           .doc(widget.documentId)
           .update({
             'Reason_cancel': _reasonController.text.trim(),
@@ -1056,7 +1056,7 @@ class FeedbackDialog extends StatelessWidget {
   Future<void> _submitFeedback(BuildContext context, String feedback) async {
     try {
       await FirestoreService.instance
-          .collection('Admin_details')
+          .collection('Admin_ticket_entry')
           .doc(documentId)
           .update({'FeedBack': feedback});
 

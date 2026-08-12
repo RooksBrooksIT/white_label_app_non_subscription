@@ -844,7 +844,7 @@ class _EngineerPageState extends State<EngineerPage> {
   ) async {
     try {
       final doc = await FirestoreService.instance
-          .collection('Admin_details')
+          .collection('Admin_ticket_entry')
           .doc(bookingId)
           .get();
 
@@ -1492,7 +1492,7 @@ class _EngineerPageState extends State<EngineerPage> {
   Widget _buildStatsCards() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirestoreService.instance
-          .collection('Admin_details')
+          .collection('Admin_ticket_entry')
           .where('assignedEmployee', isEqualTo: widget.userName)
           .snapshots(),
       builder: (context, snapshot) {
@@ -1583,7 +1583,7 @@ class _EngineerPageState extends State<EngineerPage> {
   Widget _buildWorkSummaryDashboard() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirestoreService.instance
-          .collection('Admin_details')
+          .collection('Admin_ticket_entry')
           .where('assignedEmployee', isEqualTo: widget.userName)
           .snapshots(),
       builder: (context, snapshot) {
@@ -1919,7 +1919,7 @@ class _EngineerPageState extends State<EngineerPage> {
   Widget _buildRecentTasks() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirestoreService.instance
-          .collection('Admin_details')
+          .collection('Admin_ticket_entry')
           .where('assignedEmployee', isEqualTo: widget.userName)
           .where('engineerStatus', isEqualTo: 'Assigned')
           .limit(3)
@@ -2262,7 +2262,7 @@ class _EngineerPageState extends State<EngineerPage> {
   Widget _buildBookingsView() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirestoreService.instance
-          .collection('Admin_details')
+          .collection('Admin_ticket_entry')
           .where('assignedEmployee', isEqualTo: widget.userName)
           .snapshots(),
       builder: (context, snapshot) {
@@ -2907,7 +2907,7 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
 
   void _loadExistingPayments() {
     FirestoreService.instance
-        .collection('Admin_details')
+        .collection('Admin_ticket_entry')
         .where('bookingId', isEqualTo: widget.booking.bookingId)
         .get()
         .then((query) {
@@ -3186,7 +3186,7 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
         ];
 
         var query = await FirestoreService.instance
-            .collection('Admin_details')
+            .collection('Admin_ticket_entry')
             .where('bookingId', isEqualTo: widget.booking.bookingId)
             .get();
 

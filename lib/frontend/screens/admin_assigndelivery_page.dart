@@ -201,7 +201,7 @@ class _AssigndeliveryCustomerPageState
   Widget _buildHelperView() {
     return FutureBuilder<DocumentSnapshot>(
       future: FirestoreService.instance
-          .collection('Admin_details')
+          .collection('Admin_ticket_entry')
           .doc(widget.customer.bookingId)
           .get(),
       builder: (context, snapshot) {
@@ -367,7 +367,7 @@ class _AssigndeliveryCustomerPageState
                       onPressed: () async {
                         try {
                           final docRef = FirestoreService.instance
-                              .collection('Admin_details')
+                              .collection('Admin_ticket_entry')
                               .doc(widget.customer.bookingId);
                           final snapshot = await docRef.get();
 
@@ -559,7 +559,7 @@ class _AssigndeliveryCustomerPageState
     setState(() => _isAssigning = true);
     try {
       await FirestoreService.instance
-          .collection('Admin_details')
+          .collection('Admin_ticket_entry')
           .doc(widget.customer.bookingId)
           .set({
             'id': widget.customer.customerid,

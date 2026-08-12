@@ -11,7 +11,7 @@ class AssignedTicketsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final stream = FirestoreService.instance
-        .collection('Admin_details')
+        .collection('Admin_ticket_entry')
         .where('assignedEmployee', isEqualTo: engineerName)
         .snapshots();
 

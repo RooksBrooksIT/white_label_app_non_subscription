@@ -100,7 +100,6 @@ class AdminNotificationsPage extends StatelessWidget {
               return Container(
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                 decoration: BoxDecoration(
-                  color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
@@ -116,7 +115,11 @@ class AdminNotificationsPage extends StatelessWidget {
                           width: 1.5,
                         ),
                 ),
-                child: ListTile(
+                child: Material(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  clipBehavior: Clip.antiAlias,
+                  child: ListTile(
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 16,
                     vertical: 8,
@@ -166,7 +169,8 @@ class AdminNotificationsPage extends StatelessWidget {
                   onTap: () =>
                       _handleNotificationTap(context, tenantId, notification),
                 ),
-              );
+              ),
+            );
             },
           );
         },

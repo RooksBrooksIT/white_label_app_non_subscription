@@ -44,7 +44,7 @@ class AdminDashboardBackend {
 
   static Stream<int> getEngineerUpdateCountStream() {
     return FirestoreService.instance
-        .collection('Admin_details')
+        .collection('Admin_ticket_entry')
         .snapshots()
         .map(
           (snapshot) => snapshot.docs.where((doc) {
@@ -101,7 +101,7 @@ class AdminDashboardBackend {
     // This will count docs across multiple ticket collections if needed,
     // or just one depending on how the app is structured.
     return FirestoreService.instance
-        .collection('Admin_details')
+        .collection('Admin_ticket_entry')
         .snapshots()
         .map(
           (snapshot) => snapshot.docs.where((doc) {

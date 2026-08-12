@@ -452,7 +452,7 @@ class _EngineerUpdatesState extends State<EngineerUpdates> {
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirestoreService.instance
-                  .collection('Admin_details')
+                  .collection('Admin_ticket_entry')
                   .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
@@ -605,7 +605,7 @@ class _EngineerUpdatesState extends State<EngineerUpdates> {
         ),
         onChanged: (value) {
           FirestoreService.instance
-              .collection('Admin_details')
+              .collection('Admin_ticket_entry')
               .get()
               .then((snapshot) => _applyFilters(snapshot.docs));
         },
@@ -852,7 +852,7 @@ class _EngineerUpdatesState extends State<EngineerUpdates> {
                     child: ElevatedButton(
                       onPressed: () {
                         FirestoreService.instance
-                            .collection('Admin_details')
+                            .collection('Admin_ticket_entry')
                             .get()
                             .then((snapshot) => _applyFilters(snapshot.docs));
                         Navigator.pop(context);
@@ -1210,7 +1210,7 @@ class _EngineerUpdateCardState extends State<EngineerUpdateCard> {
 
     try {
       DocumentReference docRef = FirestoreService.instance
-          .collection('Admin_details')
+          .collection('Admin_ticket_entry')
           .doc(widget.updateData.id);
 
       // Get the original data to access customer details

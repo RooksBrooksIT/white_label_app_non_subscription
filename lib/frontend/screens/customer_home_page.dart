@@ -152,14 +152,15 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
     });
     try {
       final snapshot = await FirestoreService.instance
-          .collection('deviceDetails')
+          .collection('Devices')
           .get();
       final types = snapshot.docs
-          .map((doc) => doc['deviceType']?.toString())
+          .map((doc) => doc['deviceName']?.toString().trim())
           .where((type) => type != null && type.isNotEmpty)
           .cast<String>()
-          .toSet()
+          .toSet() // removes duplicates (multiple Laptop docs → one "Laptop")
           .toList();
+      types.sort();
       if (!types.contains('Others')) {
         types.add('Others');
       }
@@ -184,13 +185,18 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
     });
 
     try {
-      // Strictly fetch from the master 'devicesbrands' collection as requested
-      final brands = await BrandModelBackend().fetchAllDeviceBrands();
-
+      final snapshot =
+          await FirestoreService.instance.collection('Devices').get();
+      final brands = snapshot.docs
+          .map((doc) => doc['brandName']?.toString().trim())
+          .where((b) => b != null && b.isNotEmpty)
+          .cast<String>()
+          .toSet() // removes duplicates (multiple Lenovo docs → one "Lenovo")
+          .toList();
+      brands.sort();
       if (!brands.contains('Others')) {
         brands.add('Others');
       }
-
       setState(() {
         deviceBrands = brands;
       });
@@ -893,7 +899,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
             .set(customerData);
 
         await FirestoreService.instance
-            .collection('Admin_details')
+            .collection('Admin_ticket_entry')
             .doc(docId)
             .set(adminData);
 
