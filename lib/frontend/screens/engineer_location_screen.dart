@@ -281,39 +281,131 @@ class _EngineerLocationScreenState extends State<EngineerLocationScreen> {
   }
 
   Widget _buildTopOverlay() {
+    final primary = Theme.of(context).primaryColor;
     return Positioned(
-      top: 12,
+      top: 14,
       left: 16,
       right: 16,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: ProfessionalTheme.cardDecoration(context),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.08),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: _isOnline ? _refreshLocation : null,
-                icon: Icon(Icons.refresh),
-                label: Text('Refresh'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: ProfessionalTheme.primary(context),
-                  foregroundColor: ProfessionalTheme.textInverse(context),
+            // Status Indicator Pill
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: _isOnline
+                    ? const Color(0xFFECFDF5)
+                    : const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: _isOnline
+                      ? const Color(0xFFA7F3D0)
+                      : const Color(0xFFCBD5E1),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: _isOnline
+                          ? const Color(0xFF10B981)
+                          : const Color(0xFF64748B),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    _isOnline ? 'Online' : 'Offline',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: _isOnline
+                          ? const Color(0xFF047857)
+                          : const Color(0xFF64748B),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Spacer(),
+
+            // Refresh Button
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: _isOnline ? _refreshLocation : null,
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: primary.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.refresh_rounded, size: 16, color: primary),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Refresh',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: primary,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
             const SizedBox(width: 8),
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: _isTogglingStatus ? null : _toggleOnlineStatus,
-                icon: Icon(_isOnline ? Icons.logout : Icons.check_circle),
-                label: Text(_isOnline ? 'Check Out' : 'Check In'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _isOnline
-                      ? Colors.red
-                      : ProfessionalTheme.success,
-                  foregroundColor: ProfessionalTheme.textInverse(context),
+
+            // Check In / Out Button
+            ElevatedButton.icon(
+              onPressed: _isTogglingStatus ? null : _toggleOnlineStatus,
+              icon: Icon(
+                _isOnline ? Icons.logout_rounded : Icons.login_rounded,
+                size: 15,
+              ),
+              label: Text(
+                _isOnline ? 'Check Out' : 'Check In',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
                 ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _isOnline
+                    ? const Color(0xFFE11D48)
+                    : primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 0,
               ),
             ),
           ],
@@ -437,11 +529,26 @@ class _EngineerLocationScreenState extends State<EngineerLocationScreen> {
   }
 
   Widget _buildFloatingControls() {
+    final primary = Theme.of(context).primaryColor;
     return Positioned(
       bottom: 24,
       right: 16,
       child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
+          // Recenter / My Location FAB
+          FloatingActionButton.small(
+            heroTag: 'recenter_location',
+            onPressed: _centerOnMe,
+            backgroundColor: Colors.white,
+            foregroundColor: primary,
+            elevation: 4,
+            child: const Icon(Icons.my_location_rounded, size: 20),
+          ),
+          const SizedBox(height: 12),
+
+          // Assigned Tickets FAB
           FloatingActionButton.extended(
             heroTag: 'assigned_tickets',
             onPressed: () {
@@ -454,13 +561,16 @@ class _EngineerLocationScreenState extends State<EngineerLocationScreen> {
                 ),
               );
             },
-            backgroundColor: ProfessionalTheme.primary(context),
-            foregroundColor: ProfessionalTheme.textInverse(context),
-            elevation: 4,
-            icon: const Icon(Icons.assignment_rounded),
+            backgroundColor: primary,
+            foregroundColor: Colors.white,
+            elevation: 6,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            icon: const Icon(Icons.assignment_rounded, size: 18),
             label: const Text(
               'Assigned Tickets',
-              style: TextStyle(fontWeight: FontWeight.bold),
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
             ),
           ),
         ],

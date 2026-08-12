@@ -138,8 +138,9 @@ class LocationService {
     try {
       final sanitizedId = _sanitizePath(engineerId);
       final tenantId = ThemeService.instance.databaseName;
-      // Use set() or update() depending on preference. update() is safer for existing data.
-      final ref = _db.ref('$tenantId/engineers/$sanitizedId/location');
+      final engineerRef = _db.ref('$tenantId/engineers/$sanitizedId');
+      final locationRef = engineerRef.child('location');
+
       final updateData = {
         'lat': position.latitude,
         'lng': position.longitude,
@@ -150,10 +151,19 @@ class LocationService {
       };
 
       try {
-        await ref.update(updateData);
+        await locationRef.update(updateData);
       } catch (e) {
-        // If the existing location node was a primitive (String, etc), update() fails. Fallback to set().
-        await ref.set(updateData);
+        // If parent node or location node was stored as a String/primitive, update() fails.
+        // Fallback to set() to replace node with a proper Map.
+        try {
+          await locationRef.set(updateData);
+        } catch (_) {
+          await engineerRef.set({
+            'isOnline': true,
+            'lastOnline': ServerValue.timestamp,
+            'location': updateData,
+          });
+        }
       }
 
       // 5-minute Firestore heartbeat
@@ -170,11 +180,19 @@ class LocationService {
         final orderRef = _db.ref(
           '$tenantId/order_tracking/$sanitizedBookingId/lastLocation',
         );
-        await orderRef.update({
-          'lat': position.latitude,
-          'lng': position.longitude,
-          'timestamp': ServerValue.timestamp,
-        });
+        try {
+          await orderRef.update({
+            'lat': position.latitude,
+            'lng': position.longitude,
+            'timestamp': ServerValue.timestamp,
+          });
+        } catch (_) {
+          await orderRef.set({
+            'lat': position.latitude,
+            'lng': position.longitude,
+            'timestamp': ServerValue.timestamp,
+          });
+        }
       }
     } catch (e) {
       debugPrint('Database Update Error: $e');
@@ -214,10 +232,18 @@ class LocationService {
     try {
       final sanitizedId = _sanitizePath(engineerId);
       final tenantId = ThemeService.instance.databaseName;
-      // Update active booking in Realtime Database
-      await _db.ref('$tenantId/engineers/$sanitizedId').update({
-        'activeBookingId': bookingId,
-      });
+      final ref = _db.ref('$tenantId/engineers/$sanitizedId');
+      try {
+        await ref.update({
+          'activeBookingId': bookingId,
+        });
+      } catch (_) {
+        await ref.set({
+          'activeBookingId': bookingId,
+          'isOnline': true,
+          'lastOnline': ServerValue.timestamp,
+        });
+      }
       // Also store booking reference in Firestore for consistency
       final querySnapshot = await FirebaseFirestore.instance
           .collection('EngineerLogin')
@@ -246,14 +272,18 @@ class LocationService {
       final sanitizedId = _sanitizePath(engineerId);
       final tenantId = ThemeService.instance.databaseName;
       final ref = _db.ref('$tenantId/engineers/$sanitizedId');
-      final updates = {
+      final updates = <String, dynamic>{
         'isOnline': isOnline,
         'lastOnline': ServerValue.timestamp,
       };
       if (isOnline && bookingId != null) {
         updates['activeBookingId'] = bookingId;
       }
-      await ref.update(updates);
+      try {
+        await ref.update(updates);
+      } catch (_) {
+        await ref.set(updates);
+      }
     } catch (e) {
       debugPrint('Status Update Error: $e');
     }

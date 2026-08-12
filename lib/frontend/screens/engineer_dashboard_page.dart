@@ -356,8 +356,8 @@ class ProfessionalEmptyState extends StatelessWidget {
   }
 }
 
-// Professional Navigation Drawer
-class ProfessionalNavigationDrawer extends StatelessWidget {
+// Professional Navigation Drawer with Staggered Entrance Animation
+class ProfessionalNavigationDrawer extends StatefulWidget {
   final String userName;
   final String userEmail;
   final VoidCallback onLogout;
@@ -376,133 +376,210 @@ class ProfessionalNavigationDrawer extends StatelessWidget {
   });
 
   @override
+  State<ProfessionalNavigationDrawer> createState() =>
+      _ProfessionalNavigationDrawerState();
+}
+
+class _ProfessionalNavigationDrawerState
+    extends State<ProfessionalNavigationDrawer>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animController;
+
+  @override
+  void initState() {
+    super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 450),
+    );
+    _animController.forward();
+  }
+
+  @override
+  void dispose() {
+    _animController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final primary = Theme.of(context).primaryColor;
+
     return Drawer(
-      backgroundColor: ProfessionalTheme.surface(context),
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(28),
+          bottomLeft: Radius.circular(28),
+        ),
+      ),
       child: Column(
         children: [
-          // Header
+          // Header Card with Admin Primary Gradient & Animated Avatar
           Container(
             width: double.infinity,
             padding: const EdgeInsets.only(
               top: 60,
-              bottom: 24,
+              bottom: 28,
               left: 24,
               right: 24,
             ),
             decoration: BoxDecoration(
-              color: ProfessionalTheme.primary(context),
-              borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(16),
-                bottomRight: Radius.circular(16),
+              gradient: LinearGradient(
+                colors: [
+                  primary,
+                  HSLColor.fromColor(primary).withLightness(0.30).toColor(),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-            ),
-            child: Column(
-              // Line 390
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                FutureBuilder<DocumentSnapshot>(
-                  future: FirestoreService.instance
-                      .collection('users')
-                      .doc(FirebaseAuth.instance.currentUser?.uid)
-                      .get(),
-                  builder: (context, snapshot) {
-                    String? photoUrl;
-                    if (snapshot.hasData &&
-                        snapshot.data != null &&
-                        snapshot.data!.exists) {
-                      final data =
-                          snapshot.data!.data() as Map<String, dynamic>?;
-                      photoUrl = data?['photoUrl'] ?? data?['profileImage'];
-                    }
-                    // Fallback to Auth photoURL if Firestore doesn't have it
-                    photoUrl ??= FirebaseAuth.instance.currentUser?.photoURL;
-
-                    return CircleAvatar(
-                      radius: 32,
-                      backgroundColor: ProfessionalTheme.textInverse(
-                        context,
-                      ).withValues(alpha: 0.2),
-                      backgroundImage: photoUrl != null
-                          ? NetworkImage(photoUrl)
-                          : null,
-                      child: photoUrl == null
-                          ? Icon(
-                              Icons.engineering,
-                              size: 32,
-                              color: ProfessionalTheme.textInverse(context),
-                            )
-                          : null,
-                    );
-                  },
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  userName,
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: ProfessionalTheme.textInverse(context),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  userEmail,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: ProfessionalTheme.textInverse(
-                      context,
-                    ).withValues(alpha: 0.8),
-                  ),
+              borderRadius: const BorderRadius.only(
+                bottomLeft: Radius.circular(24),
+                bottomRight: Radius.circular(24),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: primary.withValues(alpha: 0.3),
+                  blurRadius: 16,
+                  offset: const Offset(0, 6),
                 ),
               ],
             ),
+            child: FadeTransition(
+              opacity: Tween<double>(begin: 0.0, end: 1.0).animate(
+                CurvedAnimation(
+                  parent: _animController,
+                  curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
+                ),
+              ),
+              child: SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0, -0.2),
+                  end: Offset.zero,
+                ).animate(
+                  CurvedAnimation(
+                    parent: _animController,
+                    curve: const Interval(0.0, 0.6, curve: Curves.easeOutCubic),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    FutureBuilder<DocumentSnapshot>(
+                      future: FirestoreService.instance
+                          .collection('users')
+                          .doc(FirebaseAuth.instance.currentUser?.uid)
+                          .get(),
+                      builder: (context, snapshot) {
+                        String? photoUrl;
+                        if (snapshot.hasData &&
+                            snapshot.data != null &&
+                            snapshot.data!.exists) {
+                          final data =
+                              snapshot.data!.data() as Map<String, dynamic>?;
+                          photoUrl = data?['photoUrl'] ?? data?['profileImage'];
+                        }
+                        photoUrl ??= FirebaseAuth.instance.currentUser?.photoURL;
+
+                        return Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2.5),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.2),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: CircleAvatar(
+                            radius: 34,
+                            backgroundColor: Colors.white.withValues(alpha: 0.2),
+                            backgroundImage: photoUrl != null
+                                ? NetworkImage(photoUrl)
+                                : null,
+                            child: photoUrl == null
+                                ? const Icon(
+                                    Icons.engineering_rounded,
+                                    size: 36,
+                                    color: Colors.white,
+                                  )
+                                : null,
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      widget.userName,
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      widget.userEmail,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.white.withValues(alpha: 0.85),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
 
-          // Menu Items
+          // Menu Items with Staggered Entrance Animation
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16),
+              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
               child: Column(
                 children: [
-                  _buildMenuItem(
-                    context: context,
-                    icon: Icons.dashboard,
+                  _buildAnimatedMenuItem(
+                    index: 0,
+                    icon: Icons.dashboard_rounded,
                     title: 'Dashboard',
-                    isSelected: currentSection == 'dashboard',
+                    isSelected: widget.currentSection == 'dashboard',
                     onTap: () {
                       Navigator.pop(context);
-                      onSectionChange('dashboard');
+                      widget.onSectionChange('dashboard');
                     },
                   ),
-                  _buildMenuItem(
-                    context: context,
-                    icon: Icons.assignment_turned_in,
+                  _buildAnimatedMenuItem(
+                    index: 1,
+                    icon: Icons.assignment_turned_in_rounded,
                     title: 'Completed Tickets',
-                    isSelected: currentSection == 'completed',
+                    isSelected: widget.currentSection == 'completed',
                     onTap: () {
                       Navigator.pop(context);
-                      onSectionChange('completed');
+                      widget.onSectionChange('completed');
                     },
                   ),
-                  if (barcodeEnabled) ...[
-                    _buildMenuItem(
-                      context: context,
-                      icon: Icons.qr_code_scanner,
+                  if (widget.barcodeEnabled) ...[
+                    _buildAnimatedMenuItem(
+                      index: 2,
+                      icon: Icons.qr_code_scanner_rounded,
                       title: 'Barcode Scanner',
                       onTap: () {
                         Navigator.pop(context);
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) =>
-                                BarcodeScannerScreen(userName: userName),
+                            builder: (context) => BarcodeScannerScreen(
+                              userName: widget.userName,
+                            ),
                           ),
                         );
                       },
                     ),
-                    _buildMenuItem(
-                      context: context,
+                    _buildAnimatedMenuItem(
+                      index: 3,
                       icon: Icons.qr_code_2_rounded,
                       title: 'Barcode Identifier',
                       onTap: () {
@@ -512,35 +589,21 @@ class ProfessionalNavigationDrawer extends StatelessWidget {
                           MaterialPageRoute(
                             builder: (context) =>
                                 EngineerBarcodeIdentifierScreen(
-                                  scannedBarcode: '',
-                                  userName: userName,
-                                ),
+                              scannedBarcode: '',
+                              userName: widget.userName,
+                            ),
                           ),
                         );
                       },
                     ),
                   ],
-                  // _buildMenuItem(
-                  //   context: context,
-                  //   icon: Icons.qr_code_2_rounded,
-                  //   title: 'Engineer Attendance',
-                  //   onTap: () {
-                  //     Navigator.pop(context);
-                  //     Navigator.push(
-                  //       context,
-                  //       MaterialPageRoute(
-                  //         builder: (context) => EngineerAttendanceScreen(),
-                  //       ),
-                  //     );
-                  //   },
-                  // ),
                   const Spacer(),
-                  _buildMenuItem(
-                    context: context,
-                    icon: Icons.logout,
+                  _buildAnimatedMenuItem(
+                    index: 4,
+                    icon: Icons.logout_rounded,
                     title: 'Logout',
                     isLogout: true,
-                    onTap: onLogout,
+                    onTap: widget.onLogout,
                   ),
                 ],
               ),
@@ -551,51 +614,118 @@ class ProfessionalNavigationDrawer extends StatelessWidget {
     );
   }
 
-  Widget _buildMenuItem({
-    required BuildContext context,
+  Widget _buildAnimatedMenuItem({
+    required int index,
     required IconData icon,
     required String title,
     bool isSelected = false,
     bool isLogout = false,
     required VoidCallback onTap,
   }) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      decoration: BoxDecoration(
-        color: isSelected
-            ? ProfessionalTheme.primary(context).withValues(alpha: 0.1)
-            : Colors.transparent,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: ListTile(
-        leading: Icon(
-          icon,
-          color: isLogout
-              ? ProfessionalTheme.error
-              : (isSelected
-                    ? ProfessionalTheme.primary(context)
-                    : ProfessionalTheme.textSecondary(context)),
-          size: 20,
+    final double start = (0.15 + (index * 0.08)).clamp(0.0, 0.8);
+    final double end = (start + 0.4).clamp(0.0, 1.0);
+
+    final animation = CurvedAnimation(
+      parent: _animController,
+      curve: Interval(start, end, curve: Curves.easeOutCubic),
+    );
+
+    final primary = Theme.of(context).primaryColor;
+
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (context, child) {
+        return Transform.translate(
+          offset: Offset((1.0 - animation.value) * 35, 0),
+          child: Opacity(
+            opacity: animation.value,
+            child: child,
+          ),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? primary.withValues(alpha: 0.1)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(14),
+          border: isSelected
+              ? Border.all(color: primary.withValues(alpha: 0.25))
+              : null,
         ),
-        title: Text(
-          title,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-            color: isLogout
-                ? ProfessionalTheme.error
-                : ProfessionalTheme.textPrimary(context),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(14),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(14),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: isLogout
+                          ? const Color(0xFFFEE2E2)
+                          : isSelected
+                              ? primary.withValues(alpha: 0.15)
+                              : const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      icon,
+                      size: 20,
+                      color: isLogout
+                          ? const Color(0xFFEF4444)
+                          : isSelected
+                              ? primary
+                              : const Color(0xFF64748B),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                        color: isLogout
+                            ? const Color(0xFFEF4444)
+                            : isSelected
+                                ? primary
+                                : const Color(0xFF1E293B),
+                        letterSpacing: -0.1,
+                      ),
+                    ),
+                  ),
+                  if (isSelected)
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: primary,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: primary.withValues(alpha: 0.5),
+                            blurRadius: 6,
+                          ),
+                        ],
+                      ),
+                    )
+                  else if (!isLogout)
+                    const Icon(
+                      Icons.chevron_right_rounded,
+                      size: 18,
+                      color: Color(0xFFCBD5E1),
+                    ),
+                ],
+              ),
+            ),
           ),
         ),
-        trailing: isSelected
-            ? Icon(
-                Icons.circle,
-                size: 8,
-                color: ProfessionalTheme.primary(context),
-              )
-            : null,
-        onTap: onTap,
-        dense: true,
       ),
     );
   }
@@ -1159,16 +1289,17 @@ class _EngineerPageState extends State<EngineerPage> {
   }
 
   @override
+  @override
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle(
-        statusBarColor: ProfessionalTheme.primary(context),
-        statusBarIconBrightness: Brightness.light,
-        statusBarBrightness: Brightness.dark,
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.white,
+        statusBarIconBrightness: Brightness.dark,
+        statusBarBrightness: Brightness.light,
       ),
       child: Scaffold(
         key: _scaffoldKey,
-        backgroundColor: ProfessionalTheme.background(context),
+        backgroundColor: const Color(0xFFF8FAFC),
         endDrawer: ProfessionalNavigationDrawer(
           userName: widget.userName,
           userEmail: widget.userEmail,
@@ -1177,8 +1308,15 @@ class _EngineerPageState extends State<EngineerPage> {
           onSectionChange: (section) {
             setState(() {
               _currentSection = section;
-              _selectedIndex =
-                  0; // Go back to dashboard tab when section changes
+              if (section == 'completed') {
+                _selectedIndex = 1;
+                _statusFilter = null;
+                _isLoading = true;
+              } else if (section == 'dashboard') {
+                _selectedIndex = 0;
+                _statusFilter = null;
+                _isLoading = true;
+              }
             });
           },
           barcodeEnabled: _barcodeEnabled,
@@ -1188,7 +1326,7 @@ class _EngineerPageState extends State<EngineerPage> {
             // Status bar background (time/battery area)
             Container(
               height: MediaQuery.of(context).padding.top,
-              color: ProfessionalTheme.primary(context),
+              color: Colors.white,
             ),
             Expanded(
               child: SafeArea(
@@ -1220,27 +1358,39 @@ class _EngineerPageState extends State<EngineerPage> {
 
   Widget _buildTopSection() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 16, 16, 16),
-      decoration: BoxDecoration(
-        color: ProfessionalTheme.primary(context),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(
+          bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+        ),
       ),
       child: Row(
         children: [
-          // Logo
+          // Logo / Avatar
           if (ThemeService.instance.logoUrl != null)
             CircleAvatar(
-              radius: 20,
-              backgroundColor: Colors.white.withValues(alpha: 0.9),
+              radius: 18,
+              backgroundColor: const Color(0xFFF1F5F9),
               backgroundImage: NetworkImage(ThemeService.instance.logoUrl!),
+            )
+          else
+            CircleAvatar(
+              radius: 18,
+              backgroundColor:
+                  Theme.of(context).primaryColor.withValues(alpha: 0.1),
+              child: Text(
+                widget.userName.isNotEmpty
+                    ? widget.userName[0].toUpperCase()
+                    : 'E',
+                style: TextStyle(
+                  color: Theme.of(context).primaryColor,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14,
+                ),
+              ),
             ),
-          if (ThemeService.instance.logoUrl != null) const SizedBox(width: 12),
+          const SizedBox(width: 10),
           // App and User Name
           Expanded(
             child: Column(
@@ -1249,22 +1399,20 @@ class _EngineerPageState extends State<EngineerPage> {
               children: [
                 Text(
                   ThemeService.instance.appName,
-                  style: TextStyle(
-                    fontSize: 12,
+                  style: const TextStyle(
+                    fontSize: 11,
                     fontWeight: FontWeight.w800,
-                    color: ProfessionalTheme.textInverse(
-                      context,
-                    ).withValues(alpha: 0.9),
-                    letterSpacing: 1.0,
+                    color: Color(0xFF94A3B8),
+                    letterSpacing: 0.8,
                   ),
                 ),
                 Text(
                   widget.userName,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: ProfessionalTheme.textInverse(context),
-                    letterSpacing: -0.5,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF0F172A),
+                    letterSpacing: -0.3,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -1274,17 +1422,18 @@ class _EngineerPageState extends State<EngineerPage> {
           ),
           // Online Toggle
           _buildOnlineToggle(),
-          const SizedBox(width: 12),
-          // Burger Menu Button (Moved to right)
+          const SizedBox(width: 10),
+          // Burger Menu Button
           GestureDetector(
             onTap: () => _scaffoldKey.currentState?.openEndDrawer(),
             child: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.18),
+                color: const Color(0xFFF1F5F9),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(Icons.menu_rounded, color: Colors.white, size: 24),
+              child:
+                  const Icon(Icons.menu_rounded, color: Color(0xFF0F172A), size: 20),
             ),
           ),
         ],
@@ -1293,12 +1442,14 @@ class _EngineerPageState extends State<EngineerPage> {
   }
 
   Widget _buildOnlineToggle() {
+    final statusColor =
+        _isOnline ? const Color(0xFF10B981) : const Color(0xFF94A3B8);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.18),
+        color: const Color(0xFFF1F5F9),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1306,32 +1457,31 @@ class _EngineerPageState extends State<EngineerPage> {
           Icon(
             _isOnline ? Icons.circle : Icons.circle_outlined,
             size: 8,
-            color: Colors.white,
+            color: statusColor,
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 5),
           Text(
             _isOnline ? "Online" : "Offline",
             style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: statusColor,
             ),
           ),
           const SizedBox(width: 4),
           SizedBox(
-            height: 20,
-            width: 32,
+            height: 18,
+            width: 30,
             child: FittedBox(
               fit: BoxFit.fill,
               child: Switch(
                 value: _isOnline,
                 onChanged: _toggleOnlineStatus,
-                activeThumbColor: ProfessionalTheme.success,
-                activeTrackColor: ProfessionalTheme.success.withValues(
-                  alpha: 0.5,
-                ),
+                activeThumbColor: const Color(0xFF10B981),
+                activeTrackColor:
+                    const Color(0xFF10B981).withValues(alpha: 0.4),
                 inactiveThumbColor: Colors.white,
-                inactiveTrackColor: Colors.white.withValues(alpha: 0.35),
+                inactiveTrackColor: const Color(0xFFCBD5E1),
               ),
             ),
           ),
@@ -1369,119 +1519,272 @@ class _EngineerPageState extends State<EngineerPage> {
     );
   }
 
+  Widget _buildQuickActionsGrid() {
+    final primary = Theme.of(context).primaryColor;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Quick Actions',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF0F172A),
+            letterSpacing: -0.3,
+          ),
+        ),
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            Expanded(
+              child: _buildActionTile(
+                icon: Icons.assignment_rounded,
+                label: 'Bookings',
+                color: primary,
+                onTap: () => setState(() => _selectedIndex = 1),
+              ),
+            ),
+            const SizedBox(width: 10),
+            if (_barcodeEnabled) ...[
+              Expanded(
+                child: _buildActionTile(
+                  icon: Icons.qr_code_scanner_rounded,
+                  label: 'Scan Barcode',
+                  color: const Color(0xFF10B981),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (ctx) => BarcodeScannerScreen(
+                        userName: widget.userName,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+            ],
+            Expanded(
+              child: _buildActionTile(
+                icon: Icons.location_on_rounded,
+                label: 'Live Map',
+                color: const Color(0xFFF59E0B),
+                onTap: () => setState(() => _selectedIndex = 2),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _buildActionTile(
+                icon: Icons.person_rounded,
+                label: 'My Profile',
+                color: const Color(0xFF8B5CF6),
+                onTap: () => setState(() => _selectedIndex = 3),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActionTile({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 20),
+            ),
+            const SizedBox(height: 8),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildDashboardView() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (!_isCheckedIn) _buildCheckInCard(),
+          // ── 1. Attendance / Check-In Hero Card ──
+          if (!_isCheckedIn) ...[
+            _buildCheckInCard(),
+            const SizedBox(height: 20),
+          ],
+
+          // ── 2. Quick Action Shortcuts Grid ──
+          _buildQuickActionsGrid(),
           const SizedBox(height: 24),
-          Text(
-            'Work Summary Dashboard',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: ProfessionalTheme.textPrimary(context),
-            ),
-          ),
-          const SizedBox(height: 16),
-          _buildWorkSummaryDashboard(),
-          const SizedBox(height: 24),
+
+          // ── 3. Featured Hero Task & Active Tasks ──
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Recent Tasks',
+              const Text(
+                'Recent & Active Tasks',
                 style: TextStyle(
                   fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: ProfessionalTheme.textPrimary(context),
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF0F172A),
+                  letterSpacing: -0.3,
                 ),
               ),
-              TextButton(
+              TextButton.icon(
                 onPressed: () {
                   setState(() => _selectedIndex = 1); // Go to Bookings
                 },
-                child: const Text('View All'),
+                icon: const Icon(Icons.arrow_forward_rounded, size: 14),
+                label: const Text('View All',
+                    style: TextStyle(fontWeight: FontWeight.w700)),
+                style: TextButton.styleFrom(
+                  foregroundColor: Theme.of(context).primaryColor,
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           _buildRecentTasks(),
+          const SizedBox(height: 24),
+
+          // ── 4. Work Summary Dashboard ──
+          const Text(
+            'Work Summary & Analytics',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF0F172A),
+              letterSpacing: -0.3,
+            ),
+          ),
+          const SizedBox(height: 14),
+          _buildWorkSummaryDashboard(),
         ],
       ),
     );
   }
 
   Widget _buildCheckInCard() {
+    final primary = Theme.of(context).primaryColor;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            ProfessionalTheme.primary(context),
-            ProfessionalTheme.primaryDark(context),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: ProfessionalTheme.elevatedShadow,
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Column(
         children: [
-          Icon(
-            Icons.location_on,
-            color: ProfessionalTheme.textInverse(context),
-            size: 48,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Check In to Start Your Day',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: ProfessionalTheme.textInverse(context),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: primary.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.location_on_rounded,
+              color: primary,
+              size: 32,
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
+          const SizedBox(height: 14),
+          const Text(
+            'Check In to Start Your Day',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF0F172A),
+              letterSpacing: -0.2,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
             'We need your location to assign nearby tasks and track your active hours.',
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: ProfessionalTheme.textInverse(
-                context,
-              ).withValues(alpha: 0.8),
+              color: Color(0xFF64748B),
+              fontSize: 13,
+              height: 1.4,
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
-            child: ElevatedButton(
+            child: ElevatedButton.icon(
               onPressed: _isCheckingIn ? null : _handleCheckIn,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: ProfessionalTheme.textInverse(context),
-                foregroundColor: ProfessionalTheme.primary(context),
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: _isCheckingIn
+              icon: _isCheckingIn
+                  ? const SizedBox.shrink()
+                  : const Icon(Icons.login_rounded, size: 18),
+              label: _isCheckingIn
                   ? const SizedBox(
                       height: 20,
                       width: 20,
-                      child: CircularProgressIndicator(),
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
                     )
                   : const Text(
                       'Check In Now',
                       style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15,
                       ),
                     ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                elevation: 0,
+              ),
             ),
           ),
         ],
@@ -1603,12 +1906,10 @@ class _EngineerPageState extends State<EngineerPage> {
 
         for (var doc in docs) {
           final data = doc.data() as Map<String, dynamic>;
-          // Match the same logic as AdminDetails.fromFirestore
           final status = (data['engineerStatus'] ?? data['adminStatus'] ?? '')
               .toString()
               .toLowerCase();
 
-          // 'AssignedTimestamp' is the correct Firestore field (capital A)
           DateTime? assignedDate;
           if (data['AssignedTimestamp'] != null) {
             assignedDate = (data['AssignedTimestamp'] as Timestamp).toDate();
@@ -1655,117 +1956,104 @@ class _EngineerPageState extends State<EngineerPage> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // ── Ultra-Compact Single-Card 4-Column Metric Bar ──
             Container(
-              padding: const EdgeInsets.all(20),
-              decoration: ProfessionalTheme.cardDecoration(context),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.03),
+                    blurRadius: 6,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        'Current Month Stats',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          color: ProfessionalTheme.textPrimary(context),
+                      Expanded(
+                        child: _buildCompactMetric(
+                          'Assigned',
+                          currentMonthAssigned.toString(),
+                          const Color(0xFF3B82F6),
                         ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: ProfessionalTheme.primaryExtraLight(context),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          DateFormat('MMMM yyyy').format(now),
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: ProfessionalTheme.primary(context),
-                          ),
-                        ),
+                        width: 1,
+                        height: 32,
+                        color: const Color(0xFFE2E8F0),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    children: [
                       Expanded(
-                        child: _buildMiniStat(
-                          'Assigned',
-                          currentMonthAssigned.toString(),
-                          Colors.blue,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _buildMiniStat(
+                        child: _buildCompactMetric(
                           'Completed',
                           currentMonthCompleted.toString(),
-                          ProfessionalTheme.success,
+                          const Color(0xFF10B981),
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
+                      Container(
+                        width: 1,
+                        height: 32,
+                        color: const Color(0xFFE2E8F0),
+                      ),
                       Expanded(
-                        child: _buildMiniStat(
+                        child: _buildCompactMetric(
                           'Pending',
                           pendingTickets.toString(),
-                          Colors.orange,
+                          const Color(0xFFF59E0B),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      Container(
+                        width: 1,
+                        height: 32,
+                        color: const Color(0xFFE2E8F0),
+                      ),
                       Expanded(
-                        child: _buildMiniStat(
+                        child: _buildCompactMetric(
                           'In Progress',
                           inProgressTickets.toString(),
-                          Colors.purple,
+                          const Color(0xFF8B5CF6),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 20),
-                  Text(
-                    'Completion Rate (Current Month)',
-                    style: TextStyle(
-                      color: ProfessionalTheme.textSecondary(context),
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
+                  const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                  const SizedBox(height: 10),
                   Row(
                     children: [
+                      const Text(
+                        'Completion Rate',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF64748B),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
                       Expanded(
                         child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(6),
                           child: LinearProgressIndicator(
                             value: completionPercentage,
-                            minHeight: 12,
-                            backgroundColor: ProfessionalTheme.borderLight(
-                              context,
-                            ),
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              ProfessionalTheme.success,
+                            minHeight: 6,
+                            backgroundColor: const Color(0xFFF1F5F9),
+                            valueColor: const AlwaysStoppedAnimation<Color>(
+                              Color(0xFF10B981),
                             ),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 10),
                       Text(
                         '${(completionPercentage * 100).toInt()}%',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          color: ProfessionalTheme.success,
-                          fontSize: 16,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFF10B981),
+                          fontSize: 12,
                         ),
                       ),
                     ],
@@ -1774,102 +2062,165 @@ class _EngineerPageState extends State<EngineerPage> {
               ),
             ),
 
-            const SizedBox(height: 24),
-            Text(
-              'Monthly Summary (${now.year})',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: ProfessionalTheme.textPrimary(context),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              decoration: ProfessionalTheme.cardDecoration(context),
-              child: ListView.separated(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: now.month,
-                separatorBuilder: (context, index) => Divider(
-                  height: 1,
-                  color: ProfessionalTheme.borderLight(context),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Monthly Breakdown (${now.year})',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF0F172A),
+                    letterSpacing: -0.2,
+                  ),
                 ),
+                const Row(
+                  children: [
+                    Text(
+                      'Swipe',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF94A3B8),
+                      ),
+                    ),
+                    SizedBox(width: 2),
+                    Icon(
+                      Icons.arrow_forward_rounded,
+                      size: 12,
+                      color: Color(0xFF94A3B8),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              height: 76,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                itemCount: now.month,
+                separatorBuilder: (context, index) =>
+                    const SizedBox(width: 10),
                 itemBuilder: (context, index) {
                   int month = now.month - index;
                   int assigned = assignedPerMonth[month] ?? 0;
                   int completed = completedPerMonth[month] ?? 0;
-                  String monthName = DateFormat(
-                    'MMMM',
-                  ).format(DateTime(now.year, month));
-                  return Padding(
+                  String monthName =
+                      DateFormat('MMMM').format(DateTime(now.year, month));
+                  bool isCurrentMonth = index == 0;
+                  final primary = Theme.of(context).primaryColor;
+
+                  return Container(
+                    width: 145,
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 16,
+                      horizontal: 14,
+                      vertical: 10,
                     ),
-                    child: Row(
-                      children: [
-                        SizedBox(
-                          width: 90,
-                          child: Text(
-                            monthName,
-                            style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              color: ProfessionalTheme.textPrimary(context),
-                            ),
-                          ),
+                    decoration: BoxDecoration(
+                      color: isCurrentMonth ? primary : Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: isCurrentMonth
+                            ? primary
+                            : const Color(0xFFE2E8F0),
+                        width: 1.5,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: isCurrentMonth
+                              ? primary.withValues(alpha: 0.25)
+                              : Colors.black.withValues(alpha: 0.03),
+                          blurRadius: 6,
+                          offset: const Offset(0, 3),
                         ),
-                        Expanded(
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            children: [
-                              Column(
-                                children: [
-                                  Text(
-                                    assigned.toString(),
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                                  Text(
-                                    'Assigned',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: ProfessionalTheme.textSecondary(
-                                        context,
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              monthName,
+                              style: TextStyle(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 13,
+                                color: isCurrentMonth
+                                    ? Colors.white
+                                    : const Color(0xFF0F172A),
                               ),
+                            ),
+                            if (isCurrentMonth)
                               Container(
-                                width: 1,
-                                height: 30,
-                                color: ProfessionalTheme.borderLight(context),
-                              ),
-                              Column(
-                                children: [
-                                  Text(
-                                    completed.toString(),
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 16,
-                                      color: ProfessionalTheme.success,
-                                    ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 5,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: const Text(
+                                  'NOW',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w900,
+                                    color: Colors.white,
                                   ),
-                                  Text(
-                                    'Completed',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: ProfessionalTheme.textSecondary(
-                                        context,
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                                ),
                               ),
-                            ],
-                          ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Text(
+                              '$assigned',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 13,
+                                color: isCurrentMonth
+                                    ? Colors.white
+                                    : const Color(0xFF0F172A),
+                              ),
+                            ),
+                            Text(
+                              ' Assigned',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: isCurrentMonth
+                                    ? Colors.white.withValues(alpha: 0.85)
+                                    : const Color(0xFF64748B),
+                              ),
+                            ),
+                            const Spacer(),
+                            Text(
+                              '$completed',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 13,
+                                color: isCurrentMonth
+                                    ? Colors.white
+                                    : const Color(0xFF10B981),
+                              ),
+                            ),
+                            Text(
+                              ' Done',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: isCurrentMonth
+                                    ? Colors.white.withValues(alpha: 0.85)
+                                    : const Color(0xFF10B981),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -1883,12 +2234,40 @@ class _EngineerPageState extends State<EngineerPage> {
     );
   }
 
+  Widget _buildCompactMetric(String label, String value, Color color) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 19,
+            fontWeight: FontWeight.w900,
+            color: color,
+            letterSpacing: -0.5,
+          ),
+        ),
+        const SizedBox(height: 1),
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF64748B),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildMiniStat(String title, String value, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(16),
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Column(
@@ -1896,10 +2275,11 @@ class _EngineerPageState extends State<EngineerPage> {
         children: [
           Text(
             value,
-            style: TextStyle(
-              fontSize: 24,
+            style: const TextStyle(
+              fontSize: 22,
               fontWeight: FontWeight.w900,
-              color: color,
+              color: Color(0xFF0F172A),
+              letterSpacing: -0.5,
             ),
           ),
           const SizedBox(height: 2),
@@ -1908,7 +2288,7 @@ class _EngineerPageState extends State<EngineerPage> {
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w700,
-              color: color.withValues(alpha: 0.8),
+              color: color,
             ),
           ),
         ],
@@ -1917,133 +2297,607 @@ class _EngineerPageState extends State<EngineerPage> {
   }
 
   Widget _buildRecentTasks() {
+    final primary = Theme.of(context).primaryColor;
+
     return StreamBuilder<QuerySnapshot>(
       stream: FirestoreService.instance
           .collection('Admin_ticket_entry')
           .where('assignedEmployee', isEqualTo: widget.userName)
-          .where('engineerStatus', isEqualTo: 'Assigned')
-          .limit(3)
           .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(24),
-              child: Text('No recent tasks assigned.'),
+          return Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Center(
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.assignment_turned_in_rounded,
+                    size: 40,
+                    color: primary.withValues(alpha: 0.4),
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'No active tasks assigned',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF475569),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'When new service requests are assigned to you,\nthey will appear here.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF94A3B8),
+                    ),
+                  ),
+                ],
+              ),
             ),
           );
         }
 
+        final docs = snapshot.data!.docs;
+        final activeTasks = docs.where((d) {
+          final data = d.data() as Map<String, dynamic>;
+          final status = (data['engineerStatus'] ?? data['adminStatus'] ?? '')
+              .toString()
+              .toLowerCase();
+          return status != 'completed';
+        }).toList();
+
+        final displayDocs = activeTasks.isNotEmpty ? activeTasks : docs;
+
+        final firstDoc = displayDocs.first;
+        final firstData = firstDoc.data() as Map<String, dynamic>;
+        final otherDocs = displayDocs.skip(1).take(2).toList();
+
         return Column(
-          children: snapshot.data!.docs.map((doc) {
-            final data = doc.data() as Map<String, dynamic>;
-            return Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.all(16),
-              decoration: ProfessionalTheme.cardDecoration(context),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: ProfessionalTheme.primaryExtraLight(context),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.assignment,
-                      color: ProfessionalTheme.primary(context),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          data['deviceBrand'] ?? 'Task',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          data['customerName'] ?? 'Customer',
-                          style: TextStyle(
-                            color: ProfessionalTheme.textSecondary(context),
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Icon(
-                    Icons.chevron_right,
-                    color: ProfessionalTheme.textTertiary(context),
-                  ),
-                ],
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── HERO FEATURED TASK CARD (Admin Branding Color Highlighted) ──
+            _buildHeroTaskCard(firstData, firstDoc.id),
+
+            if (otherDocs.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              const Text(
+                'Other Active Tasks',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF64748B),
+                ),
               ),
-            );
-          }).toList(),
+              const SizedBox(height: 8),
+              ...otherDocs.map((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                return _buildStandardTaskCard(data, doc.id);
+              }),
+            ],
+          ],
         );
       },
     );
   }
 
-  Widget _buildBottomNavigationBar() {
+  void _launchPhoneDialer(String rawPhone) async {
+    String phone = rawPhone.trim().replaceAll(' ', '');
+    if (phone.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Customer phone number is not available'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+    final sanitized = phone.replaceAll(RegExp(r'[^\d+]'), '');
+    final Uri dialUri =
+        Uri(scheme: 'tel', path: sanitized.isNotEmpty ? sanitized : phone);
+    try {
+      final success =
+          await launchUrl(dialUri, mode: LaunchMode.externalApplication);
+      if (!success) {
+        final fallbackSuccess = await launchUrl(dialUri);
+        if (!fallbackSuccess) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Phone app unavailable on Simulator. Number: $phone',
+              ),
+              backgroundColor: Colors.orangeAccent,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Phone app unavailable on Simulator. Number: $phone'),
+          backgroundColor: Colors.orangeAccent,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
+  }
+
+  Widget _buildHeroTaskCard(Map<String, dynamic> data, String docId) {
+    final primary = Theme.of(context).primaryColor;
+    final bookingId = data['bookingId']?.toString() ?? 'N/A';
+    final customerName = data['customerName']?.toString() ?? 'Customer';
+    final deviceBrand = data['deviceBrand']?.toString() ?? '';
+    final deviceType = data['deviceType']?.toString() ?? 'Service Request';
+    final mobileNumber = (data['mobileNumber'] ??
+            data['customerMobile'] ??
+            data['mobile'] ??
+            data['phone'] ??
+            data['contactNumber'] ??
+            '')
+        .toString();
+    final address = data['address']?.toString() ?? '';
+    final status = (data['engineerStatus'] ?? data['adminStatus'] ?? 'Assigned')
+        .toString();
+
     return Container(
+      width: double.infinity,
       decoration: BoxDecoration(
-        color: ProfessionalTheme.surface(context),
+        gradient: LinearGradient(
+          colors: [
+            primary,
+            HSLColor.fromColor(primary).withLightness(0.32).toColor(),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(22),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 20,
-            offset: const Offset(0, -5),
+            color: primary.withValues(alpha: 0.35),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
-      child: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: (index) {
-          setState(() {
-            _selectedIndex = index;
-          });
-        },
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        selectedItemColor: ProfessionalTheme.primary(context),
-        unselectedItemColor: ProfessionalTheme.textSecondary(context),
-        selectedLabelStyle: const TextStyle(
-          fontWeight: FontWeight.w700,
-          fontSize: 12,
-        ),
-        unselectedLabelStyle: const TextStyle(
-          fontWeight: FontWeight.w500,
-          fontSize: 12,
-        ),
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.dashboard_rounded),
-            activeIcon: Icon(Icons.dashboard_rounded),
-            label: 'Dashboard',
+      child: Stack(
+        children: [
+          // Background subtle decorative pattern
+          Positioned(
+            right: -20,
+            top: -20,
+            child: Icon(
+              Icons.build_circle_rounded,
+              size: 140,
+              color: Colors.white.withValues(alpha: 0.08),
+            ),
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.assignment_rounded),
-            activeIcon: Icon(Icons.assignment_rounded),
-            label: 'Bookings',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.location_on_rounded),
-            activeIcon: Icon(Icons.location_on_rounded),
-            label: 'Location',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_rounded),
-            activeIcon: Icon(Icons.person_rounded),
-            label: 'Profile',
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Top Badges (Main Task Pill + Status Badge + Ticket ID)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.35),
+                        ),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.star_rounded,
+                            size: 12,
+                            color: Colors.amberAccent,
+                          ),
+                          SizedBox(width: 4),
+                          Text(
+                            'MAIN ACTIVE TASK',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.3),
+                            ),
+                          ),
+                          child: Text(
+                            status,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            '#$bookingId',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: primary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Customer & Device Info
+                Row(
+                  children: [
+                    Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.home_repair_service_rounded,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            customerName,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            [deviceBrand, deviceType]
+                                .where((s) => s.isNotEmpty)
+                                .join(' · '),
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.white.withValues(alpha: 0.88),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+
+                if (address.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.location_on_rounded,
+                        size: 14,
+                        color: Colors.white.withValues(alpha: 0.85),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          address,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.white.withValues(alpha: 0.9),
+                            fontWeight: FontWeight.w500,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+
+                const SizedBox(height: 18),
+                const Divider(color: Colors.white24, height: 1),
+                const SizedBox(height: 14),
+
+                // Equal 50/50 Quick Action Buttons inside Hero Card
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () => _launchPhoneDialer(mobileNumber),
+                        icon: const Icon(Icons.phone_rounded, size: 16),
+                        label: const Text(
+                          'Call',
+                          style: TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: primary,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 0,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          setState(() => _selectedIndex = 1);
+                        },
+                        icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+                        label: const Text(
+                          'View Ticket',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white.withValues(alpha: 0.2),
+                          foregroundColor: Colors.white,
+                          side: const BorderSide(color: Colors.white38),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 0,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildStandardTaskCard(Map<String, dynamic> data, String docId) {
+    final primary = Theme.of(context).primaryColor;
+    final bookingId = data['bookingId']?.toString() ?? '';
+    final customerName = data['customerName']?.toString() ?? 'Customer';
+    final deviceBrand = data['deviceBrand']?.toString() ?? 'Task';
+    final status = (data['engineerStatus'] ?? data['adminStatus'] ?? 'Assigned')
+        .toString();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => setState(() => _selectedIndex = 1),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(Icons.assignment_rounded, color: primary, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          deviceBrand,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 14,
+                            color: Color(0xFF0F172A),
+                          ),
+                        ),
+                        if (bookingId.isNotEmpty) ...[
+                          const SizedBox(width: 6),
+                          Text(
+                            '#$bookingId',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF94A3B8),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      customerName,
+                      style: const TextStyle(
+                        color: Color(0xFF64748B),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: primary.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  status,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: primary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Icon(Icons.chevron_right_rounded,
+                  color: Color(0xFF94A3B8), size: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomNavigationBar() {
+    final primary = Theme.of(context).primaryColor;
+    final navItems = [
+      {'icon': Icons.grid_view_rounded, 'label': 'Dashboard'},
+      {'icon': Icons.assignment_rounded, 'label': 'Bookings'},
+      {'icon': Icons.location_on_rounded, 'label': 'Location'},
+      {'icon': Icons.person_rounded, 'label': 'Profile'},
+    ];
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 16,
+            offset: Offset(0, -4),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: List.generate(navItems.length, (index) {
+              final isSelected = _selectedIndex == index;
+              final item = navItems[index];
+              final icon = item['icon'] as IconData;
+              final label = item['label'] as String;
+
+              return InkWell(
+                onTap: () {
+                  setState(() {
+                    _selectedIndex = index;
+                  });
+                },
+                borderRadius: BorderRadius.circular(30),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOutCubic,
+                  padding: isSelected
+                      ? const EdgeInsets.symmetric(horizontal: 16, vertical: 10)
+                      : const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: isSelected ? primary : Colors.transparent,
+                    borderRadius: BorderRadius.circular(30),
+                    boxShadow: isSelected
+                        ? [
+                            BoxShadow(
+                              color: primary.withValues(alpha: 0.35),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ]
+                        : [],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        icon,
+                        size: 20,
+                        color:
+                            isSelected ? Colors.white : const Color(0xFF94A3B8),
+                      ),
+                      if (isSelected) ...[
+                        const SizedBox(width: 8),
+                        Text(
+                          label,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            letterSpacing: -0.2,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              );
+            }),
+          ),
+        ),
       ),
     );
   }
@@ -2053,6 +2907,8 @@ class _EngineerPageState extends State<EngineerPage> {
   }
 
   Widget _buildProfileView() {
+    final primary = Theme.of(context).primaryColor;
+
     return StreamBuilder<QuerySnapshot>(
       stream: FirestoreService.instance
           .collection(
@@ -2070,86 +2926,181 @@ class _EngineerPageState extends State<EngineerPage> {
 
         final email = data['Email'] ?? widget.userEmail;
         final phone = data['Phone'] ?? 'Not provided';
-        final specialization = data['Specialization'] ?? 'Not provided';
+        final specialization = data['Specialization'] ?? 'Service Engineer';
         final address = data['Address'] ?? 'Not provided';
 
         return SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(16),
+          physics: const BouncingScrollPhysics(),
           child: Column(
             children: [
-              const SizedBox(height: 16),
-
-              // Profile avatar
+              // Spectacular Hero Profile Card
               Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
                 decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: ProfessionalTheme.primary(context),
-                    width: 3,
+                  gradient: LinearGradient(
+                    colors: [
+                      primary,
+                      HSLColor.fromColor(primary).withLightness(0.30).toColor(),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
-                  boxShadow: ProfessionalTheme.elevatedShadow,
-                ),
-                child: CircleAvatar(
-                  radius: 52,
-                  backgroundColor: ProfessionalTheme.primaryExtraLight(context),
-                  child: Text(
-                    (widget.userName.isNotEmpty ? widget.userName[0] : 'E')
-                        .toUpperCase(),
-                    style: TextStyle(
-                      fontSize: 40,
-                      fontWeight: FontWeight.w900,
-                      color: ProfessionalTheme.primary(context),
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: primary.withValues(alpha: 0.3),
+                      blurRadius: 18,
+                      offset: const Offset(0, 8),
                     ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    // Avatar Ring
+                    Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 3),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.2),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: CircleAvatar(
+                        radius: 46,
+                        backgroundColor: Colors.white.withValues(alpha: 0.2),
+                        child: Text(
+                          (widget.userName.isNotEmpty ? widget.userName[0] : 'E')
+                              .toUpperCase(),
+                          style: const TextStyle(
+                            fontSize: 38,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Name
+                    Text(
+                      widget.userName,
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        letterSpacing: -0.4,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+
+                    // Specialization Badge Pill
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.35),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.verified_user_rounded,
+                            size: 14,
+                            color: Colors.amberAccent,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            specialization,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Section Header
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'PERSONAL & CONTACT INFORMATION',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF64748B),
+                    letterSpacing: 1.2,
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
 
-              Text(
-                widget.userName,
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  color: ProfessionalTheme.textPrimary(context),
-                ),
-              ),
-              const SizedBox(height: 4),
-              if (specialization != 'Not provided')
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: ProfessionalTheme.primaryExtraLight(context),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    specialization,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: ProfessionalTheme.primary(context),
-                    ),
-                  ),
-                ),
-              const SizedBox(height: 32),
-
-              // Info cards
-              _buildProfileItem(Icons.email_rounded, 'Email', email),
-              _buildProfileItem(Icons.phone_rounded, 'Mobile Number', phone),
+              // Modern Info Cards
               _buildProfileItem(
-                Icons.architecture_rounded,
+                Icons.email_outlined,
+                'Email Address',
+                email,
+                onCopy: () {
+                  Clipboard.setData(ClipboardData(text: email));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Email copied to clipboard'),
+                      backgroundColor: Colors.blueAccent,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                },
+              ),
+              _buildProfileItem(
+                Icons.phone_android_outlined,
+                'Mobile Number',
+                phone,
+                onCopy: () {
+                  Clipboard.setData(ClipboardData(text: phone));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Phone number copied'),
+                      backgroundColor: Colors.blueAccent,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                },
+              ),
+              _buildProfileItem(
+                Icons.engineering_outlined,
                 'Specialization',
                 specialization,
               ),
-              _buildProfileItem(Icons.place_rounded, 'Address', address),
+              _buildProfileItem(
+                Icons.location_on_outlined,
+                'Address',
+                address,
+              ),
 
-              const SizedBox(height: 32),
+              const SizedBox(height: 24),
 
-              // Edit Profile button
+              // Edit Profile Action Button
               SizedBox(
                 width: double.infinity,
+                height: 52,
                 child: ElevatedButton.icon(
                   onPressed: () async {
                     final updated = await Navigator.push<bool>(
@@ -2161,46 +3112,48 @@ class _EngineerPageState extends State<EngineerPage> {
                       ),
                     );
                     if (updated == true && mounted) {
-                      setState(() {}); // trigger StreamBuilder refresh
+                      setState(() {});
                     }
                   },
-                  icon: const Icon(Icons.edit_rounded),
+                  icon: const Icon(Icons.edit_rounded, size: 18),
                   label: const Text(
                     'Edit Profile',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: ProfessionalTheme.primary(context),
+                    backgroundColor: primary,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(16),
                     ),
+                    elevation: 0,
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
 
-              // Logout button
+              // Logout Button
               SizedBox(
                 width: double.infinity,
-                child: ElevatedButton(
+                height: 52,
+                child: OutlinedButton.icon(
                   onPressed: _showLogoutConfirmation,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: ProfessionalTheme.error,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                  child: const Text(
+                  icon: const Icon(Icons.logout_rounded, size: 18),
+                  label: const Text(
                     'Logout Account',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFFEF4444),
+                    side: const BorderSide(color: Color(0xFFFCA5A5)),
+                    backgroundColor: const Color(0xFFFEF2F2),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 30),
             ],
           ),
         );
@@ -2208,53 +3161,79 @@ class _EngineerPageState extends State<EngineerPage> {
     );
   }
 
-  Widget _buildProfileItem(IconData icon, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: ProfessionalTheme.cardDecoration(context),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: ProfessionalTheme.primaryExtraLight(context),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                icon,
-                color: ProfessionalTheme.primary(context),
-                size: 20,
-              ),
+  Widget _buildProfileItem(
+    IconData icon,
+    String label,
+    String value, {
+    VoidCallback? onCopy,
+  }) {
+    final primary = Theme.of(context).primaryColor;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: ProfessionalTheme.textSecondary(context),
-                      fontWeight: FontWeight.w600,
-                    ),
+            child: Icon(icon, color: primary, size: 20),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label.toUpperCase(),
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF64748B),
+                    letterSpacing: 1.0,
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    value,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: ProfessionalTheme.textPrimary(context),
-                    ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF0F172A),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+          if (onCopy != null)
+            IconButton(
+              onPressed: onCopy,
+              icon: const Icon(
+                Icons.copy_rounded,
+                size: 16,
+                color: Color(0xFF94A3B8),
+              ),
+              tooltip: 'Copy',
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            ),
+        ],
       ),
     );
   }
@@ -2356,16 +3335,18 @@ class _EngineerPageState extends State<EngineerPage> {
   }
 
   Widget _buildResultsMeta() {
+    final primary = Theme.of(context).primaryColor;
     final label = _currentSection == 'completed' ? 'completed' : 'assigned';
     final count = _filteredBookings.length;
+
     return Row(
       children: [
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: ProfessionalTheme.surface(context),
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: ProfessionalTheme.borderLight(context)),
+            color: primary.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: primary.withValues(alpha: 0.2)),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -2374,15 +3355,16 @@ class _EngineerPageState extends State<EngineerPage> {
                 _currentSection == 'completed'
                     ? Icons.verified_rounded
                     : Icons.assignment_rounded,
-                size: 16,
-                color: ProfessionalTheme.primary(context),
+                size: 14,
+                color: primary,
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               Text(
                 '$count ${count == 1 ? 'ticket' : 'tickets'} $label',
                 style: TextStyle(
-                  color: ProfessionalTheme.textSecondary(context),
-                  fontWeight: FontWeight.w700,
+                  color: primary,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 12,
                 ),
               ),
             ],
@@ -2390,7 +3372,7 @@ class _EngineerPageState extends State<EngineerPage> {
         ),
         const Spacer(),
         if (_searchQuery.isNotEmpty || _statusFilter != null)
-          TextButton(
+          TextButton.icon(
             onPressed: () {
               _clearSearch();
               setState(() {
@@ -2398,11 +3380,13 @@ class _EngineerPageState extends State<EngineerPage> {
                 _applyFilters();
               });
             },
+            icon: const Icon(Icons.close_rounded, size: 14),
+            label: const Text('Clear filters',
+                style: TextStyle(fontWeight: FontWeight.w700)),
             style: TextButton.styleFrom(
-              foregroundColor: ProfessionalTheme.primary(context),
-              textStyle: const TextStyle(fontWeight: FontWeight.w800),
+              foregroundColor: primary,
+              padding: EdgeInsets.zero,
             ),
-            child: const Text('Clear filters'),
           ),
       ],
     );
@@ -2642,43 +3626,46 @@ class _EngineerPageState extends State<EngineerPage> {
   }
 
   Widget _buildSearchField() {
+    final primary = Theme.of(context).primaryColor;
     return Container(
       decoration: BoxDecoration(
-        color: ProfessionalTheme.surface(context),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
       child: TextField(
         controller: _searchController,
         onChanged: _onSearchChanged,
-        style: TextStyle(
-          color: ProfessionalTheme.textPrimary(context),
+        style: const TextStyle(
+          color: Color(0xFF0F172A),
           fontWeight: FontWeight.w600,
           fontSize: 14,
         ),
         decoration: InputDecoration(
           hintText: 'Search by Booking ID or Customer...',
-          hintStyle: TextStyle(
-            color: ProfessionalTheme.textTertiary(context),
+          hintStyle: const TextStyle(
+            color: Color(0xFF94A3B8),
             fontWeight: FontWeight.w500,
+            fontSize: 13,
           ),
           prefixIcon: Icon(
             Icons.search_rounded,
-            color: ProfessionalTheme.primary(context),
-            size: 22,
+            color: primary,
+            size: 20,
           ),
           suffixIcon: _searchQuery.isNotEmpty
               ? IconButton(
-                  icon: Icon(
+                  icon: const Icon(
                     Icons.cancel_rounded,
-                    color: ProfessionalTheme.textTertiary(context),
-                    size: 20,
+                    color: Color(0xFF94A3B8),
+                    size: 18,
                   ),
                   onPressed: _clearSearch,
                 )
@@ -2732,47 +3719,67 @@ class _EngineerPageState extends State<EngineerPage> {
   }
 
   Widget _buildStatusFilterChips() {
+    final primary = Theme.of(context).primaryColor;
     final statuses = [
-      'Assigned', // Add this new status
+      'Assigned',
       'Pending for Approval',
       'Pending for Spares',
       'Under Observation',
       'Delivered',
-      // 'Completed', // Remove this as requested
     ];
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
+      physics: const BouncingScrollPhysics(),
       child: Row(
         children: statuses.map((status) {
           final isSelected = _statusFilter == status;
           return Padding(
             padding: const EdgeInsets.only(right: 8),
-            child: FilterChip(
-              label: Text(_shortenStatus(status)),
-              selected: isSelected,
-              onSelected: (selected) {
+            child: InkWell(
+              onTap: () {
                 setState(() {
-                  _statusFilter = selected ? status : null;
+                  _statusFilter = isSelected ? null : status;
                   _applyFilters();
                 });
               },
-              backgroundColor: ProfessionalTheme.surface(context),
-              selectedColor: ProfessionalTheme.primary(
-                context,
-              ).withValues(alpha: 0.1),
-              checkmarkColor: ProfessionalTheme.primary(context),
-              labelStyle: TextStyle(
-                color: isSelected
-                    ? ProfessionalTheme.primary(context)
-                    : ProfessionalTheme.textSecondary(context),
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-              ),
-              shape: StadiumBorder(
-                side: BorderSide(
-                  color: isSelected
-                      ? ProfessionalTheme.primary(context)
-                      : ProfessionalTheme.borderLight(context),
+              borderRadius: BorderRadius.circular(20),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: isSelected ? primary : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: isSelected ? primary : const Color(0xFFE2E8F0),
+                    width: 1,
+                  ),
+                  boxShadow: isSelected
+                      ? [
+                          BoxShadow(
+                            color: primary.withValues(alpha: 0.25),
+                            blurRadius: 6,
+                            offset: const Offset(0, 3),
+                          ),
+                        ]
+                      : [],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (isSelected) ...[
+                      const Icon(Icons.check_rounded, size: 14, color: Colors.white),
+                      const SizedBox(width: 4),
+                    ],
+                    Text(
+                      _shortenStatus(status),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isSelected ? Colors.white : const Color(0xFF475569),
+                        fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -2822,8 +3829,8 @@ class _EngineerPageState extends State<EngineerPage> {
   }
 }
 
-// Professional Booking Card
-class ProfessionalBookingCard extends StatefulWidget {
+// Professional Booking List Card (Clean High-Density List Tile)
+class ProfessionalBookingCard extends StatelessWidget {
   final AdminDetails booking;
   final TextEditingController descriptionController;
   final int index;
@@ -2839,13 +3846,279 @@ class ProfessionalBookingCard extends StatefulWidget {
     this.isCompletedSection = false,
   });
 
+  void _openDetailsPage(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TicketDetailScreen(
+          booking: booking,
+          descriptionController: descriptionController,
+          index: index,
+          userName: userName,
+          isCompletedSection: isCompletedSection,
+        ),
+      ),
+    );
+  }
+
   @override
-  _ProfessionalBookingCardState createState() =>
-      _ProfessionalBookingCardState();
+  Widget build(BuildContext context) {
+    final primary = Theme.of(context).primaryColor;
+    final status = booking.selectedStatus;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(18),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => _openDetailsPage(context),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: primary.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: primary.withValues(alpha: 0.25),
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          '${index + 1}',
+                          style: TextStyle(
+                            color: primary,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      '#${booking.bookingId}',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF0F172A),
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                    const Spacer(),
+                    _buildStatusChip(context, status),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  booking.customerName,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF0F172A),
+                    letterSpacing: -0.2,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.devices_other_rounded,
+                      size: 14,
+                      color: Color(0xFF64748B),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      [booking.deviceBrand, booking.deviceType]
+                          .where((s) => s.isNotEmpty)
+                          .join(' · '),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF64748B),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.calendar_today_rounded,
+                            size: 12,
+                            color: Color(0xFF64748B),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            booking.daysDisplayText,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF475569),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: primary.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'View Details',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: primary,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(
+                            Icons.arrow_forward_rounded,
+                            size: 13,
+                            color: primary,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusChip(BuildContext context, String status) {
+    final statusConfig = {
+      'Completed': {
+        'color': const Color(0xFF10B981),
+        'icon': Icons.check_circle_outline,
+        'text': 'Completed',
+      },
+      'Assigned': {
+        'color': const Color(0xFF10B981),
+        'icon': Icons.assignment_ind_outlined,
+        'text': 'Assigned',
+      },
+      'Pending for Approval': {
+        'color': const Color(0xFF8B5CF6),
+        'icon': Icons.hourglass_empty_rounded,
+        'text': 'Pending',
+      },
+      'Pending for Spares': {
+        'color': const Color(0xFFF59E0B),
+        'icon': Icons.settings_input_component_outlined,
+        'text': 'Spares',
+      },
+      'Under Observation': {
+        'color': const Color(0xFF06B6D4),
+        'icon': Icons.visibility_outlined,
+        'text': 'Observation',
+      },
+    };
+
+    final config = statusConfig[status] ?? {
+      'color': const Color(0xFF64748B),
+      'icon': Icons.help_outline,
+      'text': status,
+    };
+
+    final color = config['color'] as Color;
+    final text = config['text'] as String;
+    final icon = config['icon'] as IconData;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: color),
+          const SizedBox(width: 4),
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: 11,
+              color: color,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
-  bool _isExpanded = false;
+// Dedicated Full-Screen Ticket Details Page
+class TicketDetailScreen extends StatefulWidget {
+  final AdminDetails booking;
+  final TextEditingController descriptionController;
+  final int index;
+  final String userName;
+  final bool isCompletedSection;
+
+  const TicketDetailScreen({
+    super.key,
+    required this.booking,
+    required this.descriptionController,
+    required this.index,
+    required this.userName,
+    this.isCompletedSection = false,
+  });
+
+  @override
+  State<TicketDetailScreen> createState() => _TicketDetailScreenState();
+}
+
+class _TicketDetailScreenState extends State<TicketDetailScreen> {
   final ImagePicker _picker = ImagePicker();
   List<XFile>? _imageFiles = [];
   final TextEditingController _amountController = TextEditingController();
@@ -2862,6 +4135,50 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
   double? _capturedLat;
   double? _capturedLng;
   bool _isLoadingLocation = false;
+
+  void _launchPhoneDialer(String rawPhone) async {
+    String phone = rawPhone.trim().replaceAll(' ', '');
+    if (phone.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Customer phone number is not available'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+    final sanitized = phone.replaceAll(RegExp(r'[^\d+]'), '');
+    final Uri dialUri =
+        Uri(scheme: 'tel', path: sanitized.isNotEmpty ? sanitized : phone);
+    try {
+      final success =
+          await launchUrl(dialUri, mode: LaunchMode.externalApplication);
+      if (!success) {
+        final fallbackSuccess = await launchUrl(dialUri);
+        if (!fallbackSuccess) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Phone app unavailable on Simulator. Number: $phone',
+              ),
+              backgroundColor: Colors.orangeAccent,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Phone app unavailable on Simulator. Number: $phone'),
+          backgroundColor: Colors.orangeAccent,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
+  }
 
   Future<void> _logManualLocation() async {
     setState(() => _isLoadingLocation = true);
@@ -2948,33 +4265,19 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
   }
 
   void _updateReadOnlyStatus() {
-    // Check if the job was previously completed
     final bool wasCompleted =
         widget.booking.selectedStatus.toLowerCase() == 'completed';
 
     setState(() {
-      // Job becomes read-only if:
-      // 1. It was previously completed (already closed before opening)
-      // 2. The current selection is Completed (so after a successful update we lock it)
-      // 3. It was canceled
-      // 4. We're in the completed tickets section
       _isReadOnly =
           wasCompleted ||
           _currentStatus.toLowerCase() == 'completed' ||
           widget.booking.isCanceled ||
           widget.isCompletedSection;
 
-      // If the job was previously completed or current status is completed,
-      // force the status to remain completed
       if (wasCompleted || _currentStatus.toLowerCase() == 'completed') {
         _currentStatus = 'Completed';
       }
-    });
-  }
-
-  void _toggleExpanded() {
-    setState(() {
-      _isExpanded = !_isExpanded;
     });
   }
 
@@ -3201,29 +4504,25 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
             'lastUpdatedBy': widget.userName,
           };
 
-          // Payments: Use Timestamp.now() for nested timestamps
           if (_payments.isNotEmpty) {
             updateData['payments'] = _payments.map((p) {
               return {
                 ...p,
-                'addedAt': Timestamp.now(), // Use Timestamp.now() here
+                'addedAt': Timestamp.now(),
               };
             }).toList();
           }
 
-          // Status history tracking: Use Timestamp.now() for nested
           updateData['statusHistory'] = [
             {
               'status': _currentStatus,
-              'timestamp': Timestamp.now(), // Use Timestamp.now() here
+              'timestamp': Timestamp.now(),
               'updatedBy': widget.userName,
             },
           ];
 
-          // If status is completed, set both engineerStatus and adminStatus
           if (_currentStatus.toLowerCase() == 'completed') {
             updateData['engineerStatus'] = 'Completed';
-            // updateData['adminStatus'] = 'Closed';
             updateData['completedAt'] = FieldValue.serverTimestamp();
             updateData['completedBy'] = widget.userName;
           }
@@ -3252,7 +4551,6 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
 
         _showSnackBar('Job updated successfully!', ProfessionalTheme.success);
 
-        // Add real-time notification for Admin
         await NotificationService.sendNotificationToFirestore(
           audience: 'admin',
           title: 'Engineer Job Update',
@@ -3271,13 +4569,10 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
           widget.booking.paymentType = paymentTypeToSave;
           _payments = [];
 
-          // If engineer marked the job as Completed and update succeeded,
-          // make the form read-only immediately and update UI accordingly.
           _isReadOnly =
               _currentStatus.toLowerCase() == 'completed' ||
               widget.booking.isCanceled ||
               widget.isCompletedSection;
-          // Keep the existing centralized logic in case other rules apply.
           _updateReadOnlyStatus();
         });
       } catch (e, stack) {
@@ -3296,221 +4591,289 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
     }
   }
 
-  void _makePhoneCall() async {
-    String phone = widget.booking.mobileNumber.trim().replaceAll(' ', '');
-    if (!phone.startsWith('+91')) {
-      if (phone.startsWith('0')) {
-        phone = phone.substring(1);
-      }
-      phone = '+91$phone';
-    }
-    final Uri dialUri = Uri(scheme: 'tel', path: phone);
-    try {
-      if (!await launchUrl(dialUri, mode: LaunchMode.externalApplication)) {
-        _showSnackBar('Could not launch dialer', ProfessionalTheme.error);
-      }
-    } catch (e) {
-      _showSnackBar('Could not launch dialer: $e', ProfessionalTheme.error);
-    }
+  void _showFullImage(String imageUrl) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: InteractiveViewer(
+          child: Image.network(imageUrl, fit: BoxFit.contain),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: ProfessionalAnimations.medium,
-      curve: ProfessionalAnimations.easeInOut,
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: ProfessionalTheme.cardDecoration(context),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: _toggleExpanded,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header Row
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Index Badge
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          ProfessionalTheme.primary(context),
-                          ProfessionalTheme.primaryDark(context),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(10),
-                      boxShadow: [
-                        BoxShadow(
-                          color: ProfessionalTheme.primary(
-                            context,
-                          ).withValues(alpha: 0.3),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Center(
-                      child: Text(
-                        '${widget.index + 1}',
-                        style: TextStyle(
-                          color: ProfessionalTheme.textInverse(context),
-                          fontWeight: FontWeight.w800,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  // Info Area
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Text(
-                              widget.booking.bookingId,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: ProfessionalTheme.textSecondary(context),
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                            const Spacer(),
-                            _buildStatusChip(_currentStatus),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          widget.booking.customerName,
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                            color: ProfessionalTheme.textPrimary(context),
-                            letterSpacing: -0.2,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.devices_other,
-                              size: 14,
-                              color: ProfessionalTheme.textTertiary(context),
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              '${widget.booking.deviceBrand} • ${widget.booking.deviceType}',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: ProfessionalTheme.textSecondary(context),
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        _buildDaysInfo(),
-                      ],
-                    ),
+    final primary = Theme.of(context).primaryColor;
+    final mobileNumber = (widget.booking.mobileNumber).trim();
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0.5,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF0F172A), size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          'Ticket #${widget.booking.bookingId}',
+          style: const TextStyle(
+            color: Color(0xFF0F172A),
+            fontWeight: FontWeight.w900,
+            fontSize: 18,
+          ),
+        ),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: Center(child: _buildStatusHeaderChip(_currentStatus)),
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        physics: const BouncingScrollPhysics(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    primary,
+                    HSLColor.fromColor(primary).withLightness(0.30).toColor(),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(22),
+                boxShadow: [
+                  BoxShadow(
+                    color: primary.withValues(alpha: 0.3),
+                    blurRadius: 16,
+                    offset: const Offset(0, 8),
                   ),
                 ],
               ),
-
-              if (widget.booking.isCanceled) ...[
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: ProfessionalTheme.errorLight,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: ProfessionalTheme.error.withValues(alpha: 0.3),
-                    ),
-                  ),
-                  child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Icon(
-                        Icons.cancel,
-                        size: 16,
-                        color: ProfessionalTheme.error,
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.stars_rounded, size: 12, color: Colors.amberAccent),
+                            SizedBox(width: 4),
+                            Text(
+                              'SERVICE TICKET DETAILS',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.white,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          widget.booking.cancellationMessage,
-                          style: TextStyle(
-                            color: ProfessionalTheme.error,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
+                      Text(
+                        widget.booking.daysDisplayText,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white.withValues(alpha: 0.9),
                         ),
                       ),
                     ],
                   ),
-                ),
-              ],
-
-              // Expandable Content
-              if (_isExpanded) ...[
-                const SizedBox(height: 20),
-                const Divider(height: 1),
-                const SizedBox(height: 20),
-                _buildSectionHeader('Job Details', Icons.info_outline),
-                const SizedBox(height: 12),
-                _buildDetailsSection(),
-                const SizedBox(height: 24),
-                _buildSectionHeader(
-                  'Status Management',
-                  Icons.assignment_outlined,
-                ),
-                const SizedBox(height: 12),
-                _buildStatusSection(),
-                const SizedBox(height: 24),
-                _buildSectionHeader(
-                  'Update Description',
-                  Icons.description_outlined,
-                ),
-                const SizedBox(height: 12),
-                _buildDescriptionSection(),
-                const SizedBox(height: 24),
-                _buildSectionHeader('Payments', Icons.payments_outlined),
-                const SizedBox(height: 12),
-                _buildPaymentSection(),
-                const SizedBox(height: 24),
-                _buildSectionHeader(
-                  'Completion Photos',
-                  Icons.photo_library_outlined,
-                ),
-                const SizedBox(height: 12),
-                _buildImageSection(),
-                const SizedBox(height: 24),
-                _buildActionButtons(),
-              ],
-
-              // Expand/Collapse Label
-              const SizedBox(height: 12),
-              Center(
-                child: Icon(
-                  _isExpanded
-                      ? Icons.keyboard_arrow_up_rounded
-                      : Icons.keyboard_arrow_down_rounded,
-                  color: ProfessionalTheme.textTertiary(context),
-                  size: 24,
-                ),
+                  const SizedBox(height: 16),
+                  Text(
+                    widget.booking.customerName,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                      letterSpacing: -0.4,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    [widget.booking.deviceBrand, widget.booking.deviceType]
+                        .where((s) => s.isNotEmpty)
+                        .join(' · '),
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.white.withValues(alpha: 0.9),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  if (widget.booking.address.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Icon(Icons.location_on_rounded, size: 14, color: Colors.white.withValues(alpha: 0.85)),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            widget.booking.address,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.white.withValues(alpha: 0.9),
+                              fontWeight: FontWeight.w500,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: 18),
+                  const Divider(color: Colors.white24, height: 1),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () => _launchPhoneDialer(mobileNumber),
+                          icon: const Icon(Icons.phone_rounded, size: 16),
+                          label: const Text('Call Customer', style: TextStyle(fontWeight: FontWeight.w800)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: primary,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            elevation: 0,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          Clipboard.setData(ClipboardData(text: widget.booking.address));
+                          _showSnackBar('Address copied to clipboard', ProfessionalTheme.info(context));
+                        },
+                        icon: const Icon(Icons.copy_rounded, size: 16),
+                        label: const Text('Copy Address', style: TextStyle(fontWeight: FontWeight.w800)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white.withValues(alpha: 0.2),
+                          foregroundColor: Colors.white,
+                          side: const BorderSide(color: Colors.white38),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          elevation: 0,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-            ],
+            ),
+            const SizedBox(height: 20),
+            _buildSectionHeader('Job Details', Icons.info_outline),
+            const SizedBox(height: 10),
+            _buildDetailsSection(),
+            const SizedBox(height: 20),
+            _buildSectionHeader('Status Management', Icons.assignment_outlined),
+            const SizedBox(height: 10),
+            _buildStatusSection(),
+            const SizedBox(height: 20),
+            _buildSectionHeader('Update Description', Icons.description_outlined),
+            const SizedBox(height: 10),
+            _buildDescriptionSection(),
+            const SizedBox(height: 20),
+            _buildSectionHeader('Payments & Charges', Icons.payments_outlined),
+            const SizedBox(height: 10),
+            _buildPaymentSection(),
+            const SizedBox(height: 20),
+            _buildSectionHeader('Completion Photos', Icons.photo_library_outlined),
+            const SizedBox(height: 10),
+            _buildImageSection(),
+            const SizedBox(height: 30),
+          ],
+        ),
+      ),
+      bottomNavigationBar: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 10,
+              offset: const Offset(0, -4),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          child: SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton.icon(
+              onPressed: (_isUploading || _isReadOnly || widget.booking.isCanceled) ? null : _performUpdate,
+              icon: _isUploading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Icon(Icons.check_circle_rounded, size: 20),
+              label: Text(
+                _isUploading
+                    ? 'Updating Ticket...'
+                    : _isReadOnly
+                        ? 'Ticket Read Only'
+                        : 'Save & Update Ticket Status',
+                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                elevation: 0,
+              ),
+            ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildStatusHeaderChip(String status) {
+    final statusConfig = {
+      'Completed': {'color': const Color(0xFF10B981), 'text': 'Completed'},
+      'Assigned': {'color': const Color(0xFF10B981), 'text': 'Assigned'},
+      'Pending for Approval': {'color': const Color(0xFF8B5CF6), 'text': 'Pending'},
+      'Pending for Spares': {'color': const Color(0xFFF59E0B), 'text': 'Spares'},
+      'Under Observation': {'color': const Color(0xFF06B6D4), 'text': 'Observation'},
+    };
+    final config = statusConfig[status] ?? {'color': const Color(0xFF64748B), 'text': status};
+    final color = config['color'] as Color;
+    final text = config['text'] as String;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w800),
       ),
     );
   }
@@ -3518,137 +4881,27 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
   Widget _buildSectionHeader(String title, IconData icon) {
     return Row(
       children: [
-        Icon(icon, size: 18, color: ProfessionalTheme.primary(context)),
+        Icon(icon, size: 18, color: Theme.of(context).primaryColor),
         const SizedBox(width: 8),
         Text(
           title.toUpperCase(),
-          style: ProfessionalTheme.sectionHeader(context),
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+            color: const Color(0xFF0F172A),
+            letterSpacing: 1.0,
+          ),
         ),
       ],
-    );
-  }
-
-  Widget _buildDaysInfo() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: ProfessionalTheme.infoLight,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(
-          color: ProfessionalTheme.info(context).withValues(alpha: 0.3),
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.calendar_today,
-            size: 12,
-            color: ProfessionalTheme.info(context),
-          ),
-          const SizedBox(width: 4),
-          Text(
-            widget.booking.daysDisplayText,
-            style: TextStyle(
-              fontSize: 12,
-              color: ProfessionalTheme.info(context),
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatusChip(String status) {
-    final statusConfig = {
-      'Completed': {
-        'color': ProfessionalTheme.success,
-        'icon': Icons.check_circle_outline,
-        'text': 'Completed',
-      },
-      'Assigned': {
-        'color': ProfessionalTheme.success,
-        'icon': Icons.assignment_ind_outlined,
-        'text': 'Assigned',
-      },
-      'Pending for Approval': {
-        'color': const Color(0xFF9C27B0), // Purple
-        'icon': Icons.hourglass_empty_rounded,
-        'text': 'Pending',
-      },
-      'Pending for Spares': {
-        'color': Colors.amber, // Amber
-        'icon': Icons.settings_input_component_outlined,
-        'text': 'Spares',
-      },
-      'Under Observation': {
-        'color': Colors.cyan, // Cyan
-        'icon': Icons.visibility_outlined,
-        'text': 'Observation',
-      },
-      'Order Taken': {
-        'color': const Color(
-          0xFF8B5CF6,
-        ), // Violet - keeping as is if not in palette
-        'icon': Icons.handshake_outlined,
-        'text': 'Order Taken',
-      },
-      'Order Received': {
-        'color': const Color(
-          0xFFEC4899,
-        ), // Pink - keeping as is if not in palette
-        'icon': Icons.inventory_2_outlined,
-        'text': 'Received',
-      },
-    };
-
-    final config =
-        statusConfig[status] ??
-        {
-          'color': ProfessionalTheme.textSecondary(context),
-          'icon': Icons.help_outline,
-          'text': status,
-        };
-
-    final color = config['color'] as Color;
-    final text = config['text'] as String;
-    final icon = config['icon'] as IconData;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.2), width: 1.5),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 6),
-          Text(
-            text,
-            style: TextStyle(
-              fontSize: 11,
-              color: color,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.3,
-            ),
-          ),
-        ],
-      ),
     );
   }
 
   Widget _buildDetailsSection() {
     return Container(
       decoration: BoxDecoration(
-        color: ProfessionalTheme.surface(context),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: ProfessionalTheme.borderLight(context).withValues(alpha: 0.5),
-        ),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
       child: Column(
         children: [
@@ -3658,34 +4911,26 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
             icon: Icons.location_on_outlined,
             onCopy: () {
               Clipboard.setData(ClipboardData(text: widget.booking.address));
-              _showSnackBar(
-                'Address copied to clipboard',
-                ProfessionalTheme.info(context),
-              );
+              _showSnackBar('Address copied to clipboard', ProfessionalTheme.info(context));
             },
           ),
-          Divider(height: 1, color: ProfessionalTheme.borderLight(context)),
+          const Divider(height: 1, color: Color(0xFFE2E8F0)),
           _buildEnhancedDetailRow(
             label: 'Mobile',
             value: widget.booking.mobileNumber,
             icon: Icons.phone_android_outlined,
             onCopy: () {
-              Clipboard.setData(
-                ClipboardData(text: widget.booking.mobileNumber),
-              );
-              _showSnackBar(
-                'Phone number copied',
-                ProfessionalTheme.info(context),
-              );
+              Clipboard.setData(ClipboardData(text: widget.booking.mobileNumber));
+              _showSnackBar('Phone number copied', ProfessionalTheme.info(context));
             },
           ),
-          Divider(height: 1, color: ProfessionalTheme.borderLight(context)),
+          const Divider(height: 1, color: Color(0xFFE2E8F0)),
           _buildEnhancedDetailRow(
             label: 'Condition',
             value: widget.booking.deviceCondition,
             icon: Icons.build_circle_outlined,
           ),
-          Divider(height: 1, color: ProfessionalTheme.borderLight(context)),
+          const Divider(height: 1, color: Color(0xFFE2E8F0)),
           _buildEnhancedDetailRow(
             label: 'Assigned',
             value: widget.booking.assignedDateTimeFormatted,
@@ -3697,22 +4942,18 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
               padding: const EdgeInsets.all(12),
               margin: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: ProfessionalTheme.success.withValues(alpha: 0.1),
+                color: const Color(0xFFECFDF5),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
                 children: [
-                  const Icon(
-                    Icons.verified,
-                    size: 16,
-                    color: ProfessionalTheme.success,
-                  ),
+                  const Icon(Icons.verified, size: 16, color: Color(0xFF10B981)),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       widget.booking.completionMessage,
                       style: const TextStyle(
-                        color: ProfessionalTheme.success,
+                        color: Color(0xFF059669),
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
                       ),
@@ -3733,6 +4974,7 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
     required IconData icon,
     VoidCallback? onCopy,
   }) {
+    final primary = Theme.of(context).primaryColor;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
@@ -3741,14 +4983,10 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: ProfessionalTheme.primary(context).withValues(alpha: 0.1),
+              color: primary.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(
-              icon,
-              size: 16,
-              color: ProfessionalTheme.primary(context),
-            ),
+            child: Icon(icon, size: 16, color: primary),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -3757,20 +4995,20 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
               children: [
                 Text(
                   label.toUpperCase(),
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w800,
-                    color: ProfessionalTheme.textSecondary(context),
+                    color: Color(0xFF64748B),
                     letterSpacing: 1.0,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   value,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: ProfessionalTheme.textPrimary(context),
+                    color: Color(0xFF0F172A),
                     height: 1.3,
                   ),
                 ),
@@ -3780,11 +5018,7 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
           if (onCopy != null)
             IconButton(
               onPressed: onCopy,
-              icon: Icon(
-                Icons.copy_rounded,
-                size: 16,
-                color: ProfessionalTheme.textTertiary(context),
-              ),
+              icon: const Icon(Icons.copy_rounded, size: 16, color: Color(0xFF94A3B8)),
               tooltip: 'Copy',
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
@@ -3804,7 +5038,6 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
       'Pending for Spares',
       'Under Observation',
     ];
-
     String? dropdownValue = allowedStatuses.contains(_currentStatus)
         ? _currentStatus
         : null;
@@ -3814,40 +5047,30 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
       children: [
         Container(
           decoration: BoxDecoration(
-            color: ProfessionalTheme.surface(context),
+            color: Colors.white,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: ProfessionalTheme.borderLight(context)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.02),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
+            border: Border.all(color: const Color(0xFFE2E8F0)),
           ),
           child: DropdownButtonFormField<String>(
             initialValue: dropdownValue,
             decoration: InputDecoration(
               prefixIcon: Icon(
                 Icons.swap_horiz_rounded,
-                color: ProfessionalTheme.primary(context),
+                color: Theme.of(context).primaryColor,
                 size: 20,
               ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide.none,
               ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 12,
-              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               filled: true,
               fillColor: Colors.transparent,
             ),
-            dropdownColor: ProfessionalTheme.surface(context),
-            style: TextStyle(
+            dropdownColor: Colors.white,
+            style: const TextStyle(
               fontSize: 14,
-              color: ProfessionalTheme.textPrimary(context),
+              color: Color(0xFF0F172A),
               fontWeight: FontWeight.w700,
             ),
             items: allowedStatuses.map((String value) {
@@ -3868,17 +5091,14 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
           const SizedBox(height: 8),
           Text(
             widget.booking.cancellationMessage,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 12,
-              color: ProfessionalTheme.error,
+              color: Colors.redAccent,
               fontStyle: FontStyle.italic,
             ),
           ),
         ],
-
-        // Manual Location Log Button
-        if (_currentStatus == 'Order Taken' ||
-            _currentStatus == 'Order Received') ...[
+        if (_currentStatus == 'Order Taken' || _currentStatus == 'Order Received') ...[
           const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
@@ -3886,10 +5106,8 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
               onPressed: _isLoadingLocation ? null : _logManualLocation,
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 12),
-                side: BorderSide(color: ProfessionalTheme.primary(context)),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
+                side: BorderSide(color: Theme.of(context).primaryColor),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
               icon: _isLoadingLocation
                   ? SizedBox(
@@ -3897,125 +5115,18 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
                       height: 20,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: ProfessionalTheme.primary(context),
+                        color: Theme.of(context).primaryColor,
                       ),
                     )
-                  : Icon(
-                      Icons.my_location,
-                      color: ProfessionalTheme.primary(context),
-                    ),
+                  : Icon(Icons.my_location, color: Theme.of(context).primaryColor),
               label: Text(
                 _isLoadingLocation ? 'Logging...' : 'Log Current Location',
                 style: TextStyle(
-                  color: ProfessionalTheme.primary(context),
+                  color: Theme.of(context).primaryColor,
                   fontWeight: FontWeight.w600,
                 ),
               ),
             ),
-          ),
-        ],
-
-        // Display Captured Location
-        if (_capturedLat != null && _capturedLng != null) ...[
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Latitude',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: ProfessionalTheme.textSecondary(context),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: ProfessionalTheme.surface(context),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: ProfessionalTheme.borderLight(context),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.explore_outlined,
-                            size: 16,
-                            color: ProfessionalTheme.textTertiary(context),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            _capturedLat!.toStringAsFixed(6),
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: ProfessionalTheme.textPrimary(context),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Longitude',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: ProfessionalTheme.textSecondary(context),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: ProfessionalTheme.surface(context),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: ProfessionalTheme.borderLight(context),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.explore_outlined,
-                            size: 16,
-                            color: ProfessionalTheme.textTertiary(context),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            _capturedLng!.toStringAsFixed(6),
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: ProfessionalTheme.textPrimary(context),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
           ),
         ],
       ],
@@ -4026,44 +5137,23 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Text(
-              'Status Description',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: ProfessionalTheme.textPrimary(context),
-              ),
-            ),
-            const SizedBox(width: 4),
-            Text('*', style: TextStyle(color: ProfessionalTheme.error)),
-          ],
-        ),
-        const SizedBox(height: 8),
         TextField(
           controller: widget.descriptionController,
           maxLines: 4,
           minLines: 3,
           enabled: !_isReadOnly,
           decoration: InputDecoration(
-            hintText:
-                'Describe the current status, issues found, or work completed...',
-            hintStyle: TextStyle(
-              color: ProfessionalTheme.textTertiary(context),
-            ),
+            hintText: 'Describe the current status, issues found, or work completed...',
+            hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(
-                color: ProfessionalTheme.borderLight(context),
-              ),
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
             ),
             contentPadding: const EdgeInsets.all(16),
+            filled: true,
+            fillColor: Colors.white,
           ),
-          style: TextStyle(
-            fontSize: 14,
-            color: ProfessionalTheme.textPrimary(context),
-          ),
+          style: const TextStyle(fontSize: 14, color: Color(0xFF0F172A)),
           onChanged: (value) {
             if (!_isReadOnly) {
               widget.booking.description = value;
@@ -4086,50 +5176,25 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Payment Information',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: ProfessionalTheme.textPrimary(context),
-          ),
-        ),
-        const SizedBox(height: 12),
-
-        // Payment Type
-        Text(
-          'Payment Type',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: ProfessionalTheme.textSecondary(context),
-          ),
-        ),
-        const SizedBox(height: 8),
         Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: ProfessionalTheme.borderLight(context)),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
           ),
           child: DropdownButtonFormField<String>(
             initialValue: _selectedPaymentType,
             decoration: InputDecoration(
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide.none,
               ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 12,
-              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               filled: true,
-              fillColor: ProfessionalTheme.surface(context),
+              fillColor: Colors.white,
             ),
-            dropdownColor: ProfessionalTheme.surface(context),
-            style: TextStyle(
-              fontSize: 14,
-              color: ProfessionalTheme.textPrimary(context),
-            ),
+            dropdownColor: Colors.white,
+            style: const TextStyle(fontSize: 14, color: Color(0xFF0F172A)),
             items: paymentTypes.map((String type) {
               return DropdownMenuItem<String>(value: type, child: Text(type));
             }).toList(),
@@ -4145,13 +5210,8 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
                       });
                     }
                   },
-            icon: Icon(
-              Icons.arrow_drop_down,
-              color: ProfessionalTheme.textTertiary(context),
-            ),
           ),
         ),
-
         if (_selectedPaymentType == 'Others') ...[
           const SizedBox(height: 12),
           TextField(
@@ -4159,52 +5219,11 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
             enabled: !_isReadOnly,
             decoration: InputDecoration(
               labelText: 'Specify Payment Type',
-              labelStyle: TextStyle(
-                color: ProfessionalTheme.textTertiary(context),
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(
-                  color: ProfessionalTheme.borderLight(context),
-                ),
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 12,
-              ),
-            ),
-            style: TextStyle(
-              fontSize: 14,
-              color: ProfessionalTheme.textPrimary(context),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             ),
           ),
         ],
-
-        if (_selectedPaymentType == 'UPI Transaction') ...[
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            onPressed: () => _showQRCodeDialog(),
-            icon: Icon(
-              Icons.qr_code,
-              color: ProfessionalTheme.primary(context),
-            ),
-            label: Text(
-              'Show QR Code',
-              style: TextStyle(color: ProfessionalTheme.primary(context)),
-            ),
-            style: OutlinedButton.styleFrom(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              side: BorderSide(color: ProfessionalTheme.borderMedium(context)),
-              padding: const EdgeInsets.symmetric(
-                vertical: 12,
-                horizontal: 109,
-              ),
-            ),
-          ),
-        ],
-
         const SizedBox(height: 16),
         _buildPaymentMethodSection(),
         const SizedBox(height: 16),
@@ -4219,20 +5238,16 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: ProfessionalTheme.surfaceElevated(context),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: ProfessionalTheme.borderLight(context)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Add Payment',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: ProfessionalTheme.textPrimary(context),
-            ),
+          const Text(
+            'Add Payment Item',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
           ),
           const SizedBox(height: 12),
           Column(
@@ -4255,10 +5270,7 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
                   Flexible(
                     child: Text(
                       m,
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: ProfessionalTheme.textPrimary(context),
-                      ),
+                      style: const TextStyle(fontSize: 15, color: Color(0xFF0F172A)),
                     ),
                   ),
                 ],
@@ -4271,7 +5283,7 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
               Expanded(
                 child: TextField(
                   controller: _paymentAmountController,
-                  keyboardType: TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   inputFormatters: [
                     FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
                   ],
@@ -4279,44 +5291,20 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
                   decoration: InputDecoration(
                     prefixText: '₹ ',
                     hintText: 'Amount',
-                    hintStyle: TextStyle(
-                      color: ProfessionalTheme.textTertiary(context),
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(
-                        color: ProfessionalTheme.borderLight(context),
-                      ),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   ),
                 ),
               ),
               const SizedBox(width: 12),
               ElevatedButton(
-                onPressed: _isReadOnly || _selectedPaymentType == 'No Payment'
-                    ? null
-                    : _addPayment,
+                onPressed: _isReadOnly || _selectedPaymentType == 'No Payment' ? null : _addPayment,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: ProfessionalTheme.primary(context),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
+                  backgroundColor: Theme.of(context).primaryColor,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 ),
-                child: Text(
-                  'Add',
-                  style: TextStyle(
-                    color: ProfessionalTheme.textInverse(context),
-                    fontSize: 14,
-                  ),
-                ),
+                child: const Text('Add', style: TextStyle(color: Colors.white, fontSize: 14)),
               ),
             ],
           ),
@@ -4333,13 +5321,9 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        const Text(
           'Added Payments',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: ProfessionalTheme.textPrimary(context),
-          ),
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
         ),
         const SizedBox(height: 8),
         ..._payments.asMap().entries.map((entry) {
@@ -4349,9 +5333,9 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
             margin: const EdgeInsets.only(bottom: 8),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: ProfessionalTheme.surface(context),
+              color: const Color(0xFFF1F5F9),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: ProfessionalTheme.borderLight(context)),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
             ),
             child: Row(
               children: [
@@ -4361,29 +5345,18 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
                     children: [
                       Text(
                         payment['paymentType'] ?? '',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: ProfessionalTheme.textPrimary(context),
-                        ),
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
                       ),
                       Text(
                         payment['paymentMethod'] ?? '',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: ProfessionalTheme.textSecondary(context),
-                        ),
+                        style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
                       ),
                     ],
                   ),
                 ),
                 Text(
                   '₹${payment['amount']}',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: ProfessionalTheme.primary(context),
-                  ),
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Theme.of(context).primaryColor),
                 ),
                 if (!_isReadOnly) ...[
                   const SizedBox(width: 8),
@@ -4394,11 +5367,7 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
                         _recomputeTotalAmountFromPayments();
                       });
                     },
-                    child: Icon(
-                      Icons.delete,
-                      size: 18,
-                      color: ProfessionalTheme.error,
-                    ),
+                    child: const Icon(Icons.delete, size: 18, color: Colors.redAccent),
                   ),
                 ],
               ],
@@ -4413,13 +5382,9 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        const Text(
           'Total Amount',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: ProfessionalTheme.textPrimary(context),
-          ),
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
         ),
         const SizedBox(height: 8),
         TextField(
@@ -4429,30 +5394,11 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
           decoration: InputDecoration(
             prefixText: '₹ ',
             hintText: '0.00',
-            hintStyle: TextStyle(
-              color: ProfessionalTheme.textTertiary(context),
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(
-                color: ProfessionalTheme.borderLight(context),
-              ),
-            ),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 12,
-            ),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             helperText: 'Auto-calculated from added payments',
-            helperStyle: TextStyle(
-              color: ProfessionalTheme.textTertiary(context),
-              fontSize: 12,
-            ),
           ),
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: ProfessionalTheme.textPrimary(context),
-          ),
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
         ),
       ],
     );
@@ -4465,26 +5411,17 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Column(
+            const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'PHOTOS',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    color: ProfessionalTheme.textSecondary(context),
-                    letterSpacing: 1.5,
-                  ),
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF64748B), letterSpacing: 1.5),
                 ),
-                const SizedBox(height: 2),
+                SizedBox(height: 2),
                 Text(
                   'Max 3 images required',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: ProfessionalTheme.textTertiary(context),
-                    fontStyle: FontStyle.italic,
-                  ),
+                  style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8), fontStyle: FontStyle.italic),
                 ),
               ],
             ),
@@ -4493,10 +5430,7 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
                 onPressed: _isPickingImages ? null : _pickImages,
                 icon: const Icon(Icons.add_a_photo_outlined, size: 18),
                 label: const Text('Add Photo'),
-                style: TextButton.styleFrom(
-                  foregroundColor: ProfessionalTheme.primary(context),
-                  textStyle: const TextStyle(fontWeight: FontWeight.w700),
-                ),
+                style: TextButton.styleFrom(foregroundColor: Theme.of(context).primaryColor),
               ),
           ],
         ),
@@ -4521,13 +5455,6 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
                           image: FileImage(File(image.path)),
                           fit: BoxFit.cover,
                         ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.1),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
                       ),
                     ),
                     if (!_isReadOnly)
@@ -4535,22 +5462,11 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
                         top: 4,
                         right: 4,
                         child: GestureDetector(
-                          onTap: () =>
-                              setState(() => _imageFiles!.removeAt(index)),
+                          onTap: () => setState(() => _imageFiles!.removeAt(index)),
                           child: Container(
                             padding: const EdgeInsets.all(4),
-                            decoration: const BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(color: Colors.black12, blurRadius: 4),
-                              ],
-                            ),
-                            child: Icon(
-                              Icons.close,
-                              size: 14,
-                              color: ProfessionalTheme.error,
-                            ),
+                            decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                            child: const Icon(Icons.close, size: 14, color: Colors.redAccent),
                           ),
                         ),
                       ),
@@ -4564,31 +5480,15 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
             width: double.infinity,
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: ProfessionalTheme.surface(context),
+              color: Colors.white,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: ProfessionalTheme.borderLight(
-                  context,
-                ).withValues(alpha: 0.3),
-                style: BorderStyle.solid,
-              ),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
             ),
-            child: Column(
+            child: const Column(
               children: [
-                Icon(
-                  Icons.no_photography_outlined,
-                  color: ProfessionalTheme.textTertiary(context),
-                  size: 32,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'No photos uploaded',
-                  style: TextStyle(
-                    color: ProfessionalTheme.textTertiary(context),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+                Icon(Icons.no_photography_outlined, color: Color(0xFF94A3B8), size: 32),
+                SizedBox(height: 8),
+                Text('No photos uploaded', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12, fontWeight: FontWeight.w600)),
               ],
             ),
           )
@@ -4599,54 +5499,30 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
               width: double.infinity,
               padding: const EdgeInsets.all(32),
               decoration: BoxDecoration(
-                color: ProfessionalTheme.primary(
-                  context,
-                ).withValues(alpha: 0.04),
+                color: Theme.of(context).primaryColor.withValues(alpha: 0.04),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: ProfessionalTheme.primary(
-                    context,
-                  ).withValues(alpha: 0.2),
-                  style: BorderStyle.solid,
-                ),
+                border: Border.all(color: Theme.of(context).primaryColor.withValues(alpha: 0.2)),
               ),
               child: Column(
                 children: [
-                  Icon(
-                    Icons.add_a_photo_rounded,
-                    color: ProfessionalTheme.primary(context),
-                    size: 40,
-                  ),
+                  Icon(Icons.add_a_photo_rounded, color: Theme.of(context).primaryColor, size: 40),
                   const SizedBox(height: 12),
-                  Text(
-                    'Tap to capture or upload photos',
-                    style: TextStyle(
-                      color: ProfessionalTheme.primary(context),
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                    ),
-                  ),
+                  Text('Tap to capture or upload photos', style: TextStyle(color: Theme.of(context).primaryColor, fontWeight: FontWeight.w700, fontSize: 14)),
                   const SizedBox(height: 4),
-                  Text(
-                    'Upload up to 3 high-quality job photos',
-                    style: TextStyle(
-                      color: ProfessionalTheme.textSecondary(context),
-                      fontSize: 12,
-                    ),
-                  ),
+                  const Text('Upload up to 3 high-quality job photos', style: TextStyle(color: Color(0xFF64748B), fontSize: 12)),
                 ],
               ),
             ),
           ),
-
-        // Existing Uploaded Images Section
         if (widget.booking.imageUrls.isNotEmpty) ...[
           const SizedBox(height: 20),
-          Text(
+          const Text(
             'UPLOADED JOB PHOTOS',
             style: TextStyle(
-              fontWeight: FontWeight.w600,
-              color: ProfessionalTheme.textPrimary(context),
+              fontWeight: FontWeight.w800,
+              fontSize: 11,
+              color: Color(0xFF64748B),
+              letterSpacing: 1.2,
             ),
           ),
           const SizedBox(height: 8),
@@ -4661,9 +5537,7 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
                   height: 80,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: ProfessionalTheme.borderMedium(context),
-                    ),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(8),
@@ -4672,401 +5546,11 @@ class _ProfessionalBookingCardState extends State<ProfessionalBookingCard> {
                       width: 80,
                       height: 80,
                       fit: BoxFit.cover,
-                      loadingBuilder: (context, child, loadingProgress) {
-                        if (loadingProgress == null) return child;
-                        return Container(
-                          decoration: BoxDecoration(
-                            color: ProfessionalTheme.surfaceElevated(context),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Center(
-                            child: CircularProgressIndicator(
-                              value: loadingProgress.expectedTotalBytes != null
-                                  ? loadingProgress.cumulativeBytesLoaded /
-                                        loadingProgress.expectedTotalBytes!
-                                  : null,
-                              strokeWidth: 2,
-                              color: ProfessionalTheme.primary(context),
-                            ),
-                          ),
-                        );
-                      },
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          decoration: BoxDecoration(
-                            color: ProfessionalTheme.surfaceElevated(context),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Icon(
-                            Icons.error_outline,
-                            color: ProfessionalTheme.textTertiary(context),
-                            size: 24,
-                          ),
-                        );
-                      },
                     ),
                   ),
                 ),
               );
             }).toList(),
-          ),
-        ],
-      ],
-    );
-  }
-
-  void _showQRCodeDialog() {
-    showDialog(
-      context: context,
-      builder: (context) {
-        final size = MediaQuery.of(context).size;
-        final maxWidth = size.width * 0.85;
-        final maxHeight = size.height * 0.85;
-        final qrSize = maxWidth < 400
-            ? (maxWidth * 0.6).clamp(200.0, 300.0)
-            : 300.0;
-        final padding = size.width < 400 ? 16.0 : 24.0;
-
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: SingleChildScrollView(
-            child: Container(
-              constraints: BoxConstraints(
-                maxWidth: maxWidth,
-                maxHeight: maxHeight,
-              ),
-              child: Padding(
-                padding: EdgeInsets.all(padding),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Icon header
-                    Container(
-                      width: qrSize * 0.2,
-                      height: qrSize * 0.2,
-                      decoration: BoxDecoration(
-                        color: ProfessionalTheme.primary(
-                          context,
-                        ).withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.qr_code,
-                        color: ProfessionalTheme.primary(context),
-                        size: qrSize * 0.1,
-                      ),
-                    ),
-                    SizedBox(height: padding * 0.67),
-                    Text(
-                      'UPI QR Code',
-                      style: TextStyle(
-                        fontSize: size.width < 400 ? 16 : 18,
-                        fontWeight: FontWeight.w700,
-                        color: ProfessionalTheme.textPrimary(context),
-                      ),
-                    ),
-                    SizedBox(height: padding * 0.5),
-                    Text(
-                      'Scan this QR code to make payment',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: ProfessionalTheme.textSecondary(context),
-                        fontSize: size.width < 400 ? 12 : 14,
-                      ),
-                    ),
-                    SizedBox(height: padding),
-                    // Dynamic QR from Firebase Storage
-                    FutureBuilder<String?>(
-                      future: StorageService.instance.getQRCodeUrl(),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return Container(
-                            width: qrSize,
-                            height: qrSize,
-                            decoration: BoxDecoration(
-                              color: ProfessionalTheme.surfaceElevated(context),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: ProfessionalTheme.borderLight(context),
-                              ),
-                            ),
-                            child: Center(
-                              child: CircularProgressIndicator(
-                                color: ProfessionalTheme.primary(context),
-                              ),
-                            ),
-                          );
-                        }
-
-                        if (snapshot.hasData && snapshot.data != null) {
-                          return Container(
-                            width: qrSize,
-                            height: qrSize,
-                            decoration: BoxDecoration(
-                              color: ProfessionalTheme.surfaceElevated(context),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: ProfessionalTheme.borderLight(context),
-                              ),
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: Image.network(
-                                snapshot.data!,
-                                fit: BoxFit.contain,
-                                loadingBuilder:
-                                    (context, child, loadingProgress) {
-                                      if (loadingProgress == null) return child;
-                                      return Center(
-                                        child: CircularProgressIndicator(
-                                          color: ProfessionalTheme.primary(
-                                            context,
-                                          ),
-                                          value:
-                                              loadingProgress
-                                                      .expectedTotalBytes !=
-                                                  null
-                                              ? loadingProgress
-                                                        .cumulativeBytesLoaded /
-                                                    loadingProgress
-                                                        .expectedTotalBytes!
-                                              : null,
-                                        ),
-                                      );
-                                    },
-                                errorBuilder: (_, _, _) => Center(
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.broken_image_outlined,
-                                        size: 48,
-                                        color: ProfessionalTheme.textTertiary(
-                                          context,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        'Failed to load QR code',
-                                        style: TextStyle(
-                                          color:
-                                              ProfessionalTheme.textSecondary(
-                                                context,
-                                              ),
-                                          fontSize: 13,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          );
-                        }
-
-                        // No QR uploaded yet
-                        return Container(
-                          width: qrSize,
-                          height: qrSize,
-                          decoration: BoxDecoration(
-                            color: ProfessionalTheme.surfaceElevated(context),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: ProfessionalTheme.borderLight(context),
-                            ),
-                          ),
-                          child: Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.qr_code_2_outlined,
-                                  size: 56,
-                                  color: ProfessionalTheme.textTertiary(
-                                    context,
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                Text(
-                                  'No QR code available.',
-                                  style: TextStyle(
-                                    color: ProfessionalTheme.textSecondary(
-                                      context,
-                                    ),
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Please ask admin to upload one.',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    color: ProfessionalTheme.textTertiary(
-                                      context,
-                                    ),
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                    SizedBox(height: padding),
-                    SizedBox(
-                      width: qrSize * 0.5,
-                      child: ElevatedButton(
-                        onPressed: () => Navigator.pop(context),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: ProfessionalTheme.primary(context),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          padding: EdgeInsets.symmetric(
-                            horizontal: padding,
-                            vertical: padding * 0.5,
-                          ),
-                        ),
-                        child: Text(
-                          'Close',
-                          style: TextStyle(
-                            color: ProfessionalTheme.textInverse(context),
-                            fontSize: size.width < 400 ? 14 : 16,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  void _showFullImage(String imageUrl) {
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: Stack(
-          children: [
-            Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: ProfessionalTheme.elevatedShadow,
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: InteractiveViewer(
-                  panEnabled: true,
-                  minScale: 0.5,
-                  maxScale: 3.0,
-                  child: Image.network(imageUrl),
-                ),
-              ),
-            ),
-            Positioned(
-              top: 16,
-              right: 16,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.black54,
-                  shape: BoxShape.circle,
-                ),
-                child: IconButton(
-                  icon: Icon(Icons.close, color: Colors.white, size: 20),
-                  onPressed: () => Navigator.pop(context),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildActionButtons() {
-    return Row(
-      children: [
-        Expanded(
-          child: OutlinedButton(
-            onPressed: _toggleExpanded,
-            style: OutlinedButton.styleFrom(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              side: BorderSide(color: ProfessionalTheme.borderMedium(context)),
-            ),
-            child: Text('Show Less'),
-          ),
-        ),
-        const SizedBox(width: 12),
-        IconButton(
-          onPressed: _makePhoneCall,
-          style: IconButton.styleFrom(
-            backgroundColor: ProfessionalTheme.success,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-            padding: const EdgeInsets.all(12),
-          ),
-          icon: Icon(
-            Icons.call,
-            color: ProfessionalTheme.textInverse(context),
-            size: 20,
-          ),
-        ),
-        if (!_isReadOnly && !widget.booking.isCanceled) ...[
-          const SizedBox(width: 12),
-          Expanded(
-            flex: 2,
-            child: ElevatedButton(
-              onPressed: _isUploading ? null : _performUpdate,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: ProfessionalTheme.primary(context),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (_isUploading)
-                    const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  else
-                    Icon(
-                      Icons.update,
-                      size: 16,
-                      color: ProfessionalTheme.textInverse(context),
-                    ),
-                  const SizedBox(width: 8),
-                  Text(
-                    _isUploading ? 'Updating...' : 'Update Job',
-                    style: TextStyle(
-                      color: ProfessionalTheme.textInverse(context),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
           ),
         ],
       ],
