@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class ResetPasswordPage extends StatefulWidget {
   final String email;
@@ -99,9 +100,12 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Form(
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: kMaxFormWidth),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24.0),
+            child: Form(
           key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -167,6 +171,8 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                       ),
               ),
             ],
+          ),
+          ),
           ),
         ),
       ),

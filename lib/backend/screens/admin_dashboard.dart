@@ -3,6 +3,22 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 
 class AdminDashboardBackend {
+  static bool _isTicketCompleted(Map<String, dynamic> data) {
+    final adminStatus = (data['adminStatus']?.toString() ?? '')
+        .trim()
+        .toLowerCase();
+    final engineerStatus = (data['engineerStatus']?.toString() ?? '')
+        .trim()
+        .toLowerCase();
+    final status = (data['status']?.toString() ?? '').trim().toLowerCase();
+
+    final completedStatuses = {'completed', 'success', 'done', 'finished'};
+
+    return completedStatuses.contains(adminStatus) ||
+        completedStatuses.contains(engineerStatus) ||
+        completedStatuses.contains(status);
+  }
+
   static Future<Map<String, String>> getAdminProfile() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return {'name': 'Admin', 'email': ''};
@@ -43,35 +59,51 @@ class AdminDashboardBackend {
   }
 
   static Stream<int> getEngineerUpdateCountStream() {
-    return FirestoreService.instance
-        .collection('Admin_ticket_entry')
-        .snapshots()
-        .map(
-          (snapshot) => snapshot.docs.where((doc) {
-            final data = doc.data();
-            // A ticket is considered "updated" if it has been actively modified by an engineer.
-            // We exclude initial statuses: 'Assigned', 'Not Assigned', 'Ticket Created'.
-            final engineerStatus = (data['engineerStatus']?.toString() ?? '')
-                .trim()
-                .toLowerCase();
+    return FirestoreService.instance.collection('Admin_details').snapshots().map((
+      snapshot,
+    ) {
+      int count = 0;
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        print('Engineer Update Ticket ID: ${doc.id}');
+        // Check if ticket is already completed/success
+        final isCompleted = _isTicketCompleted(data);
 
-            final isInitialStatus =
-                engineerStatus == 'assigned' ||
-                engineerStatus == 'not assigned' ||
-                engineerStatus == 'ticket created' ||
-                engineerStatus.isEmpty;
+        print('  isCompleted: $isCompleted');
 
-            final hasDescription =
-                (data['description']?.toString() ?? '').isNotEmpty;
-            final hasLastUpdated = data['lastUpdated'] != null;
-            final hasAmount = (data['amount'] as num? ?? 0) > 0;
+        if (isCompleted) {
+          print('  Ticket is completed/success, skipping');
+          continue;
+        }
 
-            return !isInitialStatus ||
-                hasDescription ||
-                hasLastUpdated ||
-                hasAmount;
-          }).length,
-        );
+        // A ticket is considered "updated" if it has been actively modified by an engineer.
+        // We exclude initial statuses: 'Assigned', 'Not Assigned', 'Ticket Created'.
+        final engineerStatus = (data['engineerStatus']?.toString() ?? '')
+            .trim()
+            .toLowerCase();
+        final isInitialStatus =
+            engineerStatus == 'assigned' ||
+            engineerStatus == 'not assigned' ||
+            engineerStatus == 'ticket created' ||
+            engineerStatus.isEmpty;
+
+        final hasDescription =
+            (data['description']?.toString() ?? '').isNotEmpty;
+        final hasLastUpdated = data['lastUpdated'] != null;
+        final hasAmount = (data['amount'] as num? ?? 0) > 0;
+
+        final shouldCount =
+            !isInitialStatus || hasDescription || hasLastUpdated || hasAmount;
+        if (shouldCount) {
+          count++;
+          print('  Ticket counted');
+        } else {
+          print('  Ticket not counted (initial status and no updates)');
+        }
+      }
+      print('Final Engineer Update Count: $count');
+      return count;
+    });
   }
 
   static Stream<int> getTotalCustomersStream() {
@@ -101,7 +133,7 @@ class AdminDashboardBackend {
     // This will count docs across multiple ticket collections if needed,
     // or just one depending on how the app is structured.
     return FirestoreService.instance
-        .collection('Admin_ticket_entry')
+        .collection('Admin_details')
         .snapshots()
         .map(
           (snapshot) => snapshot.docs.where((doc) {
@@ -109,6 +141,70 @@ class AdminDashboardBackend {
             return data['status'] == 'pending' || data['status'] == 'open';
           }).length,
         );
+  }
+
+  static Stream<int> getServiceTicketCountStream() {
+    return FirestoreService.instance
+        .collection('Admin_details')
+        .snapshots()
+        .map((snapshot) {
+          int count = 0;
+          for (var doc in snapshot.docs) {
+            final data = doc.data();
+            final jobType =
+                (data['jobType']?.toString() ??
+                        data['JobType']?.toString() ??
+                        '')
+                    .toLowerCase()
+                    .trim();
+            // Check if ticket is completed/success
+            final isCompleted = _isTicketCompleted(data);
+
+            print('Service Ticket ID: ${doc.id}, jobType: $jobType');
+            print('  isCompleted: $isCompleted');
+
+            if (jobType == 'service' && !isCompleted) {
+              count++;
+              print('  Ticket counted');
+            } else {
+              print('  Ticket not counted (jobType not service or completed)');
+            }
+          }
+          print('Final Service Ticket Count: $count');
+          return count;
+        });
+  }
+
+  static Stream<int> getCallLogCountStream() {
+    return FirestoreService.instance
+        .collection('Admin_details')
+        .snapshots()
+        .map((snapshot) {
+          int count = 0;
+          for (var doc in snapshot.docs) {
+            final data = doc.data();
+            final jobType =
+                (data['jobType']?.toString() ??
+                        data['JobType']?.toString() ??
+                        '')
+                    .toLowerCase()
+                    .trim();
+            // Check if ticket is completed/success
+            final isCompleted = _isTicketCompleted(data);
+
+            print('Call Log Ticket ID: ${doc.id}, jobType: $jobType');
+            print('  isCompleted: $isCompleted');
+
+            if (jobType.contains('delivery') && !isCompleted) {
+              count++;
+              print('  Ticket counted');
+            } else {
+              print('  Ticket not counted (jobType not delivery or completed)');
+            }
+          }
+          print('Final Call Log Count: $count');
+          return count;
+        });
   }
 
   static Future<void> logout() async {

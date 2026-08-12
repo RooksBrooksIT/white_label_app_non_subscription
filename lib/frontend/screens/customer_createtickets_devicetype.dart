@@ -4,6 +4,7 @@ import 'package:subscription_rooks_app/frontend/screens/customer_home_page.dart'
 import 'package:subscription_rooks_app/utils/responsive_helper.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class Device {
   final String id;
@@ -44,7 +45,8 @@ class Device {
       iconData: data['icon']?.toString() ?? 'devices',
       color: parseColor(
         data['color'] ??
-            ThemeService.instance.primaryColor.toARGB32()
+            ThemeService.instance.primaryColor
+                .toARGB32()
                 .toRadixString(16)
                 .padLeft(8, '0'),
       ),
@@ -127,6 +129,7 @@ class CustomerDeviceType extends StatefulWidget {
   final String loggedInName;
   final String phoneNumber;
   final String customerId;
+  final String customerType; // "amc" or "nonamc"
 
   const CustomerDeviceType({
     super.key,
@@ -134,6 +137,7 @@ class CustomerDeviceType extends StatefulWidget {
     required this.loggedInName,
     required this.phoneNumber,
     required this.customerId,
+    required this.customerType,
   });
 
   @override
@@ -198,11 +202,9 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
         children: [
-          // Modern App Bar
           Container(
             decoration: BoxDecoration(
               color: Theme.of(context).primaryColor,
-
               boxShadow: [
                 BoxShadow(
                   color: Theme.of(context).primaryColor.withValues(alpha: 0.2),
@@ -212,35 +214,42 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
               ],
             ),
             padding: EdgeInsets.only(
-              top: ResponsiveHelper.getResponsiveHeight(6.5),
-              bottom: ResponsiveHelper.getResponsiveHeight(3),
-              left: ResponsiveHelper.getResponsiveWidth(5),
-              right: ResponsiveHelper.getResponsiveWidth(5),
+              top: MediaQuery.of(context).padding.top + 20,
+              bottom: 20,
+              left: context.responsiveHPadding > 24
+                  ? context.responsiveHPadding
+                  : 24,
+              right: context.responsiveHPadding > 24
+                  ? context.responsiveHPadding
+                  : 24,
             ),
             child: Row(
               children: [
-                if (showDeviceSelection)
-                  IconButton(
-                    onPressed: () {
+                IconButton(
+                  onPressed: () {
+                    if (showDeviceSelection) {
                       setState(() {
                         showDeviceSelection = false;
                         selectedDeviceId = null;
                       });
-                    },
-                    icon: Container(
-                      width: ResponsiveHelper.getResponsiveWidth(9),
-                      height: ResponsiveHelper.getResponsiveWidth(9),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(
-                        Icons.arrow_back_ios_new_rounded,
-                        size: ResponsiveHelper.getResponsiveWidth(4.5),
-                        color: Colors.white,
-                      ),
+                    } else {
+                      Navigator.pop(context);
+                    }
+                  },
+                  icon: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      size: 18,
+                      color: Colors.white,
                     ),
                   ),
+                ),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -273,30 +282,42 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                   ),
                 ),
                 Container(
-                  width: ResponsiveHelper.getResponsiveWidth(11),
-                  height: ResponsiveHelper.getResponsiveWidth(11),
+                  width: 44,
+                  height: 44,
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(
+                  child: const Icon(
                     Icons.person_rounded,
                     color: Colors.white,
-                    size: ResponsiveHelper.getResponsiveWidth(5),
+                    size: 20,
                   ),
                 ),
               ],
             ),
           ),
-
           Expanded(
             child: SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
-              child: Padding(
-                padding: EdgeInsets.all(ResponsiveHelper.getResponsiveWidth(5)),
-                child: !showDeviceSelection
-                    ? _buildServiceSelection()
-                    : _buildDeviceSelection(),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: kMaxContentWidth),
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: context.responsiveHPadding,
+                    ),
+                    child: ResponsiveWrapper(
+                      maxWidth: 960.0,
+                      padding: EdgeInsets.all(
+                        ResponsiveHelper.getResponsiveWidth(5),
+                      ),
+                      child: !showDeviceSelection
+                          ? _buildServiceSelection()
+                          : _buildDeviceSelection(),
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
@@ -372,6 +393,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                       customerName: widget.loggedInName,
                       mobileNumber: widget.phoneNumber,
                       categoryName: '',
+                      customerType: widget.customerType,
                       initialJobType: 'Delivery',
                       initialDeviceType: '',
                     ),
@@ -550,7 +572,9 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                   width: 64,
                   height: 64,
                   decoration: BoxDecoration(
-                    color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
+                    color: Theme.of(
+                      context,
+                    ).primaryColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: CircularProgressIndicator(
@@ -608,7 +632,9 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                      color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
+                      color: Theme.of(
+                        context,
+                      ).primaryColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(
@@ -712,7 +738,9 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                     duration: const Duration(milliseconds: 200),
                     decoration: BoxDecoration(
                       color: isOtherSelected
-                          ? Theme.of(context).primaryColor.withValues(alpha: 0.1)
+                          ? Theme.of(
+                              context,
+                            ).primaryColor.withValues(alpha: 0.1)
                           : Theme.of(context).cardColor,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
@@ -732,45 +760,39 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                       ],
                     ),
                     child: Padding(
-                      padding: EdgeInsets.all(
-                        ResponsiveHelper.getResponsiveWidth(3),
-                      ),
+                      padding: const EdgeInsets.all(12),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Container(
-                            width: ResponsiveHelper.getResponsiveWidth(9),
-                            height: ResponsiveHelper.getResponsiveWidth(9),
+                            width: 36,
+                            height: 36,
                             decoration: BoxDecoration(
                               color: isOtherSelected
                                   ? Theme.of(context).primaryColor
                                   : Colors.grey.shade100,
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(10),
                             ),
                             child: Icon(
                               Icons.add_rounded,
-                              size: ResponsiveHelper.getResponsiveWidth(5),
+                              size: 20,
                               color: isOtherSelected
                                   ? Colors.white
                                   : Colors.grey.shade600,
                             ),
                           ),
-                          SizedBox(
-                            height: ResponsiveHelper.getResponsiveHeight(1.5),
-                          ),
+                          const SizedBox(height: 8),
                           Text(
                             'Other',
                             style: TextStyle(
-                              fontSize: ResponsiveHelper.getResponsiveFontSize(
-                                13,
-                              ),
-                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
                               color: isOtherSelected
                                   ? Theme.of(context).primaryColor
-                                  : Theme.of(
+                                  : (Theme.of(
                                           context,
                                         ).textTheme.bodyMedium?.color ??
-                                        const Color(0xFF1E293B),
+                                        const Color(0xFF1E293B)),
                               fontFamily: 'Inter',
                             ),
                           ),
@@ -892,6 +914,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                         categoryName: ThemeService
                             .instance
                             .appName, // Passing app name as category
+                        customerType: widget.customerType,
                         initialJobType: 'Service',
                         initialDeviceType: isOther ? 'Others' : deviceName,
                         initialCustomDeviceType: isOther ? deviceName : null,
@@ -900,12 +923,22 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                   );
                 },
                 style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 56),
+                  // responsive width: up to 400px, otherwise 80% of screen width
+                  minimumSize: Size(
+                    MediaQuery.of(context).size.width * 0.8 > 400
+                        ? 400
+                        : MediaQuery.of(context).size.width * 0.8,
+                    ResponsiveHelper.getResponsiveHeight(5),
+                  ),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: ResponsiveHelper.getResponsiveWidth(5),
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
                   backgroundColor: Theme.of(context).primaryColor,
                   foregroundColor: Colors.white,
+                  elevation: 2,
                 ),
                 child: const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -938,7 +971,9 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         decoration: BoxDecoration(
-          color: isSelected ? device.color.withValues(alpha: 0.1) : Colors.white,
+          color: isSelected
+              ? device.color.withValues(alpha: 0.1)
+              : Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isSelected ? device.color : Colors.grey.shade200,

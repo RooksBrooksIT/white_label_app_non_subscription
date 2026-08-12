@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class AdminBarcodeScanner extends StatefulWidget {
   const AdminBarcodeScanner({super.key});
@@ -12,18 +13,12 @@ class AdminBarcodeScanner extends StatefulWidget {
 }
 
 class _AdminBarcodeScannerState extends State<AdminBarcodeScanner> {
-  // ── Theme helpers ──────────────────────────────
-  Color get primaryColor => Theme.of(context).primaryColor;
-  Color get errorColor => Theme.of(context).colorScheme.error;
-
-  // ── State ──────────────────────────────────────
   String? scannedCode;
   bool _isScanning = true;
   FirestoreService? _firestore;
   MobileScannerController? _scannerController;
 
-  // ── Form ───────────────────────────────────────
-  final _formKey = GlobalKey<FormState>();
+  // Form controllers
   final TextEditingController _productNameController = TextEditingController();
   final TextEditingController _brandNameController = TextEditingController();
   final TextEditingController _serialNumberController = TextEditingController();
@@ -36,7 +31,13 @@ class _AdminBarcodeScannerState extends State<AdminBarcodeScanner> {
   DateTime? _warrantyStartDate;
   DateTime? _warrantyEndDate;
 
-  // ── Init / Dispose ─────────────────────────────
+  final _formKey = GlobalKey<FormState>();
+
+  // Color scheme
+  // final Color _deepBlue = const Color(0xFF0B3470);
+  // final Color _lightBlue = const Color(0xFF4B6A93);
+  // final Color _accentColor = const Color(0xFF5D8AA8);
+
   @override
   void initState() {
     super.initState();
@@ -49,7 +50,7 @@ class _AdminBarcodeScannerState extends State<AdminBarcodeScanner> {
     try {
       _firestore = FirestoreService.instance;
     } catch (e) {
-      debugPrint('Firestore init error: $e');
+      debugPrint('Firestore initialization error: $e');
     }
   }
 
@@ -72,64 +73,92 @@ class _AdminBarcodeScannerState extends State<AdminBarcodeScanner> {
     _warrantyEndDate = DateTime(now.year + 1, now.month, now.day);
   }
 
-  // ── Firestore helpers ──────────────────────────
   Future<String> _getNextDocumentId() async {
-    _firestore ??= FirestoreService.instance;
+    if (_firestore == null) {
+      _initializeFirestore();
+      if (_firestore == null) {
+        return 'BSD${DateTime.now().millisecondsSinceEpoch}';
+      }
+    }
+
     try {
       final snapshot = await _firestore!
           .collection('Barcode_Scanning_Details')
           .orderBy('documentId', descending: true)
           .limit(1)
           .get();
-      if (snapshot.docs.isEmpty) return 'BSD001';
-      final lastId = snapshot.docs.first['documentId'] as String;
+
+      if (snapshot.docs.isEmpty) {
+        return 'BSD001';
+      }
+
+      final lastDoc = snapshot.docs.first;
+      final lastId = lastDoc['documentId'] as String;
       final number = int.parse(lastId.replaceAll('BSD', ''));
       return 'BSD${(number + 1).toString().padLeft(3, '0')}';
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Error getting next document ID: $e');
       return 'BSD${DateTime.now().millisecondsSinceEpoch}';
     }
   }
 
   Future<void> _saveToFirestore() async {
-    _firestore ??= FirestoreService.instance;
-    if (_formKey.currentState?.validate() != true) return;
+    if (_firestore == null) {
+      _initializeFirestore();
+      if (_firestore == null) {
+        _showSnackBar('Database not ready. Please try again.', Colors.red);
+        return;
+      }
+    }
+
     try {
+      if (_formKey.currentState?.validate() != true) {
+        return;
+      }
+
       final documentId = await _getNextDocumentId();
+
       await _firestore!
           .collection('Barcode_Scanning_Details')
           .doc(documentId)
           .set({
-        'documentId': documentId,
-        'barcode': scannedCode,
-        'productName': _productNameController.text.trim(),
-        'brandName': _brandNameController.text.trim(),
-        'currentDate': DateTime.now(),
-        'serialNumber': _serialNumberController.text.trim(),
-        'modelNumber': _modelNumberController.text.trim(),
-        'warrantyStartDate': _warrantyStartDate,
-        'warrantyEndDate': _warrantyEndDate,
-        'customerName': _customerNameController.text.trim(),
-        'customerId': _customerIdController.text.trim(),
-        'customerPhone': _customerPhoneController.text.trim(),
-        'createdAt': FieldValue.serverTimestamp(),
-        'userlog': 'Admin',
-      });
+            'documentId': documentId,
+            'barcode': scannedCode,
+            'productName': _productNameController.text.trim(),
+            'brandName': _brandNameController.text.trim(),
+            'currentDate': DateTime.now(),
+            'serialNumber': _serialNumberController.text.trim(),
+            'modelNumber': _modelNumberController.text.trim(),
+            'warrantyStartDate': _warrantyStartDate,
+            'warrantyEndDate': _warrantyEndDate,
+            'customerName': _customerNameController.text.trim(),
+            'customerId': _customerIdController.text.trim(),
+            'customerPhone': _customerPhoneController.text.trim(),
+            'createdAt': FieldValue.serverTimestamp(),
+            "userlog": "Admin",
+          });
+
       if (!mounted) return;
-      _showSnackBar('Saved successfully — ID: $documentId', Colors.green);
+
+      _showSnackBar(
+        'Product saved successfully with ID: $documentId',
+        Colors.green,
+      );
       _resetForm();
     } catch (e) {
-      _showSnackBar('Error saving: $e', errorColor);
+      debugPrint('Firestore error: $e');
+      _showSnackBar('Error saving product: $e', Colors.red);
     }
   }
 
-  void _showSnackBar(String msg, Color color) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg, style: const TextStyle(fontWeight: FontWeight.w600)),
-      backgroundColor: color,
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      duration: const Duration(seconds: 3),
-    ));
+  void _showSnackBar(String message, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: color,
+        duration: const Duration(seconds: 3),
+      ),
+    );
   }
 
   void _resetForm() {
@@ -148,22 +177,30 @@ class _AdminBarcodeScannerState extends State<AdminBarcodeScanner> {
     _scannerController?.start();
   }
 
-  Future<void> _selectDate({required bool isStart}) async {
-    final initial =
-        isStart ? (_warrantyStartDate ?? DateTime.now()) : (_warrantyEndDate ?? DateTime.now());
-    final picked = await showDatePicker(
+  Future<void> _selectWarrantyStartDate() async {
+    final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: initial,
+      initialDate: _warrantyStartDate ?? DateTime.now(),
       firstDate: DateTime(2000),
       lastDate: DateTime(2100),
     );
-    if (picked != null) {
+    if (picked != null && picked != _warrantyStartDate) {
       setState(() {
-        if (isStart) {
-          _warrantyStartDate = picked;
-        } else {
-          _warrantyEndDate = picked;
-        }
+        _warrantyStartDate = picked;
+      });
+    }
+  }
+
+  Future<void> _selectWarrantyEndDate() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _warrantyEndDate ?? DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (picked != null && picked != _warrantyEndDate) {
+      setState(() {
+        _warrantyEndDate = picked;
       });
     }
   }
@@ -173,574 +210,605 @@ class _AdminBarcodeScannerState extends State<AdminBarcodeScanner> {
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
 
-  // ── Build ──────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      // ── AppBar (dashboard style) ───────────────
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0.5,
-        centerTitle: true,
-        leading: Padding(
-          padding: const EdgeInsets.all(8),
-          child: CircleAvatar(
-            backgroundColor: const Color(0xFFF1F5F9),
-            child: IconButton(
-              icon: const Icon(Icons.arrow_back_rounded,
-                  color: Color(0xFF0F172A), size: 18),
-              onPressed: () => Navigator.pop(context),
-            ),
+      body: ResponsiveWrapper(
+        maxWidth: 1200.0,
+        child: Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
           ),
-        ),
-        title: const Text(
-          'Barcode Scanner',
-          style: TextStyle(
-            color: Color(0xFF0F172A),
-            fontWeight: FontWeight.w800,
-            fontSize: 18,
-            letterSpacing: -0.4,
-          ),
-        ),
-        actions: [
-          if (scannedCode != null)
-            Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: TextButton.icon(
-                onPressed: _resetForm,
-                icon: Icon(Icons.refresh_rounded, size: 18, color: primaryColor),
-                label: Text('Rescan',
-                    style: TextStyle(
-                        color: primaryColor, fontWeight: FontWeight.w700)),
-              ),
-            ),
-        ],
-      ),
-
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ── Scanner / Success view ─────────────
-            _buildScannerCard(),
-            const SizedBox(height: 16),
-
-            // ── If no code yet: idle hint ──────────
-            if (scannedCode == null) _buildIdleHint(),
-
-            // ── If scanned: registration form ─────
-            if (scannedCode != null) ...[
-              _buildBarcodeResultCard(),
-              const SizedBox(height: 16),
-              Form(
-                key: _formKey,
-                child: Column(
-                  children: [
-                    _buildSection(
-                      icon: Icons.inventory_2_rounded,
-                      title: 'Product Information',
-                      children: [
-                        _field(_productNameController, 'Product Name',
-                            Icons.shopping_bag_rounded,
-                            required: true),
-                        _field(_brandNameController, 'Brand Name',
-                            Icons.branding_watermark_rounded,
-                            required: true),
-                        _field(_serialNumberController, 'Serial Number',
-                            Icons.confirmation_number_rounded),
-                        _field(_modelNumberController, 'Model Number',
-                            Icons.model_training_rounded),
-                        // Warranty dates
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _dateField(
-                                label: 'Warranty Start',
-                                date: _warrantyStartDate,
-                                onTap: () => _selectDate(isStart: true),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _dateField(
-                                label: 'Warranty End',
-                                date: _warrantyEndDate,
-                                onTap: () => _selectDate(isStart: false),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    _buildSection(
-                      icon: Icons.person_rounded,
-                      title: 'Customer Information',
-                      children: [
-                        _field(_customerNameController, 'Customer Name',
-                            Icons.person_rounded,
-                            required: true),
-                        _field(_customerIdController, 'Customer ID',
-                            Icons.badge_rounded),
-                        _field(_customerPhoneController, 'Customer Phone',
-                            Icons.phone_rounded,
-                            keyboardType: TextInputType.phone,
-                            inputFormatters: [
-                              FilteringTextInputFormatter.digitsOnly,
-                              LengthLimitingTextInputFormatter(10),
-                            ],
-                            validator: (v) {
-                              if (v == null || v.isEmpty) {
-                                return 'Phone number required';
-                              }
-                              if (v.length != 10) {
-                                return 'Must be exactly 10 digits';
-                              }
-                              return null;
-                            }),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-                    // ── Action buttons ─────────────
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: _resetForm,
-                            icon: const Icon(Icons.close_rounded, size: 18),
-                            label: const Text('Cancel',
-                                style: TextStyle(fontWeight: FontWeight.w700)),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: const Color(0xFF64748B),
-                              side: const BorderSide(
-                                  color: Color(0xFFE2E8F0)),
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 16),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14)),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: _saveToFirestore,
-                            icon: const Icon(Icons.save_rounded, size: 18),
-                            label: const Text('Save Product',
-                                style: TextStyle(
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 15)),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: primaryColor,
-                              foregroundColor: Colors.white,
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 16),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14)),
-                              elevation: 0,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 30),
-                  ],
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 500),
+              child: CustomScrollView(
+          slivers: [
+            // App Bar with Glass Effect
+            SliverAppBar(
+              backgroundColor: Theme.of(context).cardColor,
+              elevation: 0,
+              pinned: true,
+              floating: true,
+              centerTitle: true,
+              title: Text(
+                'Barcode Scanner',
+                style: TextStyle(
+                  color: Theme.of(context).textTheme.titleLarge?.color,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 22,
                 ),
               ),
-            ],
+              iconTheme: IconThemeData(
+                color: Theme.of(context).iconTheme.color,
+              ),
+              actions: [
+                if (scannedCode != null)
+                  Container(
+                    margin: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: IconButton(
+                      icon: Icon(
+                        Icons.refresh,
+                        color: Theme.of(context).primaryColor,
+                      ),
+                      onPressed: _resetForm,
+                      tooltip: 'Scan New Code',
+                    ),
+                  ),
+              ],
+            ),
+
+            // Main Content
+            SliverList(
+              delegate: SliverChildListDelegate([
+                // Scanner Section
+                _buildScannerSection(),
+
+                // Form Section or Empty State
+                if (scannedCode != null)
+                  Form(key: _formKey, child: _buildProductForm())
+                else
+                  _buildEmptyState(),
+
+                // Add some bottom padding
+                const SizedBox(height: 30),
+              ]),
+            ),
           ],
+        ),
+            ),
+          ),
         ),
       ),
     );
   }
 
-  // ── Scanner camera card ──────────────────────
-  Widget _buildScannerCard() {
+  Widget _buildScannerSection() {
     return Container(
-      height: 260,
+      margin: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
-        color: Colors.black,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.18),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
+            color: Colors.black.withValues(alpha: 0.3),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
           ),
         ],
       ),
-      clipBehavior: Clip.antiAlias,
-      child: _isScanning
-          ? Stack(
-              children: [
-                MobileScanner(
-                  controller: _scannerController,
-                  onDetect: (capture) {
-                    if (!_isScanning) return;
-                    for (final barcode in capture.barcodes) {
-                      final code = barcode.rawValue;
-                      if (code != null && scannedCode == null) {
-                        setState(() {
-                          scannedCode = code;
-                          _isScanning = false;
-                        });
-                        _scannerController?.stop();
-                        break;
-                      }
-                    }
-                  },
-                ),
-                // Corner border overlay
-                Center(
-                  child: SizedBox(
-                    width: 220,
-                    height: 140,
-                    child: CustomPaint(
-                      painter: ScannerBorderPainter(color: primaryColor),
-                    ),
-                  ),
-                ),
-                // Scanning label
-                Positioned(
-                  bottom: 16,
-                  left: 0,
-                  right: 0,
-                  child: Center(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: Colors.black54,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Text(
-                        'Point camera at barcode',
-                        style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            )
-          : // Scanned success view
-          Container(
-              color: const Color(0xFF0F172A),
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: SizedBox(
+          height: 300, // Fixed height for scanner
+          child: _isScanning
+              ? Stack(
                   children: [
-                    Container(
-                      width: 64,
-                      height: 64,
-                      decoration: BoxDecoration(
-                        color: Colors.green.withValues(alpha: 0.2),
-                        shape: BoxShape.circle,
+                    MobileScanner(
+                      controller: _scannerController,
+                      onDetect: (capture) {
+                        if (!_isScanning) return;
+
+                        final List<Barcode> barcodes = capture.barcodes;
+                        for (final barcode in barcodes) {
+                          final String? code = barcode.rawValue;
+                          if (code != null && scannedCode == null) {
+                            setState(() {
+                              scannedCode = code;
+                              _isScanning = false;
+                            });
+                            _scannerController?.stop();
+                            break;
+                          }
+                        }
+                      },
+                    ),
+                    // Scanner overlay with glass effect
+                    // Scanner overlay with glass effect - removed solid container that was blocking camera feed
+                    Center(
+                      child: Container(
+                        width: 250,
+                        height: 150,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(15),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.8),
+                            width: 2,
+                          ),
+                        ),
+                        child: CustomPaint(
+                          painter: ScannerBorderPainter(
+                            color: Theme.of(context).primaryColor,
+                          ),
+                        ),
                       ),
-                      child: const Icon(Icons.check_circle_rounded,
-                          color: Colors.green, size: 36),
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'Barcode Detected!',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 16),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      scannedCode ?? '',
-                      style: const TextStyle(
-                          color: Colors.white60,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500),
-                      textAlign: TextAlign.center,
                     ),
                   ],
+                )
+              : Container(
+                  decoration: BoxDecoration(color: Theme.of(context).cardColor),
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.3),
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.check_circle,
+                            color: Colors.white,
+                            size: 60,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(15),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.2),
+                            ),
+                          ),
+                          child: Text(
+                            'Scanned: $scannedCode',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Container(
+      height: 300, // Fixed height for empty state
+      margin: const EdgeInsets.all(16),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(30),
+              decoration: BoxDecoration(
+                color: Theme.of(context).cardColor,
+                shape: BoxShape.circle,
+                border: Border.all(color: Theme.of(context).dividerColor),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: Icon(
+                Icons.qr_code_scanner,
+                size: 64,
+                color: Theme.of(context).primaryColor,
+              ),
+            ),
+            const SizedBox(height: 30),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).cardColor,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Theme.of(context).dividerColor),
+              ),
+              child: Text(
+                'Scan a barcode to register product',
+                style: TextStyle(
+                  fontSize: 18,
+                  color: Theme.of(context).textTheme.bodyLarge?.color,
+                  fontWeight: FontWeight.w400,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            const SizedBox(height: 30),
+            Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).cardColor,
+                borderRadius: BorderRadius.circular(15),
+                border: Border.all(color: Theme.of(context).dividerColor),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _isScanning = true;
+                  });
+                  _scannerController?.start();
+                },
+                icon: const Icon(Icons.camera_alt, color: Colors.white),
+                label: const Text(
+                  'Start Scanning',
+                  style: TextStyle(color: Colors.white, fontSize: 16),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context).primaryColor,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 30,
+                    vertical: 15,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(15),
+                  ),
                 ),
               ),
             ),
-    );
-  }
-
-  // ── Idle hint (no barcode yet) ───────────────
-  Widget _buildIdleHint() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 46,
-            height: 46,
-            decoration: BoxDecoration(
-              color: primaryColor.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(13),
-            ),
-            child: Icon(Icons.qr_code_scanner_rounded,
-                color: primaryColor, size: 24),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Scan a Barcode',
-                  style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF0F172A)),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Align the barcode inside the camera frame above',
-                  style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey.shade500,
-                      fontWeight: FontWeight.w500),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ── Scanned code result chip ─────────────────
-  Widget _buildBarcodeResultCard() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: primaryColor.withValues(alpha: 0.07),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: primaryColor.withValues(alpha: 0.2)),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.qr_code_rounded, color: primaryColor, size: 22),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Scanned Barcode',
-                  style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: primaryColor.withValues(alpha: 0.8),
-                      letterSpacing: 0.5),
-                ),
-                Text(
-                  scannedCode!,
-                  style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF0F172A)),
-                ),
-              ],
-            ),
-          ),
-          Icon(Icons.check_circle_rounded, color: Colors.green, size: 20),
-        ],
-      ),
-    );
-  }
-
-  // ── Section card ─────────────────────────────
-  Widget _buildSection({
-    required IconData icon,
-    required String title,
-    required List<Widget> children,
-  }) {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Section header
-            Row(
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: primaryColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(icon, color: primaryColor, size: 18),
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF0F172A),
-                    letterSpacing: -0.2,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            const Divider(color: Color(0xFFF1F5F9)),
-            const SizedBox(height: 8),
-            // Fields spaced
-            ...children
-                .expand((w) => [w, const SizedBox(height: 12)])
-                .toList()
-              ..removeLast(),
           ],
         ),
       ),
     );
   }
 
-  // ── Text field ───────────────────────────────
-  Widget _field(
-    TextEditingController ctrl,
-    String label,
-    IconData icon, {
-    bool required = false,
-    TextInputType keyboardType = TextInputType.text,
-    List<TextInputFormatter>? inputFormatters,
-    String? Function(String?)? validator,
-  }) {
-    return TextFormField(
-      controller: ctrl,
-      keyboardType: keyboardType,
-      inputFormatters: inputFormatters,
-      style: const TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-          color: Color(0xFF0F172A)),
-      validator: validator ??
-          (required
-              ? (v) =>
-                  (v == null || v.trim().isEmpty) ? '$label is required' : null
-              : null),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: TextStyle(
-            color: primaryColor, fontSize: 13, fontWeight: FontWeight.w600),
-        hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
-        prefixIcon: Icon(icon,
-            color: primaryColor.withValues(alpha: 0.7), size: 20),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: primaryColor, width: 2),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: errorColor, width: 1.5),
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: errorColor, width: 2),
-        ),
-        filled: true,
-        fillColor: const Color(0xFFF8FAFC),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      ),
-    );
-  }
-
-  // ── Date picker field ────────────────────────
-  Widget _dateField({
-    required String label,
-    required DateTime? date,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.calendar_today_rounded,
-                color: primaryColor.withValues(alpha: 0.7), size: 18),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildProductForm() {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Scanned Barcode Display with Glass Effect
+          _buildGlassCard(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
                 children: [
-                  Text(
-                    label,
-                    style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        color: primaryColor),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.qr_code, color: Colors.white),
                   ),
-                  Text(
-                    _formatDate(date),
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: date == null
-                          ? const Color(0xFF94A3B8)
-                          : const Color(0xFF0F172A),
+                  const SizedBox(width: 15),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Scanned Barcode:',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                            color: Colors.white70,
+                          ),
+                        ),
+                        Text(
+                          scannedCode!,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            color: Colors.white,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
+          ),
+          const SizedBox(height: 20),
+
+          // Product Information
+          _buildGlassCard(
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildSectionTitle('Product Information'),
+                  const SizedBox(height: 20),
+                  _buildGlassTextField(
+                    controller: _productNameController,
+                    label: 'Product Name *',
+                    icon: Icons.shopping_bag,
+                    validator: (value) =>
+                        value?.isEmpty ?? true ? 'Required' : null,
+                  ),
+                  const SizedBox(height: 15),
+                  _buildGlassTextField(
+                    controller: _brandNameController,
+                    label: 'Brand Name *',
+                    icon: Icons.branding_watermark,
+                    validator: (value) =>
+                        value?.isEmpty ?? true ? 'Required' : null,
+                  ),
+                  const SizedBox(height: 15),
+                  _buildGlassTextField(
+                    controller: _serialNumberController,
+                    label: 'Serial Number',
+                    icon: Icons.confirmation_number,
+                  ),
+                  const SizedBox(height: 15),
+                  _buildGlassTextField(
+                    controller: _modelNumberController,
+                    label: 'Model Number',
+                    icon: Icons.model_training,
+                  ),
+                  const SizedBox(height: 15),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildGlassDateField(
+                          date: _warrantyStartDate,
+                          label: 'Warranty Start',
+                          onTap: _selectWarrantyStartDate,
+                        ),
+                      ),
+                      const SizedBox(width: 15),
+                      Expanded(
+                        child: _buildGlassDateField(
+                          date: _warrantyEndDate,
+                          label: 'Warranty End',
+                          onTap: _selectWarrantyEndDate,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Customer Information
+          _buildGlassCard(
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildSectionTitle('Customer Information'),
+                  const SizedBox(height: 20),
+                  _buildGlassTextField(
+                    controller: _customerNameController,
+                    label: 'Customer Name *',
+                    icon: Icons.person,
+                    validator: (value) =>
+                        value?.isEmpty ?? true ? 'Required' : null,
+                  ),
+                  const SizedBox(height: 15),
+                  _buildGlassTextField(
+                    controller: _customerIdController,
+                    label: 'Customer ID',
+                    icon: Icons.badge,
+                  ),
+                  const SizedBox(height: 15),
+                  _buildGlassTextField(
+                    controller: _customerPhoneController,
+                    label: 'Customer Phone',
+                    icon: Icons.phone,
+                    keyboardType: TextInputType.phone,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(10),
+                    ],
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter phone number';
+                      }
+                      if (value.length != 10) {
+                        return 'Phone number must be exactly 10 digits';
+                      }
+                      return null; // input is valid
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 25),
+
+          // Action Buttons
+          Row(
+            children: [
+              Expanded(
+                child: _buildGlassButton(
+                  onPressed: _resetForm,
+                  text: 'Cancel',
+                  isPrimary: false,
+                ),
+              ),
+              const SizedBox(width: 15),
+              Expanded(
+                child: _buildGlassButton(
+                  onPressed: _saveToFirestore,
+                  text: 'Save Product',
+                  isPrimary: true,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGlassCard({required Widget child}) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Theme.of(context).dividerColor),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+
+  Widget _buildSectionTitle(String title) {
+    return Text(
+      title,
+      style: TextStyle(
+        fontSize: 20,
+        fontWeight: FontWeight.bold,
+        color: Theme.of(context).textTheme.titleLarge?.color,
+      ),
+    );
+  }
+
+  Widget _buildGlassTextField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    TextInputType keyboardType = TextInputType.text,
+    String? Function(String?)? validator,
+    List<TextInputFormatter>? inputFormatters,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        color: Theme.of(context).cardColor,
+        border: Border.all(color: Theme.of(context).dividerColor),
+      ),
+      child: TextFormField(
+        controller: controller,
+        keyboardType: keyboardType,
+        style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
+        inputFormatters: inputFormatters,
+        validator: validator,
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: TextStyle(color: Theme.of(context).hintColor),
+          border: InputBorder.none,
+          prefixIcon: Icon(icon, color: Theme.of(context).hintColor),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 16,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGlassDateField({
+    required DateTime? date,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          color: Theme.of(context).cardColor,
+          border: Border.all(color: Theme.of(context).dividerColor),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        child: Row(
+          children: [
+            Icon(
+              Icons.calendar_today,
+              color: Theme.of(context).hintColor,
+              size: 20,
+            ),
+            const SizedBox(width: 12),
+            Text(
+              _formatDate(date),
+              style: TextStyle(
+                color: date == null
+                    ? Theme.of(context).hintColor
+                    : Theme.of(context).textTheme.bodyLarge?.color,
+                fontSize: 16,
+              ),
+            ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGlassButton({
+    required VoidCallback onPressed,
+    required String text,
+    required bool isPrimary,
+  }) {
+    return ElevatedButton(
+      onPressed: onPressed,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: isPrimary
+            ? Theme.of(context).primaryColor
+            : Theme.of(context).cardColor,
+        side: isPrimary
+            ? null
+            : BorderSide(color: Theme.of(context).dividerColor),
+        padding: const EdgeInsets.symmetric(vertical: 18),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        elevation: isPrimary ? 2 : 0,
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 16,
+          color: isPrimary
+              ? Colors.white
+              : Theme.of(context).textTheme.bodyLarge?.color,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
   }
 }
 
-// ── Corner-bracket scanner overlay painter ────
 class ScannerBorderPainter extends CustomPainter {
   final Color color;
   ScannerBorderPainter({required this.color});
@@ -749,24 +817,34 @@ class ScannerBorderPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..color = color
-      ..strokeWidth = 3
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
+      // Will rely on theme usage where Painter is instantiated or defaults to blue if no context
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke;
 
-    const len = 24.0;
+    final path = Path();
+    const cornerLength = 20.0;
 
-    void corner(Offset o, Offset a, Offset b) {
-      canvas.drawLine(o + a, o, paint);
-      canvas.drawLine(o, o + b, paint);
-    }
+    // Top left corner
+    path.moveTo(0, cornerLength);
+    path.lineTo(0, 0);
+    path.lineTo(cornerLength, 0);
 
-    corner(Offset.zero, const Offset(0, len), const Offset(len, 0));
-    corner(Offset(size.width, 0), const Offset(-len, 0),
-        const Offset(0, len));
-    corner(Offset(0, size.height), const Offset(0, -len),
-        const Offset(len, 0));
-    corner(Offset(size.width, size.height), const Offset(-len, 0),
-        const Offset(0, -len));
+    // Top right corner
+    path.moveTo(size.width - cornerLength, 0);
+    path.lineTo(size.width, 0);
+    path.lineTo(size.width, cornerLength);
+
+    // Bottom right corner
+    path.moveTo(size.width, size.height - cornerLength);
+    path.lineTo(size.width, size.height);
+    path.lineTo(size.width - cornerLength, size.height);
+
+    // Bottom left corner
+    path.moveTo(cornerLength, size.height);
+    path.lineTo(0, size.height);
+    path.lineTo(0, size.height - cornerLength);
+
+    canvas.drawPath(path, paint);
   }
 
   @override

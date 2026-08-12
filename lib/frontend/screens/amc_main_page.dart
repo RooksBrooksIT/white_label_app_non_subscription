@@ -12,6 +12,7 @@ import 'package:subscription_rooks_app/frontend/screens/customer_createtickets_d
 import 'package:flutter/services.dart';
 import 'package:subscription_rooks_app/services/notification_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class AMCTrackMyService extends StatefulWidget {
   final String customerName;
@@ -31,6 +32,7 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
   bool showBanner = false;
   String bannerMessage = '';
   StreamSubscription? _notificationSubscription;
+  Timer? _timer;
 
   @override
   void initState() {
@@ -44,6 +46,29 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
       );
     }
     _setupNotificationListener();
+    // Update relative time every minute
+    _timer = Timer.periodic(const Duration(seconds: 60), (timer) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  String _getRelativeTime(Timestamp? timestamp) {
+    if (timestamp == null) return 'Unknown';
+    final now = DateTime.now();
+    final dateTime = timestamp.toDate();
+    final difference = now.difference(dateTime);
+
+    if (difference.inSeconds < 60) {
+      return 'Posted just now';
+    } else if (difference.inMinutes < 60) {
+      return 'Posted ${difference.inMinutes} minute${difference.inMinutes == 1 ? '' : 's'} ago';
+    } else if (difference.inHours < 24) {
+      return 'Posted ${difference.inHours} hour${difference.inHours == 1 ? '' : 's'} ago';
+    } else if (difference.inDays < 7) {
+      return 'Posted ${difference.inDays} day${difference.inDays == 1 ? '' : 's'} ago';
+    } else {
+      return DateFormat('dd MMM yyyy, hh:mm a').format(dateTime);
+    }
   }
 
   void _setupNotificationListener() {
@@ -82,6 +107,7 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
   @override
   void dispose() {
     _notificationSubscription?.cancel();
+    _timer?.cancel();
     super.dispose();
   }
 
@@ -93,21 +119,24 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
         backgroundColor: Theme.of(context).primaryColor,
         elevation: 0,
         centerTitle: true,
-        iconTheme: IconThemeData(
-          color: Theme.of(context).appBarTheme.foregroundColor ?? Colors.white,
-        ),
+        iconTheme: const IconThemeData(color: Colors.white),
+        foregroundColor: Colors.white,
+        actionsIconTheme: const IconThemeData(color: Colors.white),
         title: Text(
           ThemeService.instance.appName,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.w800,
-            color:
-                Theme.of(context).appBarTheme.foregroundColor ?? Colors.white,
+            color: Colors.white,
             letterSpacing: 1.2,
           ),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            size: 20,
+            color: Colors.white,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         // actions: [
@@ -132,8 +161,9 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
               Expanded(
                 child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                   stream: FirestoreService.instance
-                      .collection('Admin_ticket_entry')
-                      .where('id', isEqualTo: widget.customerId)
+                      .collection('Raised_tickets')
+                      .where('customerName', isEqualTo: widget.customerName)
+                      .orderBy('createdAt', descending: true)
                       .snapshots(),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
@@ -220,7 +250,10 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
                 offset: const Offset(0, 10),
               ),
             ],
-            border: Border.all(color: Colors.green.withValues(alpha: 0.3), width: 1),
+            border: Border.all(
+              color: Colors.green.withValues(alpha: 0.3),
+              width: 1,
+            ),
           ),
           child: Row(
             children: [
@@ -308,191 +341,58 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
     Map<String, dynamic> data,
     String documentId,
   ) {
-    final bookingId = data['bookingId'] ?? 'N/A';
-    final customerId = data['id'] ?? 'Not Assigned';
-    final jobType = data['JobType'] ?? 'N/A';
-    final deviceBrand = data['deviceBrand'] ?? 'N/A';
-    final amount = data['amount']?.toString() ?? '0';
-    final timestamp = data['timestamp'] as Timestamp?;
-    final rawStatus = data['engineerStatus'] ?? '';
-    final adminStatus = data['adminStatus']?.toString().toLowerCase() ?? '';
-    final isCanceled = adminStatus == 'canceled' || adminStatus == 'cancelled';
-    final statusInfo = _mapEngineerStatus(rawStatus);
+    return _ExpandableTicketCard(data: data, documentId: documentId);
+  }
+}
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 15,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header Section
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Icon(
-                    Icons.receipt_long_rounded,
-                    color: Theme.of(context).primaryColor,
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "ID: $bookingId",
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF1E293B),
-                          letterSpacing: -0.5,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        "Job: $jobType • ID: $customerId",
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF64748B),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                _buildStatusBadge(
-                  isCanceled ? 'CANCELED' : statusInfo.label.toUpperCase(),
-                  isCanceled ? Colors.red : statusInfo.color,
-                ),
-              ],
-            ),
-          ),
+class _ExpandableTicketCard extends StatefulWidget {
+  final Map<String, dynamic> data;
+  final String documentId;
 
-          const Divider(
-            height: 1,
-            indent: 20,
-            endIndent: 20,
-            color: Color(0xFFF1F5F9),
-          ),
+  const _ExpandableTicketCard({required this.data, required this.documentId});
 
-          // Progress Tracker
-          if (!isCanceled) _buildStatusTracker(rawStatus),
+  @override
+  State<_ExpandableTicketCard> createState() => _ExpandableTicketCardState();
+}
 
-          // Main Info
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    _buildInfoItem(
-                      Icons.devices_rounded,
-                      "Device",
-                      deviceBrand,
-                    ),
-                    const SizedBox(width: 12),
-                    _buildInfoItem(
-                      Icons.calendar_today_rounded,
-                      "Date",
-                      _formatTimestamp(timestamp),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                _buildDetailSection(data, isCanceled),
-              ],
-            ),
-          ),
+class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
+  bool _isExpanded = false;
 
-          // Footer
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: const BoxDecoration(
-              color: Color(0xFFF8FAFC),
-              // borderRadius: BorderRadius.only(
-              //   bottomLeft: Radius.circular(24),
-              //   bottomRight: Radius.circular(24),
-              // ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      "ESTIMATED BILL",
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF94A3B8),
-                        letterSpacing: 1.0,
-                      ),
-                    ),
-                    Text(
-                      "₹$amount",
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                        color: isCanceled
-                            ? const Color(0xFF94A3B8)
-                            : const Color(0xFF059669),
-                      ),
-                    ),
-                  ],
-                ),
-                if (!isCanceled &&
-                    statusInfo.label == 'Completed' &&
-                    (data['FeedBack'] ?? '').isEmpty)
-                  _buildActionIndicator(
-                    "Rate Service",
-                    Icons.star_border_rounded,
-                    () {
-                      showDialog(
-                        context: context,
-                        builder: (ctx) => FeedbackDialog(
-                          bookingId: bookingId.toString(),
-                          documentId: documentId,
-                        ),
-                      );
-                    },
-                  )
-                else if (!isCanceled &&
-                    statusInfo.label != 'Completed' &&
-                    statusInfo.label != 'In Progress')
-                  _buildActionIndicator("Cancel", Icons.close_rounded, () {
-                    showDialog(
-                      context: context,
-                      builder: (ctx) => CancelTicketDialog(
-                        bookingId: bookingId.toString(),
-                        documentId: documentId,
-                      ),
-                    );
-                  }, isDanger: true),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
+  _StatusInfo _mapEngineerStatus(String status) {
+    final lowerStatus = status.toLowerCase().trim();
+    switch (lowerStatus) {
+      case 'complete':
+      case 'completed':
+        return _StatusInfo('Completed', Colors.green.shade600);
+      case 'assigned':
+        return _StatusInfo('Assigned', Colors.green.shade600);
+      case 'in progress':
+        return _StatusInfo('In Progress', Colors.blue.shade600);
+      case 'pending':
+        return _StatusInfo('Pending', Colors.orange.shade700);
+      case 'not assigned':
+        return _StatusInfo('Not Assigned', Colors.red.shade700);
+      case 'cancelled':
+      case 'canceled':
+        return _StatusInfo('Cancelled', Colors.grey.shade600);
+      default:
+        // Check for specific substrings if exact match fails
+        if (lowerStatus.contains('approval')) {
+          return _StatusInfo('Pending Approval', Colors.purple.shade600);
+        }
+        if (lowerStatus.contains('spare')) {
+          return _StatusInfo('Pending Spares', Colors.amber.shade700);
+        }
+        if (lowerStatus.contains('observation')) {
+          return _StatusInfo('Observation', Colors.cyan.shade600);
+        }
+
+        // Capitalize first letter if it's unknown
+        String formatted = status.isNotEmpty
+            ? status[0].toUpperCase() + status.substring(1)
+            : 'Unknown';
+        return _StatusInfo(formatted, Colors.grey.shade500);
+    }
   }
 
   Widget _buildStatusBadge(String label, Color color) {
@@ -514,15 +414,28 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
     );
   }
 
-  Widget _buildStatusTracker(String currentStatus) {
-    final status = currentStatus.toLowerCase().trim();
+  Widget _buildStatusTracker(Map<String, dynamic> data) {
+    final adminStatus = data['adminStatus']?.toString().toLowerCase() ?? '';
+    final engineerStatus =
+        data['engineerStatus']?.toString().toLowerCase() ?? '';
+    final assignedEngineer = data['assignedEngineer'];
+
     int currentStep = 0;
-    if (status == 'assigned') {
+    // Stage 1: Raised (default)
+    // Stage 2: Assigned (if adminStatus is assigned or assignedEngineer exists)
+    if (adminStatus == 'assigned' || assignedEngineer != null) {
       currentStep = 1;
-    } else if (status == 'in progress')
+    }
+    // Stage 3: Repairing (if engineerStatus is not "not assigned" or "completed")
+    if (engineerStatus != 'not assigned' &&
+        engineerStatus != 'completed' &&
+        engineerStatus != '') {
       currentStep = 2;
-    else if (status == 'completed')
+    }
+    // Stage 4: Done (only if both engineerStatus and adminStatus are "completed")
+    if (engineerStatus == 'completed' && adminStatus == 'completed') {
       currentStep = 3;
+    }
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(25, 20, 25, 10),
@@ -558,7 +471,9 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
               boxShadow: isActive
                   ? [
                       BoxShadow(
-                        color: Theme.of(context).primaryColor.withValues(alpha: 0.3),
+                        color: Theme.of(
+                          context,
+                        ).primaryColor.withValues(alpha: 0.3),
                         blurRadius: 6,
                         offset: const Offset(0, 3),
                       ),
@@ -637,6 +552,34 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
         ),
       ),
     );
+  }
+
+  String _formatTimestamp(Timestamp? timestamp) {
+    if (timestamp == null) return 'Unknown';
+    return DateFormat('dd MMM yyyy').format(timestamp.toDate());
+  }
+
+  double _calculateTotalAmount(Map<String, dynamic> record) {
+    double total = 0.0;
+    // Add admin's amount
+    if (record['amount'] != null) {
+      total += (double.tryParse(record['amount'].toString()) ?? 0.0);
+    }
+    // Add all engineer's payments
+    if (record['payments'] is List) {
+      for (var payment in record['payments']) {
+        if (payment is Map && payment['amount'] != null) {
+          total += (double.tryParse(payment['amount'].toString()) ?? 0.0);
+        }
+      }
+    }
+    return total;
+  }
+
+  String _formatAmount(double amount) {
+    return amount == amount.roundToDouble()
+        ? '₹${amount.toInt()}'
+        : '₹${amount.toStringAsFixed(2)}';
   }
 
   Widget _buildDetailSection(Map<String, dynamic> data, bool isCanceled) {
@@ -773,46 +716,625 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
     );
   }
 
-  _StatusInfo _mapEngineerStatus(String status) {
-    final lowerStatus = status.toLowerCase().trim();
-    switch (lowerStatus) {
-      case 'complete':
-      case 'completed':
-        return _StatusInfo('Completed', Colors.green.shade600);
-      case 'assigned':
-        return _StatusInfo('Assigned', Colors.green.shade600);
-      case 'in progress':
-        return _StatusInfo('In Progress', Colors.blue.shade600);
-      case 'pending':
-        return _StatusInfo('Pending', Colors.orange.shade700);
-      case 'not assigned':
-        return _StatusInfo('Not Assigned', Colors.red.shade700);
-      case 'cancelled':
-      case 'canceled':
-        return _StatusInfo('Cancelled', Colors.grey.shade600);
-      default:
-        // Check for specific substrings if exact match fails
-        if (lowerStatus.contains('approval')) {
-          return _StatusInfo('Pending Approval', Colors.purple.shade600);
-        }
-        if (lowerStatus.contains('spare')) {
-          return _StatusInfo('Pending Spares', Colors.amber.shade700);
-        }
-        if (lowerStatus.contains('observation')) {
-          return _StatusInfo('Observation', Colors.cyan.shade600);
-        }
+  String _getRelativeTime(Timestamp? timestamp) {
+    if (timestamp == null) return 'Unknown';
+    final now = DateTime.now();
+    final dateTime = timestamp.toDate();
+    final difference = now.difference(dateTime);
 
-        // Capitalize first letter if it's unknown
-        String formatted = status.isNotEmpty
-            ? status[0].toUpperCase() + status.substring(1)
-            : 'Unknown';
-        return _StatusInfo(formatted, Colors.grey.shade500);
+    if (difference.inSeconds < 60) {
+      return 'Posted just now';
+    } else if (difference.inMinutes < 60) {
+      return 'Posted ${difference.inMinutes} minute${difference.inMinutes == 1 ? '' : 's'} ago';
+    } else if (difference.inHours < 24) {
+      return 'Posted ${difference.inHours} hour${difference.inHours == 1 ? '' : 's'} ago';
+    } else if (difference.inDays < 7) {
+      return 'Posted ${difference.inDays} day${difference.inDays == 1 ? '' : 's'} ago';
+    } else {
+      return DateFormat('dd MMM yyyy, hh:mm a').format(dateTime);
     }
   }
 
-  String _formatTimestamp(Timestamp? timestamp) {
-    if (timestamp == null) return 'Unknown';
-    return DateFormat('dd MMM yyyy').format(timestamp.toDate());
+  @override
+  Widget build(BuildContext context) {
+    final ticketId = widget.data['ticketId'] ?? 'N/A';
+    final jobType = widget.data['jobType'] ?? 'N/A';
+    final deviceBrand = widget.data['deviceBrand'] ?? 'N/A';
+    final deviceType = widget.data['deviceType'] ?? 'N/A';
+    final customerName = widget.data['customerName'] ?? 'N/A';
+    final mobileNumber = widget.data['mobileNumber'] ?? 'N/A';
+    final issueDescription = widget.data['issueDescription'] ?? 'N/A';
+    final address = widget.data['address'] ?? 'N/A';
+    final assignedEngineer = widget.data['assignedEngineer'];
+    final assignedTimestamp = widget.data['assignedTimestamp'] as Timestamp?;
+    final paymentDetails = widget.data['paymentDetails'];
+    final paymentApproved = widget.data['paymentApprovedByAdmin'] ?? false;
+    final uploadedFiles = widget.data['uploadedFiles'] as List?;
+    final statusHistory = widget.data['statusHistory'] as List?;
+    final createdAt = widget.data['createdAt'] as Timestamp?;
+    final updatedAt = widget.data['updatedAt'] as Timestamp?;
+    final rawStatus = widget.data['engineerStatus'] ?? '';
+    final adminStatus =
+        widget.data['adminStatus']?.toString().toLowerCase() ?? '';
+    final isCanceled = adminStatus == 'canceled' || adminStatus == 'cancelled';
+    final statusInfo = _mapEngineerStatus(rawStatus);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Collapsible Header (always visible)
+          Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(24),
+            child: InkWell(
+              onTap: () {
+                setState(() {
+                  _isExpanded = !_isExpanded;
+                });
+              },
+              borderRadius: BorderRadius.circular(24),
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Theme.of(
+                              context,
+                            ).primaryColor.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Icon(
+                            Icons.receipt_long_rounded,
+                            color: Theme.of(context).primaryColor,
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "ID: $ticketId",
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF1E293B),
+                                  letterSpacing: -0.5,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                "Customer: $customerName",
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF64748B),
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                _getRelativeTime(createdAt),
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  color: Color(0xFF94A3B8),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        _buildStatusBadge(
+                          isCanceled
+                              ? 'CANCELED'
+                              : statusInfo.label.toUpperCase(),
+                          isCanceled ? Colors.red : statusInfo.color,
+                        ),
+                        const SizedBox(width: 8),
+                        Icon(
+                          _isExpanded ? Icons.expand_less : Icons.expand_more,
+                          color: const Color(0xFF94A3B8),
+                        ),
+                      ],
+                    ),
+                    // Progress Tracker (always visible in collapsed state)
+                    if (!isCanceled) ...[
+                      const SizedBox(height: 16),
+                      _buildStatusTracker(widget.data),
+                    ],
+                    // Quick device info (always visible)
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        _buildInfoItem(
+                          Icons.devices_rounded,
+                          "Device",
+                          deviceBrand,
+                        ),
+                        const SizedBox(width: 12),
+                        _buildInfoItem(
+                          Icons.category_rounded,
+                          "Type",
+                          deviceType,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          // Expanded Content
+          if (_isExpanded) ...[
+            const Divider(
+              height: 1,
+              indent: 20,
+              endIndent: 20,
+              color: Color(0xFFF1F5F9),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      _buildInfoItem(Icons.work_rounded, "Job", jobType),
+                      const SizedBox(width: 12),
+                      _buildInfoItem(
+                        Icons.calendar_today_rounded,
+                        "Created",
+                        _formatTimestamp(createdAt),
+                      ),
+                    ],
+                  ),
+                  if (updatedAt != null) ...[
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        _buildInfoItem(
+                          Icons.update_rounded,
+                          "Updated",
+                          DateFormat('dd MMM yyyy').format(updatedAt.toDate()),
+                        ),
+                        const SizedBox(width: 12),
+                        _buildInfoItem(
+                          Icons.phone_rounded,
+                          "Mobile",
+                          mobileNumber,
+                        ),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  // Address
+                  if (address != 'N/A') ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "ADDRESS",
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF94A3B8),
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            address,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFF475569),
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  // Issue Description
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          "ISSUE DESCRIPTION",
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF94A3B8),
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          issueDescription,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Color(0xFF475569),
+                            height: 1.4,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (assignedEngineer != null) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Colors.green.withValues(alpha: 0.1),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "ASSIGNED ENGINEER",
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF16A34A),
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            assignedEngineer,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF16A34A),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  if (paymentApproved) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Colors.blue.withValues(alpha: 0.1),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "PAYMENT DETAILS",
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF2563EB),
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          // Show individual payments
+                          if (widget.data['payments'] is List &&
+                              (widget.data['payments'] as List).isNotEmpty)
+                            ...(widget.data['payments'] as List).map((payment) {
+                              if (payment is Map) {
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 4.0),
+                                  child: Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        payment['paymentMethod']?.toString() ??
+                                            'Payment',
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          color: Color(0xFF1D4ED8),
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                      Text(
+                                        _formatAmount(
+                                          double.tryParse(
+                                                payment['amount'].toString(),
+                                              ) ??
+                                              0.0,
+                                        ),
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          color: Color(0xFF1D4ED8),
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }
+                              return const SizedBox.shrink();
+                            }),
+                          const SizedBox(height: 8),
+                          // Show total
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  "Total Amount",
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Color(0xFF1D4ED8),
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                Text(
+                                  _formatAmount(
+                                    _calculateTotalAmount(widget.data),
+                                  ),
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    color: Color(0xFF1D4ED8),
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ] else if (paymentDetails != null) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Colors.orange.withValues(alpha: 0.1),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.pending_actions_rounded,
+                            color: Colors.orange,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              "Payment details will be available after admin approval",
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.orange[800],
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  if (uploadedFiles != null && uploadedFiles.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.purple.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Colors.purple.withValues(alpha: 0.1),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "UPLOADED FILES",
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF9333EA),
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          ...uploadedFiles.map((file) {
+                            final fileName = file['name'] ?? 'Unknown file';
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.attach_file_rounded,
+                                    color: Theme.of(context).primaryColor,
+                                    size: 16,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      fileName,
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        color: Color(0xFF475569),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                        ],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  _buildDetailSection(widget.data, isCanceled),
+                  if (statusHistory != null && statusHistory.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                    const SizedBox(height: 16),
+                    const Text(
+                      "STATUS HISTORY",
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF94A3B8),
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    ...statusHistory.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final historyItem = entry.value;
+                      final historyTimestamp =
+                          historyItem['timestamp'] as Timestamp?;
+                      final historyStatus = historyItem['status'] ?? '';
+                      return Padding(
+                        padding: EdgeInsets.only(
+                          bottom: index == statusHistory.length - 1 ? 0 : 12,
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              margin: const EdgeInsets.only(top: 6),
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).primaryColor,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (historyTimestamp != null)
+                                    Text(
+                                      DateFormat(
+                                        'dd MMM yyyy, hh:mm a',
+                                      ).format(historyTimestamp.toDate()),
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: Color(0xFF94A3B8),
+                                      ),
+                                    ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    historyStatus,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF475569),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ],
+                ],
+              ),
+            ),
+          ],
+          // Footer (only visible when expanded)
+          if (_isExpanded)
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: const BoxDecoration(color: Color(0xFFF8FAFC)),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  if (!isCanceled &&
+                      statusInfo.label == 'Completed' &&
+                      (widget.data['FeedBack'] ?? '').isEmpty)
+                    _buildActionIndicator(
+                      "Rate Service",
+                      Icons.star_border_rounded,
+                      () {
+                        showDialog(
+                          context: context,
+                          builder: (ctx) => FeedbackDialog(
+                            bookingId: ticketId.toString(),
+                            documentId: widget.documentId,
+                          ),
+                        );
+                      },
+                    )
+                  else if (!isCanceled &&
+                      statusInfo.label != 'Completed' &&
+                      statusInfo.label != 'In Progress')
+                    _buildActionIndicator("Cancel", Icons.close_rounded, () {
+                      showDialog(
+                        context: context,
+                        builder: (ctx) => CancelTicketDialog(
+                          bookingId: ticketId.toString(),
+                          documentId: widget.documentId,
+                        ),
+                      );
+                    }, isDanger: true),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }
 
@@ -857,13 +1379,14 @@ class _CancelTicketDialogState extends State<CancelTicketDialog> {
 
     try {
       await FirestoreService.instance
-          .collection('Admin_ticket_entry')
+          .collection('Raised_tickets')
           .doc(widget.documentId)
           .update({
             'Reason_cancel': _reasonController.text.trim(),
             'adminStatus': 'Canceled',
             'engineerStatus': 'Cancelled',
             'cancelledAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
           });
 
       // Close the dialog
@@ -1014,7 +1537,9 @@ class _CancelTicketDialogState extends State<CancelTicketDialog> {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      disabledBackgroundColor: Colors.red.withValues(alpha: 0.3),
+                      disabledBackgroundColor: Colors.red.withValues(
+                        alpha: 0.3,
+                      ),
                     ),
                     child: _isSubmitting
                         ? const SizedBox(
@@ -1056,9 +1581,12 @@ class FeedbackDialog extends StatelessWidget {
   Future<void> _submitFeedback(BuildContext context, String feedback) async {
     try {
       await FirestoreService.instance
-          .collection('Admin_ticket_entry')
+          .collection('Raised_tickets')
           .doc(documentId)
-          .update({'FeedBack': feedback});
+          .update({
+            'FeedBack': feedback,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
 
       // Close the feedback dialog
       Navigator.of(context).pop();
@@ -1632,143 +2160,149 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
   Widget _buildBody() {
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header Decoration (matching Track My Service style)
-          _buildHeaderDecoration(),
+      child: ResponsiveWrapper(
+        maxWidth: kMaxContentWidth,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header Decoration (matching Track My Service style)
+            _buildHeaderDecoration(),
 
-          // Welcome Section
-          Padding(
-            padding: const EdgeInsets.fromLTRB(28, 20, 28, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'WELCOME BACK',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Theme.of(context).primaryColor.withValues(alpha: 0.6),
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.5,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  userName,
-                  style: const TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.w900,
-                    color: Color(0xFF1E293B),
-                    letterSpacing: -1.0,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).primaryColor,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  'How can we help you maintain your balance today?',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Color(0xFF64748B),
-                    fontWeight: FontWeight.w500,
-                    height: 1.4,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 32),
-
-          const SizedBox(height: 32),
-
-          // Main Action Cards
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _buildActionCard(
-                    icon: Icons.add_rounded,
-                    title: 'Add Device',
-                    subtitle: 'Create new requests',
-                    onTap: () {
-                      Navigator.push(
+            // Welcome Section
+            Padding(
+              padding: const EdgeInsets.fromLTRB(28, 20, 28, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'WELCOME BACK',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(
                         context,
-                        MaterialPageRoute(
-                          builder: (context) => CustomerDeviceType(
-                            name: userName,
-                            loggedInName: userName,
-                            phoneNumber: phoneNumber,
-                            customerId: customerId,
+                      ).primaryColor.withValues(alpha: 0.6),
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    userName,
+                    style: const TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF1E293B),
+                      letterSpacing: -1.0,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).primaryColor,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'How can we help you maintain your balance today?',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Color(0xFF64748B),
+                      fontWeight: FontWeight.w500,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 32),
+
+            const SizedBox(height: 32),
+
+            // Main Action Cards
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _buildActionCard(
+                      icon: Icons.add_rounded,
+                      title: 'Add Device',
+                      subtitle: 'Create new requests',
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => CustomerDeviceType(
+                              name: userName,
+                              loggedInName: userName,
+                              phoneNumber: phoneNumber,
+                              customerId: customerId,
+                              customerType: "amc",
+                            ),
                           ),
-                        ),
-                      );
-                    },
-                    color: Theme.of(context).primaryColor,
+                        );
+                      },
+                      color: Theme.of(context).primaryColor,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _buildActionCard(
-                    icon: Icons.track_changes_rounded,
-                    title: 'Track Service',
-                    subtitle: 'Manage active requests',
-                    onTap: userName != 'Guest'
-                        ? () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => AMCTrackMyService(
-                                  customerName: userName,
-                                  customerId: customerId,
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildActionCard(
+                      icon: Icons.track_changes_rounded,
+                      title: 'Track Service',
+                      subtitle: 'Manage active requests',
+                      onTap: userName != 'Guest'
+                          ? () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => AMCTrackMyService(
+                                    customerName: userName,
+                                    customerId: customerId,
+                                  ),
                                 ),
-                              ),
-                            );
-                          }
-                        : null,
-                    color: const Color(0xFF059669),
+                              );
+                            }
+                          : null,
+                      color: const Color(0xFF059669),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
 
-          const SizedBox(height: 32),
+            const SizedBox(height: 32),
 
-          // Additional Info Section
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _buildInfoCard(
-                    icon: Icons.bolt_rounded,
-                    title: 'Real-time Updates',
-                    subtitle: 'Stay notified instantly',
+            // Additional Info Section
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _buildInfoCard(
+                      icon: Icons.bolt_rounded,
+                      title: 'Real-time Updates',
+                      subtitle: 'Stay notified instantly',
+                    ),
                   ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _buildInfoCard(
-                    icon: Icons.workspace_premium_rounded,
-                    title: 'Expert Support',
-                    subtitle: 'Professionals at duty',
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildInfoCard(
+                      icon: Icons.workspace_premium_rounded,
+                      title: 'Expert Support',
+                      subtitle: 'Professionals at duty',
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 40),
-        ],
+            const SizedBox(height: 40),
+          ],
+        ),
       ),
     );
   }

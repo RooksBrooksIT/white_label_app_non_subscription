@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class AMCCreatePage extends StatefulWidget {
   const AMCCreatePage({super.key});
@@ -374,7 +375,9 @@ class _AMCCreatePageState extends State<AMCCreatePage>
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
       elevation: 0,
       backgroundColor: Colors.transparent,
-      child: Container(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 400),
+        child: Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
           color: Colors.white,
@@ -461,6 +464,7 @@ class _AMCCreatePageState extends State<AMCCreatePage>
             ),
           ],
         ),
+      ),
       ),
     );
   }
@@ -689,7 +693,9 @@ class _AMCCreatePageState extends State<AMCCreatePage>
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
       elevation: 0,
       backgroundColor: Colors.transparent,
-      child: Container(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 400),
+        child: Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
           color: Colors.white,
@@ -780,6 +786,7 @@ class _AMCCreatePageState extends State<AMCCreatePage>
           ],
         ),
       ),
+      ),
     );
   }
 
@@ -788,7 +795,9 @@ class _AMCCreatePageState extends State<AMCCreatePage>
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
       elevation: 0,
       backgroundColor: Colors.transparent,
-      child: Container(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 400),
+        child: Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
           color: Theme.of(context).cardColor,
@@ -867,6 +876,7 @@ class _AMCCreatePageState extends State<AMCCreatePage>
           ],
         ),
       ),
+      ),
     );
   }
 
@@ -878,144 +888,94 @@ class _AMCCreatePageState extends State<AMCCreatePage>
     backgroundColor = ThemeService.instance.backgroundColor;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: backgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0.5,
-        leading: Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: CircleAvatar(
-            backgroundColor: const Color(0xFFF1F5F9),
-            child: IconButton(
-              icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF0F172A), size: 18),
-              onPressed: () => Navigator.pop(context),
-            ),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: Container(
+          margin: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: IconButton(
+            icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 18),
+            onPressed: () => Navigator.of(context).pop(),
           ),
         ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'AMC Management',
               style: TextStyle(
-                fontSize: 18,
+                fontSize: 22,
                 fontWeight: FontWeight.w800,
-                color: Color(0xFF0F172A),
-                letterSpacing: -0.4,
+                color: textColor,
+                letterSpacing: -0.5,
               ),
             ),
             Text(
-              'Manage your AMC customer accounts',
+              'Manage your AMC customers',
               style: TextStyle(
-                fontSize: 11,
-                color: primaryColor,
-                fontWeight: FontWeight.w600,
+                fontSize: 12,
+                color: textLightColor,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ],
         ),
         centerTitle: false,
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [_buildCustomerForm(), _buildCustomerDirectory()],
+      body: ResponsiveWrapper(
+        maxWidth: 1200.0,
+        child: TabBarView(
+          controller: _tabController,
+          children: [_buildCustomerForm(), _buildCustomerDirectory()],
+        ),
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: Colors.white,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, -3),
+              color: Colors.black.withValues(alpha: 0.08),
+              blurRadius: 20,
+              offset: const Offset(0, -5),
             ),
           ],
-          border: const Border(
-            top: BorderSide(
-              color: Color(0xFFE2E8F0),
-              width: 1,
-            ),
-          ),
         ),
         child: SafeArea(
-          child: AnimatedBuilder(
-            animation: _tabController,
-            builder: (context, _) {
-              final selectedIndex = _tabController.index;
-
-              return SizedBox(
-                height: 62,
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: InkWell(
-                        onTap: () => _tabController.animateTo(0),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.person_add_rounded,
-                              size: 22,
-                              color: selectedIndex == 0
-                                  ? primaryColor
-                                  : const Color(0xFF94A3B8),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              'Add Customer',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: selectedIndex == 0
-                                    ? FontWeight.w800
-                                    : FontWeight.w600,
-                                color: selectedIndex == 0
-                                    ? primaryColor
-                                    : const Color(0xFF64748B),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    Container(
-                      width: 1,
-                      height: 28,
-                      color: const Color(0xFFE2E8F0),
-                    ),
-                    Expanded(
-                      child: InkWell(
-                        onTap: () => _tabController.animateTo(1),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.people_alt_rounded,
-                              size: 22,
-                              color: selectedIndex == 1
-                                  ? primaryColor
-                                  : const Color(0xFF94A3B8),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              'Directory',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: selectedIndex == 1
-                                    ? FontWeight.w800
-                                    : FontWeight.w600,
-                                color: selectedIndex == 1
-                                    ? primaryColor
-                                    : const Color(0xFF64748B),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
+          child: TabBar(
+            controller: _tabController,
+            indicator: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              color: primaryColor.withValues(alpha: 0.1),
+            ),
+            indicatorSize: TabBarIndicatorSize.tab,
+            dividerColor: Colors.transparent,
+            labelColor: primaryColor,
+            unselectedLabelColor: textLightColor,
+            labelStyle: const TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 14,
+              letterSpacing: 0.5,
+            ),
+            unselectedLabelStyle: const TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+            ),
+            tabs: const [
+              Tab(icon: Icon(Icons.person_add_rounded), text: 'ADD'),
+              Tab(icon: Icon(Icons.people_alt_rounded), text: 'DIRECTORY'),
+            ],
           ),
         ),
       ),
@@ -1025,9 +985,12 @@ class _AMCCreatePageState extends State<AMCCreatePage>
   Widget _buildCustomerForm() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
-      child: Form(
-        key: _formKey,
-        child: Column(
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 500),
+          child: Form(
+            key: _formKey,
+            child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
@@ -1193,6 +1156,8 @@ class _AMCCreatePageState extends State<AMCCreatePage>
             ),
             const SizedBox(height: 20),
           ],
+        ),
+      ),
         ),
       ),
     );
@@ -1458,143 +1423,78 @@ class _AMCCreatePageState extends State<AMCCreatePage>
   Widget _buildCustomerDirectory() {
     return Column(
       children: [
-        // Top Domain Hero Banner Card
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-            decoration: BoxDecoration(
-              color: primaryColor.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: primaryColor.withValues(alpha: 0.18),
-                width: 1.5,
+        Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 500),
+            child: Container(
+              padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: const BorderRadius.only(
+              bottomLeft: Radius.circular(24),
+              bottomRight: Radius.circular(24),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: primaryColor.withValues(alpha: 0.04),
-                  blurRadius: 16,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: primaryColor.withValues(alpha: 0.12),
-                        blurRadius: 10,
-                        offset: const Offset(0, 3),
-                      ),
-                    ],
-                  ),
-                  child: Icon(
-                    Icons.people_alt_rounded,
-                    color: primaryColor,
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            'Customer Directory',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF0F172A),
-                              letterSpacing: -0.4,
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: primaryColor.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Text(
-                              '${_filteredCustomers.length} Total',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
-                                color: primaryColor,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'View, search, and manage registered customers',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: primaryColor.withValues(alpha: 0.85),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+            ],
           ),
-        ),
-
-        // Search Bar Container
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.02),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Customer Directory',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: textColor,
+                  letterSpacing: -0.5,
                 ),
-              ],
-            ),
-            child: TextField(
-              controller: _searchController,
-              onChanged: _filterCustomers,
-              style: const TextStyle(fontSize: 14, color: Color(0xFF0F172A)),
-              decoration: InputDecoration(
-                hintText: 'Search by name, email or AMC ID...',
-                hintStyle: TextStyle(
-                  color: const Color(0xFF94A3B8),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${_filteredCustomers.length} customers found',
+                style: TextStyle(
                   fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                ),
-                prefixIcon: Icon(Icons.search_rounded, color: primaryColor, size: 22),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(20),
-                  borderSide: BorderSide.none,
-                ),
-                filled: true,
-                fillColor: Colors.white,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
+                  color: primaryColor,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
-            ),
+              const SizedBox(height: 16),
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.grey.shade200, width: 1.5),
+                ),
+                child: TextField(
+                  controller: _searchController,
+                  onChanged: _filterCustomers,
+                  decoration: InputDecoration(
+                    hintText: 'Search by name, email or AMC ID...',
+                    hintStyle: TextStyle(color: textLightColor.withValues(alpha: 0.6)),
+                    prefixIcon: Icon(Icons.search_rounded, color: primaryColor),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: BorderSide.none,
+                    ),
+                    filled: true,
+                    fillColor: Colors.white,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 16,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
-
-        const SizedBox(height: 4),
+          ),
+        ),
         Expanded(
           child: _filteredCustomers.isEmpty
               ? Center(
@@ -1649,17 +1549,19 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                     final String email = customer['email'] ?? 'No Email';
                     final String phone = customer['Phone Number'] ?? 'No Phone';
 
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      decoration: BoxDecoration(
+                    return Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 500),
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 16),
+                          decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.03),
+                            color: Colors.black.withValues(alpha: 0.04),
                             blurRadius: 10,
-                            offset: const Offset(0, 3),
+                            offset: const Offset(0, 2),
                           ),
                         ],
                       ),
@@ -1670,98 +1572,81 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                           onTap: () => _loadAccountForEdit(customer, customer['id']),
                           borderRadius: BorderRadius.circular(20),
                           child: Padding(
-                            padding: const EdgeInsets.all(14),
+                            padding: const EdgeInsets.all(16),
                             child: Row(
                               children: [
                                 Container(
-                                  width: 46,
-                                  height: 46,
                                   decoration: BoxDecoration(
                                     gradient: LinearGradient(
                                       colors: [
                                         primaryColor,
-                                        primaryColor.withValues(alpha: 0.75),
+                                        primaryColor.withValues(alpha: 0.7),
                                       ],
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
                                     ),
                                     shape: BoxShape.circle,
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: primaryColor.withValues(alpha: 0.2),
-                                        blurRadius: 8,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
                                   ),
-                                  child: Center(
+                                  child: CircleAvatar(
+                                    radius: 28,
+                                    backgroundColor: Colors.transparent,
                                     child: Text(
                                       name.isNotEmpty ? name[0].toUpperCase() : '?',
                                       style: const TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.w800,
+                                        fontSize: 22,
+                                        fontWeight: FontWeight.bold,
                                         color: Colors.white,
                                       ),
                                     ),
                                   ),
                                 ),
-                                const SizedBox(width: 12),
+                                const SizedBox(width: 16),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Row(
-                                        children: [
-                                          Expanded(
-                                            child: Text(
-                                              name,
-                                              style: const TextStyle(
-                                                fontSize: 15,
-                                                fontWeight: FontWeight.w800,
-                                                color: Color(0xFF0F172A),
-                                                letterSpacing: -0.3,
-                                              ),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
+                                      Text(
+                                        name,
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: textColor,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: primaryColor.withValues(alpha: 0.1),
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: Text(
+                                          id,
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                            color: primaryColor,
                                           ),
-                                          const SizedBox(width: 6),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 7,
-                                              vertical: 2,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: primaryColor.withValues(alpha: 0.1),
-                                              borderRadius: BorderRadius.circular(6),
-                                            ),
-                                            child: Text(
-                                              id,
-                                              style: TextStyle(
-                                                fontSize: 10,
-                                                fontWeight: FontWeight.w700,
-                                                color: primaryColor,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
+                                        ),
                                       ),
                                       const SizedBox(height: 4),
                                       Row(
                                         children: [
-                                          const Icon(
+                                          Icon(
                                             Icons.email_outlined,
-                                            size: 13,
-                                            color: Color(0xFF64748B),
+                                            size: 12,
+                                            color: textLightColor,
                                           ),
-                                          const SizedBox(width: 5),
+                                          const SizedBox(width: 4),
                                           Expanded(
                                             child: Text(
                                               email,
-                                              style: const TextStyle(
+                                              style: TextStyle(
                                                 fontSize: 12,
-                                                color: Color(0xFF64748B),
-                                                fontWeight: FontWeight.w500,
+                                                color: textLightColor,
                                               ),
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
@@ -1772,18 +1657,17 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                                       const SizedBox(height: 2),
                                       Row(
                                         children: [
-                                          const Icon(
-                                            Icons.phone_android_rounded,
-                                            size: 13,
-                                            color: Color(0xFF64748B),
+                                          Icon(
+                                            Icons.phone_android,
+                                            size: 12,
+                                            color: textLightColor,
                                           ),
-                                          const SizedBox(width: 5),
+                                          const SizedBox(width: 4),
                                           Text(
                                             phone,
-                                            style: const TextStyle(
+                                            style: TextStyle(
                                               fontSize: 12,
-                                              color: Color(0xFF64748B),
-                                              fontWeight: FontWeight.w500,
+                                              color: textLightColor,
                                             ),
                                           ),
                                         ],
@@ -1791,22 +1675,18 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                                     ],
                                   ),
                                 ),
-                                const SizedBox(width: 6),
                                 Row(
                                   children: [
                                     Container(
-                                      width: 36,
-                                      height: 36,
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFFFEF3C7),
-                                        borderRadius: BorderRadius.circular(10),
+                                        color: editModeColor.withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(12),
                                       ),
                                       child: IconButton(
-                                        padding: EdgeInsets.zero,
-                                        icon: const Icon(
-                                          Icons.edit_rounded,
-                                          color: Color(0xFFD97706),
-                                          size: 18,
+                                        icon: Icon(
+                                          Icons.edit_outlined,
+                                          color: editModeColor,
+                                          size: 20,
                                         ),
                                         onPressed: () => _loadAccountForEdit(
                                           customer,
@@ -1814,20 +1694,17 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                                         ),
                                       ),
                                     ),
-                                    const SizedBox(width: 6),
+                                    const SizedBox(width: 8),
                                     Container(
-                                      width: 36,
-                                      height: 36,
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFFFEE2E2),
-                                        borderRadius: BorderRadius.circular(10),
+                                        color: errorColor.withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(12),
                                       ),
                                       child: IconButton(
-                                        padding: EdgeInsets.zero,
-                                        icon: const Icon(
+                                        icon: Icon(
                                           Icons.delete_outline_rounded,
-                                          color: Color(0xFFDC2626),
-                                          size: 18,
+                                          color: errorColor,
+                                          size: 20,
                                         ),
                                         onPressed: () =>
                                             _deleteAccount(customer['id'], name),
@@ -1838,6 +1715,8 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                               ],
                             ),
                           ),
+                        ),
+                      ),
                         ),
                       ),
                     );

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:intl/intl.dart';
 import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
@@ -11,6 +12,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:subscription_rooks_app/utils/pdf_utils.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class AdminEngineerReports extends StatefulWidget {
   const AdminEngineerReports({super.key});
@@ -122,9 +124,9 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
 
   Map<String, dynamic>? _findEngineerProfile(
     List<Map<String, dynamic>> profiles,
-    String assignedEmployee,
+    String assignedEngineer,
   ) {
-    final key = assignedEmployee.trim().toLowerCase();
+    final key = assignedEngineer.trim().toLowerCase();
     for (final profile in profiles) {
       if (profile['username'] == key) return profile;
     }
@@ -140,11 +142,11 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
   }
 
   String _reportTitle(Map<String, dynamic> data) {
-    final bookingId = data['bookingId']?.toString();
+    final ticketId = data['ticketId']?.toString();
     final customer = data['customerName']?.toString();
     final device = data['deviceType']?.toString();
-    if (bookingId != null && bookingId.isNotEmpty) {
-      return 'Ticket #$bookingId';
+    if (ticketId != null && ticketId.isNotEmpty) {
+      return 'Ticket #$ticketId';
     }
     if (customer != null && customer.isNotEmpty) {
       return device != null && device.isNotEmpty
@@ -162,12 +164,12 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
 
     final filtered = docs.where((doc) {
       final data = doc.data() as Map<String, dynamic>;
-      final assignedEmployee =
-          data['assignedEmployee']?.toString().trim().toLowerCase() ?? '';
-      if (assignedEmployee.isEmpty) return false;
+      final assignedEngineer =
+          data['assignedEngineer']?.toString().trim().toLowerCase() ?? '';
+      if (assignedEngineer.isEmpty) return false;
 
       if (selectedEngineer != null &&
-          assignedEmployee != selectedEngineer!.toLowerCase()) {
+          assignedEngineer != selectedEngineer!.toLowerCase()) {
         return false;
       }
 
@@ -182,16 +184,16 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
         if (_extractLocation(data) != _selectedLocationFilter) return false;
       }
 
-      final timestamp = _parseTimestamp(data['timestamp']);
+      final timestamp = _parseTimestamp(data['createdAt']);
       if (!_matchesDateFilter(timestamp)) return false;
 
       if (query.isNotEmpty) {
         final profile = _findEngineerProfile(
           engineerProfiles,
-          assignedEmployee,
+          assignedEngineer,
         );
         final matchesEngineer =
-            assignedEmployee.contains(query) ||
+            assignedEngineer.contains(query) ||
             (profile?['id']?.toString().toLowerCase().contains(query) ??
                 false) ||
             (profile?['email']?.toString().toLowerCase().contains(query) ??
@@ -202,11 +204,12 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                 ) ??
                 false);
         final matchesTicket =
-            (data['bookingId']?.toString().toLowerCase().contains(query) ??
+            (data['ticketId']?.toString().toLowerCase().contains(query) ??
                 false) ||
             (data['customerName']?.toString().toLowerCase().contains(query) ??
                 false) ||
-            (data['id']?.toString().toLowerCase().contains(query) ?? false);
+            (data['customerId']?.toString().toLowerCase().contains(query) ??
+                false);
         if (!matchesEngineer && !matchesTicket) return false;
       }
 
@@ -214,8 +217,8 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
     }).toList();
 
     filtered.sort((a, b) {
-      final ta = _parseTimestamp((a.data() as Map)['timestamp']);
-      final tb = _parseTimestamp((b.data() as Map)['timestamp']);
+      final ta = _parseTimestamp((a.data() as Map)['createdAt']);
+      final tb = _parseTimestamp((b.data() as Map)['createdAt']);
       return tb.compareTo(ta);
     });
 
@@ -274,7 +277,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
       await Printing.layoutPdf(
         onLayout: (PdfPageFormat format) async => pdf.save(),
         name:
-            'Engineer_Report_${ticket['bookingId'] ?? DateTime.now().millisecondsSinceEpoch}',
+            'Engineer_Report_${ticket['ticketId'] ?? DateTime.now().millisecondsSinceEpoch}',
       );
     } catch (e) {
       if (mounted) {
@@ -294,33 +297,51 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
     setState(() => _downloadingPdfId = rowId);
     try {
       final pdf = await _generatePdf(engineerName, [ticket]);
-      final bookingId =
-          ticket['bookingId']?.toString() ??
+      final ticketId =
+          ticket['ticketId']?.toString() ??
           DateTime.now().millisecondsSinceEpoch.toString();
-      final directory =
-          await getDownloadsDirectory() ??
-          await getApplicationDocumentsDirectory();
-      final file = File(
-        '${directory.path}/Engineer_Report_${bookingId}_${DateTime.now().millisecondsSinceEpoch}.pdf',
-      );
-      await file.writeAsBytes(await pdf.save());
+      final filename =
+          'Engineer_Report_${ticketId}_${DateTime.now().millisecondsSinceEpoch}.pdf';
 
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+      if (kIsWeb) {
+        // Web: Use Printing package to download
+        await Printing.sharePdf(bytes: await pdf.save(), filename: filename);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            backgroundColor: Colors.green.shade700,
+            content: const Text('PDF downloaded successfully'),
           ),
-          backgroundColor: Colors.green.shade700,
-          content: const Text('PDF downloaded successfully'),
-          action: SnackBarAction(
-            label: 'Open',
-            textColor: Colors.white,
-            onPressed: () => OpenFile.open(file.path),
+        );
+      } else {
+        // Mobile/Desktop: Use path_provider and open_file
+        final directory =
+            await getDownloadsDirectory() ??
+            await getApplicationDocumentsDirectory();
+        final file = File('${directory.path}/$filename');
+        await file.writeAsBytes(await pdf.save());
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            backgroundColor: Colors.green.shade700,
+            content: const Text('PDF downloaded successfully'),
+            action: SnackBarAction(
+              label: 'Open',
+              textColor: Colors.white,
+              onPressed: () => OpenFile.open(file.path),
+            ),
           ),
-        ),
-      );
+        );
+      }
     } catch (e) {
       if (mounted) _showPdfError('Download failed: $e');
     } finally {
@@ -373,7 +394,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
     final adminDetailsStream = _buildAdminDetailsStream();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: const Color(0xFFF8FAFF),
       body: RefreshIndicator(
         color: Theme.of(context).primaryColor,
         onRefresh: _onRefresh,
@@ -381,44 +402,96 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             SliverAppBar(
-              backgroundColor: Colors.white,
-              elevation: 0.5,
+              expandedHeight: isMobile ? 130 : 160,
+              floating: false,
               pinned: true,
-              centerTitle: true,
-              leading: Padding(
-                padding: const EdgeInsets.all(8),
-                child: CircleAvatar(
-                  backgroundColor: const Color(0xFFF1F5F9),
-                  child: IconButton(
-                    icon: const Icon(Icons.arrow_back_rounded,
-                        color: Color(0xFF0F172A), size: 18),
-                    onPressed: () => Navigator.of(context).pop(),
+              elevation: 0,
+              backgroundColor: Theme.of(context).primaryColor,
+              foregroundColor: Colors.white,
+              automaticallyImplyLeading: false,
+              flexibleSpace: FlexibleSpaceBar(
+                background: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Theme.of(context).primaryColor,
+                        Theme.of(context).primaryColor.withValues(alpha: 0.85),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
                   ),
-                ),
-              ),
-              title: const Text(
-                'Engineer Reports',
-                style: TextStyle(
-                  color: Color(0xFF0F172A),
-                  fontWeight: FontWeight.w800,
-                  fontSize: 18,
-                  letterSpacing: -0.4,
-                ),
-              ),
-              actions: [
-                Padding(
-                  padding: const EdgeInsets.only(right: 12),
-                  child: CircleAvatar(
-                    backgroundColor: const Color(0xFFF1F5F9),
-                    child: IconButton(
-                      icon: Icon(Icons.refresh_rounded,
-                          color: Theme.of(context).primaryColor, size: 20),
-                      onPressed: _onRefresh,
-                      tooltip: 'Refresh Reports',
+                  child: SafeArea(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.2),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: IconButton(
+                                  icon: const Icon(
+                                    Icons.arrow_back_ios_new_rounded,
+                                    size: 18,
+                                  ),
+                                  onPressed: () => Navigator.of(context).pop(),
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: const Icon(
+                                  Icons.assignment_ind_rounded,
+                                  size: 26,
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      'Engineer Reports',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: isMobile ? 22 : 28,
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: -0.5,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Monitor performance & manage reports',
+                                      style: TextStyle(
+                                        color: Colors.white.withValues(
+                                          alpha: 0.8,
+                                        ),
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ],
+              ),
             ),
             SliverPadding(
               padding: EdgeInsets.fromLTRB(
@@ -429,71 +502,103 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
               ),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
-                  FadeTransition(
-                    opacity: _fadeAnimation,
-                    child: _buildSearchBar(isMobile),
+                  ResponsiveWrapper(
+                    maxWidth: 1200.0,
+                    child: FadeTransition(
+                      opacity: _fadeAnimation,
+                      child: _buildSearchBar(isMobile),
+                    ),
                   ),
                   const SizedBox(height: 24),
-                  StreamBuilder<List<Map<String, dynamic>>>(
-                    stream: getEngineerProfiles(),
-                    builder: (context, engineerSnapshot) {
-                      final engineerProfiles = engineerSnapshot.data ?? [];
-                      return StreamBuilder<QuerySnapshot>(
-                        stream: adminDetailsStream,
-                        builder: (context, snapshot) {
-                          if (snapshot.connectionState ==
-                              ConnectionState.waiting) {
-                            return _buildLoadingState(isMobile);
-                          }
-                          if (snapshot.hasError) {
-                            return _buildErrorState(snapshot.error.toString());
-                          }
-
-                          engineerStatusCounts.clear();
-                          allStatuses.clear();
-
-                          final docs = snapshot.data?.docs ?? [];
-                          for (final doc in docs) {
-                            final data = doc.data() as Map<String, dynamic>;
-                            final rawEngineerName = data['assignedEmployee']
-                                ?.toString();
-                            if (rawEngineerName != null) {
-                              final engineerName = rawEngineerName
-                                  .trim()
-                                  .toLowerCase();
-                              final normalizedStatus = _normalizeStatusKey(
-                                data['adminStatus']?.toString() ?? '',
-                              );
-                              allStatuses.add(normalizedStatus);
-                              engineerStatusCounts.putIfAbsent(
-                                engineerName,
-                                () => {},
-                              );
-                              engineerStatusCounts[engineerName]![normalizedStatus] =
-                                  (engineerStatusCounts[engineerName]![normalizedStatus] ??
-                                      0) +
-                                  1;
+                  ResponsiveWrapper(
+                    maxWidth: 1200.0,
+                    child: StreamBuilder<List<Map<String, dynamic>>>(
+                      stream: getEngineerProfiles(),
+                      builder: (context, engineerSnapshot) {
+                        final engineerProfiles = engineerSnapshot.data ?? [];
+                        return StreamBuilder<QuerySnapshot>(
+                          stream: adminDetailsStream,
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState ==
+                                ConnectionState.waiting) {
+                              return _buildLoadingState(isMobile);
                             }
-                          }
+                            if (snapshot.hasError) {
+                              return _buildErrorState(
+                                snapshot.error.toString(),
+                              );
+                            }
 
-                          final filteredReports = _filterReports(
-                            docs,
-                            engineerProfiles,
-                          );
-                          final locations = _collectLocations(docs).toList()
-                            ..sort();
-                          final statusOptions = allStatuses.toList()..sort();
-                          final visibleCount =
-                              (_currentPage * _pageSize) >
-                                  filteredReports.length
-                              ? filteredReports.length
-                              : _currentPage * _pageSize;
-                          final paginatedReports = filteredReports
-                              .take(visibleCount)
-                              .toList();
-                          final hasMore = visibleCount < filteredReports.length;
+                            engineerStatusCounts.clear();
+                            allStatuses.clear();
 
-                          if (filteredReports.isEmpty) {
+                            final docs = snapshot.data?.docs ?? [];
+                            for (final doc in docs) {
+                              final data = doc.data() as Map<String, dynamic>;
+                              final rawEngineerName = data['assignedEngineer']
+                                  ?.toString();
+                              if (rawEngineerName != null) {
+                                final engineerName = rawEngineerName
+                                    .trim()
+                                    .toLowerCase();
+                                final normalizedStatus = _normalizeStatusKey(
+                                  data['adminStatus']?.toString() ?? '',
+                                );
+                                allStatuses.add(normalizedStatus);
+                                engineerStatusCounts.putIfAbsent(
+                                  engineerName,
+                                  () => {},
+                                );
+                                engineerStatusCounts[engineerName]![normalizedStatus] =
+                                    (engineerStatusCounts[engineerName]![normalizedStatus] ??
+                                        0) +
+                                    1;
+                              }
+                            }
+
+                            final filteredReports = _filterReports(
+                              docs,
+                              engineerProfiles,
+                            );
+                            final locations = _collectLocations(docs).toList()
+                              ..sort();
+                            final statusOptions = allStatuses.toList()..sort();
+                            final visibleCount =
+                                (_currentPage * _pageSize) >
+                                    filteredReports.length
+                                ? filteredReports.length
+                                : _currentPage * _pageSize;
+                            final paginatedReports = filteredReports
+                                .take(visibleCount)
+                                .toList();
+                            final hasMore =
+                                visibleCount < filteredReports.length;
+
+                            if (filteredReports.isEmpty) {
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  FadeTransition(
+                                    opacity: _fadeAnimation,
+                                    child: _buildFilterSection(
+                                      isMobile,
+                                      isTablet,
+                                      isDesktop,
+                                      statusOptions: statusOptions,
+                                      locationOptions: locations,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 24),
+                                  _buildEmptyState(isMobile),
+                                ],
+                              );
+                            }
+
+                            final selectedCounts = selectedEngineer != null
+                                ? engineerStatusCounts[selectedEngineer!
+                                      .toLowerCase()]
+                                : null;
+
                             return Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -508,111 +613,90 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                                   ),
                                 ),
                                 const SizedBox(height: 24),
-                                _buildEmptyState(isMobile),
-                              ],
-                            );
-                          }
-
-                          final selectedCounts = selectedEngineer != null
-                              ? engineerStatusCounts[selectedEngineer!
-                                    .toLowerCase()]
-                              : null;
-
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              FadeTransition(
-                                opacity: _fadeAnimation,
-                                child: _buildFilterSection(
-                                  isMobile,
-                                  isTablet,
-                                  isDesktop,
-                                  statusOptions: statusOptions,
-                                  locationOptions: locations,
-                                ),
-                              ),
-                              const SizedBox(height: 24),
-                              _buildReportsSummaryHeader(
-                                filteredReports.length,
-                                isMobile,
-                                isDesktop,
-                              ),
-                              if (_showAnalytics &&
-                                  selectedEngineer != null &&
-                                  selectedCounts != null &&
-                                  selectedCounts.isNotEmpty) ...[
-                                const SizedBox(height: 24),
-                                _buildDashboard(
-                                  context,
-                                  selectedCounts,
+                                _buildReportsSummaryHeader(
                                   filteredReports.length,
-                                  docs,
                                   isMobile,
-                                  isTablet,
                                   isDesktop,
                                 ),
-                              ],
-                              const SizedBox(height: 28),
-                              _buildReportsListHeader(
-                                filteredReports.length,
-                                isMobile,
-                                docs,
-                              ),
-                              const SizedBox(height: 16),
-                              if (isDesktop)
-                                _buildReportsTable(
-                                  paginatedReports,
-                                  engineerProfiles,
-                                )
-                              else
-                                ...paginatedReports.map(
-                                  (doc) => Padding(
-                                    padding: const EdgeInsets.only(bottom: 16),
-                                    child: _buildReportCard(
-                                      doc,
-                                      engineerProfiles,
-                                      isMobile,
+                                if (_showAnalytics &&
+                                    selectedEngineer != null &&
+                                    selectedCounts != null &&
+                                    selectedCounts.isNotEmpty) ...[
+                                  const SizedBox(height: 24),
+                                  _buildDashboard(
+                                    context,
+                                    selectedCounts,
+                                    filteredReports.length,
+                                    docs,
+                                    isMobile,
+                                    isTablet,
+                                    isDesktop,
+                                  ),
+                                ],
+                                const SizedBox(height: 28),
+                                _buildReportsListHeader(
+                                  filteredReports.length,
+                                  isMobile,
+                                  docs,
+                                ),
+                                const SizedBox(height: 16),
+                                if (isDesktop)
+                                  _buildReportsTable(
+                                    paginatedReports,
+                                    engineerProfiles,
+                                  )
+                                else
+                                  ...paginatedReports.map(
+                                    (doc) => Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 16,
+                                      ),
+                                      child: _buildReportCard(
+                                        doc,
+                                        engineerProfiles,
+                                        isMobile,
+                                      ),
                                     ),
                                   ),
-                                ),
-                              if (hasMore)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 16),
-                                  child: Center(
-                                    child: OutlinedButton.icon(
-                                      onPressed: () =>
-                                          setState(() => _currentPage += 1),
-                                      icon: const Icon(Icons.expand_more),
-                                      label: Text(
-                                        'Load more (${filteredReports.length - visibleCount} remaining)',
-                                      ),
-                                      style: OutlinedButton.styleFrom(
-                                        foregroundColor: Theme.of(
-                                          context,
-                                        ).primaryColor,
-                                        side: BorderSide(
-                                          color: Theme.of(
+                                if (hasMore)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 16),
+                                    child: Center(
+                                      child: OutlinedButton.icon(
+                                        onPressed: () =>
+                                            setState(() => _currentPage += 1),
+                                        icon: const Icon(Icons.expand_more),
+                                        label: Text(
+                                          'Load more (${filteredReports.length - visibleCount} remaining)',
+                                        ),
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: Theme.of(
                                             context,
-                                          ).primaryColor.withValues(alpha: 0.3),
-                                        ),
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 28,
-                                          vertical: 14,
-                                        ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            16,
+                                          ).primaryColor,
+                                          side: BorderSide(
+                                            color: Theme.of(context)
+                                                .primaryColor
+                                                .withValues(alpha: 0.3),
+                                          ),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 28,
+                                            vertical: 14,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              16,
+                                            ),
                                           ),
                                         ),
                                       ),
                                     ),
                                   ),
-                                ),
-                            ],
-                          );
-                        },
-                      );
-                    },
+                              ],
+                            );
+                          },
+                        );
+                      },
+                    ),
                   ),
                 ]),
               ),
@@ -627,40 +711,32 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
       child: TextField(
         controller: _searchController,
-        style: const TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-          color: Color(0xFF0F172A),
-        ),
         decoration: InputDecoration(
           hintText:
-              'Search by engineer name, ID, mobile, email, or booking ID...',
-          hintStyle: const TextStyle(
-            color: Color(0xFF94A3B8),
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
+              'Search by engineer name, ID, mobile, email, or ticket ID...',
+          hintStyle: TextStyle(
+            color: Colors.grey.shade400,
+            fontSize: isMobile ? 13 : 14,
           ),
           prefixIcon: Icon(
             Icons.search_rounded,
             color: Theme.of(context).primaryColor,
-            size: 20,
+            size: 22,
           ),
           suffixIcon: searchQuery.isNotEmpty
               ? IconButton(
-                  icon: const Icon(Icons.close_rounded,
-                      size: 18, color: Color(0xFF94A3B8)),
+                  icon: const Icon(Icons.clear_rounded),
                   onPressed: () {
                     _searchController.clear();
                     setState(() {
@@ -670,15 +746,10 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                   },
                 )
               : null,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide.none,
-          ),
-          filled: true,
-          fillColor: Colors.white,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 14,
+          border: InputBorder.none,
+          contentPadding: EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: isMobile ? 16 : 18,
           ),
         ),
       ),
@@ -699,16 +770,15 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
 
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(isMobile ? 18 : 22),
+      padding: EdgeInsets.all(isMobile ? 20 : 24),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        borderRadius: BorderRadius.circular(28),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
@@ -1260,10 +1330,17 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
       width: double.infinity,
       padding: EdgeInsets.all(isMobile ? 18 : 22),
       decoration: BoxDecoration(
-        color: Theme.of(context).primaryColor.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(18),
+        gradient: LinearGradient(
+          colors: [
+            Theme.of(context).primaryColor.withValues(alpha: 0.06),
+            Colors.white,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: Theme.of(context).primaryColor.withValues(alpha: 0.2),
+          color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
         ),
       ),
       child: Row(
@@ -1271,13 +1348,13 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Theme.of(context).primaryColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(14),
+              color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(16),
             ),
             child: Icon(
               Icons.summarize_rounded,
               color: Theme.of(context).primaryColor,
-              size: 24,
+              size: 26,
             ),
           ),
           const SizedBox(width: 16),
@@ -1288,16 +1365,15 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                 Text(
                   '$totalReports report${totalReports == 1 ? '' : 's'} found',
                   style: TextStyle(
-                    fontSize: isMobile ? 17 : 19,
+                    fontSize: isMobile ? 18 : 20,
                     fontWeight: FontWeight.w800,
-                    color: const Color(0xFF0F172A),
-                    letterSpacing: -0.2,
+                    color: Colors.black87,
                   ),
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 4),
                 Text(
                   'Showing ${(_currentPage * _pageSize).clamp(0, totalReports)} of $totalReports',
-                  style: const TextStyle(color: Color(0xFF64748B), fontSize: 12, fontWeight: FontWeight.w500),
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
                 ),
               ],
             ),
@@ -1317,17 +1393,16 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
         Icon(
           Icons.receipt_long_rounded,
           color: Theme.of(context).primaryColor,
-          size: 24,
+          size: 26,
         ),
         const SizedBox(width: 12),
         Expanded(
           child: Text(
             'Ticket Reports',
             style: TextStyle(
-              color: const Color(0xFF0F172A),
-              fontSize: isMobile ? 18 : 20,
+              color: Colors.black87,
+              fontSize: isMobile ? 20 : 22,
               fontWeight: FontWeight.w800,
-              letterSpacing: -0.3,
             ),
           ),
         ),
@@ -1393,20 +1468,20 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
     Map<String, dynamic> data,
     List<Map<String, dynamic>> engineerProfiles,
   ) {
-    final assignedEmployee =
-        data['assignedEmployee']?.toString().trim() ?? 'Unknown';
-    final profile = _findEngineerProfile(engineerProfiles, assignedEmployee);
+    final assignedEngineer =
+        data['assignedEngineer']?.toString().trim() ?? 'Unknown';
+    final profile = _findEngineerProfile(engineerProfiles, assignedEngineer);
     final engineerName =
         profile?['displayName']?.toString() ??
-        _capitalizeName(assignedEmployee);
+        _capitalizeName(assignedEngineer);
     final engineerId = profile?['id']?.toString() ?? '—';
     final status = _normalizeStatusKey(data['adminStatus']?.toString() ?? '');
     final statusColor = _getStatusColor(status);
-    final timestamp = _parseTimestamp(data['timestamp']);
+    final timestamp = _parseTimestamp(data['createdAt']);
     final formattedDate = DateFormat(
       'dd MMM yyyy · hh:mm a',
     ).format(timestamp.toDate());
-    final hasPdf = assignedEmployee.isNotEmpty;
+    final hasPdf = assignedEngineer.isNotEmpty;
     final isViewLoading = _loadingPdfId == rowId;
     final isDownloadLoading = _downloadingPdfId == rowId;
 
@@ -1463,7 +1538,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                 icon: Icons.visibility_rounded,
                 isLoading: isViewLoading,
                 enabled: hasPdf && !isViewLoading && !isDownloadLoading,
-                onPressed: () => _viewReportPdf(assignedEmployee, data, rowId),
+                onPressed: () => _viewReportPdf(assignedEngineer, data, rowId),
               ),
               const SizedBox(width: 10),
               _buildPdfActionButton(
@@ -1472,7 +1547,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                 isLoading: isDownloadLoading,
                 enabled: hasPdf && !isViewLoading && !isDownloadLoading,
                 onPressed: () =>
-                    _downloadReportPdf(assignedEmployee, data, rowId),
+                    _downloadReportPdf(assignedEngineer, data, rowId),
               ),
             ],
           ),
@@ -1487,36 +1562,36 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
     bool isMobile,
   ) {
     final data = doc.data() as Map<String, dynamic>;
-    final assignedEmployee =
-        data['assignedEmployee']?.toString().trim() ?? 'Unknown';
-    final profile = _findEngineerProfile(engineerProfiles, assignedEmployee);
+    final assignedEngineer =
+        data['assignedEngineer']?.toString().trim() ?? 'Unknown';
+    final profile = _findEngineerProfile(engineerProfiles, assignedEngineer);
     final engineerName =
         profile?['displayName']?.toString() ??
-        _capitalizeName(assignedEmployee);
+        _capitalizeName(assignedEngineer);
     final engineerId = profile?['id']?.toString() ?? '—';
     final email = profile?['email']?.toString() ?? '';
     final phone = profile?['phone']?.toString() ?? '';
     final status = _normalizeStatusKey(data['adminStatus']?.toString() ?? '');
     final statusColor = _getStatusColor(status);
-    final timestamp = _parseTimestamp(data['timestamp']);
+    final timestamp = _parseTimestamp(data['createdAt']);
     final formattedDate = DateFormat(
       'dd MMM yyyy · hh:mm a',
     ).format(timestamp.toDate());
-    final hasPdf = assignedEmployee.isNotEmpty;
+    final hasPdf = assignedEngineer.isNotEmpty;
     final isViewLoading = _loadingPdfId == doc.id;
     final isDownloadLoading = _downloadingPdfId == doc.id;
 
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.grey.shade100),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
+            blurRadius: 20,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
@@ -1648,7 +1723,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                   expanded: true,
                   enabled: hasPdf && !isViewLoading && !isDownloadLoading,
                   onPressed: () =>
-                      _viewReportPdf(assignedEmployee, data, doc.id),
+                      _viewReportPdf(assignedEngineer, data, doc.id),
                 ),
               ),
               const SizedBox(width: 12),
@@ -1660,7 +1735,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                   expanded: true,
                   enabled: hasPdf && !isViewLoading && !isDownloadLoading,
                   onPressed: () =>
-                      _downloadReportPdf(assignedEmployee, data, doc.id),
+                      _downloadReportPdf(assignedEngineer, data, doc.id),
                 ),
               ),
             ],
@@ -1784,12 +1859,12 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
     final tickets = docs
         .where((doc) {
           final data = doc.data() as Map<String, dynamic>;
-          final assignedEmployee = data['assignedEmployee']
+          final assignedEngineer = data['assignedEngineer']
               ?.toString()
               .trim()
               .toLowerCase();
-          final timestamp = _parseTimestamp(data['timestamp']);
-          return assignedEmployee == selectedEngineer!.toLowerCase() &&
+          final timestamp = _parseTimestamp(data['createdAt']);
+          return assignedEngineer == selectedEngineer!.toLowerCase() &&
               _matchesDateFilter(timestamp);
         })
         .map((doc) => doc.data() as Map<String, dynamic>)
@@ -1799,8 +1874,24 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
     int completedTickets = 0;
 
     for (final ticket in tickets) {
-      final amount = double.tryParse(ticket['amount']?.toString() ?? '0') ?? 0;
-      totalAmount += amount;
+      // Calculate total amount from payments, paymentDetails, or amount
+      double ticketAmount = 0.0;
+      if (ticket['payments'] is List) {
+        for (var payment in ticket['payments']) {
+          if (payment is Map && payment['amount'] != null) {
+            ticketAmount +=
+                double.tryParse(payment['amount'].toString()) ?? 0.0;
+          }
+        }
+      }
+      if (ticketAmount == 0 && ticket['paymentDetails'] != null) {
+        ticketAmount =
+            double.tryParse(ticket['paymentDetails'].toString()) ?? 0.0;
+      }
+      if (ticketAmount == 0 && ticket['amount'] != null) {
+        ticketAmount = double.tryParse(ticket['amount'].toString()) ?? 0.0;
+      }
+      totalAmount += ticketAmount;
 
       final status = _normalizeStatusKey(
         ticket['adminStatus']?.toString() ?? 'Unknown',
@@ -1818,7 +1909,8 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
       builder: (context, constraints) {
         final crossAxisCount = isMobile ? 2 : 4;
         final availableWidth = constraints.maxWidth;
-        final itemWidth = (availableWidth - (16.0 * (crossAxisCount - 1))) / crossAxisCount;
+        final itemWidth =
+            (availableWidth - (16.0 * (crossAxisCount - 1))) / crossAxisCount;
         final childAspectRatio = itemWidth / 150.0;
 
         return GridView.count(
@@ -1829,33 +1921,33 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
           mainAxisSpacing: 16,
           childAspectRatio: childAspectRatio,
           children: [
-        _buildKPICard(
-          'Total Tasks',
-          totalTickets.toString(),
-          Icons.assignment_rounded,
-          Colors.blue.shade600,
-        ),
-        _buildKPICard(
-          'Completed',
-          completedTickets.toString(),
-          Icons.check_circle_rounded,
-          Colors.green.shade600,
-        ),
-        _buildKPICard(
-          'Completion Rate',
-          '$completionRate%',
-          Icons.trending_up_rounded,
-          Colors.orange.shade600,
-        ),
-        _buildKPICard(
-          'Total Revenue',
-          '₹${totalAmount.toStringAsFixed(0)}',
-          Icons.currency_rupee_rounded,
-          Colors.purple.shade600,
-        ),
-      ],
-    );
-    },
+            _buildKPICard(
+              'Total Tasks',
+              totalTickets.toString(),
+              Icons.assignment_rounded,
+              Colors.blue.shade600,
+            ),
+            _buildKPICard(
+              'Completed',
+              completedTickets.toString(),
+              Icons.check_circle_rounded,
+              Colors.green.shade600,
+            ),
+            _buildKPICard(
+              'Completion Rate',
+              '$completionRate%',
+              Icons.trending_up_rounded,
+              Colors.orange.shade600,
+            ),
+            _buildKPICard(
+              'Total Revenue',
+              '₹${totalAmount.toStringAsFixed(0)}',
+              Icons.currency_rupee_rounded,
+              Colors.purple.shade600,
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -1921,7 +2013,8 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
       builder: (context, constraints) {
         final crossAxisCount = isMobile ? 2 : (isTablet ? 3 : 4);
         final availableWidth = constraints.maxWidth;
-        final itemWidth = (availableWidth - (16.0 * (crossAxisCount - 1))) / crossAxisCount;
+        final itemWidth =
+            (availableWidth - (16.0 * (crossAxisCount - 1))) / crossAxisCount;
         final childAspectRatio = itemWidth / 165.0;
 
         return GridView.builder(
@@ -1935,65 +2028,65 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
           ),
           itemCount: selectedCounts.length,
           itemBuilder: (context, index) {
-        final entry = selectedCounts.entries.elementAt(index);
-        final status = entry.key;
-        final count = entry.value;
-        final color = _getStatusColor(status);
-        final icon = _getStatusIcon(status);
+            final entry = selectedCounts.entries.elementAt(index);
+            final status = entry.key;
+            final count = entry.value;
+            final color = _getStatusColor(status);
+            final icon = _getStatusIcon(status);
 
-        return Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                color: color.withValues(alpha: 0.08),
-                blurRadius: 20,
-                offset: const Offset(0, 8),
+            return Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: color.withValues(alpha: 0.08),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+                border: Border.all(color: color.withValues(alpha: 0.15)),
               ),
-            ],
-            border: Border.all(color: color.withValues(alpha: 0.15)),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, color: color, size: 26),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(icon, color: color, size: 26),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    count.toString(),
+                    style: const TextStyle(
+                      color: Colors.black87,
+                      fontSize: 28,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    status,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.grey.shade700,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 10),
-              Text(
-                count.toString(),
-                style: const TextStyle(
-                  color: Colors.black87,
-                  fontSize: 28,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.5,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                status,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: Colors.grey.shade700,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
+            );
+          },
         );
       },
-    );
-    },
     );
   }
 
@@ -2003,12 +2096,12 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
         final tickets = docs
             .where((doc) {
               final data = doc.data() as Map<String, dynamic>;
-              final assignedEmployee = data['assignedEmployee']
+              final assignedEngineer = data['assignedEngineer']
                   ?.toString()
                   .trim()
                   .toLowerCase();
-              final timestamp = _parseTimestamp(data['timestamp']);
-              return assignedEmployee == selectedEngineer!.toLowerCase() &&
+              final timestamp = _parseTimestamp(data['createdAt']);
+              return assignedEngineer == selectedEngineer!.toLowerCase() &&
                   _matchesDateFilter(timestamp);
             })
             .map((doc) => doc.data() as Map<String, dynamic>)
@@ -2220,9 +2313,9 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
           ).add(const Duration(days: 1)),
         );
         return FirestoreService.instance
-            .collection('Admin_ticket_entry')
-            .where('timestamp', isGreaterThanOrEqualTo: startOfDay)
-            .where('timestamp', isLessThan: endOfDay)
+            .collection('Raised_tickets')
+            .where('createdAt', isGreaterThanOrEqualTo: startOfDay)
+            .where('createdAt', isLessThan: endOfDay)
             .snapshots();
       } else if (isDateRangeMode && fromDate != null && toDate != null) {
         final startOfDay = Timestamp.fromDate(
@@ -2236,13 +2329,13 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
           ).add(const Duration(days: 1)),
         );
         return FirestoreService.instance
-            .collection('Admin_ticket_entry')
-            .where('timestamp', isGreaterThanOrEqualTo: startOfDay)
-            .where('timestamp', isLessThan: endOfDay)
+            .collection('Raised_tickets')
+            .where('createdAt', isGreaterThanOrEqualTo: startOfDay)
+            .where('createdAt', isLessThan: endOfDay)
             .snapshots();
       }
     }
-    return FirestoreService.instance.collection('Admin_ticket_entry').snapshots();
+    return FirestoreService.instance.collection('Raised_tickets').snapshots();
   }
 
   bool _matchesDateFilter(Timestamp? timestamp) {
@@ -2338,10 +2431,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
 
     pdf.addPage(
       pw.MultiPage(
-        theme: pw.ThemeData.withFont(
-          base: robotoRegular,
-          bold: robotoBold,
-        ),
+        theme: pw.ThemeData.withFont(base: robotoRegular, bold: robotoBold),
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(25),
         header: (context) {
@@ -2612,7 +2702,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                   7: const pw.FlexColumnWidth(0.8),
                 },
                 headers: [
-                  'Booking ID',
+                  'Ticket ID',
                   'Device Type',
                   'Brand',
                   'Issue Description',
@@ -2622,20 +2712,42 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                   'Date',
                 ],
                 data: tickets.map((ticket) {
+                  // Calculate total amount
+                  double totalAmount = 0.0;
+                  if (ticket['payments'] is List) {
+                    for (var payment in ticket['payments']) {
+                      if (payment is Map && payment['amount'] != null) {
+                        totalAmount +=
+                            double.tryParse(payment['amount'].toString()) ??
+                            0.0;
+                      }
+                    }
+                  }
+                  if (totalAmount == 0 && ticket['paymentDetails'] != null) {
+                    totalAmount =
+                        double.tryParse(ticket['paymentDetails'].toString()) ??
+                        0.0;
+                  }
+                  if (totalAmount == 0 && ticket['amount'] != null) {
+                    totalAmount =
+                        double.tryParse(ticket['amount'].toString()) ?? 0.0;
+                  }
+                  // Get issue description
+                  final issueDesc =
+                      ticket['issueDescription']?.toString() ??
+                      ticket['message']?.toString() ??
+                      'No description';
                   return [
-                    ticket['bookingId']?.toString() ?? 'N/A',
+                    ticket['ticketId']?.toString() ?? 'N/A',
                     ticket['deviceType']?.toString() ?? 'N/A',
                     ticket['deviceBrand']?.toString() ?? 'N/A',
-                    truncateText(
-                      ticket['message']?.toString() ?? 'No description',
-                      maxLength: 35,
-                    ),
-                    '₹${ticket['amount']?.toString() ?? '0'}',
+                    truncateText(issueDesc, maxLength: 35),
+                    '₹${totalAmount.toStringAsFixed(totalAmount == totalAmount.roundToDouble() ? 0 : 2)}',
                     _getStatusAbbr(
                       ticket['engineerStatus']?.toString() ?? 'N/A',
                     ),
                     _getStatusAbbr(ticket['adminStatus']?.toString() ?? 'N/A'),
-                    formatTimestamp(ticket['timestamp'] as Timestamp?),
+                    formatTimestamp(ticket['createdAt'] as Timestamp?),
                   ];
                 }).toList(),
               ),

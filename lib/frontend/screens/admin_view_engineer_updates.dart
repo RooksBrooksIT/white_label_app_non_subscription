@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/services/notification_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class EngineerUpdates extends StatefulWidget {
   const EngineerUpdates({super.key});
@@ -146,31 +147,29 @@ class _EngineerUpdatesState extends State<EngineerUpdates> {
         // Global Search Filter (Search Bar)
         if (searchController.text.isNotEmpty) {
           final searchTerm = searchController.text.toLowerCase();
-          final bookingId = _safeString(data['bookingId']).toLowerCase();
+          final ticketId = _safeString(data['ticketId']).toLowerCase();
           final customerName = _safeString(data['customerName']).toLowerCase();
-          final customerId = _safeString(data['id']).toLowerCase();
+          final customerId = _safeString(data['customerId']).toLowerCase();
 
-          if (!bookingId.contains(searchTerm) &&
+          if (!ticketId.contains(searchTerm) &&
               !customerName.contains(searchTerm) &&
               !customerId.contains(searchTerm)) {
             return false;
           }
         }
 
-        // Booking ID filter (Detailed Filter)
-        if (activeFilters.containsKey('bookingId')) {
-          final bookingId = _safeString(data['bookingId']).toLowerCase();
-          final searchTerm = activeFilters['bookingId']
-              .toString()
-              .toLowerCase();
-          if (!bookingId.contains(searchTerm)) {
+        // Ticket ID filter (Detailed Filter)
+        if (activeFilters.containsKey('ticketId')) {
+          final ticketId = _safeString(data['ticketId']).toLowerCase();
+          final searchTerm = activeFilters['ticketId'].toString().toLowerCase();
+          if (!ticketId.contains(searchTerm)) {
             return false;
           }
         }
 
         // Customer ID filter (Detailed Filter)
         if (activeFilters.containsKey('customerId')) {
-          final customerId = _safeString(data['id']).toLowerCase();
+          final customerId = _safeString(data['customerId']).toLowerCase();
           final searchTerm = activeFilters['customerId']
               .toString()
               .toLowerCase();
@@ -181,7 +180,7 @@ class _EngineerUpdatesState extends State<EngineerUpdates> {
 
         // Date Range filter
         if (startDate != null) {
-          final rawTimestamp = data['timestamp'];
+          final rawTimestamp = data['createdAt'];
           DateTime? date;
 
           if (rawTimestamp is Timestamp) {
@@ -216,8 +215,8 @@ class _EngineerUpdatesState extends State<EngineerUpdates> {
 
         // Engineer filter
         if (selectedEngineer != 'All Engineers') {
-          final assignedEmployee = _safeString(data['assignedEmployee']);
-          if (assignedEmployee != selectedEngineer) {
+          final assignedEngineer = _safeString(data['assignedEngineer']);
+          if (assignedEngineer != selectedEngineer) {
             return false;
           }
         }
@@ -340,7 +339,7 @@ class _EngineerUpdatesState extends State<EngineerUpdates> {
       activeFilters.remove(key);
       if (key == 'query') {
         searchController.clear();
-      } else if (key == 'bookingId') {
+      } else if (key == 'ticketId') {
         bookingIdController.clear();
       } else if (key == 'customerId') {
         customerIdController.clear();
@@ -443,121 +442,89 @@ class _EngineerUpdatesState extends State<EngineerUpdates> {
             ? null
             : PreferredSize(
                 preferredSize: const Size.fromHeight(1),
-                child: Divider(height: 1, color: Colors.grey.withValues(alpha: 0.1)),
+                child: Divider(
+                  height: 1,
+                  color: Colors.grey.withValues(alpha: 0.1),
+                ),
               ),
       ),
-      body: Column(
-        children: [
-          _buildEnhancedFilterSummary(),
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirestoreService.instance
-                  .collection('Admin_ticket_entry')
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return _buildLoadingState();
-                }
-                if (snapshot.hasError) {
-                  return _buildErrorState();
-                }
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1200),
+            child: ResponsiveWrapper(
+              maxWidth: 1200.0,
+              child: Column(
+                children: [
+                  _buildEnhancedFilterSummary(),
+                  Expanded(
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream: FirestoreService.instance
+                          .collection('Raised_tickets')
+                          .snapshots(),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return _buildLoadingState();
+                        }
+                        if (snapshot.hasError) {
+                          return _buildErrorState();
+                        }
 
-                final allUpdateDocs = snapshot.data?.docs ?? [];
+                        final allUpdateDocs = snapshot.data?.docs ?? [];
+                        final updateDocs = allUpdateDocs;
 
-                // Pre-filter: Only show tickets that have been actively updated by an engineer
-                final updateDocs = allUpdateDocs.where((doc) {
-                  final data = doc.data() as Map<String, dynamic>;
-                  // A ticket is considered "updated" if it has been actively modified by an engineer.
-                  // We exclude initial statuses: 'Assigned', 'Not Assigned', 'Ticket Created'.
-                  final engineerStatus =
-                      (data['engineerStatus']?.toString() ?? '')
-                          .trim()
-                          .toLowerCase();
+                        // Apply search and filters in real-time
+                        final docsToShow =
+                            filteredDocs.isNotEmpty ||
+                                filtersApplied ||
+                                searchController.text.isNotEmpty
+                            ? (filteredDocs.isEmpty &&
+                                      searchController.text.isNotEmpty
+                                  ? updateDocs.where((doc) {
+                                      final data =
+                                          doc.data() as Map<String, dynamic>;
+                                      final searchTerm = searchController.text
+                                          .toLowerCase();
+                                      final ticketId = _safeString(
+                                        data['ticketId'],
+                                      ).toLowerCase();
+                                      final customerName = _safeString(
+                                        data['customerName'],
+                                      ).toLowerCase();
+                                      return ticketId.contains(searchTerm) ||
+                                          customerName.contains(searchTerm);
+                                    }).toList()
+                                  : filteredDocs)
+                            : updateDocs;
 
-                  final isInitialStatus =
-                      engineerStatus == 'assigned' ||
-                      engineerStatus == 'not assigned' ||
-                      engineerStatus == 'ticket created' ||
-                      engineerStatus.isEmpty;
+                        final reversedDocs = docsToShow.reversed.toList();
 
-                  final hasDescription =
-                      (data['description']?.toString() ?? '').isNotEmpty;
-                  final hasLastUpdated = data['lastUpdated'] != null;
-                  final hasAmount = (data['amount'] as num? ?? 0) > 0;
+                        if (reversedDocs.isEmpty) {
+                          return _buildEmptyState();
+                        }
 
-                  return !isInitialStatus ||
-                      hasDescription ||
-                      hasLastUpdated ||
-                      hasAmount;
-                }).toList();
-
-                // Apply search and filters in real-time
-                final docsToShow =
-                    filteredDocs.isNotEmpty ||
-                        filtersApplied ||
-                        searchController.text.isNotEmpty
-                    ? (filteredDocs.isEmpty && searchController.text.isNotEmpty
-                          ? updateDocs.where((doc) {
-                              final data = doc.data() as Map<String, dynamic>;
-                              final searchTerm = searchController.text
-                                  .toLowerCase();
-                              final bookingId = _safeString(
-                                data['bookingId'],
-                              ).toLowerCase();
-                              final customerName = _safeString(
-                                data['customerName'],
-                              ).toLowerCase();
-                              return bookingId.contains(searchTerm) ||
-                                  customerName.contains(searchTerm);
-                            }).toList()
-                          : filteredDocs.where((doc) {
-                              // Ensure filtered segments also respect the active update rule
-                              final data = doc.data() as Map<String, dynamic>;
-                              final engineerStatus =
-                                  (data['engineerStatus']?.toString() ?? '')
-                                      .trim()
-                                      .toLowerCase();
-
-                              final isInitialStatus =
-                                  engineerStatus == 'assigned' ||
-                                  engineerStatus == 'not assigned' ||
-                                  engineerStatus == 'ticket created' ||
-                                  engineerStatus.isEmpty;
-
-                              final hasDescription =
-                                  (data['description']?.toString() ?? '')
-                                      .isNotEmpty;
-                              final hasLastUpdated =
-                                  data['lastUpdated'] != null;
-                              final hasAmount =
-                                  (data['amount'] as num? ?? 0) > 0;
-                              return !isInitialStatus ||
-                                  hasDescription ||
-                                  hasLastUpdated ||
-                                  hasAmount;
-                            }).toList())
-                    : updateDocs;
-
-                final reversedDocs = docsToShow.reversed.toList();
-
-                if (reversedDocs.isEmpty) {
-                  return _buildEmptyState();
-                }
-
-                return ListView.builder(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 20,
+                        return ListView.builder(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 20,
+                          ),
+                          itemCount: reversedDocs.length,
+                          itemBuilder: (context, index) {
+                            return EngineerUpdateCard(
+                              reversedDocs[index],
+                              index + 1,
+                            );
+                          },
+                        );
+                      },
+                    ),
                   ),
-                  itemCount: reversedDocs.length,
-                  itemBuilder: (context, index) {
-                    return EngineerUpdateCard(reversedDocs[index], index + 1);
-                  },
-                );
-              },
+                ],
+              ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -582,7 +549,7 @@ class _EngineerUpdatesState extends State<EngineerUpdates> {
         autofocus: true,
         style: TextStyle(color: headerTextColor, fontSize: 16),
         decoration: InputDecoration(
-          hintText: 'Search Booking ID or Customer...',
+          hintText: 'Search Ticket ID or Customer...',
           hintStyle: TextStyle(
             color: bodyTextColor.withValues(alpha: 0.5),
             fontSize: 14,
@@ -605,7 +572,7 @@ class _EngineerUpdatesState extends State<EngineerUpdates> {
         ),
         onChanged: (value) {
           FirestoreService.instance
-              .collection('Admin_ticket_entry')
+              .collection('Raised_tickets')
               .get()
               .then((snapshot) => _applyFilters(snapshot.docs));
         },
@@ -621,7 +588,9 @@ class _EngineerUpdatesState extends State<EngineerUpdates> {
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border(bottom: BorderSide(color: Colors.grey.withValues(alpha: 0.1))),
+        border: Border(
+          bottom: BorderSide(color: Colors.grey.withValues(alpha: 0.1)),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -685,7 +654,7 @@ class _EngineerUpdatesState extends State<EngineerUpdates> {
         label = value;
         icon = Icons.info_outline_rounded;
         break;
-      case 'bookingId':
+      case 'ticketId':
         label = 'ID: $value';
         icon = Icons.tag_rounded;
         break;
@@ -811,7 +780,7 @@ class _EngineerUpdatesState extends State<EngineerUpdates> {
                       Expanded(
                         child: _buildFilterInput(
                           controller: bookingIdController,
-                          hint: 'Booking ID',
+                          hint: 'Ticket ID',
                           icon: Icons.tag_rounded,
                         ),
                       ),
@@ -851,8 +820,34 @@ class _EngineerUpdatesState extends State<EngineerUpdates> {
                     height: 56,
                     child: ElevatedButton(
                       onPressed: () {
+                        // Update activeFilters from current inputs
+                        final newFilters = <String, dynamic>{};
+                        if (searchController.text.isNotEmpty) {
+                          newFilters['query'] = searchController.text;
+                        }
+                        if (bookingIdController.text.isNotEmpty) {
+                          newFilters['ticketId'] = bookingIdController.text;
+                        }
+                        if (customerIdController.text.isNotEmpty) {
+                          newFilters['customerId'] = customerIdController.text;
+                        }
+                        if (selectedEngineer != 'All Engineers') {
+                          newFilters['engineer'] = selectedEngineer;
+                        }
+                        if (selectedStatus != 'All Statuses') {
+                          newFilters['status'] = selectedStatus;
+                        }
+                        if (startDate != null) {
+                          newFilters['dateRange'] = {
+                            'start': startDate,
+                            'end': endDate,
+                          };
+                        }
+                        activeFilters = newFilters;
+                        filtersApplied = activeFilters.isNotEmpty;
+
                         FirestoreService.instance
-                            .collection('Admin_ticket_entry')
+                            .collection('Raised_tickets')
                             .get()
                             .then((snapshot) => _applyFilters(snapshot.docs));
                         Navigator.pop(context);
@@ -1112,6 +1107,7 @@ class _EngineerUpdateCardState extends State<EngineerUpdateCard> {
   late TextEditingController amountController;
   String selectedStatus = '';
   bool isLoading = false;
+  bool isPaymentApproved = false;
 
   @override
   void initState() {
@@ -1124,6 +1120,7 @@ class _EngineerUpdateCardState extends State<EngineerUpdateCard> {
     amountController = TextEditingController(
       text: data['amount']?.toString() ?? '0',
     );
+    isPaymentApproved = data['paymentApprovedByAdmin'] ?? false;
 
     // SIMPLIFIED STATUS INITIALIZATION
     // Prefer engineerStatus, fallback to adminStatus, then default to 'Pending'
@@ -1140,12 +1137,29 @@ class _EngineerUpdateCardState extends State<EngineerUpdateCard> {
 
     // Ensure the selected status is one of the valid options
     if (![
+      'Assigned',
       'Pending',
       'In Progress',
+      'Pending for Approval',
+      'Pending for Spares',
+      'Observation',
       'Completed',
+      'Canceled',
       'Unrepairable',
     ].contains(selectedStatus)) {
-      selectedStatus = 'Pending';
+      // Check if it's a similar status
+      final lower = selectedStatus.toLowerCase();
+      if (lower.contains('approval')) {
+        selectedStatus = 'Pending for Approval';
+      } else if (lower.contains('spare')) {
+        selectedStatus = 'Pending for Spares';
+      } else if (lower.contains('observation')) {
+        selectedStatus = 'Observation';
+      } else if (lower == 'cancelled') {
+        selectedStatus = 'Canceled';
+      } else {
+        selectedStatus = 'Pending';
+      }
     }
   }
 
@@ -1157,6 +1171,7 @@ class _EngineerUpdateCardState extends State<EngineerUpdateCard> {
       if (!isLoading) {
         statusDescController.text = data['statusDescription'] ?? '';
         amountController.text = data['amount']?.toString() ?? '0';
+        isPaymentApproved = data['paymentApprovedByAdmin'] ?? false;
 
         String engineerStatus = data['engineerStatus']?.toString() ?? '';
         String adminStatus = data['adminStatus']?.toString() ?? '';
@@ -1169,12 +1184,29 @@ class _EngineerUpdateCardState extends State<EngineerUpdateCard> {
 
         // Ensure the selected status is one of the valid options
         if (![
+          'Assigned',
           'Pending',
           'In Progress',
+          'Pending for Approval',
+          'Pending for Spares',
+          'Observation',
           'Completed',
+          'Canceled',
           'Unrepairable',
         ].contains(selectedStatus)) {
-          selectedStatus = 'Pending';
+          // Check if it's a similar status
+          final lower = selectedStatus.toLowerCase();
+          if (lower.contains('approval')) {
+            selectedStatus = 'Pending for Approval';
+          } else if (lower.contains('spare')) {
+            selectedStatus = 'Pending for Spares';
+          } else if (lower.contains('observation')) {
+            selectedStatus = 'Observation';
+          } else if (lower == 'cancelled') {
+            selectedStatus = 'Canceled';
+          } else {
+            selectedStatus = 'Pending';
+          }
         }
       }
     }
@@ -1210,23 +1242,25 @@ class _EngineerUpdateCardState extends State<EngineerUpdateCard> {
 
     try {
       DocumentReference docRef = FirestoreService.instance
-          .collection('Admin_ticket_entry')
+          .collection('Raised_tickets')
           .doc(widget.updateData.id);
 
       // Get the original data to access customer details
       final originalData = widget.updateData.data() as Map<String, dynamic>;
       String customerPhoneNumber = originalData['mobileNumber'] ?? '';
-      String bookingId = originalData['bookingId'] ?? '';
+      String ticketId = originalData['ticketId'] ?? '';
       String customerName = originalData['customerName'] ?? '';
-      String customerId = originalData['id'] ?? originalData['Id'] ?? '';
+      String customerId = originalData['customerId'] ?? '';
 
       Map<String, dynamic> updateData = {
         'statusDescription': statusDescController.text,
         'amount': double.tryParse(amountController.text) ?? 0,
         // Add customer details for notification
         'mobileNumber': customerPhoneNumber,
-        'bookingId': bookingId,
+        'ticketId': ticketId,
         'customerName': customerName,
+        'lastUpdatedAt': FieldValue.serverTimestamp(),
+        'paymentApprovedByAdmin': isPaymentApproved,
       };
 
       // CORRECTED STATUS MAPPING LOGIC
@@ -1256,10 +1290,10 @@ class _EngineerUpdateCardState extends State<EngineerUpdateCard> {
       // Update the main document
       await docRef.update(updateData);
 
-      // Also update the Engineer_updates collection
+      // Also update the Engineer_updates collection (for backward compatibility)
       QuerySnapshot existingDocs = await FirestoreService.instance
           .collection('Engineer_updates')
-          .where('bookingId', isEqualTo: widget.updateData['bookingId'])
+          .where('ticketId', isEqualTo: ticketId)
           .get();
 
       if (existingDocs.docs.isNotEmpty) {
@@ -1271,11 +1305,11 @@ class _EngineerUpdateCardState extends State<EngineerUpdateCard> {
       } else {
         final data = widget.updateData.data() as Map<String, dynamic>;
         await FirestoreService.instance.collection('Engineer_updates').add({
-          'bookingId': data['bookingId'] ?? 'N/A',
+          'ticketId': data['ticketId'] ?? 'N/A',
           'customerName': data['customerName'] ?? 'N/A',
           'deviceBrand': data['deviceBrand'] ?? 'N/A',
-          'deviceCondition': data['deviceCondition'] ?? 'N/A',
-          'assignedEmployee': data['assignedEmployee'] ?? 'N/A',
+          'issueDescription': data['issueDescription'] ?? 'N/A',
+          'assignedEngineer': data['assignedEngineer'] ?? 'N/A',
           'status': action,
           'statusDescription': statusDescController.text,
           'amount': double.tryParse(amountController.text) ?? 0,
@@ -1289,9 +1323,9 @@ class _EngineerUpdateCardState extends State<EngineerUpdateCard> {
           audience: 'customer',
           customerId: customerId,
           customerName: customerName,
-          bookingId: bookingId,
+          bookingId: ticketId,
           title: 'Ticket Update',
-          body: 'Your ticket $bookingId status has been updated to $action.',
+          body: 'Your ticket $ticketId status has been updated to $action.',
           type: 'status_update',
         );
       } catch (e) {
@@ -1488,14 +1522,31 @@ class _EngineerUpdateCardState extends State<EngineerUpdateCard> {
     );
   }
 
+  double _calculateTotalAmount(Map<String, dynamic> record) {
+    double total = 0.0;
+    // Add admin's amount
+    if (record['amount'] != null) {
+      total += (double.tryParse(record['amount'].toString()) ?? 0.0);
+    }
+    // Add all engineer's payments
+    if (record['payments'] is List) {
+      for (var payment in record['payments']) {
+        if (payment is Map && payment['amount'] != null) {
+          total += (double.tryParse(payment['amount'].toString()) ?? 0.0);
+        }
+      }
+    }
+    return total;
+  }
+
   // Helper method to format payment data in bill format
   Widget _buildPaymentInfo(List<dynamic>? payments, Map<String, dynamic> data) {
     if (payments == null || payments.isEmpty) {
       return const SizedBox.shrink();
     }
 
-    // Get the main amount from document data
-    final mainAmount = (data['amount'] as num?)?.toDouble() ?? 0;
+    // Get the total amount by summing all payments
+    final mainAmount = _calculateTotalAmount(data);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1695,20 +1746,9 @@ class _EngineerUpdateCardState extends State<EngineerUpdateCard> {
 
   // Build Total Amount Section that shows on ALL tickets
   Widget _buildTotalAmountSection(Map<String, dynamic> data) {
-    // Get the main amount from document data - handle all possible cases
-    final amount = data['amount'];
-    double mainAmount = 0;
-    bool hasAmount = false;
-
-    if (amount != null) {
-      if (amount is num) {
-        mainAmount = amount.toDouble();
-        hasAmount = true;
-      } else if (amount is String) {
-        mainAmount = double.tryParse(amount) ?? 0;
-        hasAmount = mainAmount > 0;
-      }
-    }
+    // Get the total amount by summing all payments
+    final mainAmount = _calculateTotalAmount(data);
+    final hasAmount = mainAmount > 0;
 
     return Container(
       margin: const EdgeInsets.only(top: 16),
@@ -1749,6 +1789,147 @@ class _EngineerUpdateCardState extends State<EngineerUpdateCard> {
           ),
         ],
       ),
+    );
+  }
+
+  // Build Uploaded Files Section (from customer)
+  Widget _buildUploadedFilesSection(List<dynamic>? uploadedFiles) {
+    if (uploadedFiles == null || uploadedFiles.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 16),
+        const Text(
+          'Uploaded Files',
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 16,
+            color: Color(0xFF0B3470),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Files uploaded by customer:',
+          style: TextStyle(color: Colors.grey[600], fontSize: 14),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 100,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: uploadedFiles.length,
+            separatorBuilder: (context, index) => const SizedBox(width: 10),
+            itemBuilder: (context, idx) {
+              final file = uploadedFiles[idx] as Map<String, dynamic>;
+              final fileUrl = file['url']?.toString() ?? '';
+              final fileName = file['name']?.toString() ?? 'File ${idx + 1}';
+
+              // Check if it's an image
+              final isImage =
+                  fileName.toLowerCase().endsWith('.jpg') ||
+                  fileName.toLowerCase().endsWith('.jpeg') ||
+                  fileName.toLowerCase().endsWith('.png') ||
+                  fileName.toLowerCase().endsWith('.gif') ||
+                  fileName.toLowerCase().endsWith('.webp');
+
+              return GestureDetector(
+                onTap: () {
+                  _showImageDialog(context, fileUrl);
+                },
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    width: 100,
+                    height: 100,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey[300]!),
+                      borderRadius: BorderRadius.circular(8),
+                      color: Colors.grey[50],
+                    ),
+                    child: isImage
+                        ? Image.network(
+                            fileUrl,
+                            width: 100,
+                            height: 100,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) =>
+                                Container(
+                                  color: Colors.grey[100],
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.insert_drive_file,
+                                        color: Colors.grey[400],
+                                        size: 30,
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 4,
+                                        ),
+                                        child: Text(
+                                          fileName,
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                            color: Colors.grey[500],
+                                            fontSize: 8,
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                            loadingBuilder: (context, child, progress) {
+                              if (progress == null) return child;
+                              return Container(
+                                color: Colors.grey[100],
+                                child: const Center(
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                              );
+                            },
+                          )
+                        : Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.insert_drive_file,
+                                color: Colors.grey[400],
+                                size: 30,
+                              ),
+                              const SizedBox(height: 4),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                ),
+                                child: Text(
+                                  fileName,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: Colors.grey[500],
+                                    fontSize: 8,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -1871,14 +2052,23 @@ class _EngineerUpdateCardState extends State<EngineerUpdateCard> {
   @override
   Widget build(BuildContext context) {
     final data = widget.updateData.data() as Map<String, dynamic>;
-    final assignedEmployee = data['assignedEmployee'] ?? 'Not Assigned';
-    final customerId = data['id'] ?? 'N/A';
+    final assignedEngineer = data['assignedEngineer'] ?? 'Not Assigned';
+    final customerId = data['customerId'] ?? 'N/A';
     final customerName = data['customerName'] ?? 'N/A';
     final payments = data['payments'] as List<dynamic>?;
-    final bookingId = data['bookingId'] ?? 'N/A';
+    final ticketId = data['ticketId'] ?? 'N/A';
     final deviceBrand = data['deviceBrand'] ?? 'N/A';
-    final deviceCondition = data['deviceCondition'] ?? 'No condition specified';
-    final timestamp = data['timestamp'];
+    final deviceType = data['deviceType'] ?? 'N/A';
+    final issueDescription = data['issueDescription'] ?? 'No issue specified';
+    final address = data['address'] ?? 'N/A';
+    final mobileNumber = data['mobileNumber'] ?? 'N/A';
+    final jobType = data['jobType'] ?? 'N/A';
+    final assignedAt = data['assignedAt'];
+    final lastUpdatedBy = data['lastUpdatedBy'] ?? 'N/A';
+    final lastUpdatedAt = data['lastUpdatedAt'];
+    final statusHistory = data['statusHistory'] as List<dynamic>?;
+    final createdAt = data['createdAt'];
+    final uploadedFiles = data['uploadedFiles'] as List<dynamic>?;
 
     // Determine status display for color
     String statusForColor = '';
@@ -1928,318 +2118,538 @@ class _EngineerUpdateCardState extends State<EngineerUpdateCard> {
 
     final Color statusColor = getStatusColor(statusForColor);
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 500),
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: Column(
-          children: [
-            // Header Section
-            InkWell(
-              onTap: () => setState(() => isExpanded = !isExpanded),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    // Serial Number / Index
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(
-                        child: Text(
-                          widget.serialNumber.toString(),
-                          style: TextStyle(
-                            color: statusColor,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    // ID and Customer Name
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            bookingId,
-                            style: const TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF1E293B),
-                              letterSpacing: -0.5,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            customerName,
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey[600],
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Status Chip
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: Column(
+              children: [
+                // Header Section
+                InkWell(
+                  onTap: () => setState(() => isExpanded = !isExpanded),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
                       children: [
+                        // Serial Number / Index
                         Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 6,
-                          ),
+                          width: 44,
+                          height: 44,
                           decoration: BoxDecoration(
-                            color: statusColor.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(10),
+                            color: statusColor.withValues(alpha: 0.1),
+                            shape: BoxShape.circle,
                           ),
-                          child: Text(
-                            displayStatus.toUpperCase(),
-                            style: TextStyle(
-                              color: statusColor,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.5,
+                          child: Center(
+                            child: Text(
+                              widget.serialNumber.toString(),
+                              style: TextStyle(
+                                color: statusColor,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 16,
+                              ),
                             ),
                           ),
                         ),
-                        const SizedBox(height: 6),
-                        Icon(
-                          isExpanded
-                              ? Icons.keyboard_arrow_up_rounded
-                              : Icons.keyboard_arrow_down_rounded,
-                          color: Colors.grey[400],
-                          size: 20,
+                        const SizedBox(width: 16),
+                        // ID and Customer Name
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                ticketId,
+                                style: const TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF1E293B),
+                                  letterSpacing: -0.5,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                customerName,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey[600],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Status Chip
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: statusColor.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                displayStatus.toUpperCase(),
+                                style: TextStyle(
+                                  color: statusColor,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Icon(
+                              isExpanded
+                                  ? Icons.keyboard_arrow_up_rounded
+                                  : Icons.keyboard_arrow_down_rounded,
+                              color: Colors.grey[400],
+                              size: 20,
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
 
-            if (isExpanded) ...[
-              const Divider(height: 1, indent: 20, endIndent: 20),
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Details Grid
-                    _buildInfoGrid([
-                      {
-                        'label': 'Customer ID',
-                        'value': customerId,
-                        'icon': Icons.person_outline_rounded,
-                      },
-                      {
-                        'label': 'Device',
-                        'value': deviceBrand,
-                        'icon': Icons.devices_rounded,
-                      },
-                      {
-                        'label': 'Engineer',
-                        'value': assignedEmployee,
-                        'icon': Icons.engineering_outlined,
-                      },
-                      {
-                        'label': 'Date',
-                        'value': _formatTimestamp(timestamp),
-                        'icon': Icons.calendar_today_rounded,
-                      },
-                    ]),
+                if (isExpanded) ...[
+                  const Divider(height: 1, indent: 20, endIndent: 20),
+                  Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Details Grid
+                        _buildInfoGrid([
+                          {
+                            'label': 'Customer ID',
+                            'value': customerId,
+                            'icon': Icons.person_outline_rounded,
+                          },
+                          {
+                            'label': 'Mobile',
+                            'value': mobileNumber,
+                            'icon': Icons.phone_rounded,
+                          },
+                          {
+                            'label': 'Device Brand',
+                            'value': deviceBrand,
+                            'icon': Icons.devices_rounded,
+                          },
+                          {
+                            'label': 'Device Type',
+                            'value': deviceType,
+                            'icon': Icons.phone_android_rounded,
+                          },
+                          {
+                            'label': 'Job Type',
+                            'value': jobType,
+                            'icon': Icons.work_rounded,
+                          },
+                          {
+                            'label': 'Assigned Engineer',
+                            'value': assignedEngineer,
+                            'icon': Icons.engineering_outlined,
+                          },
+                          {
+                            'label': 'Created Date',
+                            'value': _formatTimestamp(createdAt),
+                            'icon': Icons.date_range_rounded,
+                          },
+                        ]),
 
-                    const SizedBox(height: 24),
-                    _buildSectionTitle('Issue & Notes'),
-                    const SizedBox(height: 12),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: Colors.grey.withValues(alpha: 0.05),
-                        ),
-                      ),
-                      child: Text(
-                        deviceCondition,
-                        style: const TextStyle(
-                          color: Color(0xFF475569),
-                          fontSize: 14,
-                          height: 1.5,
-                        ),
-                      ),
-                    ),
-
-                    if (data['description'] != null &&
-                        data['description'].toString().isNotEmpty) ...[
-                      const SizedBox(height: 16),
-                      _buildSectionTitle('Engineer Notes'),
-                      const SizedBox(height: 8),
-                      Text(
-                        data['description'],
-                        style: TextStyle(
-                          color: Colors.grey[700],
-                          fontSize: 13,
-                          fontStyle: FontStyle.italic,
-                        ),
-                      ),
-                    ],
-
-                    // Payment and Amount Sections
-                    if (payments != null && payments.isNotEmpty)
-                      _buildPaymentInfo(payments, data)
-                    else
-                      _buildTotalAmountSection(data),
-
-                    // Field Images
-                    _buildFieldImagesSection(data),
-
-                    const SizedBox(height: 32),
-                    const Divider(),
-                    const SizedBox(height: 24),
-
-                    _buildSectionTitle('Update Status'),
-                    const SizedBox(height: 16),
-
-                    // Status Dropdown
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: Colors.grey.withValues(alpha: 0.1)),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButtonFormField<String>(
-                          initialValue: selectedStatus,
-                          isExpanded: true,
-                          decoration: const InputDecoration(
-                            border: InputBorder.none,
-                            labelText: 'Select New Status',
+                        const SizedBox(height: 24),
+                        _buildSectionTitle('Address'),
+                        const SizedBox(height: 12),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.grey.withValues(alpha: 0.05),
+                            ),
                           ),
-                          items:
-                              [
-                                    'Assigned',
-                                    'Pending',
-                                    'In Progress',
-                                    'Pending for Approval',
-                                    'Pending for Spares',
-                                    'Observation',
-                                    'Completed',
-                                    'Canceled',
-                                    'Unrepairable',
-                                  ]
-                                  .map(
-                                    (status) => DropdownMenuItem(
-                                      value: status,
-                                      child: Text(
-                                        status,
-                                        style: const TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ),
-                                  )
-                                  .toList(),
-                          onChanged: (value) =>
-                              setState(() => selectedStatus = value!),
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Description Input
-                    TextField(
-                      controller: statusDescController,
-                      maxLines: 2,
-                      decoration: InputDecoration(
-                        filled: true,
-                        fillColor: const Color(0xFFF8FAFC),
-                        hintText: 'Add internal status description...',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          borderSide: BorderSide(
-                            color: Colors.grey.withValues(alpha: 0.1),
+                          child: Text(
+                            address,
+                            style: const TextStyle(
+                              color: Color(0xFF475569),
+                              fontSize: 14,
+                              height: 1.5,
+                            ),
                           ),
                         ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          borderSide: BorderSide(
-                            color: Colors.grey.withValues(alpha: 0.1),
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          borderSide: BorderSide(
-                            color: ThemeService.instance.primaryColor,
-                          ),
-                        ),
-                      ),
-                    ),
 
-                    const SizedBox(height: 20),
-
-                    // Update Button
-                    SizedBox(
-                      width: double.infinity,
-                      height: 54,
-                      child: ElevatedButton(
-                        onPressed: isLoading
-                            ? null
-                            : () => _showConfirmationDialog(selectedStatus),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: ThemeService.instance.primaryColor,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
+                        const SizedBox(height: 24),
+                        _buildSectionTitle('Issue Description'),
+                        const SizedBox(height: 12),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.grey.withValues(alpha: 0.05),
+                            ),
+                          ),
+                          child: Text(
+                            issueDescription,
+                            style: const TextStyle(
+                              color: Color(0xFF475569),
+                              fontSize: 14,
+                              height: 1.5,
+                            ),
                           ),
                         ),
-                        child: isLoading
-                            ? const SizedBox(
-                                width: 24,
-                                height: 24,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Text(
-                                'Update Ticket Status',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 15,
+
+                        _buildUploadedFilesSection(uploadedFiles),
+
+                        const SizedBox(height: 24),
+                        _buildSectionTitle('Current Statuses'),
+                        const SizedBox(height: 12),
+                        _buildInfoGrid([
+                          {
+                            'label': 'Admin Status',
+                            'value': data['adminStatus'] ?? 'N/A',
+                            'icon': Icons.admin_panel_settings_rounded,
+                          },
+                          {
+                            'label': 'Engineer Status',
+                            'value': data['engineerStatus'] ?? 'N/A',
+                            'icon': Icons.engineering_rounded,
+                          },
+                        ]),
+
+                        const SizedBox(height: 24),
+                        _buildSectionTitle('Last Updated'),
+                        const SizedBox(height: 12),
+                        _buildInfoGrid([
+                          {
+                            'label': 'Updated By',
+                            'value': lastUpdatedBy,
+                            'icon': Icons.person_rounded,
+                          },
+                          {
+                            'label': 'Updated At',
+                            'value': _formatTimestamp(lastUpdatedAt),
+                            'icon': Icons.access_time_rounded,
+                          },
+                        ]),
+
+                        if (statusHistory != null &&
+                            statusHistory.isNotEmpty) ...[
+                          const SizedBox(height: 24),
+                          _buildSectionTitle('Status History'),
+                          const SizedBox(height: 12),
+                          ...statusHistory.asMap().entries.map((entry) {
+                            final historyItem =
+                                entry.value as Map<String, dynamic>;
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: Colors.grey.withValues(alpha: 0.05),
                                 ),
                               ),
-                      ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    historyItem['status']?.toString() ?? 'N/A',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'By: ${historyItem['updatedBy']?.toString() ?? 'N/A'}',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                  Text(
+                                    'At: ${_formatTimestamp(historyItem['timestamp'])}',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                        ],
+
+                        // Payment and Amount Sections
+                        if (payments != null && payments.isNotEmpty)
+                          _buildPaymentInfo(payments, data)
+                        else
+                          _buildTotalAmountSection(data),
+
+                        // Field Images
+                        _buildFieldImagesSection(data),
+
+                        const SizedBox(height: 32),
+                        const Divider(),
+                        const SizedBox(height: 24),
+
+                        _buildSectionTitle('Update Status'),
+                        const SizedBox(height: 16),
+
+                        // Status Dropdown
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: Colors.grey.withValues(alpha: 0.1),
+                            ),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButtonFormField<String>(
+                              initialValue: selectedStatus,
+                              isExpanded: true,
+                              decoration: const InputDecoration(
+                                border: InputBorder.none,
+                                labelText: 'Select New Status',
+                              ),
+                              items:
+                                  [
+                                        'Assigned',
+                                        'Pending',
+                                        'In Progress',
+                                        'Pending for Approval',
+                                        'Pending for Spares',
+                                        'Observation',
+                                        'Completed',
+                                        'Canceled',
+                                        'Unrepairable',
+                                      ]
+                                      .map(
+                                        (status) => DropdownMenuItem(
+                                          value: status,
+                                          child: Text(
+                                            status,
+                                            style: const TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ),
+                                      )
+                                      .toList(),
+                              onChanged: (value) =>
+                                  setState(() => selectedStatus = value!),
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Description Input
+                        TextField(
+                          controller: statusDescController,
+                          maxLines: 2,
+                          decoration: InputDecoration(
+                            filled: true,
+                            fillColor: const Color(0xFFF8FAFC),
+                            hintText: 'Add internal status description...',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide(
+                                color: Colors.grey.withValues(alpha: 0.1),
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide(
+                                color: Colors.grey.withValues(alpha: 0.1),
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide(
+                                color: ThemeService.instance.primaryColor,
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Amount Input
+                        TextField(
+                          controller: amountController,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          decoration: InputDecoration(
+                            filled: true,
+                            fillColor: const Color(0xFFF8FAFC),
+                            hintText: 'Enter amount (₹)',
+                            prefixText: '₹ ',
+                            prefixStyle: const TextStyle(
+                              color: Color(0xFF475569),
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide(
+                                color: Colors.grey.withValues(alpha: 0.1),
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide(
+                                color: Colors.grey.withValues(alpha: 0.1),
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide(
+                                color: ThemeService.instance.primaryColor,
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Payment Approval Toggle
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: Colors.grey.withValues(alpha: 0.1),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                isPaymentApproved
+                                    ? Icons.check_circle_rounded
+                                    : Icons.pending_actions_rounded,
+                                color: isPaymentApproved
+                                    ? Colors.green
+                                    : Colors.orange,
+                                size: 24,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      isPaymentApproved
+                                          ? 'Payment Approved for Customer View'
+                                          : 'Payment Pending Admin Approval',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700,
+                                        color: isPaymentApproved
+                                            ? Colors.green
+                                            : Colors.orange,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      isPaymentApproved
+                                          ? 'Customer can now see payment details'
+                                          : 'Customer cannot see payment details yet',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Switch(
+                                value: isPaymentApproved,
+                                onChanged: (value) {
+                                  setState(() {
+                                    isPaymentApproved = value;
+                                  });
+                                },
+                                activeColor: Colors.green,
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 20),
+
+                        // Update Button
+                        SizedBox(
+                          width: double.infinity,
+                          height: 54,
+                          child: ElevatedButton(
+                            onPressed: isLoading
+                                ? null
+                                : () => _showConfirmationDialog(selectedStatus),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor:
+                                  ThemeService.instance.primaryColor,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                            child: isLoading
+                                ? const SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Text(
+                                    'Update Ticket Status',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              ),
-            ],
-          ],
+                  ),
+                ],
+              ],
+            ),
+          ),
         ),
       ),
     );

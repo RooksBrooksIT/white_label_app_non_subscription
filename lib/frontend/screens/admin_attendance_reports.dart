@@ -7,6 +7,7 @@ import 'package:printing/printing.dart';
 import 'package:intl/intl.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:subscription_rooks_app/utils/pdf_utils.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class AdminAttendanceReportsPage extends StatefulWidget {
   const AdminAttendanceReportsPage({super.key});
@@ -105,132 +106,45 @@ class _AdminAttendanceReportsPageState
 
   @override
   Widget build(BuildContext context) {
-    final primaryColor = Theme.of(context).primaryColor;
-
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0.5,
-        leading: Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: CircleAvatar(
-            backgroundColor: const Color(0xFFF1F5F9),
-            child: IconButton(
-              icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF0F172A), size: 18),
-              onPressed: () => Navigator.pop(context),
-            ),
-          ),
-        ),
-        title: const Text(
-          'Attendance Reports',
-          style: TextStyle(
-            color: Color(0xFF0F172A),
-            fontWeight: FontWeight.w800,
-            fontSize: 18,
-            letterSpacing: -0.4,
-          ),
-        ),
+        title: const Text('Attendance Reports'),
+        backgroundColor: Theme.of(context).primaryColor,
+        foregroundColor: Colors.white,
+        elevation: 0,
       ),
       body: SafeArea(
-        child: Column(
-          children: [
-            _buildTopHeroBanner(primaryColor),
-            _buildFilterSection(primaryColor),
-            Expanded(child: _buildAttendanceList()),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTopHeroBanner(Color primaryColor) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-        decoration: BoxDecoration(
-          color: primaryColor.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(
-            color: primaryColor.withValues(alpha: 0.18),
-            width: 1.5,
+        child: ResponsiveWrapper(
+          maxWidth: 1200.0,
+          child: Column(
+            children: [
+              _buildFilterSection(),
+              Expanded(child: _buildAttendanceList()),
+            ],
           ),
-          boxShadow: [
-            BoxShadow(
-              color: primaryColor.withValues(alpha: 0.04),
-              blurRadius: 16,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(14),
-                boxShadow: [
-                  BoxShadow(
-                    color: primaryColor.withValues(alpha: 0.12),
-                    blurRadius: 10,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: Icon(
-                Icons.analytics_rounded,
-                color: primaryColor,
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Attendance & Payroll Analytics',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF0F172A),
-                      letterSpacing: -0.4,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Filter, audit, and export staff attendance logs to PDF',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: primaryColor.withValues(alpha: 0.85),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
         ),
       ),
     );
   }
 
-  Widget _buildFilterSection(Color primaryColor) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 6, 16, 6),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
+  Widget _buildFilterSection() {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 500),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(24),
+          bottomRight: Radius.circular(24),
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
-            offset: const Offset(0, 3),
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -243,31 +157,29 @@ class _AdminAttendanceReportsPageState
                     ? const Center(child: CircularProgressIndicator())
                     : DropdownButtonFormField<String>(
                         decoration: InputDecoration(
-                          labelText: 'Filter Staff Member',
-                          labelStyle: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-                          prefixIcon: Icon(Icons.person_search_rounded, color: primaryColor, size: 20),
+                          labelText: 'Select Engineer',
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                            borderRadius: BorderRadius.circular(12),
                           ),
                           isDense: true,
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 12,
-                            vertical: 10,
+                            vertical: 12,
                           ),
                         ),
                         initialValue: _selectedEngineerId,
                         items: [
                           const DropdownMenuItem<String>(
                             value: null,
-                            child: Text('ALL STAFF MEMBERS', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                            child: Text('ALL ENGINEERS'),
                           ),
                           ..._engineers.map((eng) {
                             return DropdownMenuItem<String>(
                               value: eng['uid'] as String,
                               child: Text(
-                                (eng['username'] ?? 'Unknown').toString(),
-                                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                                (eng['username'] ?? 'Unknown')
+                                    .toString()
+                                    .toUpperCase(),
                               ),
                             );
                           }),
@@ -281,51 +193,46 @@ class _AdminAttendanceReportsPageState
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () => _selectDateRange(context),
-                  icon: Icon(Icons.date_range_rounded, size: 16, color: primaryColor),
+                  icon: const Icon(Icons.date_range),
                   label: Text(
                     _selectedDateRange == null
                         ? 'Date Range'
                         : '${DateFormat('dd/MM').format(_selectedDateRange!.start)} - ${DateFormat('dd/MM').format(_selectedDateRange!.end)}',
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
                   ),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF0F172A),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    padding: const EdgeInsets.symmetric(vertical: 9),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    side: const BorderSide(color: Color(0xFFE2E8F0)),
+                    side: BorderSide(color: Theme.of(context).primaryColor),
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 12),
               Expanded(
                 child: DropdownButtonFormField<int>(
                   decoration: InputDecoration(
                     labelText: 'By Month',
-                    labelStyle: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-                    prefixIcon: Icon(Icons.calendar_month_rounded, color: primaryColor, size: 18),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
                     ),
                     isDense: true,
                     contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 8,
+                      horizontal: 12,
+                      vertical: 8.5,
                     ),
                   ),
                   initialValue: _selectedMonth?.month,
                   items: List.generate(12, (index) {
                     return DropdownMenuItem(
                       value: index + 1,
-                      child: Text(_months[index], style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                      child: Text(_months[index]),
                     );
                   }),
                   onChanged: (val) {
@@ -344,27 +251,16 @@ class _AdminAttendanceReportsPageState
               _selectedDateRange != null ||
               _selectedMonth != null)
             Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: InkWell(
-                onTap: _clearFilters,
-                borderRadius: BorderRadius.circular(8),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.filter_alt_off_rounded, size: 14, color: primaryColor),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Clear Active Filters',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: primaryColor),
-                      ),
-                    ],
-                  ),
-                ),
+              padding: const EdgeInsets.only(top: 8),
+              child: TextButton.icon(
+                onPressed: _clearFilters,
+                icon: const Icon(Icons.clear_all),
+                label: const Text('Clear All Filters'),
               ),
             ),
         ],
+      ),
+        ),
       ),
     );
   }
@@ -569,13 +465,16 @@ class _AdminAttendanceReportsPageState
                 horizontal: 16.0,
                 vertical: 8.0,
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Details',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                  ),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 500),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Details',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                      ),
                   ElevatedButton.icon(
                     onPressed: () => _generateProfessionalPDF(
                       list,
@@ -596,7 +495,9 @@ class _AdminAttendanceReportsPageState
                       ),
                     ),
                   ),
-                ],
+                    ],
+                  ),
+                ),
               ),
             ),
             Expanded(
@@ -623,10 +524,13 @@ class _AdminAttendanceReportsPageState
     int totalEngineers,
     String displayDate,
   ) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 500),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -655,6 +559,8 @@ class _AdminAttendanceReportsPageState
             ],
           ),
         ],
+      ),
+        ),
       ),
     );
   }
@@ -705,43 +611,36 @@ class _AdminAttendanceReportsPageState
 
   Widget _summaryCard(String label, int count, Color color) {
     return Expanded(
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 2),
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withValues(alpha: 0.25), width: 1),
-          boxShadow: [
-            BoxShadow(
-              color: color.withValues(alpha: 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            Text(
-              count.toString(),
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w900,
-                color: color,
+      child: Card(
+        elevation: 4,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border(bottom: BorderSide(color: color, width: 4)),
+          ),
+          child: Column(
+            children: [
+              Text(
+                count.toString(),
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
               ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                color: const Color(0xFF64748B),
-                fontWeight: FontWeight.w700,
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -749,118 +648,101 @@ class _AdminAttendanceReportsPageState
 
   Widget _buildReportItem(Map<String, dynamic> data) {
     final date = _parseTimestamp(data['date']).toDate();
-    final status = (data['status'] ?? 'Present') as String;
-    final username = (data['engineerUsername'] ?? 'Staff Member') as String;
-    final remarks = (data['comment'] ?? '').toString();
+    final status = data['status'] as String;
+    final username = data['engineerUsername'] as String;
+    // Strictly use 'comment' as that is where data is saved.
+    final remarks = data['comment'] ?? '';
 
-    Color statusColor = const Color(0xFF10B981);
-    if (status == 'Absent') statusColor = const Color(0xFFEF4444);
+    Color statusColor = Colors.green;
+    if (status == 'Absent') statusColor = Colors.red;
     if (status == 'HalfDay' || status == 'Half Day') {
-      statusColor = const Color(0xFFF59E0B);
+      statusColor = Colors.orange;
     }
-    if (status == 'OT') statusColor = const Color(0xFF3B82F6);
-    if (status == 'Leave') statusColor = const Color(0xFF8B5CF6);
+    if (status == 'OT') statusColor = Colors.blue;
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
-      decoration: BoxDecoration(
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 500),
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 10,
-            offset: const Offset(0, 3),
+            offset: const Offset(0, 2),
           ),
         ],
       ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(18),
-        clipBehavior: Clip.antiAlias,
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Center(
-                  child: Text(
-                    username.isNotEmpty ? username.substring(0, 1).toUpperCase() : 'S',
-                    style: TextStyle(
-                      color: statusColor,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 18,
-                    ),
-                  ),
-                ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: statusColor.withValues(alpha: 0.1),
+            shape: BoxShape.circle,
+          ),
+          child: Center(
+            child: Text(
+              username.substring(0, 1).toUpperCase(),
+              style: TextStyle(
+                color: statusColor,
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          username,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 15,
-                            color: Color(0xFF0F172A),
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3.5),
-                          decoration: BoxDecoration(
-                            color: statusColor.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            status,
-                            style: TextStyle(
-                              color: statusColor,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const Icon(Icons.calendar_month_rounded, size: 13, color: Color(0xFF64748B)),
-                        const SizedBox(width: 5),
-                        Text(
-                          DateFormat('MMM dd, yyyy (EEE)').format(date),
-                          style: const TextStyle(color: Color(0xFF64748B), fontSize: 12, fontWeight: FontWeight.w500),
-                        ),
-                      ],
-                    ),
-                    if (remarks.isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        'Note: $remarks',
-                        style: const TextStyle(
-                          fontStyle: FontStyle.italic,
-                          color: Color(0xFF475569),
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
-                  ],
+            ),
+          ),
+        ),
+        title: Text(
+          username.toUpperCase(),
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                const Icon(Icons.calendar_month, size: 14, color: Colors.grey),
+                const SizedBox(width: 4),
+                Text(
+                  DateFormat('MMM dd, yyyy (EEE)').format(date),
+                  style: const TextStyle(color: Colors.grey),
+                ),
+              ],
+            ),
+            if (remarks.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Note: $remarks',
+                style: const TextStyle(
+                  fontStyle: FontStyle.italic,
+                  color: Colors.black87,
+                  fontSize: 12,
                 ),
               ),
             ],
+          ],
+        ),
+        trailing: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: statusColor,
+            borderRadius: BorderRadius.circular(20),
           ),
+          child: Text(
+            status,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 11,
+            ),
+          ),
+        ),
+      ),
         ),
       ),
     );

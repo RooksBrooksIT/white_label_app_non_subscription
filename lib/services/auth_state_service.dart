@@ -78,15 +78,48 @@ class AuthStateService extends ChangeNotifier {
   }) async {
     try {
       if (deferAuth) {
-        // Just store the data in memory for now
+        final auth = FirebaseAuth.instance;
+
+        // 1. Validate credentials by actually creating or signing in the Auth account
+        if (auth.currentUser == null || auth.currentUser!.email != email) {
+          try {
+            await auth.createUserWithEmailAndPassword(
+              email: email,
+              password: password,
+            );
+          } on FirebaseAuthException catch (e) {
+            if (e.code == 'email-already-in-use') {
+              try {
+                await auth.signInWithEmailAndPassword(
+                  email: email,
+                  password: password,
+                );
+                debugPrint('User already exists, signed in to validate credentials');
+              } catch (signInError) {
+                return {
+                  'success': false,
+                  'message': 'Auth Error: The email address is already in use and the password provided is incorrect.',
+                };
+              }
+            } else {
+              return {
+                'success': false,
+                'message': 'Auth Error: ${e.message} (Code: ${e.code})',
+              };
+            }
+          }
+        }
+
+        // Just store the data in memory for now, but include the uid
         _pendingRegistrationData = {
+          'uid': auth.currentUser!.uid,
           'name': name,
           'email': email,
           'password': password,
           'role': role,
           'additionalData': additionalData,
         };
-        debugPrint('Account registration deferred for $email');
+        debugPrint('Account auth validated and registration deferred for $email');
         return {'success': true, 'message': 'Account details saved locally.'};
       }
 
@@ -209,20 +242,17 @@ class AuthStateService extends ChangeNotifier {
       final role = _pendingRegistrationData!['role'];
       final additionalData = _pendingRegistrationData!['additionalData'];
 
-      // Determine proper scope (Company DB)
-      String targetScope = ThemeService.instance.appName;
-
-      if (role == 'admin' || role == 'Owner') {
-        // Generate dynamic collection name: OrganizationName_YYYYMMDD
-        final now = DateTime.now();
-        final dateStr =
-            "${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}";
-        // Clean organization name (remove spaces)
-        final cleanOrgName = name.replaceAll(' ', '');
-        targetScope = "${cleanOrgName}_$dateStr";
+      // Determine proper scope (User/Company DB)
+      String targetScope = '';
+      if (_pendingRegistrationData != null &&
+          _pendingRegistrationData!.containsKey('tenantId') &&
+          (_pendingRegistrationData!['tenantId'] as String).isNotEmpty) {
+        targetScope = _pendingRegistrationData!['tenantId'];
       } else if (additionalData != null &&
           additionalData.containsKey('linkedAppName')) {
         targetScope = additionalData['linkedAppName'];
+      } else {
+        targetScope = FirestoreService.generateTenantId(name);
       }
 
       // 2. Store details in Firestore (Isolated to Company DB)

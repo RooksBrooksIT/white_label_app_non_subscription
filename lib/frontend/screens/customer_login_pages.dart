@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class CustomerTypePage extends StatefulWidget {
   const CustomerTypePage({super.key});
@@ -25,8 +26,9 @@ class _CustomerTypePageState extends State<CustomerTypePage> {
           ),
         ),
         child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
+          child: ResponsiveFormWrapper(
+            maxWidth: kMaxFormWidth,
+            horizontalPadding: 24.0,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

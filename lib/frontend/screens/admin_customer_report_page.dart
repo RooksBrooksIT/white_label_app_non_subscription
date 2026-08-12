@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:open_file/open_file.dart';
@@ -10,6 +12,8 @@ import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:subscription_rooks_app/utils/pdf_utils.dart';
 import 'package:intl/intl.dart';
 import 'dart:io';
+import 'dart:async';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class CustomerReportGenerator extends StatefulWidget {
   const CustomerReportGenerator({super.key});
@@ -23,12 +27,12 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
     with SingleTickerProviderStateMixin {
   final TextEditingController _controller = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
-  Map<String, dynamic>? amcCustomerData;
   Map<String, dynamic>? resultData;
   List<Map<String, dynamic>>? multipleResults;
   bool _loading = false;
   bool _isPdfViewing = false;
   bool _isPdfDownloading = false;
+  StreamSubscription? _ticketsSubscription;
   late AnimationController _animController;
   late Animation<double> _fadeAnim;
   late Animation<Offset> _slideAnim;
@@ -49,14 +53,49 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
       begin: const Offset(0, 0.08),
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _animController, curve: Curves.easeOut));
+    // Load all tickets initially with realtime updates
+    _listenToAllTickets();
   }
 
   @override
   void dispose() {
+    _ticketsSubscription?.cancel();
     _animController.dispose();
     _controller.dispose();
     _searchFocusNode.dispose();
     super.dispose();
+  }
+
+  void _listenToAllTickets() {
+    setState(() {
+      _loading = true;
+    });
+    _ticketsSubscription = FirestoreService.instance
+        .collection('Raised_tickets')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .listen(
+          (snapshot) {
+            setState(() {
+              multipleResults = snapshot.docs
+                  .map((doc) => doc.data() as Map<String, dynamic>)
+                  .toList();
+              resultData = null;
+              _selectedRows.clear();
+              _allSelected = false;
+              _loading = false;
+              if (multipleResults!.isNotEmpty) {
+                _animController.forward();
+              }
+            });
+          },
+          onError: (error) {
+            _showSnack('Error loading tickets: $error', color: Colors.red);
+            setState(() {
+              _loading = false;
+            });
+          },
+        );
   }
 
   final Map<int, bool> _selectedRows = {};
@@ -65,16 +104,18 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
   Color get primaryColor => _brand;
 
   Future<void> _fetchData(String input) async {
-    final searchInput = input.trim();
-    if (searchInput.isEmpty) {
-      _showSnack('Please enter Customer ID, Phone, or Booking ID',
-          color: Colors.orange);
+    if (input.isEmpty) {
+      // If search is cleared, re-listen to all tickets
+      _listenToAllTickets();
       return;
     }
 
+    // Cancel the realtime subscription before searching
+    _ticketsSubscription?.cancel();
+    _ticketsSubscription = null;
+
     setState(() {
       _loading = true;
-      amcCustomerData = null;
       resultData = null;
       multipleResults = null;
       _selectedRows.clear();
@@ -83,117 +124,71 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
     _animController.reset();
 
     try {
-      final firestore = FirestoreService.instance;
-
-      // 1. Search AMC_user collection for Customer Profile
-      Map<String, dynamic>? foundAmcUser;
-      try {
-        final docById = await firestore.collection('AMC_user').doc(searchInput).get();
-        if (docById.exists && docById.data() != null) {
-          foundAmcUser = docById.data();
-        }
-      } catch (_) {}
-
-      if (foundAmcUser == null) {
-        final amcSnapshots = await Future.wait([
-          firestore.collection('AMC_user').where('Id', isEqualTo: searchInput).get(),
-          firestore.collection('AMC_user').where('Phone Number', isEqualTo: searchInput).get(),
-          firestore.collection('AMC_user').where('email', isEqualTo: searchInput).get(),
-        ]);
-        for (final snap in amcSnapshots) {
-          if (snap.docs.isNotEmpty) {
-            foundAmcUser = snap.docs.first.data();
-            break;
-          }
-        }
-      }
-
-      // If still not found, search all AMC_user documents for matching fields
-      if (foundAmcUser == null) {
-        final allAmcUsers = await firestore.collection('AMC_user').get();
-        final lowerInput = searchInput.toLowerCase();
-        for (final doc in allAmcUsers.docs) {
-          final data = doc.data();
-          final id = (data['Id'] ?? '').toString().toLowerCase();
-          final phone = (data['Phone Number'] ?? '').toString().toLowerCase();
-          final email = (data['email'] ?? '').toString().toLowerCase();
-          final name = (data['name'] ?? '').toString().toLowerCase();
-
-          if (id == lowerInput ||
-              phone == lowerInput ||
-              email == lowerInput ||
-              name == lowerInput ||
-              doc.id.toLowerCase() == lowerInput) {
-            foundAmcUser = data;
-            break;
-          }
-        }
-      }
-
-      amcCustomerData = foundAmcUser;
-
-      // 2. Search Admin_ticket_entry collection for tickets
-      final String amcId = (foundAmcUser?['Id'] ?? searchInput).toString();
-      final String amcPhone = (foundAmcUser?['Phone Number'] ?? searchInput).toString();
-
-      final ticketSnapshots = await Future.wait([
-        firestore.collection('Admin_ticket_entry').where('id', isEqualTo: searchInput).get(),
-        firestore.collection('Admin_ticket_entry').where('mobileNumber', isEqualTo: searchInput).get(),
-        firestore.collection('Admin_ticket_entry').where('bookingId', isEqualTo: searchInput).get(),
-        if (amcId != searchInput)
-          firestore.collection('Admin_ticket_entry').where('id', isEqualTo: amcId).get(),
-        if (amcPhone != searchInput)
-          firestore.collection('Admin_ticket_entry').where('mobileNumber', isEqualTo: amcPhone).get(),
+      final List<QuerySnapshot> snapshots = await Future.wait([
+        FirestoreService.instance
+            .collection('Raised_tickets')
+            .where('customerId', isEqualTo: input)
+            .get(),
+        FirestoreService.instance
+            .collection('Raised_tickets')
+            .where('mobileNumber', isEqualTo: input)
+            .get(),
+        FirestoreService.instance
+            .collection('Raised_tickets')
+            .where('ticketId', isEqualTo: input)
+            .get(),
       ]);
 
-      final Map<String, Map<String, dynamic>> uniqueTickets = {};
-      for (final snap in ticketSnapshots) {
-        for (final doc in snap.docs) {
-          final data = doc.data();
-          final key = data['bookingId']?.toString() ?? doc.id;
-          uniqueTickets[key] = data;
-        }
+      // Combine all unique results
+      final allDocs = <DocumentSnapshot>{};
+      for (var snapshot in snapshots) {
+        allDocs.addAll(snapshot.docs);
       }
 
-      final ticketList = uniqueTickets.values.toList();
-
-      if (ticketList.isNotEmpty) {
-        if (ticketList.length == 1) {
-          resultData = ticketList.first;
-        } else {
-          multipleResults = ticketList;
-          for (int i = 0; i < ticketList.length; i++) {
-            _selectedRows[i] = false;
-          }
+      if (allDocs.isNotEmpty) {
+        multipleResults =
+            allDocs.map((doc) => doc.data() as Map<String, dynamic>).toList()
+              ..sort((a, b) {
+                final aTime = a['createdAt'] as Timestamp?;
+                final bTime = b['createdAt'] as Timestamp?;
+                if (aTime == null && bTime == null) return 0;
+                if (aTime == null) return 1;
+                if (bTime == null) return -1;
+                return bTime.compareTo(aTime);
+              });
+        for (int i = 0; i < multipleResults!.length; i++) {
+          _selectedRows[i] = false;
         }
-      }
-
-      if (foundAmcUser != null || ticketList.isNotEmpty) {
+        setState(() {
+          _loading = false;
+        });
         _animController.forward();
         _showSnack(
-          ticketList.isNotEmpty
-              ? 'Found ${ticketList.length} ticket(s)!'
-              : 'Customer record found!',
+          'Found ${multipleResults!.length} matching entries',
           color: Colors.green,
         );
       } else {
-        _showSnack('No data found for "$searchInput"', color: Colors.red);
+        setState(() {
+          _loading = false;
+        });
+        _showSnack('No data found for "$input"', color: Colors.red);
       }
     } catch (e) {
       _showSnack('Error: $e', color: Colors.red);
-    } finally {
       setState(() => _loading = false);
     }
   }
 
   void _showSnack(String msg, {Color color = Colors.blueGrey}) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg),
-      backgroundColor: color,
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      margin: const EdgeInsets.all(16),
-    ));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
   }
 
   void _toggleAllSelection() {
@@ -220,7 +215,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
     if (multipleResults != null) {
       return [
         for (int i = 0; i < multipleResults!.length; i++)
-          if (_selectedRows[i] == true) multipleResults![i]
+          if (_selectedRows[i] == true) multipleResults![i],
       ];
     } else if (resultData != null) {
       return [resultData!];
@@ -228,8 +223,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
     return [];
   }
 
-  int get _selectedCount =>
-      _selectedRows.values.where((v) => v).length;
+  int get _selectedCount => _selectedRows.values.where((v) => v).length;
 
   bool get _canExportReport {
     if (resultData != null) return true;
@@ -251,17 +245,36 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
     if (a == null) return 'N/A';
     final p = double.tryParse(a.toString());
     if (p == null) return a.toString();
-    return p == p.roundToDouble() ? '₹${p.toInt()}' : '₹${p.toStringAsFixed(2)}';
+    return p == p.roundToDouble()
+        ? '₹${p.toInt()}'
+        : '₹${p.toStringAsFixed(2)}';
+  }
+
+  double _calculateTotalAmount(Map<String, dynamic> record) {
+    double total = 0.0;
+    // Add admin's amount
+    if (record['amount'] != null) {
+      total += (double.tryParse(record['amount'].toString()) ?? 0.0);
+    }
+    // Add all engineer's payments
+    if (record['payments'] is List) {
+      for (var payment in record['payments']) {
+        if (payment is Map && payment['amount'] != null) {
+          total += (double.tryParse(payment['amount'].toString()) ?? 0.0);
+        }
+      }
+    }
+    return total;
   }
 
   double _totalAmount(List<Map<String, dynamic>> records) =>
-      records.fold(0.0, (s, r) => s + (double.tryParse(r['amount']?.toString() ?? '') ?? 0));
+      records.fold(0.0, (s, r) => s + _calculateTotalAmount(r));
 
   String _reportPdfName(List<Map<String, dynamic>> records) {
     final stamp = DateFormat('yyyyMMdd_HHmm').format(DateTime.now());
     String name;
     if (records.length == 1) {
-      final id = _fmt(records.first['bookingId']);
+      final id = _fmt(records.first['ticketId']);
       name = id != 'N/A' ? 'Customer_Report_$id' : 'Customer_Report_$stamp';
     } else {
       name = 'Customer_Report_${records.length}_$stamp';
@@ -271,14 +284,37 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
 
   // ─── PDF generation ────────────────────────────────────────────────────────
 
-  PdfColor get _pdfBrand => PdfColor.fromInt(ThemeService.instance.primaryColor.value);
-  PdfColor get _pdfBrandLight => PdfColor.fromInt(ThemeService.instance.primaryColor.withOpacity(0.1).value);
+  PdfColor get _pdfBrand =>
+      PdfColor.fromInt(ThemeService.instance.primaryColor.value);
+  PdfColor get _pdfBrandLight => PdfColor.fromInt(
+    ThemeService.instance.primaryColor.withOpacity(0.1).value,
+  );
+
+  // Helper to create text style with font and fallback
+  pw.TextStyle _pdfTextStyle({
+    double? fontSize,
+    pw.FontWeight? fontWeight,
+    PdfColor? color,
+    double? letterSpacing,
+    required pw.Font font,
+    List<pw.Font>? fontFallback,
+  }) {
+    return pw.TextStyle(
+      fontSize: fontSize,
+      fontWeight: fontWeight,
+      color: color,
+      letterSpacing: letterSpacing,
+      font: font,
+      fontFallback: fontFallback ?? [pw.Font.helvetica()],
+    );
+  }
 
   Future<pw.Document> _buildPdfDocument(
-      List<Map<String, dynamic>> records) async {
+    List<Map<String, dynamic>> records,
+  ) async {
     final pdf = pw.Document();
     final appName = ThemeService.instance.appName;
-    final generatedAt = DateFormat('dd MMM yyyy, HH:mm').format(DateTime.now());
+    final generatedAt = DateFormat('yyyy-MM-dd').format(DateTime.now());
 
     pw.MemoryImage? logoImage;
     final logoUrl = ThemeService.instance.logoUrl;
@@ -286,26 +322,59 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
       logoImage = await PdfUtils.fetchNetworkImage(logoUrl);
     }
 
+    // Load fonts with fallback
+    pw.Font regularFont = pw.Font.helvetica();
+    pw.Font boldFont = pw.Font.helveticaBold();
+    pw.Font mediumFont = pw.Font.helvetica();
+
+    try {
+      // Try loading with assets/ prefix
+      regularFont = await pw.Font.ttf(
+        await rootBundle.load('assets/fonts/LufgaRegular.ttf'),
+      );
+      boldFont = await pw.Font.ttf(
+        await rootBundle.load('assets/fonts/LufgaBold.ttf'),
+      );
+      mediumFont = await pw.Font.ttf(
+        await rootBundle.load('assets/fonts/LufgaMedium.ttf'),
+      );
+    } catch (e) {
+      try {
+        // Try loading without assets/ prefix
+        regularFont = await pw.Font.ttf(
+          await rootBundle.load('fonts/LufgaRegular.ttf'),
+        );
+        boldFont = await pw.Font.ttf(
+          await rootBundle.load('fonts/LufgaBold.ttf'),
+        );
+        mediumFont = await pw.Font.ttf(
+          await rootBundle.load('fonts/LufgaMedium.ttf'),
+        );
+      } catch (e2) {
+        // Fall back to default fonts
+        print('Failed to load Lufga fonts, using defaults: $e, $e2');
+      }
+    }
+
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.symmetric(horizontal: 32, vertical: 28),
-        header: (ctx) => _pdfHeader(logoImage, appName, generatedAt),
-        footer: (ctx) => _pdfFooter(ctx, appName),
+        margin: const pw.EdgeInsets.symmetric(horizontal: 40, vertical: 40),
+        header: (ctx) =>
+            _pdfHeader(logoImage, appName, generatedAt, boldFont, regularFont),
+        footer: (ctx) => _pdfFooter(ctx, appName, regularFont),
         build: (ctx) {
-          final widgets = <pw.Widget>[
-            _pdfSummaryBox(records),
-          ];
-          if (records.length > 1) {
-            widgets
-              ..add(pw.SizedBox(height: 18))
-              ..add(_pdfIndex(records));
-          }
-          for (var i = 0; i < records.length; i++) {
-            widgets
-              ..add(pw.SizedBox(height: 18))
-              ..add(_pdfCard(records[i], i + 1, records.length));
-          }
+          final widgets = <pw.Widget>[];
+
+          // Summary Section
+          widgets.add(_pdfSummarySection(records, boldFont, regularFont));
+          widgets.add(pw.SizedBox(height: 20));
+
+          // Tickets Table
+          widgets.add(
+            _pdfTicketsTable(records, boldFont, regularFont, mediumFont),
+          );
+
           return widgets;
         },
       ),
@@ -314,310 +383,362 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
   }
 
   pw.Widget _pdfHeader(
-      pw.MemoryImage? logo, String appName, String generatedAt) {
+    pw.MemoryImage? logo,
+    String appName,
+    String generatedAt,
+    pw.Font boldFont,
+    pw.Font regularFont,
+  ) {
     return pw.Container(
-      margin: const pw.EdgeInsets.only(bottom: 16),
-      padding: const pw.EdgeInsets.only(bottom: 12),
-      decoration: const pw.BoxDecoration(
+      margin: const pw.EdgeInsets.only(bottom: 20),
+      padding: const pw.EdgeInsets.only(bottom: 16),
+      decoration: pw.BoxDecoration(
         border: pw.Border(
-            bottom: pw.BorderSide(color: PdfColors.grey300, width: 1)),
+          bottom: pw.BorderSide(color: PdfColors.grey300, width: 1),
+        ),
       ),
       child: pw.Row(
         crossAxisAlignment: pw.CrossAxisAlignment.center,
         children: [
           if (logo != null)
             pw.Container(
-              width: 48,
-              height: 48,
-              margin: const pw.EdgeInsets.only(right: 14),
+              width: 50,
+              height: 50,
+              margin: const pw.EdgeInsets.only(right: 12),
               child: pw.Image(logo, fit: pw.BoxFit.contain),
             ),
           pw.Expanded(
             child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
-                pw.Text('CUSTOMER SERVICE REPORT',
-                    style: pw.TextStyle(
-                        fontSize: 15,
-                        fontWeight: pw.FontWeight.bold,
-                        color: _pdfBrand,
-                        letterSpacing: 0.5)),
-                pw.SizedBox(height: 3),
-                pw.Text(appName,
-                    style: const pw.TextStyle(
-                        fontSize: 10, color: PdfColors.grey700)),
-                pw.SizedBox(height: 2),
-                pw.Text('Generated: $generatedAt',
-                    style: const pw.TextStyle(
-                        fontSize: 8, color: PdfColors.grey600)),
+                pw.Text(
+                  'CUSTOMER SERVICE REPORT',
+                  style: _pdfTextStyle(
+                    fontSize: 20,
+                    fontWeight: pw.FontWeight.bold,
+                    color: _pdfBrand,
+                    letterSpacing: 1.5,
+                    font: boldFont,
+                  ),
+                ),
+                pw.SizedBox(height: 4),
+                pw.Text(
+                  appName,
+                  style: _pdfTextStyle(
+                    fontSize: 11,
+                    color: PdfColors.grey600,
+                    font: regularFont,
+                  ),
+                ),
               ],
             ),
           ),
-          pw.Container(
-            padding:
-                const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-            decoration: pw.BoxDecoration(
-              color: _pdfBrand,
-              borderRadius: pw.BorderRadius.circular(4),
+          pw.Text(
+            'Generated on $generatedAt',
+            style: _pdfTextStyle(
+              fontSize: 10,
+              color: PdfColors.grey600,
+              font: regularFont,
             ),
-            child: pw.Text('INTERNAL',
-                style: pw.TextStyle(
-                    fontSize: 7,
-                    fontWeight: pw.FontWeight.bold,
-                    color: PdfColors.white)),
           ),
         ],
       ),
     );
   }
 
-  pw.Widget _pdfFooter(pw.Context ctx, String appName) {
+  pw.Widget _pdfFooter(pw.Context ctx, String appName, pw.Font regularFont) {
     return pw.Container(
-      margin: const pw.EdgeInsets.only(top: 12),
-      padding: const pw.EdgeInsets.only(top: 8),
-      decoration: const pw.BoxDecoration(
+      margin: const pw.EdgeInsets.only(top: 16),
+      padding: const pw.EdgeInsets.only(top: 12),
+      decoration: pw.BoxDecoration(
         border: pw.Border(
-            top: pw.BorderSide(color: PdfColors.grey300, width: 0.5)),
+          top: pw.BorderSide(color: PdfColors.grey300, width: 0.5),
+        ),
       ),
       child: pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         children: [
-          pw.Text(appName,
-              style: const pw.TextStyle(
-                  fontSize: 8, color: PdfColors.grey600)),
-          pw.Text('Page ${ctx.pageNumber} of ${ctx.pagesCount}',
-              style: const pw.TextStyle(
-                  fontSize: 8, color: PdfColors.grey600)),
-          pw.Text('Confidential — internal use only',
-              style: const pw.TextStyle(
-                  fontSize: 8, color: PdfColors.grey600)),
-        ],
-      ),
-    );
-  }
-
-  pw.Widget _pdfSummaryBox(List<Map<String, dynamic>> records) {
-    final total = _totalAmount(records);
-    return pw.Container(
-      width: double.infinity,
-      padding: const pw.EdgeInsets.all(14),
-      decoration: pw.BoxDecoration(
-        color: _pdfBrandLight,
-        borderRadius: pw.BorderRadius.circular(6),
-        border: pw.Border.all(color: _pdfBrand, width: 0.8),
-      ),
-      child: pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.Text('Report Summary',
-              style: pw.TextStyle(
-                  fontSize: 11,
-                  fontWeight: pw.FontWeight.bold,
-                  color: _pdfBrand)),
-          pw.SizedBox(height: 10),
-          pw.Row(
-            children: [
-              pw.Expanded(
-                  child: _pdfMetric('Records', records.length.toString())),
-              pw.Expanded(
-                  child: _pdfMetric('Combined Amount', _fmtAmount(total))),
-              if (multipleResults != null)
-                pw.Expanded(
-                    child: _pdfMetric(
-                        'From Search', '${multipleResults!.length} total')),
-            ],
+          pw.Text(
+            appName,
+            style: _pdfTextStyle(
+              fontSize: 9,
+              color: PdfColors.grey600,
+              font: regularFont,
+            ),
+          ),
+          pw.Text(
+            'Page ${ctx.pageNumber}',
+            style: _pdfTextStyle(
+              fontSize: 9,
+              color: PdfColors.grey600,
+              font: regularFont,
+            ),
           ),
         ],
       ),
     );
   }
 
-  pw.Widget _pdfMetric(String label, String value) => pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.Text(label,
-              style: const pw.TextStyle(
-                  fontSize: 8, color: PdfColors.grey700)),
-          pw.SizedBox(height: 3),
-          pw.Text(value,
-              style: pw.TextStyle(
-                  fontSize: 11,
-                  fontWeight: pw.FontWeight.bold,
-                  color: _pdfBrand)),
-        ],
-      );
+  pw.Widget _pdfSummarySection(
+    List<Map<String, dynamic>> records,
+    pw.Font boldFont,
+    pw.Font regularFont,
+  ) {
+    final totalAmount = _totalAmount(records);
+    final totalTickets = records.length;
 
-  pw.Widget _pdfIndex(List<Map<String, dynamic>> records) {
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
-        _pdfHeading('Quick Reference'),
-        pw.Table(
-          border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.5),
-          columnWidths: {
-            0: const pw.FixedColumnWidth(28),
-            1: const pw.FlexColumnWidth(1.2),
-            2: const pw.FlexColumnWidth(2),
-            3: const pw.FlexColumnWidth(1.5),
-            4: const pw.FlexColumnWidth(1.2),
-          },
-          children: [
-            pw.TableRow(
-              decoration: pw.BoxDecoration(color: _pdfBrand),
-              children: ['#', 'ID', 'Customer', 'Booking ID', 'Status']
-                  .map((h) => _pdfCell(h, header: true))
-                  .toList(),
-            ),
-            ...List.generate(records.length, (i) {
-              final r = records[i];
-              return pw.TableRow(
-                decoration: pw.BoxDecoration(
-                    color: i.isOdd ? PdfColors.grey100 : PdfColors.white),
-                children: [
-                  _pdfCell('${i + 1}'),
-                  _pdfCell(_fmt(r['id'])),
-                  _pdfCell(_fmt(r['customerName'])),
-                  _pdfCell(_fmt(r['bookingId'])),
-                  _pdfCell(_fmt(r['adminStatus'])),
-                ],
-              );
-            }),
-          ],
+        pw.Text(
+          'Report Summary',
+          style: _pdfTextStyle(
+            fontSize: 16,
+            fontWeight: pw.FontWeight.bold,
+            color: _pdfBrand,
+            font: boldFont,
+          ),
+        ),
+        pw.SizedBox(height: 12),
+        pw.Container(
+          padding: const pw.EdgeInsets.all(16),
+          decoration: pw.BoxDecoration(
+            border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
+            borderRadius: pw.BorderRadius.circular(4),
+          ),
+          child: pw.Row(
+            children: [
+              _pdfSummaryItem(
+                'Total Tickets',
+                totalTickets.toString(),
+                boldFont,
+                regularFont,
+              ),
+              _pdfDivider(),
+              _pdfSummaryItem(
+                'Combined Amount',
+                _fmtAmount(totalAmount),
+                boldFont,
+                regularFont,
+              ),
+              _pdfDivider(),
+              _pdfSummaryItem('Status', 'All', boldFont, regularFont),
+            ],
+          ),
         ),
       ],
     );
   }
 
-  pw.Widget _pdfHeading(String title) => pw.Container(
-        width: double.infinity,
-        margin: const pw.EdgeInsets.only(bottom: 8),
-        padding:
-            const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: pw.BoxDecoration(
-          color: _pdfBrandLight,
-          borderRadius: pw.BorderRadius.circular(4),
-          border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
-        ),
-        child: pw.Text(title,
-            style: pw.TextStyle(
-                fontSize: 10,
-                fontWeight: pw.FontWeight.bold,
-                color: _pdfBrand)),
-      );
-
-  pw.Widget _pdfCell(String text, {bool header = false}) => pw.Padding(
-        padding:
-            const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 7),
-        child: pw.Text(text,
-            maxLines: 2,
-            style: pw.TextStyle(
-                fontSize: 8,
-                fontWeight:
-                    header ? pw.FontWeight.bold : pw.FontWeight.normal,
-                color: header ? PdfColors.white : PdfColors.black)),
-      );
-
-  pw.Widget _pdfDetailRow(String label, String value,
-      {bool emphasize = false}) {
-    return pw.Padding(
-      padding: const pw.EdgeInsets.only(bottom: 6),
-      child: pw.Row(
+  pw.Widget _pdfSummaryItem(
+    String label,
+    String value,
+    pw.Font boldFont,
+    pw.Font regularFont,
+  ) {
+    return pw.Expanded(
+      child: pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          pw.SizedBox(
-            width: 118,
-            child: pw.Text(label,
-                style: const pw.TextStyle(
-                    fontSize: 9, color: PdfColors.grey700)),
+          pw.Text(
+            label,
+            style: _pdfTextStyle(
+              fontSize: 10,
+              color: PdfColors.grey600,
+              fontWeight: pw.FontWeight.bold,
+              font: boldFont,
+            ),
           ),
-          pw.Expanded(
-            child: pw.Text(value,
-                style: pw.TextStyle(
-                    fontSize: 9,
-                    fontWeight: emphasize
-                        ? pw.FontWeight.bold
-                        : pw.FontWeight.normal,
-                    color: emphasize ? _pdfBrand : PdfColors.black)),
+          pw.SizedBox(height: 4),
+          pw.Text(
+            value,
+            style: _pdfTextStyle(
+              fontSize: 14,
+              fontWeight: pw.FontWeight.bold,
+              color: _pdfBrand,
+              font: boldFont,
+            ),
           ),
         ],
       ),
     );
   }
 
-  pw.Widget _pdfCard(
-      Map<String, dynamic> r, int index, int total) {
+  pw.Widget _pdfDivider() {
     return pw.Container(
-      width: double.infinity,
-      padding: const pw.EdgeInsets.all(14),
-      decoration: pw.BoxDecoration(
-        border: pw.Border.all(color: PdfColors.grey400, width: 0.8),
-        borderRadius: pw.BorderRadius.circular(6),
-      ),
-      child: pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.Row(
-            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-            children: [
-              pw.Text('Record $index of $total',
-                  style: pw.TextStyle(
-                      fontSize: 12,
-                      fontWeight: pw.FontWeight.bold,
-                      color: _pdfBrand)),
-              pw.Container(
-                padding: const pw.EdgeInsets.symmetric(
-                    horizontal: 10, vertical: 4),
-                decoration: pw.BoxDecoration(
-                    color: _pdfBrand,
-                    borderRadius: pw.BorderRadius.circular(12)),
-                child: pw.Text(_fmt(r['adminStatus']),
-                    style: pw.TextStyle(
-                        fontSize: 8,
-                        fontWeight: pw.FontWeight.bold,
-                        color: PdfColors.white)),
-              ),
-            ],
+      width: 1,
+      height: 40,
+      margin: const pw.EdgeInsets.symmetric(horizontal: 16),
+      color: PdfColors.grey300,
+    );
+  }
+
+  pw.Widget _pdfTicketsTable(
+    List<Map<String, dynamic>> records,
+    pw.Font boldFont,
+    pw.Font regularFont,
+    pw.Font mediumFont,
+  ) {
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Text(
+          'Ticket Details',
+          style: _pdfTextStyle(
+            fontSize: 16,
+            fontWeight: pw.FontWeight.bold,
+            color: _pdfBrand,
+            font: boldFont,
           ),
-          pw.SizedBox(height: 4),
-          pw.Text('Booking: ${_fmt(r['bookingId'])}',
-              style: const pw.TextStyle(
-                  fontSize: 9, color: PdfColors.grey700)),
-          pw.SizedBox(height: 12),
-          pw.Divider(color: PdfColors.grey300, height: 1),
-          pw.SizedBox(height: 10),
-          _pdfHeading('Customer Details'),
-          _pdfDetailRow('Customer ID', _fmt(r['id'])),
-          _pdfDetailRow('Name', _fmt(r['customerName'])),
-          _pdfDetailRow('Mobile', _fmt(r['mobileNumber'])),
-          _pdfDetailRow('Booking ID', _fmt(r['bookingId'])),
-          pw.SizedBox(height: 6),
-          _pdfHeading('Device Details'),
-          pw.Row(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Expanded(
-                child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    _pdfDetailRow('Brand', _fmt(r['deviceBrand'])),
-                    _pdfDetailRow('Type', _fmt(r['deviceType'])),
-                  ],
-                ),
-              ),
-              pw.Expanded(
-                child: _pdfDetailRow(
-                    'Condition', _fmt(r['deviceCondition'])),
-              ),
-            ],
+        ),
+        pw.SizedBox(height: 8),
+        pw.Text(
+          'Total: ${records.length} tickets',
+          style: _pdfTextStyle(
+            fontSize: 11,
+            color: PdfColors.grey600,
+            font: regularFont,
           ),
-          pw.SizedBox(height: 6),
-          _pdfHeading('Service & Billing'),
-          _pdfDetailRow('Amount', _fmtAmount(r['amount']),
-              emphasize: true),
-          _pdfDetailRow('Address', _fmt(r['address'])),
-        ],
+        ),
+        pw.SizedBox(height: 12),
+        pw.Table(
+          border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.5),
+          columnWidths: {
+            0: const pw.FlexColumnWidth(1.5),
+            1: const pw.FlexColumnWidth(1.2),
+            2: const pw.FlexColumnWidth(1.2),
+            3: const pw.FlexColumnWidth(2),
+            4: const pw.FlexColumnWidth(1.2),
+            5: const pw.FlexColumnWidth(1.2),
+            6: const pw.FlexColumnWidth(1.2),
+            7: const pw.FlexColumnWidth(1.2),
+          },
+          children: [
+            // Header row
+            pw.TableRow(
+              decoration: pw.BoxDecoration(color: _pdfBrand),
+              children: [
+                'Ticket ID',
+                'Device Type',
+                'Brand',
+                'Issue Description',
+                'Amount',
+                'Eng Status',
+                'Admin Status',
+                'Date',
+              ].map((h) => _pdfHeaderCell(h, boldFont)).toList(),
+            ),
+            // Data rows
+            ...records.map((record) {
+              final status = record['adminStatus']?.toString() ?? '';
+              final statusColor = _getPdfStatusColor(status);
+
+              return pw.TableRow(
+                decoration: pw.BoxDecoration(color: PdfColors.white),
+                children: [
+                  _pdfDataCell(_fmt(record['ticketId']), regularFont),
+                  _pdfDataCell(_fmt(record['deviceType']), regularFont),
+                  _pdfDataCell(_fmt(record['deviceBrand']), regularFont),
+                  _pdfDataCell(
+                    _fmt(
+                      record['issueDescription'] ?? record['issue'] ?? 'N/A',
+                    ),
+                    regularFont,
+                  ),
+                  _pdfDataCell(_fmtAmount(record['amount']), regularFont),
+                  _pdfDataCell(
+                    _fmt(record['engineerStatus'] ?? 'N/A'),
+                    regularFont,
+                  ),
+                  _pdfDataCell(
+                    _fmt(record['adminStatus']),
+                    regularFont,
+                    statusColor: statusColor,
+                  ),
+                  _pdfDataCell(_formatDate(record['createdAt']), regularFont),
+                ],
+              );
+            }).toList(),
+          ],
+        ),
+        // Amount summary row
+        pw.SizedBox(height: 12),
+        pw.Container(
+          alignment: pw.Alignment.centerRight,
+          child: pw.Text(
+            'Total Amount: ${_fmtAmount(_totalAmount(records))}',
+            style: _pdfTextStyle(
+              fontSize: 12,
+              fontWeight: pw.FontWeight.bold,
+              color: _pdfBrand,
+              font: boldFont,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  pw.Widget _pdfHeaderCell(String text, pw.Font boldFont) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      child: pw.Text(
+        text,
+        style: _pdfTextStyle(
+          fontSize: 9,
+          fontWeight: pw.FontWeight.bold,
+          color: PdfColors.white,
+          font: boldFont,
+        ),
       ),
     );
+  }
+
+  pw.Widget _pdfDataCell(
+    String text,
+    pw.Font regularFont, {
+    PdfColor? statusColor,
+  }) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      child: pw.Text(
+        text,
+        style: _pdfTextStyle(
+          fontSize: 9,
+          color: statusColor ?? PdfColors.black,
+          fontWeight: statusColor != null
+              ? pw.FontWeight.bold
+              : pw.FontWeight.normal,
+          font: regularFont,
+        ),
+      ),
+    );
+  }
+
+  String _formatDate(dynamic timestamp) {
+    if (timestamp == null) return 'N/A';
+    try {
+      if (timestamp is Timestamp) {
+        return DateFormat('dd/MM/yyyy').format(timestamp.toDate());
+      }
+      return timestamp.toString();
+    } catch (e) {
+      return 'N/A';
+    }
+  }
+
+  PdfColor _getPdfStatusColor(String status) {
+    final n = status.toLowerCase().trim();
+    if (n == 'assigned' || n == 'completed' || n == 'complete')
+      return PdfColors.green;
+    if (n == 'not assigned' || n == 'not assinged') return PdfColors.red;
+    if (n.contains('approval')) return PdfColors.purple;
+    if (n.contains('spare')) return PdfColors.orange;
+    if (n.contains('observation')) return PdfColors.cyan;
+    if (n.contains('cancel')) return PdfColors.grey;
+    if (n == 'pending' || n == 'open') return PdfColors.orange;
+    if (n == 'in progress') return PdfColors.blue;
+    return PdfColors.blueGrey;
   }
 
   Future<void> _viewReportPdf() async {
@@ -650,24 +771,42 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
     setState(() => _isPdfDownloading = true);
     try {
       final pdf = await _buildPdfDocument(records);
-      final dir = await getDownloadsDirectory() ??
-          await getApplicationDocumentsDirectory();
-      final file =
-          File('${dir.path}/${_reportPdfName(records)}.pdf');
-      await file.writeAsBytes(await pdf.save());
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: const Text('PDF saved to Downloads'),
-        backgroundColor: Colors.green,
-        behavior: SnackBarBehavior.floating,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        action: SnackBarAction(
-          label: 'Open',
-          textColor: Colors.white,
-          onPressed: () => OpenFile.open(file.path),
-        ),
-      ));
+      if (kIsWeb) {
+        await Printing.sharePdf(
+          bytes: await pdf.save(),
+          filename: '${_reportPdfName(records)}.pdf',
+        );
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('PDF downloaded successfully'),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      } else {
+        final dir =
+            await getDownloadsDirectory() ??
+            await getApplicationDocumentsDirectory();
+        final file = File('${dir.path}/${_reportPdfName(records)}.pdf');
+        await file.writeAsBytes(await pdf.save());
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('PDF saved to Downloads'),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            action: SnackBarAction(
+              label: 'Open',
+              textColor: Colors.white,
+              onPressed: () => OpenFile.open(file.path),
+            ),
+          ),
+        );
+      }
     } catch (e) {
       if (mounted) _showSnack('Download failed: $e', color: Colors.red);
     } finally {
@@ -680,132 +819,58 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: const Color(0xFFF4F7FC),
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0.5,
-        leading: Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: CircleAvatar(
-            backgroundColor: const Color(0xFFF1F5F9),
-            child: IconButton(
-              icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF0F172A), size: 18),
-              onPressed: () => Navigator.pop(context),
-            ),
-          ),
-        ),
         title: const Text(
           'Customer Report Generator',
           style: TextStyle(
-            color: Color(0xFF0F172A),
-            fontWeight: FontWeight.w800,
+            fontWeight: FontWeight.w700,
+            color: Colors.white,
             fontSize: 18,
-            letterSpacing: -0.4,
+            letterSpacing: -0.3,
           ),
+        ),
+        backgroundColor: _brand,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
         ),
       ),
       body: SafeArea(
         bottom: false,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _buildTopHeroBanner(),
-              const SizedBox(height: 10),
-              _buildSearchCard(),
-              const SizedBox(height: 16),
-              if (_loading) _buildLoading(),
-              if (!_loading && amcCustomerData != null) ...[
-                _buildAmcCustomerHeaderCard(),
-                const SizedBox(height: 12),
-              ],
-              if (!_loading && _displayRecords.isNotEmpty)
-                FadeTransition(
-                  opacity: _fadeAnim,
-                  child: SlideTransition(
-                    position: _slideAnim,
-                    child: _buildResultsSection(),
-                  ),
+        child: ResponsiveWrapper(
+          maxWidth: 1200.0,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 500),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildSearchCard(),
+                    const SizedBox(height: 20),
+                    if (_loading) _buildLoading(),
+                    if (!_loading && _displayRecords.isNotEmpty)
+                      FadeTransition(
+                        opacity: _fadeAnim,
+                        child: SlideTransition(
+                          position: _slideAnim,
+                          child: _buildResultsSection(),
+                        ),
+                      ),
+                    if (!_loading &&
+                        resultData == null &&
+                        (multipleResults == null || multipleResults!.isEmpty))
+                      _buildEmptyState(),
+                  ],
                 ),
-              if (!_loading && amcCustomerData != null && _displayRecords.isEmpty)
-                _buildNoTicketsForCustomerCard(),
-              if (!_loading && amcCustomerData == null && _displayRecords.isEmpty)
-                _buildEmptyState(),
-            ],
+              ),
+            ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildTopHeroBanner() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-      decoration: BoxDecoration(
-        color: _brand.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: _brand.withOpacity(0.18),
-          width: 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: _brand.withOpacity(0.04),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
-              boxShadow: [
-                BoxShadow(
-                  color: _brand.withOpacity(0.12),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
-                ),
-              ],
-            ),
-            child: Icon(
-              Icons.manage_search_rounded,
-              color: _brand,
-              size: 24,
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Customer Report Generator',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF0F172A),
-                    letterSpacing: -0.4,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Lookup customer history by ID, Phone, or Booking ID',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: _brand.withOpacity(0.85),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -817,16 +882,15 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 12,
-            offset: const Offset(0, 3),
-          )
+            color: _brand.withOpacity(0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -834,41 +898,46 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
           Row(
             children: [
               Container(
-                width: 38,
-                height: 38,
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(
                   color: _brandLight,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(Icons.person_search_rounded,
-                    color: _brand, size: 20),
+                child: Icon(
+                  Icons.person_search_rounded,
+                  color: _brand,
+                  size: 22,
+                ),
               ),
               const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Find Customer',
-                        style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF0F172A),
-                            letterSpacing: -0.3)),
-                    const Text('Search by ID, Phone Number or Booking ID',
-                        style: TextStyle(
-                            fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w500)),
-                  ],
-                ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Find Customer',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: _brand,
+                      letterSpacing: -0.3,
+                    ),
+                  ),
+                  const Text(
+                    'Search by Customer ID, Phone or Ticket ID',
+                    style: TextStyle(fontSize: 12, color: Color(0xFF8A9BB8)),
+                  ),
+                ],
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
           // Search field
           Container(
             decoration: BoxDecoration(
-              color: const Color(0xFFF8FAFC),
+              color: const Color(0xFFF4F7FC),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
+              border: Border.all(color: const Color(0xFFDDE4F0)),
             ),
             child: Row(
               children: [
@@ -876,27 +945,38 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                   child: TextField(
                     controller: _controller,
                     focusNode: _searchFocusNode,
-                    style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF0F172A)),
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                      color: _brand,
+                    ),
                     decoration: const InputDecoration(
-                      hintText: 'Enter Customer ID, Phone, or Booking ID...',
+                      hintText: 'Enter Customer ID, Phone, or Ticket ID',
                       hintStyle: TextStyle(
-                          color: Color(0xFF94A3B8), fontSize: 13, fontWeight: FontWeight.w500),
+                        color: Color(0xFFADB9CC),
+                        fontSize: 14,
+                      ),
                       border: InputBorder.none,
-                      prefixIcon: Icon(Icons.search_rounded,
-                          color: Color(0xFF64748B), size: 18),
-                      contentPadding:
-                          EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      prefixIcon: Icon(
+                        Icons.search_rounded,
+                        color: Color(0xFF8A9BB8),
+                        size: 20,
+                      ),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 15,
+                      ),
                     ),
                     onSubmitted: (v) => _fetchData(v.trim()),
                   ),
                 ),
                 if (_controller.text.isNotEmpty)
                   IconButton(
-                    icon: const Icon(Icons.close_rounded,
-                        color: Color(0xFF64748B), size: 18),
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      color: Color(0xFF8A9BB8),
+                      size: 20,
+                    ),
                     onPressed: () {
                       _controller.clear();
                       setState(() {
@@ -908,21 +988,22 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
               ],
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           // Quick-search chips
           Wrap(
             spacing: 8,
-            runSpacing: 6,
-            children: ['Customer ID', 'Phone Number', 'Booking ID']
-                .map((label) => _searchChip(label))
-                .toList(),
+            children: [
+              'Customer ID',
+              'Phone Number',
+              'Ticket ID',
+            ].map((label) => _searchChip(label)).toList(),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
           // Search button
           SizedBox(
             width: double.infinity,
-            height: 46,
-            child: ElevatedButton.icon(
+            height: 50,
+            child: ElevatedButton(
               onPressed: _loading
                   ? null
                   : () {
@@ -935,230 +1016,33 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                 disabledBackgroundColor: _brand.withOpacity(0.4),
                 elevation: 0,
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
+                  borderRadius: BorderRadius.circular(14),
+                ),
               ),
-              icon: _loading
+              child: _loading
                   ? const SizedBox(
-                      width: 18,
-                      height: 18,
+                      width: 22,
+                      height: 22,
                       child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white))
-                  : const Icon(Icons.manage_search_rounded, size: 18),
-              label: Text(
-                _loading ? 'Searching Records...' : 'Search & Generate Report',
-                style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAmcCustomerHeaderCard() {
-    if (amcCustomerData == null) return const SizedBox.shrink();
-    final name = (amcCustomerData!['name'] ?? amcCustomerData!['Id'] ?? 'AMC Customer').toString();
-    final amcId = (amcCustomerData!['Id'] ?? 'AMC Customer').toString();
-    final phone = (amcCustomerData!['Phone Number'] ?? 'N/A').toString();
-    final email = (amcCustomerData!['email'] ?? 'N/A').toString();
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: primaryColor.withValues(alpha: 0.3), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: primaryColor.withValues(alpha: 0.06),
-            blurRadius: 14,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [primaryColor, primaryColor.withValues(alpha: 0.75)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: primaryColor.withValues(alpha: 0.2),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Center(
-                  child: Text(
-                    name.isNotEmpty ? name[0].toUpperCase() : 'C',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            name,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF0F172A),
-                              letterSpacing: -0.3,
-                            ),
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: primaryColor.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            amcId,
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                              color: primaryColor,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    const Row(
-                      children: [
-                        Icon(Icons.check_circle_rounded, size: 12, color: Color(0xFF10B981)),
-                        SizedBox(width: 4),
-                        Text(
-                          'Registered AMC Customer',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF059669),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 12),
-            child: Divider(height: 1, color: Color(0xFFE2E8F0)),
-          ),
-          Row(
-            children: [
-              Expanded(
-                child: Row(
-                  children: [
-                    const Icon(Icons.phone_android_rounded, size: 14, color: Color(0xFF64748B)),
-                    const SizedBox(width: 6),
-                    Text(
-                      phone,
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: Row(
-                  children: [
-                    const Icon(Icons.email_outlined, size: 14, color: Color(0xFF64748B)),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        email,
-                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
-                        overflow: TextOverflow.ellipsis,
+                        strokeWidth: 2.5,
+                        color: Colors.white,
                       ),
+                    )
+                  : const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.manage_search_rounded, size: 20),
+                        SizedBox(width: 8),
+                        Text(
+                          'Search & Generate Report',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: -0.2,
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNoTicketsForCustomerCard() {
-    final name = amcCustomerData!['name'] ?? amcCustomerData!['Id'] ?? 'Customer';
-    final id = amcCustomerData!['Id'] ?? '';
-
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 12,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Container(
-            width: 60,
-            height: 60,
-            decoration: const BoxDecoration(
-              color: Color(0xFFFEF3C7),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.receipt_long_outlined,
-              size: 30,
-              color: Color(0xFFD97706),
-            ),
-          ),
-          const SizedBox(height: 14),
-          const Text(
-            'No Service Tickets Created Yet',
-            style: TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF0F172A),
-              letterSpacing: -0.3,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Customer details for $name ($id) were loaded successfully, but no service or repair tickets have been created yet under this customer.',
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 13,
-              color: Color(0xFF64748B),
-              fontWeight: FontWeight.w500,
-              height: 1.4,
             ),
           ),
         ],
@@ -1173,11 +1057,14 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
         color: _brandLight,
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Text(label,
-          style: TextStyle(
-              fontSize: 11,
-              color: _brand,
-              fontWeight: FontWeight.w600)),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          color: _brand,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     );
   }
 
@@ -1191,9 +1078,10 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-              color: _brand.withOpacity(0.06),
-              blurRadius: 16,
-              offset: const Offset(0, 4))
+            color: _brand.withOpacity(0.06),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
       child: Column(
@@ -1201,11 +1089,14 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
         children: [
           CircularProgressIndicator(color: _brand, strokeWidth: 3),
           const SizedBox(height: 16),
-          Text('Searching records…',
-              style: TextStyle(
-                  color: _brand.withOpacity(0.7),
-                  fontWeight: FontWeight.w500,
-                  fontSize: 14)),
+          Text(
+            'Searching records…',
+            style: TextStyle(
+              color: _brand.withOpacity(0.7),
+              fontWeight: FontWeight.w500,
+              fontSize: 14,
+            ),
+          ),
         ],
       ),
     );
@@ -1231,8 +1122,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
         ...List.generate(_displayRecords.length, (i) {
           final record = _displayRecords[i];
           final isMulti = multipleResults != null;
-          final isSelected =
-              isMulti ? (_selectedRows[i] ?? false) : true;
+          final isSelected = isMulti ? (_selectedRows[i] ?? false) : true;
           return Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: _buildRecordCard(
@@ -1277,9 +1167,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
           _statItem(
             icon: Icons.check_circle_outline_rounded,
             label: 'Selected',
-            value: multipleResults != null
-                ? '$_selectedCount'
-                : '1',
+            value: multipleResults != null ? '$_selectedCount' : '1',
           ),
           _divider(),
           _statItem(
@@ -1292,43 +1180,45 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
     );
   }
 
-  Widget _statItem(
-      {required IconData icon,
-      required String label,
-      required String value}) {
+  Widget _statItem({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
     return Expanded(
       child: Column(
         children: [
           Icon(icon, color: Colors.white70, size: 18),
           const SizedBox(height: 4),
-          Text(value,
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 16)),
-          Text(label,
-              style: const TextStyle(
-                  color: Colors.white60,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500)),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+              fontSize: 16,
+            ),
+          ),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white60,
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _divider() => Container(
-        width: 1,
-        height: 40,
-        color: Colors.white.withOpacity(0.2),
-      );
+  Widget _divider() =>
+      Container(width: 1, height: 40, color: Colors.white.withOpacity(0.2));
 
   Widget _buildSelectAllBar() {
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
       decoration: BoxDecoration(
-        color: _selectedCount > 0
-            ? _brand.withOpacity(0.06)
-            : Colors.white,
+        color: _selectedCount > 0 ? _brand.withOpacity(0.06) : Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: _selectedCount > 0
@@ -1338,10 +1228,11 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
       ),
       child: Row(
         children: [
-          Icon(Icons.checklist_rounded,
-              size: 18,
-              color:
-                  _selectedCount > 0 ? _brand : const Color(0xFF8A9BB8)),
+          Icon(
+            Icons.checklist_rounded,
+            size: 18,
+            color: _selectedCount > 0 ? _brand : const Color(0xFF8A9BB8),
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -1349,28 +1240,31 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                   ? '$_selectedCount of ${multipleResults!.length} selected for PDF export'
                   : 'Select records to export',
               style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: _selectedCount > 0
-                      ? _brand
-                      : const Color(0xFF8A9BB8)),
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: _selectedCount > 0 ? _brand : const Color(0xFF8A9BB8),
+              ),
             ),
           ),
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('All',
-                  style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: _brand.withOpacity(0.7))),
+              Text(
+                'All',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: _brand.withOpacity(0.7),
+                ),
+              ),
               Checkbox(
                 value: _allSelected,
                 onChanged: (_) => _toggleAllSelection(),
                 activeColor: _brand,
                 visualDensity: VisualDensity.compact,
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(4)),
+                  borderRadius: BorderRadius.circular(4),
+                ),
               ),
             ],
           ),
@@ -1425,7 +1319,8 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                     ? _brand.withOpacity(0.04)
                     : const Color(0xFFF8FAFD),
                 borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(16)),
+                  top: Radius.circular(16),
+                ),
               ),
               child: Row(
                 children: [
@@ -1439,7 +1334,8 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                         activeColor: _brand,
                         visualDensity: VisualDensity.compact,
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(4)),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -1456,13 +1352,13 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                       child: Text(
                         (_fmt(record['customerName']).isNotEmpty &&
                                 _fmt(record['customerName']) != 'N/A')
-                            ? _fmt(record['customerName'])[0]
-                                .toUpperCase()
+                            ? _fmt(record['customerName'])[0].toUpperCase()
                             : '?',
                         style: TextStyle(
-                            color: _brand,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 16),
+                          color: _brand,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 16,
+                        ),
                       ),
                     ),
                   ),
@@ -1474,37 +1370,44 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                         Text(
                           _fmt(record['customerName']),
                           style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: _brand,
-                              letterSpacing: -0.2),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: _brand,
+                            letterSpacing: -0.2,
+                          ),
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          'Booking: ${_fmt(record['bookingId'])}',
+                          'Ticket: ${_fmt(record['ticketId'])}',
                           style: const TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFF8A9BB8),
-                              fontWeight: FontWeight.w500),
+                            fontSize: 12,
+                            color: Color(0xFF8A9BB8),
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ],
                     ),
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 5),
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
                     decoration: BoxDecoration(
                       color: statusColor.withOpacity(0.12),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                          color: statusColor.withOpacity(0.3), width: 1),
+                        color: statusColor.withOpacity(0.3),
+                        width: 1,
+                      ),
                     ),
                     child: Text(
                       status ?? 'N/A',
                       style: TextStyle(
-                          color: statusColor,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700),
+                        color: statusColor,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ],
@@ -1519,48 +1422,96 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                   Row(
                     children: [
                       Expanded(
-                          child: _detailTile(
-                              'Customer ID', _fmt(record['id']),
-                              icon: Icons.badge_outlined)),
+                        child: _detailTile(
+                          'Customer ID',
+                          _fmt(record['customerId']),
+                          icon: Icons.badge_outlined,
+                        ),
+                      ),
                       const SizedBox(width: 10),
                       Expanded(
-                          child: _detailTile(
-                              'Mobile', _fmt(record['mobileNumber']),
-                              icon: Icons.phone_outlined)),
+                        child: _detailTile(
+                          'Mobile',
+                          _fmt(record['mobileNumber']),
+                          icon: Icons.phone_outlined,
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 10),
                   Row(
                     children: [
                       Expanded(
-                          child: _detailTile(
-                              'Device Brand', _fmt(record['deviceBrand']),
-                              icon: Icons.devices_outlined)),
+                        child: _detailTile(
+                          'Device Brand',
+                          _fmt(record['deviceBrand']),
+                          icon: Icons.devices_outlined,
+                        ),
+                      ),
                       const SizedBox(width: 10),
                       Expanded(
-                          child: _detailTile(
-                              'Device Type', _fmt(record['deviceType']),
-                              icon: Icons.phone_android_outlined)),
+                        child: _detailTile(
+                          'Device Type',
+                          _fmt(record['deviceType']),
+                          icon: Icons.phone_android_outlined,
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 10),
                   Row(
                     children: [
                       Expanded(
-                          child: _detailTile('Condition',
-                              _fmt(record['deviceCondition']),
-                              icon: Icons.info_outline_rounded)),
-                      const SizedBox(width: 10),
-                      Expanded(
-                          child: _detailTile(
-                              'Amount', _fmtAmount(record['amount']),
-                              icon: Icons.currency_rupee_rounded,
-                              emphasize: true)),
+                        child: _detailTile(
+                          'Condition',
+                          _fmt(record['deviceCondition']),
+                          icon: Icons.info_outline_rounded,
+                        ),
+                      ),
                     ],
                   ),
+                  // Show admin's amount
+                  if (record['amount'] != null) ...[
+                    const SizedBox(height: 10),
+                    _detailTile(
+                      'Admin Amount',
+                      _fmtAmount(record['amount']),
+                      icon: Icons.payment_outlined,
+                    ),
+                  ],
+                  // Show individual engineer's payments
+                  if (record['payments'] is List &&
+                      (record['payments'] as List).isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    ...(record['payments'] as List).asMap().entries.map((
+                      entry,
+                    ) {
+                      final payment = entry.value;
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8.0),
+                        child: _detailTile(
+                          payment['paymentMethod'] ??
+                              'Payment ${entry.key + 1}',
+                          _fmtAmount(payment['amount']),
+                          icon: Icons.receipt_long_outlined,
+                        ),
+                      );
+                    }),
+                  ],
                   const SizedBox(height: 10),
-                  _detailTile('Service Address', _fmt(record['address']),
-                      icon: Icons.location_on_outlined, fullWidth: true),
+                  _detailTile(
+                    'Total Amount',
+                    _fmtAmount(_calculateTotalAmount(record)),
+                    icon: Icons.currency_rupee_rounded,
+                    emphasize: true,
+                  ),
+                  const SizedBox(height: 10),
+                  _detailTile(
+                    'Service Address',
+                    _fmt(record['address']),
+                    icon: Icons.location_on_outlined,
+                    fullWidth: true,
+                  ),
                 ],
               ),
             ),
@@ -1570,10 +1521,13 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
     );
   }
 
-  Widget _detailTile(String label, String value,
-      {required IconData icon,
-      bool emphasize = false,
-      bool fullWidth = false}) {
+  Widget _detailTile(
+    String label,
+    String value, {
+    required IconData icon,
+    bool emphasize = false,
+    bool fullWidth = false,
+  }) {
     return Container(
       width: fullWidth ? double.infinity : null,
       padding: const EdgeInsets.all(10),
@@ -1590,24 +1544,26 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label.toUpperCase(),
-                    style: const TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF8A9BB8),
-                        letterSpacing: 0.4)),
+                Text(
+                  label.toUpperCase(),
+                  style: const TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF8A9BB8),
+                    letterSpacing: 0.4,
+                  ),
+                ),
                 const SizedBox(height: 3),
-                Text(value,
-                    style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: emphasize
-                            ? FontWeight.w800
-                            : FontWeight.w600,
-                        color: emphasize
-                            ? Colors.green.shade700
-                            : _brand),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: emphasize ? FontWeight.w800 : FontWeight.w600,
+                    color: emphasize ? Colors.green.shade700 : _brand,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ],
             ),
           ),
@@ -1628,9 +1584,10 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-              color: _brand.withOpacity(0.08),
-              blurRadius: 20,
-              offset: const Offset(0, 4))
+            color: _brand.withOpacity(0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
       child: Column(
@@ -1641,8 +1598,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
             decoration: const BoxDecoration(
               color: Color(0xFFF4F7FC),
-              borderRadius:
-                  BorderRadius.vertical(top: Radius.circular(20)),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
             ),
             child: Row(
               children: [
@@ -1653,30 +1609,37 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                     color: _brand,
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.picture_as_pdf_rounded,
-                      color: Colors.white, size: 20),
+                  child: const Icon(
+                    Icons.picture_as_pdf_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Export PDF Report',
-                          style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: _brand,
-                              letterSpacing: -0.3)),
+                      Text(
+                        'Export PDF Report',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: _brand,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
                       Text(
                         canExport
                             ? '$exportCount record${exportCount != 1 ? 's' : ''} ready to export'
                             : 'Select records above to export',
                         style: TextStyle(
-                            fontSize: 12,
-                            color: canExport
-                                ? Colors.green.shade600
-                                : const Color(0xFF8A9BB8),
-                            fontWeight: FontWeight.w500),
+                          fontSize: 12,
+                          color: canExport
+                              ? Colors.green.shade600
+                              : const Color(0xFF8A9BB8),
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ],
                   ),
@@ -1684,18 +1647,25 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                 if (canExport)
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 4),
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.green.shade50,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                          color: Colors.green.shade200, width: 1),
+                        color: Colors.green.shade200,
+                        width: 1,
+                      ),
                     ),
-                    child: Text('Ready',
-                        style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.green.shade700,
-                            fontWeight: FontWeight.w700)),
+                    child: Text(
+                      'Ready',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.green.shade700,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
               ],
             ),
@@ -1711,9 +1681,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                   width: double.infinity,
                   height: 50,
                   child: ElevatedButton.icon(
-                    onPressed: canExport &&
-                            !_isPdfViewing &&
-                            !_isPdfDownloading
+                    onPressed: canExport && !_isPdfViewing && !_isPdfDownloading
                         ? _viewReportPdf
                         : null,
                     icon: _isPdfViewing
@@ -1721,26 +1689,28 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                             width: 18,
                             height: 18,
                             child: CircularProgressIndicator(
-                                strokeWidth: 2.5,
-                                color: Colors.white))
-                        : const Icon(
-                            Icons.visibility_rounded, size: 20),
+                              strokeWidth: 2.5,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.visibility_rounded, size: 20),
                     label: Text(
-                        _isPdfViewing ? 'Opening…' : 'View PDF Report',
-                        style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: -0.2)),
+                      _isPdfViewing ? 'Opening…' : 'View PDF Report',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _brand,
                       foregroundColor: Colors.white,
-                      disabledBackgroundColor:
-                          const Color(0xFFDDE4F0),
-                      disabledForegroundColor:
-                          const Color(0xFF8A9BB8),
+                      disabledBackgroundColor: const Color(0xFFDDE4F0),
+                      disabledForegroundColor: const Color(0xFF8A9BB8),
                       elevation: 0,
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14)),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
                     ),
                   ),
                 ),
@@ -1750,9 +1720,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                   width: double.infinity,
                   height: 50,
                   child: OutlinedButton.icon(
-                    onPressed: canExport &&
-                            !_isPdfViewing &&
-                            !_isPdfDownloading
+                    onPressed: canExport && !_isPdfViewing && !_isPdfDownloading
                         ? _downloadReportPdf
                         : null,
                     icon: _isPdfDownloading
@@ -1760,29 +1728,31 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                             width: 18,
                             height: 18,
                             child: CircularProgressIndicator(
-                                strokeWidth: 2.5,
-                                color: _brand.withOpacity(0.6)))
-                        : const Icon(
-                            Icons.download_rounded, size: 20),
+                              strokeWidth: 2.5,
+                              color: _brand.withOpacity(0.6),
+                            ),
+                          )
+                        : const Icon(Icons.download_rounded, size: 20),
                     label: Text(
-                        _isPdfDownloading
-                            ? 'Saving…'
-                            : 'Download PDF',
-                        style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: -0.2)),
+                      _isPdfDownloading ? 'Saving…' : 'Download PDF',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: _brand,
-                      disabledForegroundColor:
-                          const Color(0xFF8A9BB8),
+                      disabledForegroundColor: const Color(0xFF8A9BB8),
                       side: BorderSide(
-                          color: canExport
-                              ? _brand.withOpacity(0.35)
-                              : const Color(0xFFDDE4F0),
-                          width: 1.5),
+                        color: canExport
+                            ? _brand.withOpacity(0.35)
+                            : const Color(0xFFDDE4F0),
+                        width: 1.5,
+                      ),
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14)),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
                     ),
                   ),
                 ),
@@ -1791,16 +1761,19 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.info_outline_rounded,
-                          size: 14,
-                          color: const Color(0xFF8A9BB8)),
+                      Icon(
+                        Icons.info_outline_rounded,
+                        size: 14,
+                        color: const Color(0xFF8A9BB8),
+                      ),
                       const SizedBox(width: 6),
                       const Text(
                         'Tap a record above to select it for export',
                         style: TextStyle(
-                            fontSize: 12,
-                            color: Color(0xFF8A9BB8),
-                            fontStyle: FontStyle.italic),
+                          fontSize: 12,
+                          color: Color(0xFF8A9BB8),
+                          fontStyle: FontStyle.italic,
+                        ),
                       ),
                     ],
                   ),
@@ -1817,48 +1790,50 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
 
   Widget _buildEmptyState() {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
+      padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.02),
-              blurRadius: 12,
-              offset: const Offset(0, 3))
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
       child: Column(
         children: [
           Container(
-            width: 72,
-            height: 72,
+            width: 80,
+            height: 80,
             decoration: BoxDecoration(
-              color: _brand.withOpacity(0.1),
-              shape: BoxShape.circle,
+              color: _brandLight,
+              borderRadius: BorderRadius.circular(24),
             ),
-            child: Icon(Icons.feed_outlined,
-                size: 36, color: _brand),
-          ),
-          const SizedBox(height: 16),
-          const Text('No Records Loaded Yet',
-              style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF0F172A),
-                  letterSpacing: -0.3)),
-          const SizedBox(height: 6),
-          const Text(
-            'Search by Customer ID, Phone Number\nor Booking ID to compile customer report',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-                fontSize: 13,
-                color: Color(0xFF64748B),
-                fontWeight: FontWeight.w500,
-                height: 1.4),
+            child: Icon(Icons.assignment_outlined, size: 40, color: _brand),
           ),
           const SizedBox(height: 20),
+          Text(
+            'No Records Yet',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: _brand,
+              letterSpacing: -0.3,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Search by Customer ID, Phone Number\nor Ticket ID to generate a report',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 14,
+              color: Color(0xFF8A9BB8),
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 24),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -1866,7 +1841,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
             children: [
               _tipChip(Icons.badge_outlined, 'Customer ID'),
               _tipChip(Icons.phone_outlined, 'Phone Number'),
-              _tipChip(Icons.confirmation_number_outlined, 'Booking ID'),
+              _tipChip(Icons.confirmation_number_outlined, 'Ticket ID'),
             ],
           ),
         ],
@@ -1876,22 +1851,24 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
 
   Widget _tipChip(IconData icon, String label) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        color: _brandLight,
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 14, color: _brand),
           const SizedBox(width: 6),
-          Text(label,
-              style: TextStyle(
-                  fontSize: 11,
-                  color: _brand,
-                  fontWeight: FontWeight.w700)),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: _brand,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );
