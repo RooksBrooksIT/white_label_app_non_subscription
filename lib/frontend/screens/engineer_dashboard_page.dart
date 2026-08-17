@@ -23,6 +23,8 @@ import 'package:subscription_rooks_app/services/storage_service.dart';
 import 'package:subscription_rooks_app/services/attendance_service.dart';
 import 'package:subscription_rooks_app/frontend/screens/engineer_location_screen.dart';
 import 'package:subscription_rooks_app/frontend/screens/engineer_edit_profile_screen.dart';
+import 'package:subscription_rooks_app/services/app_tour_service.dart';
+import 'package:subscription_rooks_app/widgets/interactive_tour/tour_step_model.dart';
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
@@ -364,6 +366,7 @@ class ProfessionalNavigationDrawer extends StatefulWidget {
   final String currentSection;
   final Function(String) onSectionChange;
   final bool barcodeEnabled;
+  final VoidCallback? onStartTour;
 
   const ProfessionalNavigationDrawer({
     super.key,
@@ -373,6 +376,7 @@ class ProfessionalNavigationDrawer extends StatefulWidget {
     required this.currentSection,
     required this.onSectionChange,
     this.barcodeEnabled = true,
+    this.onStartTour,
   });
 
   @override
@@ -597,9 +601,20 @@ class _ProfessionalNavigationDrawerState
                       },
                     ),
                   ],
+                  _buildAnimatedMenuItem(
+                    index: widget.barcodeEnabled ? 4 : 2,
+                    icon: Icons.explore_rounded,
+                    title: 'App Tour & Guide',
+                    onTap: () {
+                      Navigator.pop(context);
+                      Future.delayed(const Duration(milliseconds: 300), () {
+                        widget.onStartTour?.call();
+                      });
+                    },
+                  ),
                   const Spacer(),
                   _buildAnimatedMenuItem(
-                    index: 4,
+                    index: widget.barcodeEnabled ? 5 : 3,
                     icon: Icons.logout_rounded,
                     title: 'Logout',
                     isLogout: true,
@@ -754,6 +769,19 @@ class _EngineerPageState extends State<EngineerPage> {
   String? _statusFilter;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
+  // GlobalKeys for Engineer Interactive Tour - Dashboard Tab
+  final GlobalKey _engProfileHeaderKey = GlobalKey();
+  final GlobalKey _engStatusToggleKey = GlobalKey();
+  final GlobalKey _engActiveTaskKey = GlobalKey();
+  final GlobalKey _engWorkSummaryKey = GlobalKey();
+  final GlobalKey _engMonthlyBreakdownKey = GlobalKey();
+  final GlobalKey _engBottomNavKey = GlobalKey();
+
+  // GlobalKeys for Engineer Interactive Tour - Bookings Tab
+  final GlobalKey _engBookingsSwitcherKey = GlobalKey();
+  final GlobalKey _engBookingsSearchKey = GlobalKey();
+  final GlobalKey _engBookingsFilterChipsKey = GlobalKey();
+
   int _selectedIndex = 0; // Current tab index
   String _currentSection = 'dashboard';
 
@@ -792,6 +820,179 @@ class _EngineerPageState extends State<EngineerPage> {
     _requestInitialLocationPermission();
     _checkAttendanceStatus();
     _fetchSubscriptionData();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future.delayed(const Duration(milliseconds: 900), () {
+        if (mounted) _checkAndStartEngineerTour();
+      });
+    });
+  }
+
+  Future<void> _checkAndStartEngineerTour({bool force = false}) async {
+    if (!mounted) return;
+    final prefs = await SharedPreferences.getInstance();
+    final completed = prefs.getBool('hasCompletedEngineerTour') ?? false;
+
+    if (!completed) {
+      // First-time tour: always ensure Dashboard tab is active so all 6 dashboard tour steps are shown on screen
+      if (_selectedIndex != 0) {
+        setState(() => _selectedIndex = 0);
+        await Future.delayed(const Duration(milliseconds: 250));
+      }
+      if (!mounted) return;
+      final steps = _buildEngineerTourSteps();
+      if (steps.isNotEmpty) {
+        AppTourService.instance.startTour(
+          context: context,
+          steps: steps,
+          force: false,
+          onComplete: () async {
+            final p = await SharedPreferences.getInstance();
+            await p.setBool('hasCompletedEngineerTour', true);
+          },
+        );
+      }
+    } else if (force) {
+      // Replay tour: provide steps tailored to whichever tab the engineer is currently viewing
+      List<TourStep> steps;
+      if (_selectedIndex == 1) {
+        steps = _buildBookingsTourSteps();
+      } else {
+        if (_selectedIndex != 0) {
+          setState(() => _selectedIndex = 0);
+          await Future.delayed(const Duration(milliseconds: 250));
+        }
+        steps = _buildEngineerTourSteps();
+      }
+
+      if (mounted && steps.isNotEmpty) {
+        AppTourService.instance.startTour(
+          context: context,
+          steps: steps,
+          force: true,
+          onComplete: () {},
+        );
+      }
+    }
+  }
+
+  List<TourStep> _buildEngineerTourSteps() {
+    final primary = Theme.of(context).primaryColor;
+    return [
+      TourStep(
+        id: 'eng_profile_header',
+        targetKey: _engProfileHeaderKey,
+        category: '👋 Welcome Engineer',
+        title: 'Technician Command Center',
+        description:
+            'Welcome to your field workspace! Monitor your profile, active tickets, and daily performance metrics.',
+        icon: Icons.engineering_rounded,
+        accentColor: primary,
+      ),
+      TourStep(
+        id: 'eng_online_toggle',
+        targetKey: _engStatusToggleKey,
+        category: '🟢 Duty Status',
+        title: 'Go Online / Offline',
+        description:
+            'Toggle your status to "Online" when starting your shift so the dispatch admin can assign customer service tickets and track live GPS coordinates.',
+        icon: Icons.toggle_on_rounded,
+        accentColor: const Color(0xFF10B981),
+      ),
+      TourStep(
+        id: 'eng_active_tasks',
+        targetKey: _engActiveTaskKey,
+        category: '🛠️ Priority Task',
+        title: 'Recent & Active Tasks',
+        description:
+            'Your current priority service ticket. View customer contact, symptom details, and location. Tap "Call" to reach the customer or "View Ticket" to submit onsite updates and photo proofs.',
+        icon: Icons.assignment_turned_in_rounded,
+        accentColor: const Color(0xFFE17055),
+        workflowSteps: const [
+          '1. Assigned',
+          '2. Check-In',
+          '3. Add Notes & Photos',
+          '4. Complete',
+        ],
+        currentWorkflowIndex: 0,
+      ),
+      TourStep(
+        id: 'eng_work_summary',
+        targetKey: _engWorkSummaryKey,
+        category: '📊 Performance Metrics',
+        title: 'Work Summary & Rate',
+        description:
+            'Monitor your daily task load at a glance — review counts for assigned, completed, pending, and in-progress jobs alongside your completion rate percentage.',
+        icon: Icons.analytics_rounded,
+        accentColor: const Color(0xFF0984E3),
+      ),
+      TourStep(
+        id: 'eng_monthly_breakdown',
+        targetKey: _engMonthlyBreakdownKey,
+        category: '📅 Monthly Tracking',
+        title: 'Monthly Performance',
+        description:
+            'Swipe horizontally across past months to inspect your completed tasks and track your overall job volume over time.',
+        icon: Icons.calendar_month_rounded,
+        accentColor: const Color(0xFF6C5CE7),
+      ),
+      TourStep(
+        id: 'eng_bottom_nav',
+        targetKey: _engBottomNavKey,
+        category: '🧭 App Navigation',
+        title: 'Quick Navigation Bar',
+        description:
+            'Navigate seamlessly between Dashboard, All Assigned Bookings, Live Maps & Navigation, and your Profile & Shift settings.',
+        icon: Icons.grid_view_rounded,
+        accentColor: primary,
+      ),
+    ];
+  }
+
+  List<TourStep> _buildBookingsTourSteps() {
+    final primary = Theme.of(context).primaryColor;
+    return [
+      TourStep(
+        id: 'eng_bookings_switcher',
+        targetKey: _engBookingsSwitcherKey,
+        category: '📋 Ticket Status',
+        title: 'Assigned & Completed',
+        description:
+            'Easily toggle between your active Assigned service jobs and your history of Completed tickets.',
+        icon: Icons.assignment_rounded,
+        accentColor: primary,
+      ),
+      TourStep(
+        id: 'eng_bookings_search',
+        targetKey: _engBookingsSearchKey,
+        category: '🔍 Smart Search',
+        title: 'Find Tickets Instantly',
+        description:
+            'Quickly search for any job by Booking ID, Customer Name, or Phone Number.',
+        icon: Icons.search_rounded,
+        accentColor: const Color(0xFF0984E3),
+      ),
+      TourStep(
+        id: 'eng_bookings_filters',
+        targetKey: _engBookingsFilterChipsKey,
+        category: '⚡ Quick Filters',
+        title: 'Status Filtering',
+        description:
+            'Filter your workload by sub-statuses like Spares Required, Observation, In Progress, or Pending.',
+        icon: Icons.filter_alt_rounded,
+        accentColor: const Color(0xFFE17055),
+      ),
+      TourStep(
+        id: 'eng_bottom_nav_bookings',
+        targetKey: _engBottomNavKey,
+        category: '🧭 App Navigation',
+        title: 'Tab Navigation',
+        description:
+            'Switch anytime between your Bookings list, main Dashboard, Live Map, and Profile.',
+        icon: Icons.grid_view_rounded,
+        accentColor: primary,
+      ),
+    ];
   }
 
   Future<void> _fetchSubscriptionData() async {
@@ -1289,7 +1490,6 @@ class _EngineerPageState extends State<EngineerPage> {
   }
 
   @override
-  @override
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
@@ -1320,6 +1520,7 @@ class _EngineerPageState extends State<EngineerPage> {
             });
           },
           barcodeEnabled: _barcodeEnabled,
+          onStartTour: () => _checkAndStartEngineerTour(force: true),
         ),
         body: Column(
           children: [
@@ -1367,59 +1568,68 @@ class _EngineerPageState extends State<EngineerPage> {
       ),
       child: Row(
         children: [
-          // Logo / Avatar
-          if (ThemeService.instance.logoUrl != null)
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: const Color(0xFFF1F5F9),
-              backgroundImage: NetworkImage(ThemeService.instance.logoUrl!),
-            )
-          else
-            CircleAvatar(
-              radius: 18,
-              backgroundColor:
-                  Theme.of(context).primaryColor.withValues(alpha: 0.1),
-              child: Text(
-                widget.userName.isNotEmpty
-                    ? widget.userName[0].toUpperCase()
-                    : 'E',
-                style: TextStyle(
-                  color: Theme.of(context).primaryColor,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 14,
-                ),
+          // Logo / Avatar & Profile
+          Expanded(
+            child: Container(
+              key: _engProfileHeaderKey,
+              child: Row(
+                children: [
+                  if (ThemeService.instance.logoUrl != null)
+                    CircleAvatar(
+                      radius: 18,
+                      backgroundColor: const Color(0xFFF1F5F9),
+                      backgroundImage: NetworkImage(ThemeService.instance.logoUrl!),
+                    )
+                  else
+                    CircleAvatar(
+                      radius: 18,
+                      backgroundColor:
+                          Theme.of(context).primaryColor.withValues(alpha: 0.1),
+                      child: Text(
+                        widget.userName.isNotEmpty
+                            ? widget.userName[0].toUpperCase()
+                            : 'E',
+                        style: TextStyle(
+                          color: Theme.of(context).primaryColor,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          ThemeService.instance.appName,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF94A3B8),
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                        Text(
+                          widget.userName,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF0F172A),
+                            letterSpacing: -0.3,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
-          const SizedBox(width: 10),
-          // App and User Name
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  ThemeService.instance.appName,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF94A3B8),
-                    letterSpacing: 0.8,
-                  ),
-                ),
-                Text(
-                  widget.userName,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF0F172A),
-                    letterSpacing: -0.3,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
           ),
+          const SizedBox(width: 10),
           // Online Toggle
           _buildOnlineToggle(),
           const SizedBox(width: 10),
@@ -1445,6 +1655,7 @@ class _EngineerPageState extends State<EngineerPage> {
     final statusColor =
         _isOnline ? const Color(0xFF10B981) : const Color(0xFF94A3B8);
     return Container(
+      key: _engStatusToggleKey,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: const Color(0xFFF1F5F9),
@@ -1655,33 +1866,41 @@ class _EngineerPageState extends State<EngineerPage> {
           const SizedBox(height: 24),
 
           // ── 3. Featured Hero Task & Active Tasks ──
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Recent & Active Tasks',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF0F172A),
-                  letterSpacing: -0.3,
+          Container(
+            key: _engActiveTaskKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Recent & Active Tasks',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF0F172A),
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: () {
+                        setState(() => _selectedIndex = 1); // Go to Bookings
+                      },
+                      icon: const Icon(Icons.arrow_forward_rounded, size: 14),
+                      label: const Text('View All',
+                          style: TextStyle(fontWeight: FontWeight.w700)),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Theme.of(context).primaryColor,
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              TextButton.icon(
-                onPressed: () {
-                  setState(() => _selectedIndex = 1); // Go to Bookings
-                },
-                icon: const Icon(Icons.arrow_forward_rounded, size: 14),
-                label: const Text('View All',
-                    style: TextStyle(fontWeight: FontWeight.w700)),
-                style: TextButton.styleFrom(
-                  foregroundColor: Theme.of(context).primaryColor,
-                ),
-              ),
-            ],
+                const SizedBox(height: 12),
+                _buildRecentTasks(),
+              ],
+            ),
           ),
-          const SizedBox(height: 12),
-          _buildRecentTasks(),
           const SizedBox(height: 24),
 
           // ── 4. Work Summary Dashboard ──
@@ -1958,6 +2177,7 @@ class _EngineerPageState extends State<EngineerPage> {
           children: [
             // ── Ultra-Compact Single-Card 4-Column Metric Bar ──
             Container(
+              key: _engWorkSummaryKey,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               decoration: BoxDecoration(
                 color: Colors.white,
@@ -2063,169 +2283,176 @@ class _EngineerPageState extends State<EngineerPage> {
             ),
 
             const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Monthly Breakdown (${now.year})',
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF0F172A),
-                    letterSpacing: -0.2,
+            Container(
+              key: _engMonthlyBreakdownKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Monthly Breakdown (${now.year})',
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF0F172A),
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                      const Row(
+                        children: [
+                          Text(
+                            'Swipe',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF94A3B8),
+                            ),
+                          ),
+                          SizedBox(width: 2),
+                          Icon(
+                            Icons.arrow_forward_rounded,
+                            size: 12,
+                            color: Color(0xFF94A3B8),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                ),
-                const Row(
-                  children: [
-                    Text(
-                      'Swipe',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF94A3B8),
-                      ),
-                    ),
-                    SizedBox(width: 2),
-                    Icon(
-                      Icons.arrow_forward_rounded,
-                      size: 12,
-                      color: Color(0xFF94A3B8),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            SizedBox(
-              height: 76,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                physics: const BouncingScrollPhysics(),
-                itemCount: now.month,
-                separatorBuilder: (context, index) =>
-                    const SizedBox(width: 10),
-                itemBuilder: (context, index) {
-                  int month = now.month - index;
-                  int assigned = assignedPerMonth[month] ?? 0;
-                  int completed = completedPerMonth[month] ?? 0;
-                  String monthName =
-                      DateFormat('MMMM').format(DateTime(now.year, month));
-                  bool isCurrentMonth = index == 0;
-                  final primary = Theme.of(context).primaryColor;
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 76,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      itemCount: now.month,
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(width: 10),
+                      itemBuilder: (context, index) {
+                        int month = now.month - index;
+                        int assigned = assignedPerMonth[month] ?? 0;
+                        int completed = completedPerMonth[month] ?? 0;
+                        String monthName =
+                            DateFormat('MMMM').format(DateTime(now.year, month));
+                        bool isCurrentMonth = index == 0;
+                        final primary = Theme.of(context).primaryColor;
 
-                  return Container(
-                    width: 145,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isCurrentMonth ? primary : Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: isCurrentMonth
-                            ? primary
-                            : const Color(0xFFE2E8F0),
-                        width: 1.5,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: isCurrentMonth
-                              ? primary.withValues(alpha: 0.25)
-                              : Colors.black.withValues(alpha: 0.03),
-                          blurRadius: 6,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              monthName,
-                              style: TextStyle(
-                                fontWeight: FontWeight.w900,
-                                fontSize: 13,
-                                color: isCurrentMonth
-                                    ? Colors.white
-                                    : const Color(0xFF0F172A),
-                              ),
+                        return Container(
+                          width: 145,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isCurrentMonth ? primary : Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: isCurrentMonth
+                                  ? primary
+                                  : const Color(0xFFE2E8F0),
+                              width: 1.5,
                             ),
-                            if (isCurrentMonth)
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 5,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.2),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: const Text(
-                                  'NOW',
-                                  style: TextStyle(
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w900,
-                                    color: Colors.white,
+                            boxShadow: [
+                              BoxShadow(
+                                color: isCurrentMonth
+                                    ? primary.withValues(alpha: 0.25)
+                                    : Colors.black.withValues(alpha: 0.03),
+                                blurRadius: 6,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    monthName,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                      color: isCurrentMonth
+                                          ? Colors.white
+                                          : const Color(0xFF0F172A),
+                                    ),
                                   ),
-                                ),
+                                  if (isCurrentMonth)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 5,
+                                        vertical: 1,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withValues(alpha: 0.25),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: const Text(
+                                        'NOW',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 8,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            Text(
-                              '$assigned',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w900,
-                                fontSize: 13,
-                                color: isCurrentMonth
-                                    ? Colors.white
-                                    : const Color(0xFF0F172A),
+                              const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  Text(
+                                    '$assigned ',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w900,
+                                      color: isCurrentMonth
+                                          ? Colors.white
+                                          : const Color(0xFF0F172A),
+                                    ),
+                                  ),
+                                  Text(
+                                    'Assigned  ',
+                                    style: TextStyle(
+                                      fontSize: 9.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: isCurrentMonth
+                                          ? Colors.white.withValues(alpha: 0.8)
+                                          : const Color(0xFF64748B),
+                                    ),
+                                  ),
+                                  Text(
+                                    '$completed ',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w900,
+                                      color: isCurrentMonth
+                                          ? Colors.white
+                                          : const Color(0xFF10B981),
+                                    ),
+                                  ),
+                                  Text(
+                                    'Done',
+                                    style: TextStyle(
+                                      fontSize: 9.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: isCurrentMonth
+                                          ? Colors.white.withValues(alpha: 0.8)
+                                          : const Color(0xFF64748B),
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
-                            Text(
-                              ' Assigned',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                                color: isCurrentMonth
-                                    ? Colors.white.withValues(alpha: 0.85)
-                                    : const Color(0xFF64748B),
-                              ),
-                            ),
-                            const Spacer(),
-                            Text(
-                              '$completed',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w900,
-                                fontSize: 13,
-                                color: isCurrentMonth
-                                    ? Colors.white
-                                    : const Color(0xFF10B981),
-                              ),
-                            ),
-                            Text(
-                              ' Done',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                                color: isCurrentMonth
-                                    ? Colors.white.withValues(alpha: 0.85)
-                                    : const Color(0xFF10B981),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
+                            ],
+                          ),
+                        );
+                      },
                     ),
-                  );
-                },
+                  ),
+                ],
               ),
             ),
           ],
@@ -2821,6 +3048,7 @@ class _EngineerPageState extends State<EngineerPage> {
     ];
 
     return Container(
+      key: _engBottomNavKey,
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -3315,10 +3543,24 @@ class _EngineerPageState extends State<EngineerPage> {
                 children: [
                   _sectionHeader('Bookings'),
                   const SizedBox(height: 12),
-                  _buildSearchField(),
+                  Container(
+                    key: _engBookingsSwitcherKey,
+                    child: _buildBookingSectionSwitcher(
+                      assignedCount: assignedCount,
+                      completedCount: completedCount,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    key: _engBookingsSearchKey,
+                    child: _buildSearchField(),
+                  ),
                   if (_currentSection == 'dashboard') ...[
                     const SizedBox(height: 12),
-                    _buildStatusFilterChips(),
+                    Container(
+                      key: _engBookingsFilterChipsKey,
+                      child: _buildStatusFilterChips(),
+                    ),
                   ],
                   const SizedBox(height: 12),
                   _buildResultsMeta(),
@@ -4184,7 +4426,7 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
     setState(() => _isLoadingLocation = true);
     try {
       Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
       );
       setState(() {
         _capturedLat = position.latitude;
@@ -4253,11 +4495,11 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
 
   void _recomputeTotalAmountFromPayments() {
     if (_payments.isEmpty) return;
-    final total = _payments.fold<num>(0, (sum, p) {
+    final total = _payments.fold<num>(0, (acc, p) {
       final v = p['amount'];
-      if (v is num) return sum + v;
-      if (v is String) return sum + (double.tryParse(v) ?? 0);
-      return sum;
+      if (v is num) return acc + v;
+      if (v is String) return acc + (double.tryParse(v) ?? 0);
+      return acc;
     }).toDouble();
 
     _amountController.text = total.toStringAsFixed(2);

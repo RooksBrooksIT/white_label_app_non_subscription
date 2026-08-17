@@ -1256,28 +1256,27 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
       }
 
       // Bypass Payment and Go directly to Customization
-      if (mounted) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => BrandingCustomizationScreen(
-              planName: selectedPlan['name'],
-              price: price,
-              originalPrice: originalPrice,
-              isYearly: isYearly,
-              isSixMonths: isSixMonths,
-              paymentMethod: 'Free Trial',
-              transactionId: 'trial_${DateTime.now().millisecondsSinceEpoch}',
-              limits: selectedPlan['limits'],
-              geoLocation: selectedPlan['geoLocation'],
-              attendance: selectedPlan['attendance'],
-              barcode: selectedPlan['barcode'],
-              reportExport: selectedPlan['reportExport'],
-              pendingUserData: widget.pendingUserData,
-            ),
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => BrandingCustomizationScreen(
+            planName: selectedPlan['name'],
+            price: price,
+            originalPrice: originalPrice,
+            isYearly: isYearly,
+            isSixMonths: isSixMonths,
+            paymentMethod: 'Free Trial',
+            transactionId: 'trial_${DateTime.now().millisecondsSinceEpoch}',
+            limits: selectedPlan['limits'],
+            geoLocation: selectedPlan['geoLocation'],
+            attendance: selectedPlan['attendance'],
+            barcode: selectedPlan['barcode'],
+            reportExport: selectedPlan['reportExport'],
+            pendingUserData: widget.pendingUserData,
           ),
-        );
-      }
+        ),
+      );
       return;
     }
 

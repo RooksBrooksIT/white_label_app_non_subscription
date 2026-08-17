@@ -11,7 +11,7 @@ class Engineerlogin extends StatefulWidget {
   const Engineerlogin({super.key});
 
   @override
-  _EngineerloginState createState() => _EngineerloginState();
+  State<Engineerlogin> createState() => _EngineerloginState();
 }
 
 class _EngineerloginState extends State<Engineerlogin> {
@@ -238,7 +238,7 @@ class _EngineerloginState extends State<Engineerlogin> {
                   width: double.infinity,
                   height: 60,
                   child: ElevatedButton(
-                    onPressed: _login,
+                    onPressed: _isLoading ? null : _login,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.black,
                       foregroundColor: Colors.white,
@@ -247,13 +247,22 @@ class _EngineerloginState extends State<Engineerlogin> {
                       ),
                       elevation: 0,
                     ),
-                    child: Text(
-                      'Log In',
-                      style: GoogleFonts.inter(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2.5,
+                            ),
+                          )
+                        : Text(
+                            'Log In',
+                            style: GoogleFonts.inter(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                   ),
                 ),
                 const SizedBox(height: 24),

@@ -64,6 +64,7 @@ class Customer {
     String? problem,
     String? assignedEngineer,
     Timestamp? timestamp,
+    String? customerid,
     String? customerFileUrl,
     String? fileName,
   }) {
@@ -82,7 +83,7 @@ class Customer {
       problem: problem ?? this.problem,
       assignedEngineer: assignedEngineer ?? this.assignedEngineer,
       timestamp: timestamp ?? this.timestamp,
-      customerid: customerid ?? customerid,
+      customerid: customerid ?? this.customerid,
       customerFileUrl: customerFileUrl ?? this.customerFileUrl,
       fileName: fileName ?? this.fileName,
     );

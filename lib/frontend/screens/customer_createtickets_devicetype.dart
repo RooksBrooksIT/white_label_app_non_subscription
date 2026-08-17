@@ -318,22 +318,15 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
             child: SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
               child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: kMaxContentWidth),
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: context.responsiveHPadding,
-                    ),
-                    child: ResponsiveWrapper(
-                      maxWidth: 960.0,
-                      padding: EdgeInsets.all(
-                        ResponsiveHelper.getResponsiveWidth(5),
-                      ),
-                      child: !showDeviceSelection
-                          ? _buildServiceSelection()
-                          : _buildDeviceSelection(),
-                    ),
+                child: ResponsiveWrapper(
+                  maxWidth: kMaxContentWidth,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16.0,
+                    vertical: 12.0,
                   ),
+                  child: !showDeviceSelection
+                      ? _buildServiceSelection()
+                      : _buildDeviceSelection(),
                 ),
               ),
             ),

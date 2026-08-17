@@ -37,7 +37,6 @@ class _EngineerLocationScreenState extends State<EngineerLocationScreen> {
   DateTime? _lastRouteFetchAt;
   latlong.LatLng? _lastRouteFetchOrigin;
 
-  String _specialization = 'Engineer';
   bool _isOnline = false;
   bool _autoFollow = true;
   bool _isTogglingStatus = false;
@@ -64,7 +63,6 @@ class _EngineerLocationScreenState extends State<EngineerLocationScreen> {
           if (mounted) {
             setState(() {
               _isOnline = data['isOnline'] ?? false;
-              _specialization = data['Specialization'] ?? 'Engineer';
 
               if (!_isOnline) {
                 _currentLocation = null;
@@ -484,7 +482,7 @@ class _EngineerLocationScreenState extends State<EngineerLocationScreen> {
   Future<void> _refreshLocation() async {
     try {
       Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
       );
       final tenantId = ThemeService.instance.databaseName;
       final tenantCollection = FirestoreService.instance.collection(
@@ -719,7 +717,9 @@ class _EngineerLocationScreenState extends State<EngineerLocationScreen> {
 
     // immediate route fetch
     final pos = await Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.bestForNavigation,
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.bestForNavigation,
+      ),
     );
     final origin = latlong.LatLng(pos.latitude, pos.longitude);
     if (!mounted) return;

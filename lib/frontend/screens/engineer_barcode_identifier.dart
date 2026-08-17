@@ -526,8 +526,6 @@ class _EngineerBarcodeIdentifierScreenState
   }
 
   Widget _buildProductDetails() {
-    final data = _productDocument!.data() as Map<String, dynamic>;
-
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Column(

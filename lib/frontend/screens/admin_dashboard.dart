@@ -41,6 +41,8 @@ import 'package:subscription_rooks_app/frontend/screens/admin_notifications_page
 import 'package:subscription_rooks_app/frontend/screens/refund_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:subscription_rooks_app/widgets/subscription_welcome_modal.dart';
+import 'package:subscription_rooks_app/services/app_tour_service.dart';
+import 'package:subscription_rooks_app/widgets/interactive_tour/tour_step_model.dart';
 
 class admindashboard extends StatefulWidget {
   const admindashboard({super.key});
@@ -79,6 +81,15 @@ class _admindashboardState extends State<admindashboard> {
   final Color textLightColor = const Color(0xFF64748B);
   final Color errorColor = const Color(0xFFEF4444);
 
+  // GlobalKeys for Guided App Tour
+  final GlobalKey _headerTourKey = GlobalKey();
+  final GlobalKey _createTicketCtaTourKey = GlobalKey();
+  final GlobalKey _ticketMgmtTourKey = GlobalKey();
+  final GlobalKey _staffHubTourKey = GlobalKey();
+  final GlobalKey _customerHubTourKey = GlobalKey();
+  final GlobalKey _assetsInventoryTourKey = GlobalKey();
+  final GlobalKey _financialsTourKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
@@ -86,6 +97,12 @@ class _admindashboardState extends State<admindashboard> {
     _loadAdminData();
     NotificationService.instance.initialize();
     ThemeService.instance.addListener(_onThemeChanged);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future.delayed(const Duration(milliseconds: 900), () {
+        if (mounted) _checkAndStartFirstTimeTour();
+      });
+    });
   }
 
   void _onThemeChanged() {
@@ -437,6 +454,160 @@ class _admindashboardState extends State<admindashboard> {
         builder: (context) => DomainDetailPage(domain: domain),
       ),
     );
+  }
+
+  Future<void> _checkAndStartFirstTimeTour({bool force = false}) async {
+    if (!mounted) return;
+    final completed = await AppTourService.instance.hasCompletedTour();
+    if (!completed || force) {
+      final steps = _buildAppTourSteps();
+      if (mounted && steps.isNotEmpty) {
+        AppTourService.instance.startTour(
+          context: context,
+          steps: steps,
+          force: force,
+        );
+      }
+    }
+  }
+
+  List<TourStep> _buildAppTourSteps() {
+    return [
+      TourStep(
+        id: 'header_overview',
+        targetKey: _headerTourKey,
+        category: '✨ Welcome Tour',
+        title: 'Welcome to ServNex Admin',
+        description:
+            'Your centralized operations center. Monitor business status, active plan features, unread notifications, and system performance all in one place.',
+        icon: Icons.dashboard_rounded,
+        accentColor: primaryColor,
+      ),
+      TourStep(
+        id: 'hero_create_ticket',
+        targetKey: _createTicketCtaTourKey,
+        category: '⚡ Quick Action',
+        title: 'Instant Service Request',
+        description:
+            'Raise a new customer service or hardware repair ticket instantly. Enter customer contact, problem symptoms, device brand, and assign an engineer immediately.',
+        icon: Icons.add_task_rounded,
+        accentColor: primaryColor,
+        actionButtonText: 'Create Now',
+        onTargetAction: _navigateToCreateTicket,
+      ),
+      TourStep(
+        id: 'ticket_management',
+        targetKey: _ticketMgmtTourKey,
+        category: '🎫 Core Workflow',
+        title: 'Ticket Management Hub',
+        description:
+            'The core lifecycle engine. Track, assign, inspect real-time technician photo updates, and complete tickets with full accountability.',
+        icon: Icons.confirmation_number_rounded,
+        accentColor: const Color(0xFF0284C7),
+        workflowSteps: const [
+          '1. Create',
+          '2. All Tickets',
+          '3. Assign Engineer',
+          '4. Live Updates',
+          '5. Complete',
+        ],
+        currentWorkflowIndex: 0,
+        actionButtonText: 'Explore',
+        onTargetAction: () {
+          AppTourService.instance.dismissTour();
+          final ticketDomain = DomainModel(
+            id: 'tickets',
+            title: 'Ticket Management',
+            description: 'Track, assign, and manage all customer service tickets',
+            icon: Icons.confirmation_number_rounded,
+            backgroundColor: const Color(0xFFE0F2FE),
+            iconColor: const Color(0xFF0284C7),
+            textColor: const Color(0xFF0369A1),
+            badgeText: engineerUpdateCount > 0 ? '$engineerUpdateCount updates' : '4 actions',
+            items: [
+              DomainSubItem(
+                title: 'Create Ticket',
+                subtitle: 'Raise a new service request',
+                icon: Icons.add_task_rounded,
+                iconColor: primaryColor,
+                onTap: _navigateToCreateTicket,
+              ),
+              DomainSubItem(
+                title: 'All Tickets',
+                subtitle: 'View and manage all customer support tickets',
+                icon: Icons.assignment_rounded,
+                iconColor: const Color(0xFF0984E3),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => AdminPage_CusDetails(statusFilter: ""),
+                    ),
+                  );
+                },
+              ),
+              DomainSubItem(
+                title: 'Engineer Updates',
+                subtitle: 'Real-time updates from field engineers',
+                icon: Icons.history_rounded,
+                iconColor: const Color(0xFFE17055),
+                badge: engineerUpdateCount > 0 ? '$engineerUpdateCount Updates' : null,
+                badgeColor: const Color(0xFFFF7675),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => EngineerUpdates(),
+                    ),
+                  );
+                },
+              ),
+            ],
+          );
+          _openDomainDetailPage(ticketDomain);
+        },
+      ),
+      TourStep(
+        id: 'staff_hub',
+        targetKey: _staffHubTourKey,
+        category: '👥 Staff & Fleet',
+        title: 'Staff & Field Engineer Hub',
+        description:
+            'Manage engineer profiles, track real-time field locations on live GPS maps, record biometric/GPS attendance, schedule shifts, and view engineer performance reports.',
+        icon: Icons.people_alt_rounded,
+        accentColor: const Color(0xFF9333EA),
+      ),
+      TourStep(
+        id: 'customer_hub',
+        targetKey: _customerHubTourKey,
+        category: '🏢 Customer Operations',
+        title: 'Customer Hub & AMC',
+        description:
+            'Maintain complete customer profiles, create Annual Maintenance Contracts (AMC) with automated expiry tracking, and generate customer service reports.',
+        icon: Icons.assignment_ind_rounded,
+        accentColor: const Color(0xFF16A34A),
+      ),
+      TourStep(
+        id: 'assets_inventory',
+        targetKey: _assetsInventoryTourKey,
+        category: '📦 Inventory & Hardware',
+        title: 'Device Catalog & Barcodes',
+        description:
+            'Configure device categories, brand master lists, scan device barcodes via camera, verify serial numbers, and inspect device repair logs.',
+        icon: Icons.inventory_2_rounded,
+        accentColor: const Color(0xFF0D9488),
+      ),
+      TourStep(
+        id: 'financials_analytics',
+        targetKey: _financialsTourKey,
+        category: '💳 Financials & Receipts',
+        title: 'Financials & Analytics',
+        description:
+            'Track customer payment receipts, review transaction history, export reports, and manage customer refunds with bank reconciliation.',
+        icon: Icons.receipt_long_rounded,
+        accentColor: const Color(0xFFE65100),
+      ),
+    ];
   }
 
   @override
@@ -825,7 +996,15 @@ class _admindashboardState extends State<admindashboard> {
   // FULL WIDTH DOMAIN CARD (Used for all 5 domains!)
   // ==========================================
   Widget _buildFullWidthDomainCard(DomainModel domain) {
+    GlobalKey? tourKey;
+    if (domain.id == 'tickets') tourKey = _ticketMgmtTourKey;
+    if (domain.id == 'staff') tourKey = _staffHubTourKey;
+    if (domain.id == 'customer') tourKey = _customerHubTourKey;
+    if (domain.id == 'assets') tourKey = _assetsInventoryTourKey;
+    if (domain.id == 'financials') tourKey = _financialsTourKey;
+
     return Padding(
+      key: tourKey,
       padding: const EdgeInsets.only(bottom: 14),
       child: InkWell(
         onTap: () => _openDomainDetailPage(domain),
@@ -925,6 +1104,7 @@ class _admindashboardState extends State<admindashboard> {
   // ==========================================
   Widget _buildModernHeader() {
     return Container(
+      key: _headerTourKey,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -1164,6 +1344,7 @@ class _admindashboardState extends State<admindashboard> {
   // ==========================================
   Widget _buildHeroCreateTicketCTA() {
     return Container(
+      key: _createTicketCtaTourKey,
       width: double.infinity,
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
@@ -1343,8 +1524,20 @@ class _admindashboardState extends State<admindashboard> {
                 const SizedBox(height: 20),
 
                 // SECTION 4: SUPPORT
-                _buildDrawerSectionHeader('SUPPORT'),
+                _buildDrawerSectionHeader('SUPPORT & HELP'),
                 const SizedBox(height: 8),
+                _buildDrawerTile(
+                  icon: Icons.explore_rounded,
+                  title: 'App Tour & User Guide',
+                  subtitle: 'Interactive application workflow tour',
+                  iconColor: const Color(0xFF6C5CE7),
+                  onTap: () {
+                    Navigator.pop(context);
+                    Future.delayed(const Duration(milliseconds: 350), () {
+                      _checkAndStartFirstTimeTour(force: true);
+                    });
+                  },
+                ),
                 _buildDrawerTile(
                   icon: Icons.contact_mail_rounded,
                   title: 'Contact Us',
@@ -2494,13 +2687,166 @@ class DomainSubItem {
   });
 }
 
-class DomainDetailPage extends StatelessWidget {
+class DomainDetailPage extends StatefulWidget {
   final DomainModel domain;
+  final bool initialShowGuide;
 
-  const DomainDetailPage({super.key, required this.domain});
+  const DomainDetailPage({
+    super.key,
+    required this.domain,
+    this.initialShowGuide = false,
+  });
+
+  @override
+  State<DomainDetailPage> createState() => _DomainDetailPageState();
+}
+
+class _DomainDetailPageState extends State<DomainDetailPage> {
+  bool _showLifecycleGuide = false;
+  final GlobalKey _domainHeaderKey = GlobalKey();
+  late List<GlobalKey> _itemKeys;
+
+  @override
+  void initState() {
+    super.initState();
+    _itemKeys = List.generate(widget.domain.items.length, (_) => GlobalKey());
+    _checkGuidePreference();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future.delayed(const Duration(milliseconds: 650), () {
+        if (mounted) _checkAndStartDomainTour();
+      });
+    });
+  }
+
+  Future<void> _checkGuidePreference() async {
+    if (widget.domain.id != 'tickets') return;
+    if (widget.initialShowGuide) {
+      if (mounted) setState(() => _showLifecycleGuide = true);
+      return;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    final hasSeen = prefs.getBool('hasSeenTicketLifecycleGuide') ?? false;
+    if (mounted) {
+      setState(() {
+        _showLifecycleGuide = !hasSeen;
+      });
+    }
+  }
+
+  Future<void> _dismissGuide() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('hasSeenTicketLifecycleGuide', true);
+    if (mounted) {
+      setState(() {
+        _showLifecycleGuide = false;
+      });
+    }
+  }
+
+  Future<void> _checkAndStartDomainTour({bool force = false}) async {
+    if (!mounted) return;
+    final prefs = await SharedPreferences.getInstance();
+    final tourKey = 'hasCompletedDomainTour_${widget.domain.id}';
+    final completed = prefs.getBool(tourKey) ?? false;
+    if (!completed || force) {
+      final steps = _buildDomainTourSteps();
+      if (mounted && steps.isNotEmpty) {
+        AppTourService.instance.startTour(
+          context: context,
+          steps: steps,
+          force: force,
+          onComplete: () async {
+            final p = await SharedPreferences.getInstance();
+            await p.setBool(tourKey, true);
+          },
+        );
+      }
+    }
+  }
+
+  List<TourStep> _buildDomainTourSteps() {
+    final List<TourStep> steps = [];
+    final domain = widget.domain;
+
+    // Step 1: Domain overview
+    steps.add(
+      TourStep(
+        id: '${domain.id}_header',
+        targetKey: _domainHeaderKey,
+        category: '✨ ${domain.title}',
+        title: domain.title,
+        description: domain.description,
+        icon: domain.icon,
+        accentColor: domain.iconColor,
+      ),
+    );
+
+    // Step 2..N: Domain Action items
+    for (int i = 0; i < domain.items.length; i++) {
+      final item = domain.items[i];
+      final key = i < _itemKeys.length ? _itemKeys[i] : GlobalKey();
+      steps.add(
+        TourStep(
+          id: '${domain.id}_item_$i',
+          targetKey: key,
+          category: '⚡ ${domain.title}',
+          title: item.title,
+          description: _getDetailedDescription(domain.id, item.title, item.subtitle),
+          icon: item.icon,
+          accentColor: item.iconColor,
+          actionButtonText: 'Open Action',
+          onTargetAction: () {
+            AppTourService.instance.dismissTour();
+            item.onTap();
+          },
+        ),
+      );
+    }
+
+    return steps;
+  }
+
+  String _getDetailedDescription(String domainId, String title, String fallbackSubtitle) {
+    switch (title) {
+      case 'Create Ticket':
+        return 'Capture customer issue details, symptom descriptions, and equipment category to raise a service request.';
+      case 'All Tickets':
+        return 'View and manage all active, pending, in-progress, and resolved support tickets across the company.';
+      case 'Engineer Updates':
+        return 'Review live check-in logs, repair progress notes, and photo proofs submitted by technicians in the field.';
+      case 'Engineers':
+        return 'Manage engineer profiles, create new technician accounts, assign service roles, and monitor working status.';
+      case 'Attendance':
+        return 'Track daily check-in and check-out logs for all field engineers with GPS location verification and timestamps.';
+      case 'Attendance Reports':
+        return 'Generate weekly and monthly attendance summaries, work hours, and technician duty reports.';
+      case 'Engineer Location':
+        return 'View real-time GPS locations and active routes of all field technicians on an interactive live map.';
+      case 'Create AMC Customer':
+        return 'Register new customers under Annual Maintenance Contracts (AMC) with service intervals and expiry alerts.';
+      case 'Customer Reports':
+        return 'Generate comprehensive customer service histories, AMC contract performance, and visit analytics.';
+      case 'Device Configuration':
+        return 'Manage hardware brands, device models, equipment catalogs, and category configurations.';
+      case 'Barcode Scanner':
+        return 'Quickly scan device barcodes using the camera to retrieve hardware specs, warranty, and repair logs.';
+      case 'Barcode Identity':
+        return 'Verify asset barcode tags, validate hardware serial numbers, and inspect registered device details.';
+      case 'Barcode Details':
+        return 'Comprehensive inventory details and device catalog logs associated with hardware barcodes.';
+      case 'Transactions':
+        return 'Monitor customer payments, service invoices, receipt records, and financial transaction feeds.';
+      case 'Refund Management':
+        return 'Manage customer refund requests, process approvals, and record bank payment reconciliations.';
+      default:
+        return fallbackSubtitle;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final domain = widget.domain;
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
@@ -2524,6 +2870,17 @@ class DomainDetailPage extends StatelessWidget {
             fontSize: 18,
           ),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(
+              Icons.explore_rounded,
+              color: Color(0xFF6C5CE7),
+            ),
+            tooltip: 'Page Tour & Guide',
+            onPressed: () => _checkAndStartDomainTour(force: true),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -2533,6 +2890,7 @@ class DomainDetailPage extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
+                key: _domainHeaderKey,
                 width: double.infinity,
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
@@ -2601,10 +2959,143 @@ class DomainDetailPage extends StatelessWidget {
                 ),
               ),
 
+              if (domain.id == 'tickets' && _showLifecycleGuide) ...[
+                const SizedBox(height: 20),
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(
+                      color: const Color(0xFF0284C7).withValues(alpha: 0.25),
+                      width: 1.5,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF0284C7).withValues(alpha: 0.08),
+                        blurRadius: 18,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE0F2FE),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              Icons.alt_route_rounded,
+                              color: Color(0xFF0284C7),
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Complete Ticket Lifecycle',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF0F172A),
+                                  ),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  'How customer requests flow through ServNex',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Color(0xFF64748B),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(
+                              Icons.close_rounded,
+                              size: 20,
+                              color: Color(0xFF94A3B8),
+                            ),
+                            onPressed: _dismissGuide,
+                            tooltip: 'Dismiss guide',
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      _buildWorkflowStepRow(
+                        stepNum: '1',
+                        title: 'Create Ticket',
+                        description:
+                            'Capture customer contact, problem symptoms & hardware category.',
+                        color: const Color(0xFF0284C7),
+                      ),
+                      _buildWorkflowStepRow(
+                        stepNum: '2',
+                        title: 'Overview & Assign',
+                        description:
+                            'Track real-time queue & assign Lead Engineer / Helper.',
+                        color: const Color(0xFF0984E3),
+                      ),
+                      _buildWorkflowStepRow(
+                        stepNum: '3',
+                        title: 'Engineer Updates',
+                        description:
+                            'Technician attends onsite, adds notes & submits live photo proof.',
+                        color: const Color(0xFFE17055),
+                      ),
+                      _buildWorkflowStepRow(
+                        stepNum: '4',
+                        title: 'Completion & Invoicing',
+                        description:
+                            'Mark solved, record payment receipts & generate PDF invoice.',
+                        color: const Color(0xFF059669),
+                        isLast: true,
+                      ),
+                      const SizedBox(height: 14),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _dismissGuide,
+                          icon: const Icon(Icons.check_rounded, size: 16),
+                          label: const Text(
+                            'Got It, Hide Guide',
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF0284C7),
+                            side: const BorderSide(color: Color(0xFFBAE6FD)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
               const SizedBox(height: 28),
 
               Text(
-                'Available Actions & Details',
+                domain.id == 'tickets'
+                    ? 'Ticket Management Actions'
+                    : 'Available Actions & Details',
                 style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
@@ -2614,8 +3105,12 @@ class DomainDetailPage extends StatelessWidget {
               ),
               const SizedBox(height: 14),
 
-              ...domain.items.map((item) {
+              ...domain.items.asMap().entries.map((entry) {
+                final idx = entry.key;
+                final item = entry.value;
+                final key = idx < _itemKeys.length ? _itemKeys[idx] : null;
                 return Padding(
+                  key: key,
                   padding: const EdgeInsets.only(bottom: 12),
                   child: InkWell(
                     onTap: () {
@@ -2711,6 +3206,87 @@ class DomainDetailPage extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildWorkflowStepRow({
+    required String stepNum,
+    required String title,
+    required String description,
+    required Color color,
+    bool isLast = false,
+  }) {
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Column(
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: color,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: color.withValues(alpha: 0.3),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Center(
+                  child: Text(
+                    stepNum,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ),
+              if (!isLast)
+                Expanded(
+                  child: Container(
+                    width: 2,
+                    margin: const EdgeInsets.symmetric(vertical: 4),
+                    color: color.withValues(alpha: 0.25),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(bottom: isLast ? 0 : 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    description,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF64748B),
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

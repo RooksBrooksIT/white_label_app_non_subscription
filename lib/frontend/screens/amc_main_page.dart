@@ -13,6 +13,8 @@ import 'package:flutter/services.dart';
 import 'package:subscription_rooks_app/services/notification_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
+import 'package:subscription_rooks_app/services/app_tour_service.dart';
+import 'package:subscription_rooks_app/widgets/interactive_tour/tour_step_model.dart';
 
 class AMCTrackMyService extends StatefulWidget {
   final String customerName;
@@ -1866,10 +1868,111 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
   String phoneNumber = '';
   bool isLoading = true;
 
+  // GlobalKeys for Customer Interactive Tour
+  final GlobalKey _custHeaderKey = GlobalKey();
+  final GlobalKey _custWelcomeCardKey = GlobalKey();
+  final GlobalKey _custAddDeviceKey = GlobalKey();
+  final GlobalKey _custTrackServiceKey = GlobalKey();
+  final GlobalKey _custUpdatesKey = GlobalKey();
+  final GlobalKey _custSupportKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
     loadUserData();
+  }
+
+  Future<void> _checkAndStartCustomerTour({bool force = false}) async {
+    if (!mounted) return;
+    final prefs = await SharedPreferences.getInstance();
+    final completed = prefs.getBool('hasCompletedCustomerTour') ?? false;
+    if (!completed || force) {
+      final steps = _buildCustomerTourSteps();
+      if (mounted && steps.isNotEmpty) {
+        AppTourService.instance.startTour(
+          context: context,
+          steps: steps,
+          force: force,
+          onComplete: () async {
+            final p = await SharedPreferences.getInstance();
+            await p.setBool('hasCompletedCustomerTour', true);
+          },
+        );
+      }
+    }
+  }
+
+  List<TourStep> _buildCustomerTourSteps() {
+    final primary = Theme.of(context).primaryColor;
+    return [
+      TourStep(
+        id: 'cust_header',
+        targetKey: _custHeaderKey,
+        category: '👋 Welcome Customer',
+        title: 'Customer Self-Service Hub',
+        description:
+            'Welcome to your personal service portal! From here, you can manage your maintenance contracts, request device repairs, and track live status.',
+        icon: Icons.account_circle_rounded,
+        accentColor: primary,
+      ),
+      TourStep(
+        id: 'cust_welcome_card',
+        targetKey: _custWelcomeCardKey,
+        category: '🏠 Account Dashboard',
+        title: 'Your Account Overview',
+        description:
+            'Quickly access your service summary and find everything you need to keep your devices running smoothly.',
+        icon: Icons.home_rounded,
+        accentColor: primary,
+      ),
+      TourStep(
+        id: 'cust_add_device',
+        targetKey: _custAddDeviceKey,
+        category: '➕ Book Service Request',
+        title: 'Add Device & Book Repair',
+        description:
+            'Need service or maintenance? Tap "Explore" to select your device brand and type, enter issue details, and instantly schedule a technician visit.',
+        icon: Icons.add_to_photos_rounded,
+        accentColor: primary,
+        workflowSteps: const [
+          '1. Select Device',
+          '2. Enter Symptoms',
+          '3. Submit Ticket',
+          '4. Tech Dispatched',
+        ],
+        currentWorkflowIndex: 0,
+      ),
+      TourStep(
+        id: 'cust_track_service',
+        targetKey: _custTrackServiceKey,
+        category: '📍 Live Tracking',
+        title: 'Track Active Service',
+        description:
+            'Track real-time progress on your open repairs. View assigned engineer name, live GPS status, repair notes, and invoice details.',
+        icon: Icons.track_changes_rounded,
+        accentColor: const Color(0xFF059669),
+      ),
+      TourStep(
+        id: 'cust_updates',
+        targetKey: _custUpdatesKey,
+        category: '🔔 Instant Notifications',
+        title: 'Real-time Updates',
+        description:
+            'Receive instant push notifications as soon as a technician is assigned, checks in onsite, or completes your repair.',
+        icon: Icons.bolt_rounded,
+        accentColor: const Color(0xFF3B82F6),
+      ),
+      TourStep(
+        id: 'cust_support',
+        targetKey: _custSupportKey,
+        category: '⭐ Certified Support',
+        title: 'Expert Assistance',
+        description:
+            'Rest assured knowing all repairs are carried out by certified field specialists with professional support anytime.',
+        icon: Icons.workspace_premium_rounded,
+        accentColor: const Color(0xFF8B5CF6),
+      ),
+    ];
   }
 
   Future<void> loadUserData() async {
@@ -1922,6 +2025,11 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
     } finally {
       setState(() {
         isLoading = false;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Future.delayed(const Duration(milliseconds: 600), () {
+          if (mounted) _checkAndStartCustomerTour();
+        });
       });
     }
   }
@@ -2182,90 +2290,114 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
       ),
       title: Padding(
         padding: const EdgeInsets.only(top: 8.0),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(2),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: const Color(0xFFF59E0B),
-                  width: 2,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.15),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
+        child: Container(
+          key: _custHeaderKey,
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: const Color(0xFFF59E0B),
+                    width: 2,
                   ),
-                ],
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.15),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: ThemeService.instance.logoUrl != null
+                    ? CircleAvatar(
+                        radius: 22,
+                        backgroundColor: Colors.white,
+                        backgroundImage: NetworkImage(ThemeService.instance.logoUrl!),
+                      )
+                    : CircleAvatar(
+                        radius: 22,
+                        backgroundColor: Colors.white.withValues(alpha: 0.2),
+                        child: Text(
+                          userName.isNotEmpty ? userName[0].toUpperCase() : 'C',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
               ),
-              child: ThemeService.instance.logoUrl != null
-                  ? CircleAvatar(
-                      radius: 22,
-                      backgroundColor: Colors.white,
-                      backgroundImage: NetworkImage(ThemeService.instance.logoUrl!),
-                    )
-                  : CircleAvatar(
-                      radius: 22,
-                      backgroundColor: Colors.white.withValues(alpha: 0.2),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.25),
+                        ),
+                      ),
                       child: Text(
-                        userName.isNotEmpty ? userName[0].toUpperCase() : 'C',
+                        ThemeService.instance.appName.toUpperCase(),
                         style: const TextStyle(
-                          fontSize: 18,
+                          fontSize: 9,
                           fontWeight: FontWeight.w900,
                           color: Colors.white,
+                          letterSpacing: 1.5,
                         ),
                       ),
                     ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.18),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.25),
-                      ),
-                    ),
-                    child: Text(
-                      ThemeService.instance.appName.toUpperCase(),
+                    const SizedBox(height: 3),
+                    Text(
+                      "Hello, $userName 👋",
                       style: const TextStyle(
-                        fontSize: 9,
+                        fontSize: 19,
                         fontWeight: FontWeight.w900,
                         color: Colors.white,
-                        letterSpacing: 1.5,
+                        letterSpacing: -0.4,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    "Hello, $userName 👋",
-                    style: const TextStyle(
-                      fontSize: 19,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.white,
-                      letterSpacing: -0.4,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
       actions: [
+        Padding(
+          padding: const EdgeInsets.only(right: 8.0, top: 4.0),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.25),
+              ),
+            ),
+            child: IconButton(
+              icon: const Icon(
+                Icons.explore_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
+              onPressed: () => _checkAndStartCustomerTour(force: true),
+              tooltip: 'App Tour & Guide',
+            ),
+          ),
+        ),
         Padding(
           padding: const EdgeInsets.only(right: 14.0, top: 4.0),
           child: Container(
@@ -2307,6 +2439,7 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
               child: Container(
+                key: _custWelcomeCardKey,
                 width: double.infinity,
                 padding: const EdgeInsets.all(22),
                 decoration: BoxDecoration(
@@ -2391,49 +2524,55 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
               child: Row(
                 children: [
                   Expanded(
-                    child: _buildActionCard(
-                      icon: Icons.add_to_photos_rounded,
-                      title: 'Add Device',
-                      subtitle: 'Create new service requests',
-                      buttonLabel: 'Explore',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => CustomerDeviceType(
-                              name: userName,
-                              loggedInName: userName,
-                              phoneNumber: phoneNumber,
-                              customerId: customerId,
-                              customerType: "amc",
+                    child: Container(
+                      key: _custAddDeviceKey,
+                      child: _buildActionCard(
+                        icon: Icons.add_to_photos_rounded,
+                        title: 'Add Device',
+                        subtitle: 'Create new service requests',
+                        buttonLabel: 'Explore',
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => CustomerDeviceType(
+                                name: userName,
+                                loggedInName: userName,
+                                phoneNumber: phoneNumber,
+                                customerId: customerId,
+                                customerType: "amc",
+                              ),
                             ),
-                          ),
-                        );
-                      },
-                      color: primary,
+                          );
+                        },
+                        color: primary,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
-                    child: _buildActionCard(
-                      icon: Icons.track_changes_rounded,
-                      title: 'Track Service',
-                      subtitle: 'Manage active repair requests',
-                      buttonLabel: 'Track Now',
-                      onTap: userName != 'Guest'
-                          ? () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => AMCTrackMyService(
-                                    customerName: userName,
-                                    customerId: customerId,
+                    child: Container(
+                      key: _custTrackServiceKey,
+                      child: _buildActionCard(
+                        icon: Icons.track_changes_rounded,
+                        title: 'Track Service',
+                        subtitle: 'Manage active repair requests',
+                        buttonLabel: 'Track Now',
+                        onTap: userName != 'Guest'
+                            ? () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => AMCTrackMyService(
+                                      customerName: userName,
+                                      customerId: customerId,
+                                    ),
                                   ),
-                                ),
-                              );
-                            }
-                          : null,
-                      color: const Color(0xFF059669),
+                                );
+                              }
+                            : null,
+                        color: const Color(0xFF059669),
+                      ),
                     ),
                   ),
                 ],
@@ -2448,20 +2587,26 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
               child: Row(
                 children: [
                   Expanded(
-                    child: _buildInfoCard(
-                      icon: Icons.bolt_rounded,
-                      title: 'Real-time Updates',
-                      subtitle: 'Stay notified instantly',
-                      accentColor: const Color(0xFF3B82F6),
+                    child: Container(
+                      key: _custUpdatesKey,
+                      child: _buildInfoCard(
+                        icon: Icons.bolt_rounded,
+                        title: 'Real-time Updates',
+                        subtitle: 'Stay notified instantly',
+                        accentColor: const Color(0xFF3B82F6),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
-                    child: _buildInfoCard(
-                      icon: Icons.workspace_premium_rounded,
-                      title: 'Expert Support',
-                      subtitle: 'Professionals at duty',
-                      accentColor: const Color(0xFF8B5CF6),
+                    child: Container(
+                      key: _custSupportKey,
+                      child: _buildInfoCard(
+                        icon: Icons.workspace_premium_rounded,
+                        title: 'Expert Support',
+                        subtitle: 'Professionals at duty',
+                        accentColor: const Color(0xFF8B5CF6),
+                      ),
                     ),
                   ),
                 ],

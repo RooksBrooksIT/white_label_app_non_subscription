@@ -10,7 +10,6 @@ import 'package:subscription_rooks_app/services/invoice_email_service.dart';
 import 'transaction_completed_screen.dart';
 import 'payment_failed_screen.dart';
 import '../frontend/screens/role_selection_screen.dart';
-import '../frontend/screens/admin_dashboard.dart';
 
 class PaymentRecoveryScreen extends StatefulWidget {
   final Map<String, dynamic> pendingPayment;
@@ -41,7 +40,6 @@ class _PaymentRecoveryScreenState extends State<PaymentRecoveryScreen> {
 
     bool isSuccess = false;
     bool isPending = false;
-    Map<String, dynamic>? finalVerifyResult;
     String errorMessage = 'Payment failed or was cancelled.';
 
     try {
@@ -61,7 +59,6 @@ class _PaymentRecoveryScreenState extends State<PaymentRecoveryScreen> {
           if (status == 'SUCCESS') {
             isSuccess = true;
             isPending = false;
-            finalVerifyResult = verifyResult;
             break;
           } else if (status == 'FAILED') {
             isSuccess = false;

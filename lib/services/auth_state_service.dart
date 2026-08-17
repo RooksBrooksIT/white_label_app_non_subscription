@@ -192,23 +192,21 @@ class AuthStateService extends ChangeNotifier {
     }
 
     try {
-      final name = _pendingRegistrationData!['name'];
       final email = _pendingRegistrationData!['email'];
       final password = _pendingRegistrationData!['password'];
 
       final auth = FirebaseAuth.instance;
-      UserCredential? userCredential;
 
       // 1. Create the Auth account if not already logged in
       if (auth.currentUser == null || auth.currentUser!.email != email) {
         try {
-          userCredential = await auth.createUserWithEmailAndPassword(
+          await auth.createUserWithEmailAndPassword(
             email: email,
             password: password,
           );
         } on FirebaseAuthException catch (e) {
           if (e.code == 'email-already-in-use') {
-            userCredential = await auth.signInWithEmailAndPassword(
+            await auth.signInWithEmailAndPassword(
               email: email,
               password: password,
             );
