@@ -4,7 +4,6 @@ import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/frontend/screens/assign_confirmation_page.dart';
 import 'package:subscription_rooks_app/frontend/screens/customer_var_data_screen.dart';
 import 'package:subscription_rooks_app/services/notification_service.dart';
-import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class AssignEngineerPage extends StatefulWidget {
   final Customer customer;
@@ -20,7 +19,6 @@ class _AssignEngineerPageState extends State<AssignEngineerPage> {
   bool _isEngineerSelected = true;
   String? _selectedHelper;
   final TextEditingController _reasonController = TextEditingController();
-  bool _showHelperInputs = false;
 
   List<Map<String, String>> addedHelpers = [];
 
@@ -32,458 +30,315 @@ class _AssignEngineerPageState extends State<AssignEngineerPage> {
 
   @override
   Widget build(BuildContext context) {
+    final primaryColor = Theme.of(context).primaryColor;
+
     return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: Text(
-          'Assign Engineers',
+        title: const Text(
+          'Assign Engineers & Helpers',
           style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color:
-                Theme.of(context).appBarTheme.foregroundColor ?? Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+            letterSpacing: -0.3,
           ),
         ),
-        backgroundColor: Theme.of(context).primaryColor,
+        backgroundColor: primaryColor,
+        elevation: 0,
+        centerTitle: false,
       ),
-      body: ResponsiveWrapper(
-        maxWidth: kMaxContentWidth,
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    ElevatedButton(
-                      onPressed: () {
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+        child: Column(
+          children: [
+            // Segmented Toggle Bar (Engineer vs Helper)
+            Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE2E8F0),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () {
                         setState(() {
                           _isEngineerSelected = true;
-                          _showHelperInputs = false;
                           _selectedHelper = null;
                           _reasonController.clear();
                           addedHelpers.clear();
                         });
                       },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _isEngineerSelected
-                            ? Theme.of(context).primaryColor
-                            : Theme.of(context).disabledColor,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
+                          color: _isEngineerSelected ? primaryColor : Colors.transparent,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: _isEngineerSelected
+                              ? [
+                                  BoxShadow(
+                                    color: primaryColor.withValues(alpha: 0.25),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ]
+                              : [],
                         ),
-                      ),
-                      child: const Text(
-                        'Engineer',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.badge_rounded,
+                              size: 18,
+                              color: _isEngineerSelected ? Colors.white : const Color(0xFF64748B),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Engineer',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                color: _isEngineerSelected ? Colors.white : const Color(0xFF64748B),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                    const SizedBox(width: 20),
-                    ElevatedButton(
-                      onPressed: () {
+                  ),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () {
                         setState(() {
                           _isEngineerSelected = false;
-                          _showHelperInputs = true;
                           _selectedHelper = null;
                           _reasonController.clear();
                           addedHelpers.clear();
                         });
                       },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: !_isEngineerSelected
-                            ? Theme.of(context).primaryColor
-                            : Theme.of(context).disabledColor,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
+                          color: !_isEngineerSelected ? primaryColor : Colors.transparent,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: !_isEngineerSelected
+                              ? [
+                                  BoxShadow(
+                                    color: primaryColor.withValues(alpha: 0.25),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ]
+                              : [],
                         ),
-                      ),
-                      child: const Text(
-                        'Helper',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.group_add_rounded,
+                              size: 18,
+                              color: !_isEngineerSelected ? Colors.white : const Color(0xFF64748B),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Helper',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                color: !_isEngineerSelected ? Colors.white : const Color(0xFF64748B),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                _isEngineerSelected ? _buildEngineerView() : _buildHelperView(),
-              ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        ),
-      ),
-    );
-  }
 
-  Widget _buildEngineerView() {
-    return Card(
-      elevation: 5,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: CircleAvatar(
-                radius: 40,
-                backgroundColor: Theme.of(context).primaryColor,
-                child: Text(
-                  widget.customer.customerName.isNotEmpty
-                      ? widget.customer.customerName[0]
-                      : '?',
-                  style: TextStyle(
-                    fontSize: 30,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.onPrimary,
-                  ),
-                ),
-              ),
-            ),
             const SizedBox(height: 20),
-            Center(
-              child: Text(
-                widget.customer.customerName,
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).primaryColor,
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Divider(color: Theme.of(context).dividerColor, thickness: 1),
-            const SizedBox(height: 10),
-            _buildDetailRow('Booking ID', widget.customer.ticketId),
-            _buildDetailRow('Device', widget.customer.deviceType),
-            _buildDetailRow('Brand', widget.customer.deviceBrand),
-            _buildDetailRow('Condition', widget.customer.deviceCondition),
-            _buildDetailRow('Message', widget.customer.issueDescription),
-            _buildDetailRow('Address', widget.customer.address),
-            _buildDetailRow('Contact Number', widget.customer.mobileNumber),
-            const SizedBox(height: 20),
-            Center(
-              child: ElevatedButton(
-                onPressed: _isAssigning
-                    ? null
-                    : () => _showEmployeeSelection(context),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).primaryColor,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 40,
-                    vertical: 12,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                ),
-                child: _isAssigning
-                    ? CircularProgressIndicator(
-                        color: Theme.of(context).colorScheme.onPrimary,
-                      )
-                    : Text(
-                        'Assign Engineer',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.onPrimary,
-                        ),
-                      ),
-              ),
-            ),
+
+            _isEngineerSelected ? _buildEngineerView() : _buildHelperView(),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildHelperView() {
-    return FutureBuilder<DocumentSnapshot>(
-      future: FirestoreService.instance
-          .collection('Raised_tickets')
-          .doc(widget.customer.ticketId)
-          .get(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
-        }
-        final data = snapshot.data?.data() as Map<String, dynamic>? ?? {};
-        final assignedEmployee = data['assignedEngineer'] as String? ?? '';
+  Widget _buildEngineerView() {
+    final primaryColor = Theme.of(context).primaryColor;
 
-        return Card(
-          elevation: 5,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(15),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
+        ],
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header Customer Profile Avatar
+          Center(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                assignedEmployee.isNotEmpty
-                    ? _buildDetailRow('Assigned Employee', assignedEmployee)
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildDetailRow('Brand', widget.customer.deviceBrand),
-                          _buildDetailRow(
-                            'Condition',
-                            widget.customer.deviceCondition,
-                          ),
-                          _buildDetailRow('Device', widget.customer.deviceType),
-                          _buildDetailRow(
-                            'Message',
-                            widget.customer.issueDescription,
-                          ),
-                        ],
-                      ),
-                const SizedBox(height: 20),
-                const Text(
-                  'Select Helper',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                StreamBuilder<QuerySnapshot>(
-                  stream: FirestoreService.instance
-                      .collection('EngineerLogin')
-                      .snapshots(),
-                  builder: (context, engineerSnapshot) {
-                    if (engineerSnapshot.connectionState ==
-                        ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    if (engineerSnapshot.hasError) {
-                      return Text('Error: ${engineerSnapshot.error}');
-                    }
-                    final engineerDocs = engineerSnapshot.data?.docs ?? [];
-                    return DropdownButtonFormField<String>(
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                      ),
-                      initialValue: _selectedHelper,
-                      hint: const Text('Select Helper'),
-                      items: engineerDocs.map((doc) {
-                        final data = doc.data();
-                        if (data is Map<String, dynamic>) {
-                          final username = data['Username'] ?? '';
-                          return DropdownMenuItem<String>(
-                            value: username,
-                            child: Text(username),
-                          );
-                        }
-                        return const DropdownMenuItem<String>(
-                          value: '',
-                          child: Text('Unknown'),
-                        );
-                      }).toList(),
-                      onChanged: (String? value) {
-                        setState(() {
-                          _selectedHelper = value;
-                        });
-                      },
-                    );
-                  },
-                ),
-                const SizedBox(height: 15),
-                TextField(
-                  controller: _reasonController,
-                  maxLines: 3,
-                  decoration: const InputDecoration(
-                    labelText: 'Reason',
-                    border: OutlineInputBorder(),
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    color: primaryColor.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: primaryColor.withValues(alpha: 0.3), width: 2),
                   ),
-                ),
-                const SizedBox(height: 15),
-                Center(
-                  child: ElevatedButton(
-                    onPressed: () {
-                      if ((_selectedHelper != null &&
-                              _selectedHelper!.isNotEmpty) &&
-                          _reasonController.text.trim().isNotEmpty) {
-                        setState(() {
-                          addedHelpers.add({
-                            'helperName': _selectedHelper!,
-                            'reason': _reasonController.text.trim(),
-                          });
-                          _selectedHelper = null;
-                          _reasonController.clear();
-                        });
-                      } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Please select a helper and enter a reason',
-                            ),
-                          ),
-                        );
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(context).primaryColor,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 40,
-                        vertical: 12,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                    ),
+                  child: Center(
                     child: Text(
-                      'Add Helper',
+                      widget.customer.customerName.isNotEmpty
+                          ? widget.customer.customerName[0].toUpperCase()
+                          : '?',
                       style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.onPrimary,
+                        fontSize: 30,
+                        fontWeight: FontWeight.w900,
+                        color: primaryColor,
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 20),
-                ...addedHelpers.map((helper) {
-                  return Card(
-                    margin: const EdgeInsets.symmetric(vertical: 8),
-                    elevation: 3,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Helper Name: ${helper['helperName']}',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text('Reason: ${helper['reason']}'),
-                        ],
-                      ),
-                    ),
-                  );
-                }),
-                if (addedHelpers.isNotEmpty)
-                  Center(
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        try {
-                          final docRef = FirestoreService.instance
-                              .collection('Raised_tickets')
-                              .doc(widget.customer.ticketId);
-                          final snapshot = await docRef.get();
-
-                          final existingData = snapshot.data() ?? {};
-
-                          int maxIndex = 0;
-                          existingData.forEach((key, value) {
-                            final match = RegExp(
-                              r'^Helper(\d+)$',
-                            ).firstMatch(key);
-                            if (match != null) {
-                              final index =
-                                  int.tryParse(match.group(1) ?? '') ?? 0;
-                              if (index > maxIndex) maxIndex = index;
-                            }
-                          });
-
-                          Map<String, dynamic> fieldsToUpdate = {
-                            'updatedAt': FieldValue.serverTimestamp(),
-                          };
-
-                          for (int i = 0; i < addedHelpers.length; i++) {
-                            final index = maxIndex + i + 1;
-                            fieldsToUpdate['Helper$index'] =
-                                addedHelpers[i]['helperName'] ?? '';
-                            fieldsToUpdate['Helper${index}_Reason'] =
-                                addedHelpers[i]['reason'] ?? '';
-                          }
-
-                          await docRef.set(
-                            fieldsToUpdate,
-                            SetOptions(merge: true),
-                          );
-
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Helpers added successfully'),
-                            ),
-                          );
-
-                          setState(() {
-                            addedHelpers.clear();
-                          });
-                        } catch (e) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Error saving helpers: $e')),
-                          );
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Theme.of(context).primaryColor,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 40,
-                          vertical: 12,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                      ),
-                      child: Text(
-                        'Submit',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.onPrimary,
-                        ),
-                      ),
+                const SizedBox(height: 12),
+                Text(
+                  widget.customer.customerName,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF0F172A),
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    'Booking ID: #${widget.customer.bookingId}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF64748B),
                     ),
                   ),
+                ),
               ],
             ),
           ),
-        );
-      },
-    );
-  }
 
-  Widget _buildDetailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            flex: 2,
-            child: Text(
-              '$label:',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).hintColor,
+          const SizedBox(height: 20),
+          const Divider(color: Color(0xFFF1F5F9), height: 1),
+          const SizedBox(height: 16),
+
+          // 2-Column Grid Alignment details
+          _buildDetailRow('Device Type', widget.customer.deviceType),
+          const Divider(color: Color(0xFFF1F5F9), height: 16),
+          _buildDetailRow('Device Brand', widget.customer.deviceBrand),
+          const Divider(color: Color(0xFFF1F5F9), height: 16),
+          _buildDetailRow('Condition', widget.customer.deviceCondition),
+          const Divider(color: Color(0xFFF1F5F9), height: 16),
+          _buildDetailRow('Contact Number', widget.customer.mobileNumber.isNotEmpty ? widget.customer.mobileNumber : 'N/A'),
+          if (widget.customer.message.isNotEmpty) ...[
+            const Divider(color: Color(0xFFF1F5F9), height: 16),
+            _buildDetailRow('Issue Message', widget.customer.message),
+          ],
+
+          const SizedBox(height: 14),
+
+          // Full Address Box
+          if (widget.customer.address.isNotEmpty) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.place_rounded, size: 14, color: primaryColor),
+                      const SizedBox(width: 6),
+                      const Text(
+                        'FULL ADDRESS',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF64748B),
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    widget.customer.address,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF0F172A),
+                      height: 1.4,
+                    ),
+                  ),
+                ],
               ),
             ),
-          ),
-          Expanded(
-            flex: 3,
-            child: Text(
-              value,
-              style: TextStyle(
-                fontSize: 16,
-                color: Theme.of(context).textTheme.bodyLarge?.color,
+          ],
+
+          const SizedBox(height: 24),
+
+          // Assign Engineer Button
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _isAssigning ? null : () => _showEmployeeSelection(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryColor,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                elevation: 0,
               ),
+              icon: _isAssigning
+                  ? const SizedBox.shrink()
+                  : const Icon(Icons.person_add_rounded, size: 20, color: Colors.white),
+              label: _isAssigning
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                    )
+                  : const Text(
+                      'Assign Engineer',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                    ),
             ),
           ),
         ],
@@ -491,35 +346,401 @@ class _AssignEngineerPageState extends State<AssignEngineerPage> {
     );
   }
 
+  Widget _buildHelperView() {
+    final primaryColor = Theme.of(context).primaryColor;
+
+    return FutureBuilder<DocumentSnapshot>(
+      future: FirestoreService.instance
+          .collection('Admin_ticket_entry')
+          .doc(widget.customer.bookingId)
+          .get(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: Padding(padding: EdgeInsets.all(30), child: CircularProgressIndicator()));
+        }
+        if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}'));
+        }
+        final data = snapshot.data?.data() as Map<String, dynamic>? ?? {};
+        final assignedEmployee = data['assignedEmployee'] as String? ?? '';
+
+        return Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              assignedEmployee.isNotEmpty
+                  ? _buildDetailRow('Assigned Engineer', assignedEmployee, isHighlight: true)
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildDetailRow('Device Brand', widget.customer.deviceBrand),
+                        const Divider(color: Color(0xFFF1F5F9), height: 16),
+                        _buildDetailRow('Condition', widget.customer.deviceCondition),
+                        const Divider(color: Color(0xFFF1F5F9), height: 16),
+                        _buildDetailRow('Device Type', widget.customer.deviceType),
+                        const Divider(color: Color(0xFFF1F5F9), height: 16),
+                        _buildDetailRow('Message', widget.customer.message),
+                      ],
+                    ),
+
+              const SizedBox(height: 20),
+              const Text(
+                'Select Helper',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+              const SizedBox(height: 8),
+              StreamBuilder<QuerySnapshot>(
+                stream: FirestoreService.instance
+                    .collection('EngineerLogin')
+                    .snapshots(),
+                builder: (context, engineerSnapshot) {
+                  if (engineerSnapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (engineerSnapshot.hasError) {
+                    return Text('Error: ${engineerSnapshot.error}');
+                  }
+                  final engineerDocs = engineerSnapshot.data?.docs ?? [];
+                  return DropdownButtonFormField<String>(
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: const Color(0xFFF8FAFC),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide(color: primaryColor, width: 2),
+                      ),
+                    ),
+                    initialValue: _selectedHelper,
+                    hint: const Text('Choose a Helper'),
+                    items: engineerDocs.map((doc) {
+                      final data = doc.data();
+                      if (data is Map<String, dynamic>) {
+                        final username = data['Username'] ?? '';
+                        return DropdownMenuItem<String>(
+                          value: username,
+                          child: Text(username, style: const TextStyle(fontWeight: FontWeight.w600)),
+                        );
+                      }
+                      return const DropdownMenuItem<String>(
+                        value: '',
+                        child: Text('Unknown'),
+                      );
+                    }).toList(),
+                    onChanged: (String? value) {
+                      setState(() {
+                        _selectedHelper = value;
+                      });
+                    },
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _reasonController,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  labelText: 'Reason for Helper',
+                  alignLabelWithHint: true,
+                  filled: true,
+                  fillColor: const Color(0xFFF8FAFC),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(color: primaryColor, width: 2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    if ((_selectedHelper != null && _selectedHelper!.isNotEmpty) &&
+                        _reasonController.text.trim().isNotEmpty) {
+                      setState(() {
+                        addedHelpers.add({
+                          'helperName': _selectedHelper!,
+                          'reason': _reasonController.text.trim(),
+                        });
+                        _selectedHelper = null;
+                        _reasonController.clear();
+                      });
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Please select a helper and enter a reason'),
+                        ),
+                      );
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0984E3),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    elevation: 0,
+                  ),
+                  icon: const Icon(Icons.add_rounded, color: Colors.white, size: 20),
+                  label: const Text(
+                    'Add Helper to List',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              ...addedHelpers.map((helper) {
+                return Container(
+                  margin: const EdgeInsets.symmetric(vertical: 6),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: primaryColor.withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(Icons.group_rounded, color: primaryColor, size: 18),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              helper['helperName'] ?? '',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 14,
+                                color: Color(0xFF0F172A),
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Reason: ${helper['reason']}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF64748B),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 20),
+                        onPressed: () {
+                          setState(() {
+                            addedHelpers.remove(helper);
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                );
+              }),
+              if (addedHelpers.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      try {
+                        final docRef = FirestoreService.instance
+                            .collection('Admin_ticket_entry')
+                            .doc(widget.customer.bookingId);
+                        final snapshot = await docRef.get();
+
+                        final existingData = snapshot.data() ?? {};
+
+                        int maxIndex = 0;
+                        existingData.forEach((key, value) {
+                          final match = RegExp(r'^Helper(\d+)$').firstMatch(key);
+                          if (match != null) {
+                            final index = int.tryParse(match.group(1) ?? '') ?? 0;
+                            if (index > maxIndex) maxIndex = index;
+                          }
+                        });
+
+                        Map<String, dynamic> fieldsToUpdate = {};
+
+                        for (int i = 0; i < addedHelpers.length; i++) {
+                          final index = maxIndex + i + 1;
+                          fieldsToUpdate['Helper$index'] = addedHelpers[i]['helperName'] ?? '';
+                          fieldsToUpdate['Helper${index}_Reason'] = addedHelpers[i]['reason'] ?? '';
+                        }
+
+                        await docRef.set(fieldsToUpdate, SetOptions(merge: true));
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Helpers added successfully'),
+                            backgroundColor: Color(0xFF10B981),
+                          ),
+                        );
+
+                        setState(() {
+                          addedHelpers.clear();
+                        });
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Error saving helpers: $e'), backgroundColor: Colors.red),
+                        );
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF10B981),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: const Text(
+                      'Submit Helpers',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value, {bool isHighlight = false}) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        SizedBox(
+          width: 130,
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 13,
+              color: Color(0xFF64748B),
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: isHighlight ? FontWeight.w800 : FontWeight.w600,
+              color: isHighlight ? Theme.of(context).primaryColor : const Color(0xFF0F172A),
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+
   void _showEmployeeSelection(BuildContext context) {
+    final primaryColor = Theme.of(context).primaryColor;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       builder: (BuildContext context) {
         return Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                'Select an Engineer',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).primaryColor,
+              Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFCBD5E1),
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: primaryColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(Icons.badge_rounded, color: primaryColor, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Select Engineer',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              const Divider(color: Color(0xFFF1F5F9), height: 1),
               const SizedBox(height: 10),
-              Divider(color: Colors.grey),
               SizedBox(
-                height: 250,
+                height: 300,
                 child: FutureBuilder<QuerySnapshot>(
-                  future: FirestoreService.instance
-                      .collection('EngineerLogin')
-                      .get(),
+                  future: FirestoreService.instance.collection('EngineerLogin').get(),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(child: CircularProgressIndicator());
@@ -531,26 +752,43 @@ class _AssignEngineerPageState extends State<AssignEngineerPage> {
                     if (docs.isEmpty) {
                       return const Center(child: Text('No engineers found.'));
                     }
-                    return ListView.builder(
+                    return ListView.separated(
                       shrinkWrap: true,
                       itemCount: docs.length,
+                      separatorBuilder: (context, index) => const Divider(color: Color(0xFFF1F5F9), height: 1),
                       itemBuilder: (context, index) {
                         final data = docs[index].data();
                         if (data is Map<String, dynamic>) {
                           final username = data['Username'] ?? '';
                           return ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: Theme.of(context).primaryColor,
-                              child: Text(
-                                username.isNotEmpty ? username[0] : '?',
-                                style: TextStyle(
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onPrimary,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                            leading: Container(
+                              width: 42,
+                              height: 42,
+                              decoration: BoxDecoration(
+                                color: primaryColor.withValues(alpha: 0.1),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Center(
+                                child: Text(
+                                  username.isNotEmpty ? username[0].toUpperCase() : '?',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800,
+                                    color: primaryColor,
+                                  ),
                                 ),
                               ),
                             ),
-                            title: Text(username),
+                            title: Text(
+                              username,
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF0F172A),
+                              ),
+                            ),
+                            trailing: const Icon(Icons.chevron_right_rounded, color: Color(0xFF94A3B8)),
                             onTap: () async {
                               Navigator.pop(context);
                               await _assignEngineerToCustomer(username);
@@ -563,7 +801,6 @@ class _AssignEngineerPageState extends State<AssignEngineerPage> {
                   },
                 ),
               ),
-              const SizedBox(height: 10),
             ],
           ),
         );
@@ -574,50 +811,41 @@ class _AssignEngineerPageState extends State<AssignEngineerPage> {
   Future<void> _assignEngineerToCustomer(String engineerName) async {
     setState(() => _isAssigning = true);
     try {
-      // Create a timestamp for the assignment
       final assignedTimestamp = DateTime.now();
 
-      // Save the assignment details - this will trigger the Cloud Function to send the notification
       await FirestoreService.instance
-          .collection('Raised_tickets')
-          .doc(widget.customer.ticketId)
+          .collection('Admin_ticket_entry')
+          .doc(widget.customer.bookingId)
           .set({
-            'id': widget
-                .customer
-                .customerid, // Ensure id is passed for notifications
-            'assignedEngineer': engineerName.trim(),
-            'customerName': widget.customer.customerName,
-            'ticketId': widget.customer.ticketId,
-            'deviceType': widget.customer.deviceType,
-            'deviceBrand': widget.customer.deviceBrand,
-            'deviceCondition': widget.customer.deviceCondition,
-            'issueDescription': widget.customer.issueDescription,
-            'address': widget.customer.address,
-            'notificationStatus': 'pending',
-            'adminStatus': 'Assigned',
-            'engineerStatus': 'Assigned',
-            'updatedAt': FieldValue.serverTimestamp(),
-            'assignedTimestamp': assignedTimestamp,
-            'mobileNumber': widget.customer.mobileNumber,
-          }, SetOptions(merge: true));
+        'id': widget.customer.customerid,
+        'assignedEmployee': engineerName.trim(),
+        'customerName': widget.customer.customerName,
+        'bookingId': widget.customer.bookingId,
+        'deviceType': widget.customer.deviceType,
+        'deviceBrand': widget.customer.deviceBrand,
+        'deviceCondition': widget.customer.deviceCondition,
+        'message': widget.customer.message,
+        'address': widget.customer.address,
+        'notificationStatus': 'pending',
+        'engineerStatus': 'Assigned',
+        'timestamp': FieldValue.serverTimestamp(),
+        'AssignedTimestamp': assignedTimestamp,
+        'mobileNumber': widget.customer.mobileNumber,
+      }, SetOptions(merge: true));
 
-      // Also write an in-app notification document so engineers
-      // currently online in the app will receive an immediate dialog
-      // via the EngineerPage's notifications listener.
       await NotificationService.sendNotificationToFirestore(
         audience: 'engineer',
         engineerName: engineerName,
         type: 'new_assignment',
-        bookingId: widget.customer.ticketId,
-        body: 'You have been assigned a new task: ${widget.customer.ticketId}',
+        bookingId: widget.customer.bookingId,
+        body: 'You have been assigned a new task: ${widget.customer.bookingId}',
         customerName: widget.customer.customerName,
         additionalData: {'processed': false, 'status': 'pending'},
-        title: '',
+        title: 'New Task Assigned',
       );
 
       if (mounted) {
         setState(() => _isAssigning = false);
-        // Navigate to confirmation page after successful assignment
         Navigator.push(
           context,
           MaterialPageRoute(

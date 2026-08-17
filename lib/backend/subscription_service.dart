@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart';
 import '../services/firestore_service.dart';
 
 /// A service class responsible for handling subscription-related Firestore operations.

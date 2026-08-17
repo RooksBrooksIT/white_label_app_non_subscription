@@ -27,11 +27,13 @@ class Customer {
   // Constructor
   Customer({
     required this.customerName,
-    required this.ticketId,
+    String? ticketId,
+    String? bookingId,
     required this.deviceType,
     required this.deviceBrand,
     required this.deviceCondition,
-    required this.issueDescription,
+    String? issueDescription,
+    String? message,
     required this.address,
     required this.mobileNumber,
     required this.jobType,
@@ -43,7 +45,8 @@ class Customer {
     required this.timestamp,
     this.customerFileUrl,
     this.fileName,
-  });
+  })  : ticketId = ticketId ?? bookingId ?? '',
+        issueDescription = issueDescription ?? message ?? '';
 
   // CopyWith method
   Customer copyWith({
@@ -149,6 +152,8 @@ class Customer {
   }
 
   String? get id => customerid;
+  String get bookingId => ticketId;
+  String get message => issueDescription;
 
   Null get status => null;
 

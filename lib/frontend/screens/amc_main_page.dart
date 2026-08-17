@@ -1214,7 +1214,7 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
                                 ],
                               ),
                             );
-                          }).toList(),
+                          }),
                         ],
                       ),
                     ),
@@ -1287,7 +1287,7 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
                           ],
                         ),
                       );
-                    }).toList(),
+                    }),
                   ],
                 ],
               ),
@@ -1991,43 +1991,132 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
   }
 
   Future<void> handleLogout(BuildContext context) async {
+    final primaryError = const Color(0xFFEF4444);
     bool? confirmLogout = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.logout, color: Theme.of(context).primaryColor),
-            const SizedBox(width: 10),
-            Text(
-              "Logout",
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).primaryColor,
-              ),
+      builder: (context) => Dialog(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 380),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        primaryError.withValues(alpha: 0.15),
+                        primaryError.withValues(alpha: 0.05),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: primaryError.withValues(alpha: 0.25),
+                      width: 2,
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.logout_rounded,
+                    color: primaryError,
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                const Text(
+                  'Confirm Logout',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF0F172A),
+                    letterSpacing: -0.4,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Are you sure you want to logout? You will need to sign in again to access your account.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF64748B),
+                    fontWeight: FontWeight.w500,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: SizedBox(
+                        height: 48,
+                        child: TextButton(
+                          onPressed: () => Navigator.of(context).pop(false),
+                          style: TextButton.styleFrom(
+                            backgroundColor: const Color(0xFFF1F5F9),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          child: const Text(
+                            'Cancel',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF475569),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: SizedBox(
+                        height: 48,
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.of(context).pop(true),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primaryError,
+                            elevation: 3,
+                            shadowColor: primaryError.withValues(alpha: 0.35),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                'Logout',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              SizedBox(width: 6),
+                              Icon(
+                                Icons.arrow_forward_rounded,
+                                size: 16,
+                                color: Colors.white,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-          ],
-        ),
-        content: const Text(
-          "Are you sure you want to logout?",
-          style: TextStyle(fontSize: 16),
-        ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text("Cancel", style: TextStyle(color: Colors.grey)),
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(context).primaryColor,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            child: const Text("Logout", style: TextStyle(color: Colors.white)),
-          ),
-        ],
+        ),
       ),
     );
 
@@ -2056,7 +2145,7 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
     return WillPopScope(
       onWillPop: _onWillPop,
       child: Scaffold(
-        backgroundColor: const Color.fromARGB(255, 223, 224, 224),
+        backgroundColor: const Color(0xFFF8FAFC),
         appBar: _buildAppBar(),
         body: isLoading
             ? Center(
@@ -2072,58 +2161,100 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
   }
 
   AppBar _buildAppBar() {
+    final primary = Theme.of(context).primaryColor;
     return AppBar(
       automaticallyImplyLeading: false,
-      backgroundColor: Theme.of(context).primaryColor,
+      backgroundColor: primary,
       elevation: 0,
       centerTitle: false,
       toolbarHeight: 90,
+      flexibleSpace: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              primary,
+              HSLColor.fromColor(primary).withLightness(0.32).toColor(),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+      ),
       title: Padding(
         padding: const EdgeInsets.only(top: 8.0),
         child: Row(
           children: [
-            if (ThemeService.instance.logoUrl != null)
-              Container(
-                padding: const EdgeInsets.all(3),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.1),
-                      blurRadius: 8,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
+            Container(
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: const Color(0xFFF59E0B),
+                  width: 2,
                 ),
-                child: CircleAvatar(
-                  radius: 24,
-                  backgroundColor: Colors.white,
-                  backgroundImage: NetworkImage(ThemeService.instance.logoUrl!),
-                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.15),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
+              child: ThemeService.instance.logoUrl != null
+                  ? CircleAvatar(
+                      radius: 22,
+                      backgroundColor: Colors.white,
+                      backgroundImage: NetworkImage(ThemeService.instance.logoUrl!),
+                    )
+                  : CircleAvatar(
+                      radius: 22,
+                      backgroundColor: Colors.white.withValues(alpha: 0.2),
+                      child: Text(
+                        userName.isNotEmpty ? userName[0].toUpperCase() : 'C',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+            ),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    ThemeService.instance.appName.toUpperCase(),
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white.withValues(alpha: 0.7),
-                      letterSpacing: 2.0,
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.25),
+                      ),
+                    ),
+                    child: Text(
+                      ThemeService.instance.appName.toUpperCase(),
+                      style: const TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        letterSpacing: 1.5,
+                      ),
                     ),
                   ),
+                  const SizedBox(height: 3),
                   Text(
-                    "Hello, $userName",
+                    "Hello, $userName 👋",
                     style: const TextStyle(
-                      fontSize: 18,
+                      fontSize: 19,
                       fontWeight: FontWeight.w900,
                       color: Colors.white,
-                      letterSpacing: -0.5,
+                      letterSpacing: -0.4,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -2136,11 +2267,14 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
       ),
       actions: [
         Padding(
-          padding: const EdgeInsets.only(right: 12.0, top: 4.0),
+          padding: const EdgeInsets.only(right: 14.0, top: 4.0),
           child: Container(
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.15),
+              color: Colors.white.withValues(alpha: 0.18),
               borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.25),
+              ),
             ),
             child: IconButton(
               icon: const Icon(
@@ -2158,6 +2292,7 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
   }
 
   Widget _buildBody() {
+    final primary = Theme.of(context).primaryColor;
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
       child: ResponsiveWrapper(
@@ -2165,73 +2300,102 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header Decoration (matching Track My Service style)
+            // Top Gradient Curve Banner Transition
             _buildHeaderDecoration(),
 
-            // Welcome Section
+            // Welcome Section Hero Card
             Padding(
-              padding: const EdgeInsets.fromLTRB(28, 20, 28, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'WELCOME BACK',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Theme.of(
-                        context,
-                      ).primaryColor.withValues(alpha: 0.6),
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1.5,
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(22),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.04),
+                      blurRadius: 18,
+                      offset: const Offset(0, 6),
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    userName,
-                    style: const TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.w900,
-                      color: Color(0xFF1E293B),
-                      letterSpacing: -1.0,
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.stars_rounded,
+                                size: 14,
+                                color: primary,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                'WELCOME BACK',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w900,
+                                  color: primary,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).primaryColor,
-                      borderRadius: BorderRadius.circular(2),
+                    const SizedBox(height: 12),
+                    Text(
+                      userName,
+                      style: const TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF0F172A),
+                        letterSpacing: -0.8,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    'How can we help you maintain your balance today?',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Color(0xFF64748B),
-                      fontWeight: FontWeight.w500,
-                      height: 1.4,
+                    const SizedBox(height: 6),
+                    const Text(
+                      'How can we help you maintain your balance today?',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF64748B),
+                        fontWeight: FontWeight.w500,
+                        height: 1.4,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
 
-            const SizedBox(height: 32),
+            const SizedBox(height: 24),
 
-            const SizedBox(height: 32),
-
-            // Main Action Cards
+            // Main Action Cards Grid
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
+              padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
                 children: [
                   Expanded(
                     child: _buildActionCard(
-                      icon: Icons.add_rounded,
+                      icon: Icons.add_to_photos_rounded,
                       title: 'Add Device',
-                      subtitle: 'Create new requests',
+                      subtitle: 'Create new service requests',
+                      buttonLabel: 'Explore',
                       onTap: () {
                         Navigator.push(
                           context,
@@ -2246,15 +2410,16 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
                           ),
                         );
                       },
-                      color: Theme.of(context).primaryColor,
+                      color: primary,
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 14),
                   Expanded(
                     child: _buildActionCard(
                       icon: Icons.track_changes_rounded,
                       title: 'Track Service',
-                      subtitle: 'Manage active requests',
+                      subtitle: 'Manage active repair requests',
+                      buttonLabel: 'Track Now',
                       onTap: userName != 'Guest'
                           ? () {
                               Navigator.push(
@@ -2275,11 +2440,11 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
               ),
             ),
 
-            const SizedBox(height: 32),
+            const SizedBox(height: 20),
 
             // Additional Info Section
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
+              padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
                 children: [
                   Expanded(
@@ -2287,20 +2452,23 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
                       icon: Icons.bolt_rounded,
                       title: 'Real-time Updates',
                       subtitle: 'Stay notified instantly',
+                      accentColor: const Color(0xFF3B82F6),
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 14),
                   Expanded(
                     child: _buildInfoCard(
                       icon: Icons.workspace_premium_rounded,
                       title: 'Expert Support',
                       subtitle: 'Professionals at duty',
+                      accentColor: const Color(0xFF8B5CF6),
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 40),
+
+            const SizedBox(height: 32),
           ],
         ),
       ),
@@ -2308,15 +2476,23 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
   }
 
   Widget _buildHeaderDecoration() {
+    final primary = Theme.of(context).primaryColor;
     return Container(
       width: double.infinity,
-      height: 40,
+      height: 24,
       decoration: BoxDecoration(
-        color: Theme.of(context).primaryColor,
-        // borderRadius: const BorderRadius.only(
-        //   bottomLeft: Radius.circular(40),
-        //   bottomRight: Radius.circular(40),
-        // ),
+        gradient: LinearGradient(
+          colors: [
+            primary,
+            HSLColor.fromColor(primary).withLightness(0.32).toColor(),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(28),
+          bottomRight: Radius.circular(28),
+        ),
       ),
     );
   }
@@ -2325,48 +2501,57 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
     required IconData icon,
     required String title,
     required String subtitle,
+    required String buttonLabel,
     required VoidCallback? onTap,
     required Color color,
   }) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
-            color: color.withValues(alpha: 0.1),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
+            color: color.withValues(alpha: 0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(22),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(28),
+          borderRadius: BorderRadius.circular(22),
           child: Padding(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.1),
+                    gradient: LinearGradient(
+                      colors: [
+                        color.withValues(alpha: 0.15),
+                        color.withValues(alpha: 0.05),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: Icon(icon, color: color, size: 28),
+                  child: Icon(icon, color: color, size: 26),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
                 Text(
                   title,
                   style: const TextStyle(
-                    fontSize: 18,
+                    fontSize: 17,
                     fontWeight: FontWeight.w900,
-                    color: Color(0xFF1E293B),
-                    letterSpacing: -0.5,
+                    color: Color(0xFF0F172A),
+                    letterSpacing: -0.4,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -2379,20 +2564,35 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
                     height: 1.3,
                   ),
                 ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Text(
-                      "Explore",
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        color: color,
+                const SizedBox(height: 18),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: color,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        buttonLabel,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 4),
-                    Icon(Icons.arrow_forward_rounded, color: color, size: 14),
-                  ],
+                      const SizedBox(width: 4),
+                      const Icon(
+                        Icons.arrow_forward_rounded,
+                        color: Colors.white,
+                        size: 14,
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -2406,28 +2606,43 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
     required IconData icon,
     required String title,
     required String subtitle,
+    required Color accentColor,
   }) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white, width: 2),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         children: [
-          Icon(
-            icon,
-            color: Theme.of(context).primaryColor.withValues(alpha: 0.4),
-            size: 24,
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: accentColor.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              icon,
+              color: accentColor,
+              size: 22,
+            ),
           ),
           const SizedBox(height: 12),
           Text(
             title,
             style: const TextStyle(
               fontSize: 13,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF1E293B),
+              fontWeight: FontWeight.w900,
+              color: Color(0xFF0F172A),
             ),
             textAlign: TextAlign.center,
           ),
@@ -2436,8 +2651,8 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
             subtitle,
             style: const TextStyle(
               fontSize: 11,
-              color: Color(0xFF94A3B8),
-              fontWeight: FontWeight.w600,
+              color: Color(0xFF64748B),
+              fontWeight: FontWeight.w500,
             ),
             textAlign: TextAlign.center,
           ),

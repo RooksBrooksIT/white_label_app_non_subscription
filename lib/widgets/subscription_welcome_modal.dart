@@ -1,5 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:subscription_rooks_app/services/theme_service.dart';
 
 class SubscriptionWelcomeModal extends StatelessWidget {
   final String planName;
@@ -20,29 +22,46 @@ class SubscriptionWelcomeModal extends StatelessWidget {
   // Helper to resolve plan color dynamically
   Color _getPlanColor(String name) {
     final lowerName = name.toLowerCase();
-    if (lowerName.contains('silver')) return const Color(0xFF9E9E9E); // Silver
-    if (lowerName.contains('gold')) return const Color(0xFFFFD700); // Gold
-    if (lowerName.contains('platinum')) return const Color(0xFF607D8B); // Platinum / Steel Blue
-    if (lowerName.contains('trial')) return const Color(0xFF2196F3); // Free Trial Blue
-    return const Color(0xFF6C5CE7); // Default premium purple
+    if (lowerName.contains('silver')) return const Color(0xFF64748B); // Slate Silver
+    if (lowerName.contains('gold')) return const Color(0xFFF59E0B); // Amber Gold
+    if (lowerName.contains('platinum')) return const Color(0xFF6366F1); // Indigo Platinum
+    if (lowerName.contains('trial')) return const Color(0xFF0EA5E9); // Sky Blue Trial
+    return const Color(0xFF0F172A); // Default Slate
+  }
+
+  List<Color> _getPlanGradient(String name) {
+    final lowerName = name.toLowerCase();
+    if (lowerName.contains('silver')) {
+      return [const Color(0xFF64748B), const Color(0xFF475569)];
+    }
+    if (lowerName.contains('gold')) {
+      return [const Color(0xFFF59E0B), const Color(0xFFD97706)];
+    }
+    if (lowerName.contains('platinum')) {
+      return [const Color(0xFF6366F1), const Color(0xFF4F46E5)];
+    }
+    if (lowerName.contains('trial')) {
+      return [const Color(0xFF0EA5E9), const Color(0xFF0284C7)];
+    }
+    return [const Color(0xFF1E293B), const Color(0xFF0F172A)];
   }
 
   // Get plan summary message
   String _getPlanMessage(String name) {
     final lowerName = name.toLowerCase();
     if (lowerName.contains('silver')) {
-      return 'Perfect for small teams and basic operations.';
+      return 'Ideal for small teams and core service dispatch workflows.';
     }
     if (lowerName.contains('gold')) {
-      return 'Ideal for growing businesses requiring advanced tracking and reporting.';
+      return 'Tailored for growing teams needing geo-tracking and report exports.';
     }
     if (lowerName.contains('platinum')) {
-      return 'You now have access to all premium platform features.';
+      return 'Unrestricted enterprise scale with full feature access.';
     }
     if (lowerName.contains('trial')) {
-      return 'Explore all premium features free for 7 days.';
+      return 'Explore all premium features free for your 7-day trial period.';
     }
-    return 'Thank you for subscribing to our premium features!';
+    return 'Your subscription is now active and ready to use.';
   }
 
   // Get plan benefits
@@ -52,45 +71,40 @@ class SubscriptionWelcomeModal extends StatelessWidget {
       return [
         'Up to 20 Customers',
         'Up to 5 Engineers',
-        '1GB Storage',
-        'Web Support',
-        'Basic Dashboard',
+        '1GB Cloud Storage',
+        'Web Support Portal',
         'Standard Email Support',
+        'Basic Operations Dashboard',
       ];
     }
     if (lowerName.contains('gold')) {
       return [
         'Up to 50 Customers',
         'Up to 10 Engineers',
-        '5GB Storage',
-        'Geo Location Enabled',
-        'Report Export Available',
-        'Priority Support',
+        '5GB Cloud Storage',
+        'Live Geo-Location Enabled',
+        'Detailed Report Exporting',
+        'Priority Technical Support',
       ];
     }
     if (lowerName.contains('platinum')) {
       return [
-        'Unlimited Customers',
-        'Unlimited Engineers',
-        'Unlimited Photos & PDFs',
-        'Geo Location Enabled',
-        'Attendance System',
-        'Barcode System',
-        'Report Export',
-        '100GB Storage',
-        'Premium Priority Support',
+        'Unlimited Customers & Engineers',
+        '100GB Cloud Storage',
+        'GPS Geo-Location Tracking',
+        'Automated Attendance System',
+        'Barcode / QR Code Management',
+        'Full Report Export & Analytics',
+        '24/7 Dedicated Priority Support',
       ];
     }
-    // Trial plan benefits
     return [
-      'Access to all Gold Features',
-      'Geo Location Enabled',
-      'Attendance Enabled',
-      'Barcode Enabled',
-      'Report Export Available',
-      '50 Customers',
-      '10 Engineers',
-      '5GB Storage',
+      'Access to All Gold Features',
+      'Live Geo-Location Tracking',
+      'Engineer Attendance Management',
+      'Barcode Scanning & Search',
+      '50 Customers & 10 Engineers',
+      '5GB Cloud Storage Included',
     ];
   }
 
@@ -101,28 +115,27 @@ class SubscriptionWelcomeModal extends StatelessWidget {
       return {
         'Customers': '20 Allowed',
         'Engineers': '5 Allowed',
-        'Storage': '1 GB Capacity',
+        'Storage': '1 GB',
       };
     }
     if (lowerName.contains('gold')) {
       return {
         'Customers': '50 Allowed',
         'Engineers': '10 Allowed',
-        'Storage': '5 GB Capacity',
+        'Storage': '5 GB',
       };
     }
     if (lowerName.contains('platinum')) {
       return {
         'Customers': 'Unlimited',
         'Engineers': 'Unlimited',
-        'Storage': '100 GB Capacity',
+        'Storage': '100 GB',
       };
     }
-    // Trial limits
     return {
       'Customers': '50 Allowed',
       'Engineers': '10 Allowed',
-      'Storage': '5 GB Capacity',
+      'Storage': '5 GB',
     };
   }
 
@@ -130,38 +143,41 @@ class SubscriptionWelcomeModal extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    
+    final primaryColor = ThemeService.instance.primaryColor;
+
     final planColor = _getPlanColor(planName);
+    final planGradient = _getPlanGradient(planName);
     final message = _getPlanMessage(planName);
     final benefits = _getPlanBenefits(planName);
     final limits = _getPlanLimits(planName);
 
-    final titlePrefix = planName.toLowerCase().contains('trial')
-        ? 'Welcome to Your 7-Day Free Trial'
-        : 'Welcome to the $planName Plan';
+    final isTrial = planName.toLowerCase().contains('trial');
+    final formattedPlanName = isTrial ? '7-Day Free Trial' : '$planName Plan';
 
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
       backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(28),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
           child: Container(
-            constraints: const BoxConstraints(maxWidth: 480),
+            constraints: const BoxConstraints(maxWidth: 440),
             decoration: BoxDecoration(
-              color: isDark ? Colors.grey[900]!.withOpacity(0.9) : Colors.white.withOpacity(0.9),
-              borderRadius: BorderRadius.circular(24),
+              color: isDark ? const Color(0xFF1E293B) : Colors.white,
+              borderRadius: BorderRadius.circular(28),
               border: Border.all(
-                color: (isDark ? Colors.white : Colors.black).withOpacity(0.08),
-                width: 1.5,
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.1)
+                    : const Color(0xFFE2E8F0),
+                width: 1.2,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
-                  blurRadius: 30,
-                  offset: const Offset(0, 15),
+                  color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.08),
+                  blurRadius: 32,
+                  offset: const Offset(0, 16),
                 ),
               ],
             ),
@@ -171,224 +187,304 @@ class SubscriptionWelcomeModal extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Top Accent Gradient
+                  // Top Gradient Accent Strip
                   Container(
-                    height: 12,
+                    height: 6,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [planColor.withOpacity(0.6), planColor, planColor.withOpacity(0.8)],
+                        colors: planGradient,
                       ),
                     ),
                   ),
 
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+                    padding: const EdgeInsets.fromLTRB(22, 24, 22, 22),
                     child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        // 🎉 Congratulations Header
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                        // Celebratory Icon Badge
+                        Stack(
+                          alignment: Alignment.center,
                           children: [
-                            const Text(
-                              '🎉',
-                              style: TextStyle(fontSize: 28),
+                            Container(
+                              width: 68,
+                              height: 68,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: planColor.withValues(alpha: 0.1),
+                              ),
                             ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'Congratulations!',
-                                style: theme.textTheme.headlineSmall?.copyWith(
-                                  fontWeight: FontWeight.w900,
-                                  color: planColor,
-                                  letterSpacing: -0.5,
+                            Container(
+                              width: 54,
+                              height: 54,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: LinearGradient(
+                                  colors: planGradient,
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
                                 ),
-                                textAlign: TextAlign.center,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: planColor.withValues(alpha: 0.35),
+                                    blurRadius: 14,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(
+                                Icons.auto_awesome_rounded,
+                                color: Colors.white,
+                                size: 26,
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
 
-                        // Title with Plan Name
+                        const SizedBox(height: 16),
+
+                        // Title
                         Text(
-                          titlePrefix,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                            color: isDark ? Colors.white : Colors.black87,
+                          'Congratulations!',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.5,
+                            color: isDark ? Colors.white : const Color(0xFF0F172A),
                           ),
                           textAlign: TextAlign.center,
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 4),
 
-                        // Dynamic Plan Badge
+                        Text(
+                          'Welcome to the $formattedPlanName',
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+
+                        const SizedBox(height: 12),
+
+                        // Plan Tier Pill
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
                           decoration: BoxDecoration(
-                            color: planColor.withOpacity(0.12),
-                            borderRadius: BorderRadius.circular(30),
-                            border: Border.all(color: planColor.withOpacity(0.4), width: 1.5),
+                            gradient: LinearGradient(
+                              colors: planGradient,
+                            ),
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: planColor.withValues(alpha: 0.25),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
                           ),
                           child: Text(
                             planName.toUpperCase(),
-                            style: TextStyle(
-                              color: planColor,
+                            style: GoogleFonts.inter(
+                              color: Colors.white,
                               fontWeight: FontWeight.w800,
-                              fontSize: 13,
-                              letterSpacing: 1.2,
+                              fontSize: 11.5,
+                              letterSpacing: 1.1,
                             ),
                           ),
                         ),
+
                         const SizedBox(height: 20),
 
-                        // Plan Summary Block
+                        // Status & Billing Dual Card
                         Container(
-                          padding: const EdgeInsets.all(12),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                           decoration: BoxDecoration(
-                            color: isDark ? Colors.grey[850]!.withOpacity(0.5) : Colors.grey[50],
-                            borderRadius: BorderRadius.circular(16),
+                            color: isDark
+                                ? const Color(0xFF0F172A).withValues(alpha: 0.6)
+                                : const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(18),
                             border: Border.all(
-                              color: (isDark ? Colors.white : Colors.black).withOpacity(0.04),
+                              color: isDark
+                                  ? Colors.white.withValues(alpha: 0.06)
+                                  : const Color(0xFFE2E8F0),
+                              width: 1.2,
                             ),
                           ),
                           child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceAround,
                             children: [
-                              _buildSummaryItem(
-                                context,
-                                'Billing Cycle',
-                                billingCycle,
-                                Icons.calendar_today_rounded,
+                              Expanded(
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(7),
+                                      decoration: BoxDecoration(
+                                        color: primaryColor.withValues(alpha: 0.08),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Icon(
+                                        Icons.calendar_today_rounded,
+                                        size: 16,
+                                        color: primaryColor,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Billing Cycle',
+                                            style: GoogleFonts.inter(
+                                              fontSize: 11,
+                                              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                          Text(
+                                            billingCycle,
+                                            style: GoogleFonts.inter(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w700,
+                                              color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                               Container(
                                 width: 1,
                                 height: 32,
-                                color: (isDark ? Colors.white : Colors.black).withOpacity(0.1),
+                                color: isDark
+                                    ? Colors.white.withValues(alpha: 0.1)
+                                    : const Color(0xFFE2E8F0),
                               ),
-                              _buildSummaryItem(
-                                context,
-                                'Status',
-                                status,
-                                Icons.verified_user_rounded,
-                                valueColor: Colors.green,
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(7),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF10B981).withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: const Icon(
+                                        Icons.verified_rounded,
+                                        size: 16,
+                                        color: Color(0xFF10B981),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Status',
+                                            style: GoogleFonts.inter(
+                                              fontSize: 11,
+                                              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                          Text(
+                                            'Active',
+                                            style: GoogleFonts.inter(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w700,
+                                              color: const Color(0xFF10B981),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ],
                           ),
                         ),
-                        const SizedBox(height: 20),
 
-                        // Benefits Section Title
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            'What\'s Included',
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                              color: isDark ? Colors.white70 : Colors.black54,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 18),
 
-                        // Benefits list
-                        ListView.separated(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: benefits.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: 8),
-                          itemBuilder: (context, index) {
-                            return Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(3),
-                                  decoration: BoxDecoration(
-                                    color: Colors.green.withOpacity(0.12),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(
-                                    Icons.check,
-                                    color: Colors.green,
-                                    size: 14,
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Text(
-                                    benefits[index],
-                                    style: TextStyle(
-                                      fontSize: 13.5,
-                                      color: isDark ? Colors.white.withValues(alpha: 0.9) : Colors.black87,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 24),
-
-                        // Usage Limits Section
+                        // Capacity & Limits Metrics Grid
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: isDark
-                                  ? [Colors.grey[850]!, Colors.grey[900]!]
-                                  : [Colors.blue.shade50.withOpacity(0.5), Colors.white],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(16),
+                            color: isDark
+                                ? const Color(0xFF0F172A).withValues(alpha: 0.6)
+                                : const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(18),
                             border: Border.all(
-                              color: planColor.withOpacity(0.15),
-                              width: 1,
+                              color: isDark
+                                  ? Colors.white.withValues(alpha: 0.06)
+                                  : const Color(0xFFE2E8F0),
+                              width: 1.2,
                             ),
                           ),
                           child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
                                 children: [
-                                  Icon(Icons.speed_rounded, color: planColor, size: 18),
-                                  const SizedBox(width: 8),
+                                  Icon(
+                                    Icons.tune_rounded,
+                                    size: 16,
+                                    color: primaryColor,
+                                  ),
+                                  const SizedBox(width: 6),
                                   Text(
                                     'Plan Limits & Capacity',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 13,
-                                      color: isDark ? Colors.white70 : Colors.black87,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: isDark ? Colors.white : const Color(0xFF0F172A),
                                     ),
                                   ),
                                 ],
                               ),
-                              const Divider(height: 20),
+                              const SizedBox(height: 12),
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: limits.entries.map((entry) {
                                   return Expanded(
-                                    child: Column(
-                                      children: [
-                                        Text(
-                                          entry.key,
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            color: isDark ? Colors.grey[400] : Colors.grey[600],
-                                            fontWeight: FontWeight.w500,
-                                          ),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                                      decoration: BoxDecoration(
+                                        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: isDark
+                                              ? Colors.white.withValues(alpha: 0.06)
+                                              : const Color(0xFFE2E8F0),
                                         ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          entry.value,
-                                          style: TextStyle(
-                                            fontSize: 12.5,
-                                            fontWeight: FontWeight.bold,
-                                            color: isDark ? Colors.white : Colors.black87,
+                                      ),
+                                      child: Column(
+                                        children: [
+                                          Text(
+                                            entry.key,
+                                            style: GoogleFonts.inter(
+                                              fontSize: 10.5,
+                                              fontWeight: FontWeight.w500,
+                                              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                            ),
                                           ),
-                                          textAlign: TextAlign.center,
-                                        ),
-                                      ],
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            entry.value,
+                                            style: GoogleFonts.inter(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700,
+                                              color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                            ),
+                                            textAlign: TextAlign.center,
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   );
                                 }).toList(),
@@ -396,53 +492,126 @@ class SubscriptionWelcomeModal extends StatelessWidget {
                             ],
                           ),
                         ),
-                        const SizedBox(height: 16),
 
-                        // Additional Message / Subtitle
+                        const SizedBox(height: 18),
+
+                        // What's Included Title
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            "What's Included",
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w700,
+                              color: isDark ? Colors.white : const Color(0xFF0F172A),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+
+                        // Benefits List
+                        ListView.separated(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: benefits.length,
+                          separatorBuilder: (_, _) => const SizedBox(height: 6),
+                          itemBuilder: (context, index) {
+                            return Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(3),
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFFDCFCE7),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.check_rounded,
+                                    color: Color(0xFF16A34A),
+                                    size: 13,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    benefits[index],
+                                    style: GoogleFonts.inter(
+                                      fontSize: 13,
+                                      color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+
+                        const SizedBox(height: 14),
+
+                        // Plan Subtitle / Message
                         Text(
                           message,
-                          style: TextStyle(
-                            fontSize: 12.5,
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
                             fontStyle: FontStyle.italic,
-                            color: isDark ? Colors.grey[400] : Colors.grey[700],
+                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                           ),
                           textAlign: TextAlign.center,
                         ),
-                        const SizedBox(height: 28),
 
-                        // Action Buttons
-                        ElevatedButton(
-                          onPressed: onContinue,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: planColor,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                        const SizedBox(height: 22),
+
+                        // High-Contrast Primary CTA Button
+                        SizedBox(
+                          width: double.infinity,
+                          height: 52,
+                          child: ElevatedButton(
+                            onPressed: onContinue,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: primaryColor,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              shadowColor: primaryColor.withValues(alpha: 0.35),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
                             ),
-                            elevation: 2,
-                            shadowColor: planColor.withOpacity(0.5),
-                          ),
-                          child: const Text(
-                            'Continue to Dashboard',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  'Continue to Dashboard',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.2,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                const Icon(
+                                  Icons.arrow_forward_rounded,
+                                  size: 18,
+                                ),
+                              ],
                             ),
                           ),
                         ),
-                        const SizedBox(height: 10),
 
+                        const SizedBox(height: 8),
+
+                        // Secondary Details Link
                         TextButton(
                           onPressed: onViewDetails,
                           style: TextButton.styleFrom(
-                            foregroundColor: isDark ? Colors.white70 : Colors.black54,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            foregroundColor: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           ),
-                          child: const Text(
+                          child: Text(
                             'View Subscription Details',
-                            style: TextStyle(
-                              fontSize: 14,
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
                               fontWeight: FontWeight.w600,
                               decoration: TextDecoration.underline,
                             ),
@@ -457,50 +626,6 @@ class SubscriptionWelcomeModal extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildSummaryItem(
-    BuildContext context,
-    String label,
-    String value,
-    IconData icon, {
-    Color? valueColor,
-  }) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          icon,
-          size: 16,
-          color: isDark ? Colors.grey[400] : Colors.grey[600],
-        ),
-        const SizedBox(width: 8),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 10,
-                color: isDark ? Colors.grey[400] : Colors.grey[600],
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.bold,
-                color: valueColor ?? (isDark ? Colors.white : Colors.black87),
-              ),
-            ),
-          ],
-        ),
-      ],
     );
   }
 }

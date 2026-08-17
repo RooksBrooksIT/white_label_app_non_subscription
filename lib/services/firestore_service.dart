@@ -239,15 +239,15 @@ class FirestoreService {
       'expiresAt':
           nextBilling, // DateTime is converted to Timestamp by Firestore
       'updatedAt': FieldValue.serverTimestamp(),
-      if (originalPrice != null) 'originalPrice': originalPrice,
+      'originalPrice': ?originalPrice,
       if (customerMobile != null && customerMobile.isNotEmpty)
         'customerMobile': customerMobile,
       if (gstNumber != null && gstNumber.isNotEmpty) 'gstNumber': gstNumber,
-      if (limits != null) 'limits': limits,
-      if (geoLocation != null) 'geoLocation': geoLocation,
-      if (attendance != null) 'attendance': attendance,
-      if (barcode != null) 'barcode': barcode,
-      if (reportExport != null) 'reportExport': reportExport,
+      'limits': ?limits,
+      'geoLocation': ?geoLocation,
+      'attendance': ?attendance,
+      'barcode': ?barcode,
+      'reportExport': ?reportExport,
     };
 
     if (brandingData != null) {
@@ -673,13 +673,13 @@ class FirestoreService {
         'userIdOrMobile': uidOrMobile,
         'planName': planName,
         'newPlan': newPlan ?? planName,
-        if (previousPlan != null) 'previousPlan': previousPlan,
+        'previousPlan': ?previousPlan,
         'amount': amount,
         'status': status,
         'isYearly': isYearly,
         'isSixMonths': isSixMonths,
         'queueStatus': queueStatus,
-        if (failureReason != null) 'failureReason': failureReason,
+        'failureReason': ?failureReason,
         'timestamp': FieldValue.serverTimestamp(),
         'registrationCompleted': registrationCompleted,
         'firestoreSynced': firestoreSynced,
@@ -692,8 +692,8 @@ class FirestoreService {
           'billingCycle': isYearly
               ? 'Yearly'
               : (isSixMonths ? '6 Months' : 'Monthly'),
-          if (customerName != null) 'customerName': customerName,
-          if (customerEmail != null) 'customerEmail': customerEmail,
+          'customerName': ?customerName,
+          'customerEmail': ?customerEmail,
         },
       };
 
@@ -720,7 +720,7 @@ class FirestoreService {
           'customerMobile': customerMobile ?? '',
           'planName': planName,
           'queueStatus': queueStatus,
-          if (previousPlan != null) 'previousPlan': previousPlan,
+          'previousPlan': ?previousPlan,
           'newPlan': newPlan ?? planName,
           'gatewayResponse': gatewayResponse ?? {},
           'createdAt': FieldValue.serverTimestamp(),

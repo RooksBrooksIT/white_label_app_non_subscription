@@ -111,7 +111,7 @@ class _PaymentRecoveryScreenState extends State<PaymentRecoveryScreen> {
                 result['message'].toString().contains('wrong-password') ||
                 result['message'].toString().contains('incorrect, malformed or has expired')) {
                 
-                final email = pendingUserData?['email'] ?? 'unknown';
+                final email = pendingUserData['email'] ?? 'unknown';
                 
                 try {
                   await FirebaseFirestore.instance.collection('payments').doc(txnId).update({

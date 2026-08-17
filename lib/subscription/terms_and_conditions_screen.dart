@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_dashboard.dart';
 import 'package:subscription_rooks_app/services/auth_state_service.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
@@ -86,7 +87,7 @@ class _TermsAndConditionsScreenState extends State<TermsAndConditionsScreen>
           'Platinum, or promotional trial) that defines features, usage limits, '
           'and billing cycle.\n\n'
           '1.6 "You" or "User" means any person or entity using the Service in any role.',
-      Icons.menu_book_outlined,
+      Icons.menu_book_rounded,
     ),
     _TermsSection(
       '2. Acceptance and Eligibility',
@@ -99,7 +100,7 @@ class _TermsAndConditionsScreenState extends State<TermsAndConditionsScreen>
           'be indicated by updating the "Last Updated" date. Continued use after '
           'changes constitutes acceptance. For material changes, we may require '
           'renewed acceptance within the app.',
-      Icons.check_circle_outline,
+      Icons.verified_user_rounded,
     ),
     _TermsSection(
       '3. Description of the Service',
@@ -116,7 +117,7 @@ class _TermsAndConditionsScreenState extends State<TermsAndConditionsScreen>
           '3.2 Feature availability depends on your Subscription plan and active '
           'status. We may modify, add, or discontinue features with reasonable notice '
           'where practicable.',
-      Icons.apps_outlined,
+      Icons.apps_rounded,
     ),
     _TermsSection(
       '4. Account Registration and Security',
@@ -129,7 +130,7 @@ class _TermsAndConditionsScreenState extends State<TermsAndConditionsScreen>
           'unauthorized access or suspected breach.\n\n'
           '4.4 We may suspend or terminate accounts that violate these Terms or pose '
           'security or legal risk.',
-      Icons.account_circle_outlined,
+      Icons.admin_panel_settings_rounded,
     ),
     _TermsSection(
       '5. Subscriptions, Billing, and Payments',
@@ -147,7 +148,7 @@ class _TermsAndConditionsScreenState extends State<TermsAndConditionsScreen>
           'suspension of features, or deactivation until resolved.\n\n'
           '5.6 Refund requests are handled per our refund policy and applicable law. '
           'Contact support@rookstechnologies.com for billing disputes.',
-      Icons.payment_outlined,
+      Icons.credit_card_rounded,
     ),
     _TermsSection(
       '6. Free Trial',
@@ -156,7 +157,7 @@ class _TermsAndConditionsScreenState extends State<TermsAndConditionsScreen>
           '6.2 One trial per organization or user may apply unless we expressly allow otherwise.\n\n'
           '6.3 At trial end, continued use may require selecting a paid Subscription. '
           'Access may be restricted if no active Subscription exists.',
-      Icons.timer_outlined,
+      Icons.timelapse_rounded,
     ),
     _TermsSection(
       '7. White-Label Branding and Organization Data',
@@ -166,7 +167,7 @@ class _TermsAndConditionsScreenState extends State<TermsAndConditionsScreen>
           'solely to provide the Service to your Organization.\n\n'
           '7.3 Each Tenant\'s operational data is logically separated. You remain '
           'responsible for data you and your users enter into your Tenant.',
-      Icons.palette_outlined,
+      Icons.palette_rounded,
     ),
     _TermsSection(
       '8. Acceptable Use',
@@ -180,7 +181,7 @@ class _TermsAndConditionsScreenState extends State<TermsAndConditionsScreen>
           '8.6 Use location, attendance, or customer data in violation of applicable '
           'privacy, employment, or consumer laws;\n'
           '8.7 Share referral codes or credentials in a manner that compromises security.',
-      Icons.gavel_outlined,
+      Icons.gavel_rounded,
     ),
     _TermsSection(
       '9. User-Generated and Operational Data',
@@ -191,14 +192,14 @@ class _TermsAndConditionsScreenState extends State<TermsAndConditionsScreen>
           'the Service, including backups and support.\n\n'
           '9.3 You are responsible for obtaining necessary consents from employees, '
           'engineers, and customers whose personal data you process through the Service.',
-      Icons.storage_outlined,
+      Icons.storage_rounded,
     ),
     _TermsSection(
       '10. Intellectual Property',
       '10.1 The Service, including software, design, trademarks, and documentation '
           '(excluding your content and branding), is owned by the Company or its licensors.\n\n'
           '10.2 No rights are granted except as expressly stated in these Terms.',
-      Icons.copyright_outlined,
+      Icons.copyright_rounded,
     ),
     _TermsSection(
       '11. Third-Party Services',
@@ -209,7 +210,7 @@ class _TermsAndConditionsScreenState extends State<TermsAndConditionsScreen>
           '• Email and notification services\n\n'
           'Your use of those services may be subject to their separate terms and policies. '
           'We are not responsible for third-party outages or acts.',
-      Icons.link_outlined,
+      Icons.hub_rounded,
     ),
     _TermsSection(
       '12. Disclaimers',
@@ -218,7 +219,7 @@ class _TermsAndConditionsScreenState extends State<TermsAndConditionsScreen>
           '12.2 WE DO NOT WARRANT UNINTERRUPTED, ERROR-FREE, OR SECURE OPERATION.\n\n'
           '12.3 FIELD SERVICE, LOCATION, AND ATTENDANCE FEATURES ARE TOOLS FOR '
           'OPERATIONAL USE; YOU ARE RESPONSIBLE FOR HOW YOU INTERPRET AND ACT ON SUCH DATA.',
-      Icons.warning_amber_outlined,
+      Icons.warning_rounded,
     ),
     _TermsSection(
       '13. Limitation of Liability',
@@ -229,7 +230,7 @@ class _TermsAndConditionsScreenState extends State<TermsAndConditionsScreen>
           'SHALL NOT EXCEED THE AMOUNT YOU PAID US FOR THE SUBSCRIPTION IN THE TWELVE (12) '
           'MONTHS PRECEDING THE CLAIM, OR INR 5,000, WHICHEVER IS GREATER, UNLESS MANDATORY '
           'LAW REQUIRES OTHERWISE.',
-      Icons.balance_outlined,
+      Icons.balance_rounded,
     ),
     _TermsSection(
       '14. Indemnification',
@@ -237,7 +238,7 @@ class _TermsAndConditionsScreenState extends State<TermsAndConditionsScreen>
           'employees, and agents from claims arising from your use of the Service, your '
           'content, your violation of these Terms, or your violation of any law or '
           'third-party rights.',
-      Icons.shield_outlined,
+      Icons.shield_rounded,
     ),
     _TermsSection(
       '15. Suspension and Termination',
@@ -248,7 +249,7 @@ class _TermsAndConditionsScreenState extends State<TermsAndConditionsScreen>
           'by law or our refund policy.\n\n'
           '15.3 Upon termination, access to Tenant data may be restricted. Export any '
           'critical data before cancellation where the app provides export features.',
-      Icons.block_outlined,
+      Icons.block_rounded,
     ),
     _TermsSection(
       '16. Governing Law and Disputes',
@@ -258,7 +259,7 @@ class _TermsAndConditionsScreenState extends State<TermsAndConditionsScreen>
           'subject to mandatory consumer protections.\n\n'
           '16.3 You agree to attempt good-faith resolution by contacting '
           'support@rookstechnologies.com before formal proceedings where reasonable.',
-      Icons.policy_outlined,
+      Icons.policy_rounded,
     ),
     _TermsSection(
       '17. Contact Information',
@@ -269,7 +270,7 @@ class _TermsAndConditionsScreenState extends State<TermsAndConditionsScreen>
           'Website: www.rookstechnologies.com\n\n'
           'For privacy-related requests, see our Privacy Policy or email the address above '
           'with subject line "Privacy Request."',
-      Icons.contact_mail_outlined,
+      Icons.contact_mail_rounded,
     ),
     _TermsSection(
       '18. Miscellaneous',
@@ -280,7 +281,7 @@ class _TermsAndConditionsScreenState extends State<TermsAndConditionsScreen>
           '18.4 White-labeled app names displayed to end users are configured by each '
           'Organization and do not change the legal relationship between you and the '
           'Company for platform services.',
-      Icons.more_horiz,
+      Icons.more_horiz_rounded,
     ),
   ];
 
@@ -288,73 +289,43 @@ class _TermsAndConditionsScreenState extends State<TermsAndConditionsScreen>
   bool _isLoading = false;
   final ScrollController _scrollController = ScrollController();
   bool _hasScrolledToBottom = false;
-  late AnimationController _buttonAnimationController;
-  late Animation<double> _buttonScaleAnimation;
-  late Animation<double> _buttonGlowAnimation;
-  late Animation<Color?> _buttonColorAnimation;
+  double _scrollProgress = 0.0;
 
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
-
-    _buttonAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 300),
-      vsync: this,
-    );
-
-    _buttonScaleAnimation = Tween<double>(begin: 1.0, end: 1.02).animate(
-      CurvedAnimation(
-        parent: _buttonAnimationController,
-        curve: Curves.easeInOut,
-      ),
-    );
-
-    _buttonGlowAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _buttonAnimationController,
-        curve: Curves.easeInOut,
-      ),
-    );
-
-    _buttonColorAnimation =
-        ColorTween(
-          begin: Colors.grey.shade400,
-          end: const Color(0xFF0D47A1),
-        ).animate(
-          CurvedAnimation(
-            parent: _buttonAnimationController,
-            curve: Curves.easeInOut,
-          ),
-        );
   }
 
   @override
   void dispose() {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
-    _buttonAnimationController.dispose();
     super.dispose();
   }
 
   void _onScroll() {
-    if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent - 100) {
-      if (!_hasScrolledToBottom) {
+    if (!_scrollController.hasClients) return;
+    
+    final maxScroll = _scrollController.position.maxScrollExtent;
+    final currentScroll = _scrollController.position.pixels;
+    
+    if (maxScroll > 0) {
+      final progress = (currentScroll / maxScroll).clamp(0.0, 1.0);
+      if (progress != _scrollProgress) {
         setState(() {
-          _hasScrolledToBottom = true;
+          _scrollProgress = progress;
         });
       }
     }
-  }
 
-  @override
-  void didUpdateWidget(covariant TermsAndConditionsScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (_agreedToTerms && _hasScrolledToBottom) {
-      _buttonAnimationController.forward();
-    } else {
-      _buttonAnimationController.reverse();
+    if (currentScroll >= maxScroll - 80) {
+      if (!_hasScrolledToBottom) {
+        setState(() {
+          _hasScrolledToBottom = true;
+          _scrollProgress = 1.0;
+        });
+      }
     }
   }
 
@@ -384,10 +355,9 @@ class _TermsAndConditionsScreenState extends State<TermsAndConditionsScreen>
         widget.onAccept?.call();
 
         if (widget.isPreRegistration) {
-          Navigator.pushAndRemoveUntil(
+          Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => const WelcomeScreen()),
-            (route) => false,
           );
           return;
         }
@@ -434,9 +404,7 @@ class _TermsAndConditionsScreenState extends State<TermsAndConditionsScreen>
 
   void _handleDecline() {
     widget.onDecline?.call();
-    if (widget.isPreRegistration) {
-      Navigator.pop(context);
-    } else if (widget.isFirstTimeRegistration) {
+    if (widget.isPreRegistration || widget.isFirstTimeRegistration) {
       Navigator.pop(context);
     } else {
       showDialog(
@@ -447,21 +415,31 @@ class _TermsAndConditionsScreenState extends State<TermsAndConditionsScreen>
           ),
           title: Row(
             children: [
-              Icon(Icons.warning_amber_rounded, color: Colors.orange.shade700),
+              const Icon(Icons.warning_amber_rounded, color: Colors.orangeAccent),
               const SizedBox(width: 12),
-              const Text('Decline Terms & Conditions'),
+              Text(
+                'Decline Terms',
+                style: GoogleFonts.plusJakartaSans(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 18,
+                ),
+              ),
             ],
           ),
-          content: const Text(
+          content: Text(
             'You must accept the Terms & Conditions to use this service. Are you sure you want to go back?',
+            style: GoogleFonts.inter(fontSize: 14, color: Colors.grey.shade700),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.grey.shade700,
+              child: Text(
+                'Cancel',
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade700,
+                ),
               ),
-              child: const Text('Cancel'),
             ),
             ElevatedButton(
               onPressed: () {
@@ -469,12 +447,16 @@ class _TermsAndConditionsScreenState extends State<TermsAndConditionsScreen>
                 Navigator.pop(context);
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red.shade600,
+                backgroundColor: const Color(0xFFEF4444),
+                foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: const Text('Go Back'),
+              child: Text(
+                'Go Back',
+                style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+              ),
             ),
           ],
         ),
@@ -487,357 +469,454 @@ class _TermsAndConditionsScreenState extends State<TermsAndConditionsScreen>
       SnackBar(
         content: Row(
           children: [
-            const Icon(Icons.error_outline, color: Colors.white),
+            const Icon(Icons.info_outline_rounded, color: Colors.white, size: 20),
             const SizedBox(width: 12),
-            Expanded(child: Text(message)),
+            Expanded(
+              child: Text(
+                message,
+                style: GoogleFonts.inter(fontWeight: FontWeight.w500, fontSize: 13),
+              ),
+            ),
           ],
         ),
-        backgroundColor: Colors.red.shade700,
+        backgroundColor: const Color(0xFF0F172A),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         duration: const Duration(seconds: 3),
+        margin: const EdgeInsets.all(16),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.primaryColor;
     final bool isButtonEnabled =
         _agreedToTerms && _hasScrolledToBottom && !_isLoading;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: isDark
+          ? const Color(0xFF0F172A)
+          : const Color(0xFFF8FAFC),
       body: SafeArea(
-  child: ResponsiveWrapper(
-    maxWidth: kMaxContentWidth,
-    child: Column(
-      children: [
-            // Professional Header
-            Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 10,
-                    offset: Offset(0, 2),
+        child: ResponsiveWrapper(
+          maxWidth: kMaxContentWidth,
+          child: Column(
+            children: [
+              // Modern Minimalist Header
+              Container(
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                  border: Border(
+                    bottom: BorderSide(
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.08)
+                          : const Color(0xFFE2E8F0),
+                      width: 1,
+                    ),
                   ),
-                ],
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
                 ),
-                child: Row(
+                child: Column(
                   children: [
-                    IconButton(
-                      icon: const Icon(
-                        Icons.arrow_back_ios_new_rounded,
-                        size: 20,
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
                       ),
-                      onPressed: () => Navigator.pop(context),
-                      color: const Color(0xFF1A1A1A),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0D47A1).withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.description_outlined,
-                        color: Color(0xFF0D47A1),
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      child: Row(
                         children: [
-                          const Text(
-                            'Terms of Service',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF1A1A1A),
+                          InkWell(
+                            onTap: () => Navigator.pop(context),
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              width: 38,
+                              height: 38,
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? Colors.white.withValues(alpha: 0.06)
+                                    : const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: isDark
+                                      ? Colors.white.withValues(alpha: 0.1)
+                                      : const Color(0xFFE2E8F0),
+                                ),
+                              ),
+                              child: Icon(
+                                Icons.arrow_back_ios_new_rounded,
+                                size: 15,
+                                color: isDark
+                                    ? Colors.white
+                                    : const Color(0xFF0F172A),
+                              ),
                             ),
                           ),
-                          Text(
-                            widget.isPreRegistration
-                                ? 'Review before creating account'
-                                : 'Accept to continue',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey.shade600,
+                          const SizedBox(width: 12),
+                          Container(
+                            width: 38,
+                            height: 38,
+                            decoration: BoxDecoration(
+                              color: primaryColor.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(
+                              Icons.description_outlined,
+                              color: primaryColor,
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Terms of Service',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: -0.3,
+                                    color: isDark
+                                        ? Colors.white
+                                        : const Color(0xFF0F172A),
+                                  ),
+                                ),
+                                Text(
+                                  widget.isPreRegistration
+                                      ? 'Review before creating account'
+                                      : 'Accept to continue',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    color: isDark
+                                        ? const Color(0xFF94A3B8)
+                                        : const Color(0xFF64748B),
+                                    fontWeight: FontWeight.w400,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
                     ),
-                  ],
-                ),
-              ),
-            ),
 
-            // Terms Content
-            Expanded(
-              child: Container(
-                margin: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 20,
-                      offset: const Offset(0, 5),
+                    // Sleek Reading Progress Line
+                    LinearProgressIndicator(
+                      value: _hasScrolledToBottom ? 1.0 : _scrollProgress,
+                      minHeight: 2.5,
+                      backgroundColor: isDark
+                          ? Colors.white.withValues(alpha: 0.06)
+                          : const Color(0xFFE2E8F0),
+                      valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
                     ),
                   ],
                 ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
+              ),
+
+              // Main Content Scrollable Area
+              Expanded(
+                child: SingleChildScrollView(
+                  controller: _scrollController,
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 20,
+                  ),
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Scroll Progress Bar
-                      SizedBox(
-                        height: 3,
-                        child: LinearProgressIndicator(
-                          value: _hasScrolledToBottom
-                              ? 1.0
-                              : _scrollController.hasClients
-                              ? _scrollController.position.pixels /
-                                    _scrollController.position.maxScrollExtent
-                              : 0,
-                          backgroundColor: Colors.grey.shade200,
-                          valueColor: const AlwaysStoppedAnimation<Color>(
-                            Color(0xFF0D47A1),
-                          ),
-                        ),
-                      ),
-
-                      // Content
-                      Expanded(
-                        child: SingleChildScrollView(
-                          controller: _scrollController,
-                          padding: const EdgeInsets.all(24),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Last Updated Badge
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 6,
+                      // Last Updated Pill Badge
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? Colors.white.withValues(alpha: 0.06)
+                                  : Colors.white,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: isDark
+                                    ? Colors.white.withValues(alpha: 0.1)
+                                    : const Color(0xFFE2E8F0),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.history_rounded,
+                                  size: 14,
+                                  color: isDark
+                                      ? const Color(0xFF94A3B8)
+                                      : const Color(0xFF64748B),
                                 ),
-                                decoration: BoxDecoration(
-                                  color: Colors.grey.shade100,
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Text(
-                                  'Last Updated: $_lastUpdated',
-                                  style: TextStyle(
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Updated: $_lastUpdated',
+                                  style: GoogleFonts.inter(
                                     fontSize: 12,
-                                    color: Colors.grey.shade600,
-                                    fontWeight: FontWeight.w500,
+                                    color: isDark
+                                        ? const Color(0xFF94A3B8)
+                                        : const Color(0xFF64748B),
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: primaryColor.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Text(
+                              'Official Legal Agreement',
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: primaryColor,
                               ),
-                              const SizedBox(height: 24),
+                            ),
+                          ),
+                        ],
+                      ),
 
-                              // Welcome Section
-                              Container(
-                                padding: const EdgeInsets.all(20),
-                                decoration: BoxDecoration(
-                                  color: const Color(
-                                    0xFF0D47A1,
-                                  ).withValues(alpha: 0.05),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: const Color(
-                                      0xFF0D47A1,
-                                    ).withValues(alpha: 0.1),
-                                  ),
-                                ),
-                                child: const Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Icon(
-                                      Icons.info_outline,
-                                      color: Color(0xFF0D47A1),
-                                      size: 24,
-                                    ),
-                                    SizedBox(width: 16),
-                                    Expanded(
-                                      child: Text(
-                                        _introText,
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          color: Color(0xFF1A1A1A),
-                                          height: 1.5,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                      const SizedBox(height: 18),
+
+                      // Intro Card
+                      Container(
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? const Color(0xFF1E293B)
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: isDark
+                                ? Colors.white.withValues(alpha: 0.08)
+                                : const Color(0xFFE2E8F0),
+                            width: 1.2,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(
+                                alpha: isDark ? 0.2 : 0.02,
                               ),
-
-                              const SizedBox(height: 32),
-
-                              // Full terms from legal/terms_and_conditions.txt
-                              ..._termsSections.map(
-                                (section) => Padding(
-                                  padding: const EdgeInsets.only(bottom: 20),
-                                  child: _buildProfessionalSection(
-                                    section.title,
-                                    section.content,
-                                    section.icon,
-                                  ),
-                                ),
+                              blurRadius: 16,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: primaryColor.withValues(alpha: 0.1),
+                                shape: BoxShape.circle,
                               ),
-
-                              const SizedBox(height: 12),
-
-                              // Contact Card
-                              Container(
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  color: const Color(
-                                    0xFF0D47A1,
-                                  ).withValues(alpha: 0.05),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: const Color(
-                                      0xFF0D47A1,
-                                    ).withValues(alpha: 0.1),
-                                  ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.all(8),
-                                      decoration: BoxDecoration(
-                                        color: const Color(
-                                          0xFF0D47A1,
-                                        ).withValues(alpha: 0.1),
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      child: const Icon(
-                                        Icons.support_agent,
-                                        color: Color(0xFF0D47A1),
-                                        size: 20,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          const Text(
-                                            'Need assistance?',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.w600,
-                                              fontSize: 13,
-                                              color: Color(0xFF1A1A1A),
-                                            ),
-                                          ),
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            'support@rookstechnologies.com | +91 7358677670',
-                                            style: TextStyle(
-                                              fontSize: 11,
-                                              color: Colors.grey.shade600,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
+                              child: Icon(
+                                Icons.info_outline_rounded,
+                                color: primaryColor,
+                                size: 18,
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Text(
+                                _introText,
+                                style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  color: isDark
+                                      ? const Color(0xFFCBD5E1)
+                                      : const Color(0xFF334155),
+                                  height: 1.55,
+                                  fontWeight: FontWeight.w400,
                                 ),
                               ),
+                            ),
+                          ],
+                        ),
+                      ),
 
-                              const SizedBox(height: 20),
-                            ],
+                      const SizedBox(height: 24),
+
+                      // All Section Cards
+                      ..._termsSections.map(
+                        (section) => Padding(
+                          padding: const EdgeInsets.only(bottom: 16),
+                          child: _buildModernSectionCard(
+                            title: section.title,
+                            content: section.content,
+                            icon: section.icon,
+                            isDark: isDark,
+                            primaryColor: primaryColor,
                           ),
                         ),
                       ),
+
+                      const SizedBox(height: 12),
+
+                      // Support & Assistance Card
+                      Container(
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? const Color(0xFF1E293B)
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: isDark
+                                ? Colors.white.withValues(alpha: 0.08)
+                                : const Color(0xFFE2E8F0),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: primaryColor.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Icon(
+                                Icons.headset_mic_rounded,
+                                color: primaryColor,
+                                size: 22,
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Questions or need assistance?',
+                                    style: GoogleFonts.inter(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 14,
+                                      color: isDark
+                                          ? Colors.white
+                                          : const Color(0xFF0F172A),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    'support@rookstechnologies.com • +91 7358677670',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 12,
+                                      color: isDark
+                                          ? const Color(0xFF94A3B8)
+                                          : const Color(0xFF64748B),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
                     ],
                   ),
                 ),
               ),
-            ),
 
-            // Bottom Actions with Highlight Effect
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.08),
-                    blurRadius: 20,
-                    offset: const Offset(0, -5),
+              // Fixed Bottom Action Panel
+              Container(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 18),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? const Color(0xFF1E293B)
+                      : Colors.white,
+                  border: Border(
+                    top: BorderSide(
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.08)
+                          : const Color(0xFFE2E8F0),
+                    ),
                   ),
-                ],
-              ),
-              child: SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Professional Checkbox
-                      GestureDetector(
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(
+                        alpha: isDark ? 0.35 : 0.05,
+                      ),
+                      blurRadius: 20,
+                      offset: const Offset(0, -6),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Agree Checkbox Tile
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
                         onTap: () {
                           setState(() {
                             _agreedToTerms = !_agreedToTerms;
                           });
-                          if (_agreedToTerms && _hasScrolledToBottom) {
-                            _buttonAnimationController.forward();
-                          } else {
-                            _buttonAnimationController.reverse();
-                          }
                         },
-                        child: Container(
-                          padding: const EdgeInsets.all(16),
+                        borderRadius: BorderRadius.circular(16),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
                           decoration: BoxDecoration(
                             color: _agreedToTerms
-                                ? const Color(
-                                    0xFF0D47A1,
-                                  ).withValues(alpha: 0.05)
-                                : Colors.grey.shade50,
-                            borderRadius: BorderRadius.circular(12),
+                                ? primaryColor.withValues(alpha: 0.06)
+                                : (isDark
+                                    ? Colors.white.withValues(alpha: 0.03)
+                                    : const Color(0xFFF8FAFC)),
+                            borderRadius: BorderRadius.circular(16),
                             border: Border.all(
                               color: _agreedToTerms
-                                  ? const Color(0xFF0D47A1)
-                                  : Colors.grey.shade300,
-                              width: _agreedToTerms ? 2 : 1.5,
+                                  ? primaryColor
+                                  : (isDark
+                                      ? Colors.white.withValues(alpha: 0.1)
+                                      : const Color(0xFFE2E8F0)),
+                              width: _agreedToTerms ? 1.8 : 1.2,
                             ),
                           ),
                           child: Row(
                             children: [
                               AnimatedContainer(
                                 duration: const Duration(milliseconds: 200),
-                                width: 22,
-                                height: 22,
+                                width: 24,
+                                height: 24,
                                 decoration: BoxDecoration(
                                   color: _agreedToTerms
-                                      ? const Color(0xFF0D47A1)
-                                      : Colors.white,
-                                  borderRadius: BorderRadius.circular(6),
+                                      ? primaryColor
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(8),
                                   border: Border.all(
                                     color: _agreedToTerms
-                                        ? const Color(0xFF0D47A1)
-                                        : Colors.grey.shade400,
+                                        ? primaryColor
+                                        : (isDark
+                                            ? Colors.white38
+                                            : const Color(0xFF94A3B8)),
                                     width: 2,
                                   ),
                                 ),
                                 child: _agreedToTerms
                                     ? const Icon(
-                                        Icons.check,
+                                        Icons.check_rounded,
                                         size: 16,
                                         color: Colors.white,
                                       )
@@ -847,12 +926,14 @@ class _TermsAndConditionsScreenState extends State<TermsAndConditionsScreen>
                               Expanded(
                                 child: Text(
                                   'I have read and agree to the Terms & Conditions',
-                                  style: TextStyle(
-                                    fontSize: 14,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13.5,
                                     fontWeight: FontWeight.w600,
                                     color: _agreedToTerms
-                                        ? const Color(0xFF0D47A1)
-                                        : Colors.grey.shade800,
+                                        ? (isDark ? Colors.white : primaryColor)
+                                        : (isDark
+                                            ? const Color(0xFFCBD5E1)
+                                            : const Color(0xFF1E293B)),
                                   ),
                                 ),
                               ),
@@ -860,186 +941,206 @@ class _TermsAndConditionsScreenState extends State<TermsAndConditionsScreen>
                           ),
                         ),
                       ),
+                    ),
 
-                      const SizedBox(height: 20),
+                    const SizedBox(height: 14),
 
-                      // Animated Accept Button with Highlight Effect
-                      AnimatedBuilder(
-                        animation: _buttonAnimationController,
-                        builder: (context, child) {
-                          return Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(14),
-                              boxShadow: isButtonEnabled
-                                  ? [
-                                      BoxShadow(
-                                        color: const Color(0xFF0D47A1)
-                                            .withValues(
-                                              alpha:
-                                                  0.4 *
-                                                  _buttonGlowAnimation.value,
-                                            ),
-                                        blurRadius:
-                                            20 * _buttonGlowAnimation.value,
-                                        spreadRadius:
-                                            5 * _buttonGlowAnimation.value,
-                                      ),
-                                      BoxShadow(
-                                        color: const Color(0xFF0D47A1)
-                                            .withValues(
-                                              alpha:
-                                                  0.2 *
-                                                  _buttonGlowAnimation.value,
-                                            ),
-                                        blurRadius:
-                                            30 * _buttonGlowAnimation.value,
-                                        spreadRadius:
-                                            10 * _buttonGlowAnimation.value,
-                                      ),
-                                    ]
-                                  : null,
-                            ),
-                            child: Transform.scale(
-                              scale: _buttonScaleAnimation.value,
-                              child: SizedBox(
-                                width: double.infinity,
-                                height: 56,
-                                child: ElevatedButton(
-                                  onPressed: isButtonEnabled
-                                      ? _handleAccept
-                                      : null,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: isButtonEnabled
-                                        ? const Color(0xFF0D47A1)
-                                        : Colors.grey.shade300,
-                                    foregroundColor: Colors.white,
-                                    disabledBackgroundColor:
-                                        Colors.grey.shade300,
-                                    elevation: isButtonEnabled ? 3 : 0,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(14),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    _isLoading
-                                        ? 'Processing...'
-                                        : 'Accept & Continue',
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      // Decline Button
-                      SizedBox(
-                        width: double.infinity,
-                        height: 48,
-                        child: OutlinedButton(
-                          onPressed: _isLoading ? null : _handleDecline,
-                          style: OutlinedButton.styleFrom(
-                            side: BorderSide(
-                              color: Colors.grey.shade400,
-                              width: 1.5,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
+                    // Accept & Continue Button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: ElevatedButton(
+                        onPressed: isButtonEnabled ? _handleAccept : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: primaryColor,
+                          foregroundColor: Colors.white,
+                          disabledBackgroundColor: isDark
+                              ? Colors.white.withValues(alpha: 0.1)
+                              : const Color(0xFFE2E8F0),
+                          disabledForegroundColor: isDark
+                              ? Colors.white38
+                              : const Color(0xFF94A3B8),
+                          elevation: isButtonEnabled ? 2 : 0,
+                          shadowColor: primaryColor.withValues(alpha: 0.35),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
                           ),
-                          child: Text(
-                            'Decline',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey.shade700,
-                            ),
+                        ),
+                        child: _isLoading
+                            ? const SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2.2,
+                                ),
+                              )
+                            : Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    'Accept & Continue',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 0.2,
+                                    ),
+                                  ),
+                                  if (isButtonEnabled) ...[
+                                    const SizedBox(width: 8),
+                                    const Icon(
+                                      Icons.arrow_forward_rounded,
+                                      size: 17,
+                                    ),
+                                  ],
+                                ],
+                              ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    // Decline Button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 44,
+                      child: OutlinedButton(
+                        onPressed: _isLoading ? null : _handleDecline,
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(
+                            color: isDark
+                                ? Colors.white.withValues(alpha: 0.12)
+                                : const Color(0xFFE2E8F0),
+                            width: 1.2,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: Text(
+                          'Decline',
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: isDark
+                                ? const Color(0xFF94A3B8)
+                                : const Color(0xFF64748B),
                           ),
                         ),
                       ),
+                    ),
 
-                      const SizedBox(height: 8),
-
-                      // Helper Text
-                      if (!_hasScrolledToBottom)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.info_outline,
-                                size: 14,
-                                color: Colors.amber.shade700,
+                    // Scroll warning helper note if not scrolled
+                    if (!_hasScrolledToBottom)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.arrow_downward_rounded,
+                              size: 13,
+                              color: isDark
+                                  ? const Color(0xFFF59E0B)
+                                  : const Color(0xFFD97706),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Please scroll to the bottom to enable acceptance',
+                              style: GoogleFonts.inter(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w500,
+                                color: isDark
+                                  ? const Color(0xFFF59E0B)
+                                  : const Color(0xFFD97706),
                               ),
-                              const SizedBox(width: 6),
-                              Text(
-                                'Please scroll to the end to enable acceptance',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.amber.shade700,
-                                ),
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                    ],
-                  ),
+                      ),
+                  ],
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
-    ),
     );
   }
 
-  Widget _buildProfessionalSection(
-    String title,
-    String content,
-    IconData icon,
-  ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, size: 20, color: const Color(0xFF0D47A1)),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1A1A1A),
-                  height: 1.3,
+  Widget _buildModernSectionCard({
+    required String title,
+    required String content,
+    required IconData icon,
+    required bool isDark,
+    required Color primaryColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : const Color(0xFFE2E8F0),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(
+              alpha: isDark ? 0.2 : 0.02,
+            ),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: primaryColor.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  icon,
+                  size: 18,
+                  color: primaryColor,
                 ),
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Padding(
-          padding: const EdgeInsets.only(left: 32),
-          child: Text(
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  title,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    letterSpacing: -0.2,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
             content,
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey.shade700,
-              height: 1.5,
+            style: GoogleFonts.inter(
+              fontSize: 13.5,
+              color: isDark
+                  ? const Color(0xFF94A3B8)
+                  : const Color(0xFF475569),
+              height: 1.6,
+              fontWeight: FontWeight.w400,
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

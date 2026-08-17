@@ -4,12 +4,13 @@ import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:intl/intl.dart';
 import 'dart:math';
 import 'package:subscription_rooks_app/frontend/screens/admin_assign_engineer_page.dart';
+import 'package:subscription_rooks_app/frontend/screens/admin_assigndelivery_page.dart';
+import 'package:subscription_rooks_app/frontend/screens/admin_assign_tickets.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_geo_location_screen.dart';
 import 'package:subscription_rooks_app/services/notification_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:subscription_rooks_app/frontend/screens/customer_var_data_screen.dart'
     as customer_var;
-import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class AdminPage_CusDetails extends StatefulWidget {
   final customer_var.Customer? newCustomer;
@@ -29,6 +30,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
   final TextEditingController _searchController = TextEditingController();
   String searchQuery = "";
   String selectedFilter = 'All';
+  String ticketTypeFilter = 'All'; // 'All', 'Service', 'Delivery'
 
   @override
   void initState() {
@@ -96,12 +98,34 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
     };
   }
 
-  // Helper method to safely get customer document stream (no longer needed, returns empty)
+  // Helper method to safely get customer document stream
   Stream<DocumentSnapshot> _getCustomerIdStream(
     customer_var.Customer customer,
   ) {
-    // All ticket data now lives in Raised_tickets, so no need for customers collection
-    return Stream<DocumentSnapshot>.empty();
+    try {
+      String customerId = customer.customerid;
+
+      // Validate and clean the customer ID
+      if (customerId.isEmpty ||
+          customerId.toLowerCase() == 'n/a' ||
+          customerId.contains('/') ||
+          customerId.trim().isEmpty) {
+        customerId = customer.bookingId;
+      }
+
+      // Final validation
+      if (customerId.isEmpty || customerId.contains('/')) {
+        return Stream<DocumentSnapshot>.empty();
+      }
+
+      return FirestoreService.instance
+          .collection('customers')
+          .doc(customerId)
+          .snapshots();
+    } catch (e) {
+      // Return empty stream if any error occurs during setup
+      return Stream<DocumentSnapshot>.empty();
+    }
   }
 
   @override
@@ -111,68 +135,331 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
     final screenHeight = mediaQuery.size.height;
 
     double getProportionalSize(double size) {
-      final rawBaseSize = screenWidth < screenHeight
-          ? screenWidth
-          : screenHeight;
-      final baseSize = rawBaseSize.clamp(320.0, 480.0);
+      final baseSize = screenWidth < screenHeight ? screenWidth : screenHeight;
       return size * (baseSize / 375);
     }
 
     return Scaffold(
-      backgroundColor: Theme.of(context).brightness == Brightness.dark
-          ? Theme.of(context).scaffoldBackgroundColor
-          : Colors.grey[100],
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        elevation: 0,
-        title: Text(
-          'Service Tickets ',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-            fontSize: getProportionalSize(20),
+        backgroundColor: Colors.white,
+        elevation: 0.5,
+        leading: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: CircleAvatar(
+            backgroundColor: const Color(0xFFF1F5F9),
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF0F172A), size: 18),
+              onPressed: () => Navigator.pop(context),
+            ),
           ),
         ),
-        iconTheme: const IconThemeData(color: Colors.white),
-        backgroundColor: Theme.of(context).primaryColor,
-        centerTitle: false,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.filter_list, color: Colors.white),
-            onPressed: () {
-              _showFilterDialog();
-            },
+        title: const Text(
+          'All Tickets',
+          style: TextStyle(
+            color: Color(0xFF0F172A),
+            fontWeight: FontWeight.w800,
+            fontSize: 18,
+            letterSpacing: -0.4,
           ),
+        ),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 6.0),
+            child: TextButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const CreateTickets(
+                      statusFilter: '',
+                      customerId: '',
+                      customerName: '',
+                      mobileNumber: '',
+                      categoryName: '',
+                      loggedInName: '',
+                      name: '',
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.add_rounded, size: 18),
+              label: const Text(
+                'Create Ticket',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+              ),
+              style: TextButton.styleFrom(
+                foregroundColor: Theme.of(context).primaryColor,
+                backgroundColor: Theme.of(context).primaryColor.withValues(alpha: 0.1),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              ),
+            ),
+          ),
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              IconButton(
+                icon: Icon(
+                  Icons.tune_rounded,
+                  color: selectedFilter != 'All'
+                      ? Theme.of(context).primaryColor
+                      : const Color(0xFF0F172A),
+                ),
+                onPressed: _showFilterDialog,
+              ),
+              if (selectedFilter != 'All')
+                Positioned(
+                  top: 12,
+                  right: 12,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).primaryColor,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(width: 4),
         ],
       ),
       body: SafeArea(
-        child: Container(
-          width: double.infinity,
-          height: double.infinity,
-          decoration: BoxDecoration(
-            color: Theme.of(context).brightness == Brightness.dark
-                ? Theme.of(context).scaffoldBackgroundColor
-                : Colors.grey[100],
+        child: Column(
+          children: [
+            _buildTopDomainBanner(),
+            const SizedBox(height: 8),
+            _buildSearchBar(screenWidth, getProportionalSize),
+            const SizedBox(height: 12),
+            _buildTicketTypeSegmentedControl(),
+            const SizedBox(height: 12),
+            _buildQuickFilterChips(),
+            const SizedBox(height: 12),
+            Expanded(
+              child: _buildCustomerStreamBuilder(
+                screenWidth,
+                screenHeight,
+                getProportionalSize,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTopDomainBanner() {
+    final primaryColor = Theme.of(context).primaryColor;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        decoration: BoxDecoration(
+          color: primaryColor.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: primaryColor.withValues(alpha: 0.18),
+            width: 1.5,
           ),
-          child: Center(
-            child: ResponsiveWrapper(
-              maxWidth: 960.0,
+          boxShadow: [
+            BoxShadow(
+              color: primaryColor.withValues(alpha: 0.04),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: primaryColor.withValues(alpha: 0.12),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Icon(
+                Icons.assignment_rounded,
+                color: primaryColor,
+                size: 26,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SizedBox(height: screenHeight * 0.014),
-                  _buildSearchBar(screenWidth, getProportionalSize),
-                  SizedBox(height: screenHeight * 0.014),
-                  Expanded(
-                    child: _buildCustomerStreamBuilder(
-                      screenWidth,
-                      screenHeight,
-                      getProportionalSize,
+                  const Text(
+                    'Ticket Workspace',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF0F172A),
+                      letterSpacing: -0.4,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Track, assign, and manage all customer tickets',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: primaryColor.withValues(alpha: 0.85),
                     ),
                   ),
                 ],
               ),
             ),
-          ),
+          ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildTicketTypeSegmentedControl() {
+    final primaryColor = Theme.of(context).primaryColor;
+    final options = [
+      {'label': 'All', 'value': 'All', 'icon': null},
+      {'label': 'Service', 'value': 'Service', 'icon': Icons.build_circle_rounded},
+      {'label': 'Delivery', 'value': 'Delivery', 'icon': Icons.local_shipping_rounded},
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: const Color(0xFFE2E8F0).withValues(alpha: 0.6),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          children: options.map((opt) {
+            final val = opt['value'] as String;
+            final isSelected = ticketTypeFilter == val;
+            final icon = opt['icon'] as IconData?;
+            final label = opt['label'] as String;
+
+            return Expanded(
+              child: GestureDetector(
+                onTap: () {
+                  setState(() {
+                    ticketTypeFilter = val;
+                  });
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isSelected ? Colors.white : Colors.transparent,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: isSelected
+                        ? [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.05),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (icon != null) ...[
+                        Icon(
+                          icon,
+                          size: 16,
+                          color: isSelected
+                              ? (val == 'Delivery' ? const Color(0xFF10B981) : primaryColor)
+                              : const Color(0xFF64748B),
+                        ),
+                        const SizedBox(width: 6),
+                      ],
+                      Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                          color: isSelected ? const Color(0xFF0F172A) : const Color(0xFF64748B),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuickFilterChips() {
+    final primaryColor = Theme.of(context).primaryColor;
+    final filterOptions = ['All', 'Not Assigned', 'Assigned', 'Completed', 'Canceled', 'Others'];
+
+    return SizedBox(
+      height: 38,
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        scrollDirection: Axis.horizontal,
+        itemCount: filterOptions.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final option = filterOptions[index];
+          final isSelected = selectedFilter == option;
+
+          return GestureDetector(
+            onTap: () {
+              setState(() {
+                selectedFilter = option;
+              });
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: isSelected ? primaryColor : Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: isSelected ? primaryColor : const Color(0xFFE2E8F0),
+                ),
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: primaryColor.withValues(alpha: 0.25),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ]
+                    : [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.02),
+                          blurRadius: 4,
+                        ),
+                      ],
+              ),
+              child: Text(
+                option,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                  color: isSelected ? Colors.white : const Color(0xFF64748B),
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -181,25 +468,23 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
     double screenWidth,
     double Function(double) getProportionalSize,
   ) {
+    final primaryColor = Theme.of(context).primaryColor;
+
     return Padding(
-      padding: EdgeInsets.symmetric(
-        horizontal: context.isMobile ? screenWidth * 0.04 : 16.0,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
-        height: getProportionalSize(48),
+        height: 48,
         decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
-          borderRadius: BorderRadius.circular(getProportionalSize(16)),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: getProportionalSize(10),
-              offset: Offset(0, getProportionalSize(4)),
+              color: Colors.black.withValues(alpha: 0.02),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
             ),
           ],
-          border: Border.all(
-            color: Theme.of(context).dividerColor.withValues(alpha: 0.1),
-          ),
         ),
         child: TextField(
           controller: _searchController,
@@ -208,27 +493,36 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
               searchQuery = value.trim();
             });
           },
-          style: TextStyle(
-            fontSize: getProportionalSize(15),
-            color: Theme.of(context).textTheme.bodyLarge?.color,
-            fontWeight: FontWeight.w500,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF0F172A),
           ),
           decoration: InputDecoration(
             prefixIcon: Icon(
               Icons.search_rounded,
-              color: Theme.of(context).primaryColor.withValues(alpha: 0.7),
-              size: getProportionalSize(24),
+              color: primaryColor,
+              size: 20,
             ),
+            suffixIcon: _searchController.text.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(Icons.clear_rounded, size: 18, color: Color(0xFF94A3B8)),
+                    onPressed: () {
+                      _searchController.clear();
+                      setState(() {
+                        searchQuery = '';
+                      });
+                    },
+                  )
+                : null,
             hintText: 'Search Booking ID, Customer, or Mobile...',
-            hintStyle: TextStyle(
-              color: Theme.of(context).hintColor.withValues(alpha: 0.7),
+            hintStyle: const TextStyle(
+              color: Color(0xFF94A3B8),
               fontWeight: FontWeight.w500,
-              fontSize: getProportionalSize(14),
+              fontSize: 13,
             ),
             border: InputBorder.none,
-            contentPadding: EdgeInsets.symmetric(
-              vertical: getProportionalSize(14),
-            ),
+            contentPadding: const EdgeInsets.symmetric(vertical: 14),
           ),
         ),
       ),
@@ -264,106 +558,123 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
   }
 
   void _showFilterDialog() {
-    showGeneralDialog(
+    final primaryColor = Theme.of(context).primaryColor;
+    final filterOptions = [
+      'All',
+      'Not Assigned',
+      'Assigned',
+      'Completed',
+      'Canceled',
+      'Others',
+    ];
+
+    showModalBottomSheet(
       context: context,
-      barrierDismissible: true,
-      barrierLabel: 'Filter Tickets',
-      transitionDuration: const Duration(milliseconds: 300),
-      pageBuilder: (context, animation, secondaryAnimation) {
-        return Align(
-          alignment: Alignment.bottomCenter,
-          child: Material(
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              height: 250,
-              width: MediaQuery.of(context).size.width,
-              decoration: BoxDecoration(
-                color: Theme.of(context).cardColor,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              padding: const EdgeInsets.all(24),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
               ),
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Filter by Status',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                      color: Theme.of(context).primaryColor,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  DropdownButtonFormField<String>(
-                    initialValue: selectedFilter,
-                    decoration: InputDecoration(
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: primaryColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(Icons.tune_rounded, color: primaryColor, size: 20),
                       ),
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
+                      const SizedBox(width: 12),
+                      const Text(
+                        'Filter Service Tickets',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF0F172A),
+                          letterSpacing: -0.3,
+                        ),
                       ),
-                    ),
-                    items: [
-                      DropdownMenuItem(value: 'All', child: Text('All')),
-                      DropdownMenuItem(
-                        value: 'Assigned',
-                        child: Text('Assigned'),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, color: Color(0xFF64748B)),
+                        onPressed: () => Navigator.pop(context),
                       ),
-                      DropdownMenuItem(
-                        value: 'Completed',
-                        child: Text('Completed'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'Not Assigned',
-                        child: Text('Not Assigned'),
-                      ),
-                      // DropdownMenuItem(value: 'Open', child: Text('Open')),
-                      DropdownMenuItem(
-                        value: 'Canceled',
-                        child: Text('Canceled'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'Appointment',
-                        child: Text('Appointment'),
-                      ),
-                      DropdownMenuItem(value: 'Others', child: Text('Others')),
                     ],
-                    onChanged: (value) {
-                      setState(() {
-                        selectedFilter = value ?? 'All';
-                      });
-                    },
                   ),
-                  const Spacer(),
-                  Align(
-                    alignment: Alignment.centerRight,
+                  const SizedBox(height: 16),
+                  const Divider(color: Color(0xFFF1F5F9), height: 1),
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 10,
+                    children: filterOptions.map((opt) {
+                      final isSel = selectedFilter == opt;
+                      return ChoiceChip(
+                        label: Text(
+                          opt,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: isSel ? FontWeight.w800 : FontWeight.w600,
+                            color: isSel ? Colors.white : const Color(0xFF475569),
+                          ),
+                        ),
+                        selected: isSel,
+                        selectedColor: primaryColor,
+                        backgroundColor: const Color(0xFFF8FAFC),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                          side: BorderSide(
+                            color: isSel ? primaryColor : const Color(0xFFE2E8F0),
+                          ),
+                        ),
+                        onSelected: (selected) {
+                          setModalState(() {
+                            selectedFilter = opt;
+                          });
+                          setState(() {
+                            selectedFilter = opt;
+                          });
+                        },
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
                     child: ElevatedButton(
+                      onPressed: () => Navigator.pop(context),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Theme.of(context).primaryColor,
+                        backgroundColor: primaryColor,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
                       ),
-                      onPressed: () {
-                        setState(() {}); // refresh filtering
-                        Navigator.of(context).pop();
-                      },
                       child: const Text(
-                        'Apply Filter',
-                        style: TextStyle(color: Colors.white),
+                        'Apply Filters',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                   ),
                 ],
               ),
-            ),
-          ),
-        );
-      },
-      transitionBuilder: (context, animation, secondaryAnimation, child) {
-        final curvedValue = Curves.easeInOut.transform(animation.value) - 1.0;
-        return Transform(
-          transform: Matrix4.translationValues(0, curvedValue * -250, 0),
-          child: child,
+            );
+          },
         );
       },
     );
@@ -374,16 +685,16 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
     double screenHeight,
     double Function(double) getProportionalSize,
   ) {
-    // Modified query to order by ticketId in descending order
+    // Modified query to order by bookingId in descending order
     Query query = FirestoreService.instance
-        .collection('Raised_tickets')
-        .orderBy('createdAt', descending: true);
+        .collection('Admin_ticket_entry')
+        .orderBy('bookingId', descending: true);
 
     return StreamBuilder<QuerySnapshot>(
       stream: query.snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return Center(child: CircularProgressIndicator(color: Theme.of(context).primaryColor));
         }
         if (snapshot.hasError) {
           return Center(child: Text('Error: ${snapshot.error}'));
@@ -395,13 +706,21 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
           final data = doc.data() as Map<String, dynamic>?;
           if (data == null) return false;
 
-          // Check if job type is "Service"
-          final jobType = getField(data, [
+          final bookingIdRaw = getField(data, ['bookingId'], '');
+          final jobTypeRaw = getField(data, [
             'jobType',
             'JobType',
           ], '').toLowerCase().trim();
-          if (jobType != 'service') {
-            return false; // Skip tickets that are not "Service"
+
+          final bool isDeliveryTicket = jobTypeRaw == 'delivery' || bookingIdRaw.toUpperCase().startsWith('D');
+          final bool isServiceTicket = jobTypeRaw == 'service' || bookingIdRaw.toUpperCase().startsWith('S') || !isDeliveryTicket;
+
+          // Ticket Type Segment Filter
+          if (ticketTypeFilter == 'Service' && !isServiceTicket) {
+            return false;
+          }
+          if (ticketTypeFilter == 'Delivery' && !isDeliveryTicket) {
+            return false;
           }
 
           final engineerStatusRaw = getField(data, [
@@ -411,7 +730,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
           final adminStatusRaw = getField(data, [
             'adminStatus',
           ], '').toLowerCase();
-          final ticketId = getField(data, ['ticketId'], '').toLowerCase();
+          final bookingId = bookingIdRaw.toLowerCase();
           final customerName = getField(data, [
             'customerName',
             'CustomerName',
@@ -423,7 +742,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
 
           if (searchQuery.isNotEmpty) {
             final query = searchQuery.toLowerCase();
-            if (!ticketId.contains(query) &&
+            if (!bookingId.contains(query) &&
                 !customerName.contains(query) &&
                 !mobileNumber.contains(query)) {
               return false;
@@ -443,8 +762,6 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
               engineerStatusRaw == 'Pending for Approval'.toLowerCase() ||
               engineerStatusRaw == 'Pending for Spares'.toLowerCase() ||
               engineerStatusRaw == 'Under Observation'.toLowerCase();
-
-          // engineerStatusRaw.isEmpty;
 
           switch (selectedFilter) {
             case 'Assigned':
@@ -468,36 +785,69 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
         }).toList();
 
         if (filteredDocs.isEmpty) {
-          return const Center(child: Text('No Service tickets found.'));
+          IconData emptyIcon = Icons.inbox_rounded;
+          String emptyTitle = 'No tickets found';
+          String emptySubtitle = 'Service and delivery tickets will appear here.';
+
+          if (ticketTypeFilter == 'Service') {
+            emptyIcon = Icons.build_circle_outlined;
+            emptyTitle = 'No service tickets found';
+            emptySubtitle = 'Create a service ticket to get started.';
+          } else if (ticketTypeFilter == 'Delivery') {
+            emptyIcon = Icons.local_shipping_outlined;
+            emptyTitle = 'No delivery tickets found';
+            emptySubtitle = 'Create a delivery ticket to get started.';
+          }
+
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(emptyIcon, size: 48, color: const Color(0xFFCBD5E1)),
+                const SizedBox(height: 12),
+                Text(
+                  emptyTitle,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF64748B),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  emptySubtitle,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF94A3B8),
+                  ),
+                ),
+              ],
+            ),
+          );
         }
 
         return ListView.separated(
-          padding: EdgeInsets.symmetric(
-            horizontal: context.isMobile ? screenWidth * 0.04 : 16.0,
-            vertical: screenHeight * 0.01,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          physics: const BouncingScrollPhysics(),
           itemCount: filteredDocs.length,
-          separatorBuilder: (_, _) => SizedBox(height: screenHeight * 0.015),
+          separatorBuilder: (_, _) => const SizedBox(height: 14),
           itemBuilder: (context, index) {
             final data = filteredDocs[index].data() as Map<String, dynamic>?;
             if (data == null) return const SizedBox.shrink();
 
             final customer = customer_var.Customer(
-              ticketId: getField(data, ['ticketId']),
+              bookingId: getField(data, ['bookingId']),
               customerName: getField(data, ['customerName', 'CustomerName']),
               deviceType: getField(data, ['deviceType', 'description']),
               deviceBrand: getField(data, ['deviceBrand']),
               deviceCondition: getField(data, ['deviceCondition']),
-              issueDescription: getField(data, [
-                'issueDescription',
-                'message',
-                'Message',
-              ]),
-              timestamp: parseTimestamp(data['createdAt']),
+              message: getField(data, ['message', 'Message']),
+              timestamp: parseTimestamp(data['timestamp']),
               address: getField(data, ['address', 'Address']),
               mobileNumber: getField(data, ['mobileNumber', 'MobileNumber']),
               jobType: getField(data, ['jobType', 'JobType']),
-              amount: getField(data, ['paymentDetails']),
+              amount: getField(data, ['amount']),
               customerid: getField(data, ['customerid', 'id', 'Id']),
               customerFileUrl: getField(data, ['customerFileUrl']),
               fileName: getField(data, ['fileName']),
@@ -525,7 +875,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
             final isCanceledByCustomer =
                 isCanceled && customerDecision == 'canceled';
 
-            final status = statusRaw.isEmpty ? 'Completed' : statusRaw;
+            final status = statusRaw.isEmpty ? 'Not Assigned' : statusRaw;
             final displayStatus = isCanceled
                 ? 'Canceled'
                 : isAppointment
@@ -533,7 +883,6 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                 : status;
 
             final assignedEmployee = getField(data, [
-              'assignedEngineer',
               'assignedEmployee',
             ], 'Not Assigned');
             final bool isCompleted = status.toLowerCase().contains('complete');
@@ -585,43 +934,23 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
     double? customerLat,
     double? customerLng,
   ) {
-    // Local helper for status color
+    final primaryColor = Theme.of(context).primaryColor;
+
     Color getStatusColor(String status) {
-      final statusLower = status.toLowerCase().trim();
-      if (statusLower == 'assigned' ||
-          statusLower == 'completed' ||
-          statusLower == 'complete' ||
-          statusLower == 'delivered') {
-        return Colors.green;
-      }
-      if (statusLower == 'not assigned' || statusLower == 'not assinged') {
-        return Colors.red;
-      }
-      if (statusLower.contains('approval')) {
-        return Colors.purple;
-      }
-      if (statusLower.contains('spare')) {
-        return Colors.amber;
-      }
-      if (statusLower.contains('observation')) {
-        return Colors.cyan;
-      }
-      if (statusLower == 'canceled' || statusLower == 'cancelled') {
-        return Colors.grey;
-      }
-      if (statusLower == 'appointment') {
-        return Colors.pink;
-      }
-      if (statusLower == 'open' ||
-          statusLower == 'pending' ||
-          statusLower.contains('progress')) {
-        return Colors.orange;
-      }
-      return Colors.blueGrey;
+      final s = status.toLowerCase().trim();
+      if (s == 'assigned') return const Color(0xFF0984E3);
+      if (s == 'completed' || s == 'complete' || s == 'delivered') return const Color(0xFF10B981);
+      if (s == 'not assigned' || s == 'not assinged') return const Color(0xFFEF4444);
+      if (s.contains('approval')) return const Color(0xFF8B5CF6);
+      if (s.contains('spare')) return const Color(0xFFF59E0B);
+      if (s.contains('observation')) return const Color(0xFF06B6D4);
+      if (s == 'canceled' || s == 'cancelled') return const Color(0xFF64748B);
+      if (s == 'appointment') return const Color(0xFFEC4899);
+      return const Color(0xFF3B82F6);
     }
 
-    // Check if this is an AMC customer
-    final isAMC = customer.ticketId.toUpperCase().startsWith('AMC');
+    final isAMC = customer.bookingId.toUpperCase().startsWith('AMC');
+    final isDelivery = customer.jobType.toLowerCase().trim() == 'delivery' || customer.bookingId.toUpperCase().startsWith('D');
     final statusColor = getStatusColor(status);
 
     return GestureDetector(
@@ -630,7 +959,6 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
           context: context,
           isScrollControlled: true,
           backgroundColor: Colors.transparent,
-          constraints: const BoxConstraints(maxWidth: kMaxCardWidth),
           builder: (context) {
             return _buildTicketDetailSheet(
               context,
@@ -653,83 +981,101 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
         );
       },
       child: Container(
-        margin: EdgeInsets.only(bottom: getProportionalSize(16)),
         decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
-          borderRadius: BorderRadius.circular(getProportionalSize(16)),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: isAMC ? const Color(0xFFF59E0B) : const Color(0xFFE2E8F0),
+            width: isAMC ? 1.5 : 1,
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: getProportionalSize(10),
-              offset: Offset(0, getProportionalSize(4)),
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
             ),
           ],
-          border: isAMC
-              ? Border.all(color: const Color(0xFFFFD700), width: 1.5)
-              : Border.all(
-                  color: Theme.of(context).dividerColor.withValues(alpha: 0.1),
-                ),
-        ),
-        padding: EdgeInsets.symmetric(
-          vertical: screenHeight * 0.014,
-          horizontal: context.isMobile ? screenWidth * 0.032 : 16.0,
         ),
         child: Column(
           children: [
-            // Header Section
+            // Header Row
             Padding(
-              padding: EdgeInsets.all(getProportionalSize(16)),
+              padding: const EdgeInsets.all(18),
               child: Row(
                 children: [
-                  // Icon Box
                   Container(
-                    width: getProportionalSize(48),
-                    height: getProportionalSize(48),
+                    width: 48,
+                    height: 48,
                     decoration: BoxDecoration(
-                      color: isAMC
-                          ? const Color(0xFFFFF8E1)
+                      color: isDelivery
+                          ? const Color(0xFFECFDF5)
+                          : isAMC
+                          ? const Color(0xFFFFFBEB)
                           : statusColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(
-                        getProportionalSize(12),
-                      ),
+                      borderRadius: BorderRadius.circular(14),
                     ),
-                    child: Center(
-                      child: Icon(
-                        isAMC
-                            ? Icons.star_rounded
-                            : isCompleted
-                            ? Icons.check_circle_outline
-                            : isCanceled
-                            ? Icons.cancel_outlined
-                            : isAppointment
-                            ? Icons.calendar_today_rounded
-                            : Icons.build_circle_outlined,
-                        color: isAMC ? const Color(0xFFFFD700) : statusColor,
-                        size: getProportionalSize(24),
-                      ),
+                    child: Icon(
+                      isDelivery
+                          ? Icons.local_shipping_rounded
+                          : isAMC
+                          ? Icons.star_rounded
+                          : isCompleted
+                          ? Icons.check_circle_rounded
+                          : isCanceled
+                          ? Icons.cancel_rounded
+                          : isAppointment
+                          ? Icons.calendar_today_rounded
+                          : Icons.build_circle_rounded,
+                      color: isDelivery
+                          ? const Color(0xFF10B981)
+                          : isAMC
+                          ? const Color(0xFFF59E0B)
+                          : statusColor,
+                      size: 24,
                     ),
                   ),
-                  SizedBox(width: getProportionalSize(12)),
-                  // Titles
+                  const SizedBox(width: 14),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          customer.ticketId,
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: getProportionalSize(16),
-                            color: Theme.of(context).textTheme.bodyLarge?.color,
-                          ),
+                        Row(
+                          children: [
+                            Text(
+                              customer.bookingId,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF0F172A),
+                                letterSpacing: -0.3,
+                              ),
+                            ),
+                            if (isAMC) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: const Text(
+                                  'AMC',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFFD97706),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
-                        SizedBox(height: getProportionalSize(4)),
+                        const SizedBox(height: 2),
                         Text(
                           customer.customerName,
-                          style: TextStyle(
-                            fontSize: getProportionalSize(14),
-                            color: Theme.of(context).textTheme.bodyMedium?.color
-                                ?.withValues(alpha: 0.7),
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Color(0xFF64748B),
                             fontWeight: FontWeight.w500,
                           ),
                           maxLines: 1,
@@ -738,60 +1084,55 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                       ],
                     ),
                   ),
-                  // Status Chip
                   Container(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: getProportionalSize(12),
-                      vertical: getProportionalSize(6),
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
                       color: statusColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(
-                        getProportionalSize(20),
-                      ),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: statusColor.withValues(alpha: 0.2)),
                     ),
                     child: Text(
                       status,
                       style: TextStyle(
                         color: statusColor,
-                        fontWeight: FontWeight.bold,
-                        fontSize: getProportionalSize(12),
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
                       ),
                     ),
                   ),
+                  const SizedBox(width: 8),
+                  const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Color(0xFF94A3B8)),
                 ],
               ),
             ),
 
-            Divider(
-              height: 1,
-              color: Theme.of(context).dividerColor.withValues(alpha: 0.1),
-            ),
+            const Divider(color: Color(0xFFF1F5F9), height: 1),
 
-            // Details Section
+            // Card Body Information
             Padding(
-              padding: EdgeInsets.all(getProportionalSize(16)),
+              padding: const EdgeInsets.all(18),
               child: Column(
                 children: [
-                  // Address
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(
-                        Icons.location_on_outlined,
-                        size: getProportionalSize(16),
-                        color: Theme.of(context).hintColor,
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.location_on_rounded, size: 14, color: Color(0xFF64748B)),
                       ),
-                      SizedBox(width: getProportionalSize(10)),
+                      const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          customer.address,
-                          style: TextStyle(
-                            fontSize: getProportionalSize(13),
-                            color: Theme.of(
-                              context,
-                            ).textTheme.bodyMedium?.color,
-                            height: 1.3,
+                          customer.address.isNotEmpty ? customer.address : 'No address provided',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Color(0xFF334155),
+                            fontWeight: FontWeight.w500,
+                            height: 1.4,
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
@@ -799,60 +1140,73 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                       ),
                     ],
                   ),
-                  SizedBox(height: getProportionalSize(8)),
-                  // Mobile
+                  const SizedBox(height: 10),
                   Row(
                     children: [
-                      Icon(
-                        Icons.phone_outlined,
-                        size: getProportionalSize(16),
-                        color: Theme.of(context).hintColor,
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.phone_android_rounded, size: 14, color: Color(0xFF64748B)),
                       ),
-                      SizedBox(width: getProportionalSize(10)),
+                      const SizedBox(width: 10),
                       Text(
-                        customer.mobileNumber,
-                        style: TextStyle(
-                          fontSize: getProportionalSize(13),
-                          color: Theme.of(context).textTheme.bodyMedium?.color,
+                        customer.mobileNumber.isNotEmpty ? customer.mobileNumber : 'No mobile number',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF334155),
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],
                   ),
-                  SizedBox(height: getProportionalSize(8)),
-                  // Device
+                  const SizedBox(height: 10),
                   Row(
                     children: [
-                      Icon(
-                        Icons.devices_other,
-                        size: getProportionalSize(16),
-                        color: Theme.of(context).hintColor,
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.laptop_mac_rounded, size: 14, color: Color(0xFF64748B)),
                       ),
-                      SizedBox(width: getProportionalSize(10)),
-                      Text(
-                        '${customer.deviceBrand} - ${customer.deviceType}',
-                        style: TextStyle(
-                          fontSize: getProportionalSize(13),
-                          color: Theme.of(context).textTheme.bodyMedium?.color,
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          '${customer.deviceBrand} - ${customer.deviceType}',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Color(0xFF334155),
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],
                   ),
                   if (assignedEmployee != 'Not Assigned') ...[
-                    SizedBox(height: getProportionalSize(8)),
+                    const SizedBox(height: 10),
                     Row(
                       children: [
-                        Icon(
-                          Icons.person_outline,
-                          size: getProportionalSize(16),
-                          color: Theme.of(context).hintColor,
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0984E3).withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.person_rounded, size: 14, color: Color(0xFF0984E3)),
                         ),
-                        SizedBox(width: getProportionalSize(10)),
+                        const SizedBox(width: 10),
                         Text(
-                          'Assigned to: $assignedEmployee',
-                          style: TextStyle(
-                            fontSize: getProportionalSize(13),
-                            color: const Color(0xFF2196F3),
-                            fontWeight: FontWeight.w500,
+                          'Assigned: $assignedEmployee',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Color(0xFF0984E3),
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ],
@@ -862,102 +1216,87 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
               ),
             ),
 
-            // Replaced Footer logic with new footer
+            // Footer Bar Container
             Container(
-              padding: EdgeInsets.symmetric(
-                horizontal: getProportionalSize(16),
-                vertical: getProportionalSize(12),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              decoration: const BoxDecoration(
+                color: Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
               ),
               child: Row(
                 children: [
-                  Icon(
-                    Icons.calendar_today,
-                    size: getProportionalSize(14),
-                    color: Theme.of(context).hintColor,
-                  ),
-                  SizedBox(width: getProportionalSize(6)),
-                  Flexible(
-                    child: Text(
-                      DateFormat(
-                        'dd MMM yyyy',
-                      ).format(customer.timestamp.toDate()),
-                      style: TextStyle(
-                        fontSize: getProportionalSize(12),
-                        color: Theme.of(context).hintColor,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      overflow: TextOverflow.ellipsis,
+                  const Icon(Icons.calendar_today_rounded, size: 14, color: Color(0xFF64748B)),
+                  const SizedBox(width: 6),
+                  Text(
+                    DateFormat('dd MMM yyyy').format(customer.timestamp.toDate()),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF64748B),
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const Spacer(),
                   if (!isCanceled) ...[
-                    Icon(
-                      Icons.access_time,
-                      size: getProportionalSize(14),
-                      color:
-                          (durationInfo['color'] as Color?) ??
-                          Theme.of(context).primaryColor,
-                    ),
-                    SizedBox(width: getProportionalSize(6)),
-                    Flexible(
-                      child: Text(
-                        (durationInfo['label'] as String?) ?? '',
-                        style: TextStyle(
-                          fontSize: getProportionalSize(12),
-                          color:
-                              (durationInfo['color'] as Color?) ??
-                              Theme.of(context).primaryColor,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        overflow: TextOverflow.ellipsis,
+                    const SizedBox(width: 10),
+                    const Icon(Icons.schedule_rounded, size: 14, color: Color(0xFF64748B)),
+                    const SizedBox(width: 4),
+                    Text(
+                      durationInfo['label'] as String? ?? '',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: (durationInfo['color'] as Color?) ?? primaryColor,
                       ),
                     ),
                   ],
-                ],
-              ),
-            ),
-
-            // Customer cancellation message
-            if (isCanceledByCustomer)
-              Padding(
-                padding: EdgeInsets.only(top: screenHeight * 0.01),
-                child: Container(
-                  width: double.infinity,
-                  padding: EdgeInsets.symmetric(
-                    horizontal: context.isMobile ? screenWidth * 0.03 : 12.0,
-                    vertical: screenHeight * 0.008,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.errorContainer,
-                    borderRadius: BorderRadius.circular(getProportionalSize(8)),
-                    border: Border.all(
-                      color: Theme.of(context).colorScheme.error,
-                      width: 1,
-                    ),
-                  ),
-                  child: Row(
+                  const Spacer(),
+                  Row(
                     children: [
-                      Icon(
-                        Icons.info_outline,
-                        color: Theme.of(context).colorScheme.error,
-                        size: getProportionalSize(16),
-                      ),
-                      SizedBox(width: screenWidth * 0.015),
-                      Expanded(
-                        child: Text(
-                          'This ticket was cancelled by ${customer.customerName}',
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.error,
-                            fontSize: getProportionalSize(12),
-                            fontWeight: FontWeight.w500,
-                          ),
+                      Text(
+                        'View Details',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: primaryColor,
                         ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.arrow_forward_rounded,
+                        size: 14,
+                        color: primaryColor,
                       ),
                     ],
                   ),
+                ],
+              ),
+            ),
+            if (isCanceledByCustomer)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                margin: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.red.shade200),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline, color: Colors.red, size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'This ticket was cancelled by ${customer.customerName}',
+                        style: const TextStyle(
+                          color: Colors.red,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            // Duration container (working days)
           ],
         ),
       ),
@@ -982,8 +1321,8 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
     double? customerLng,
   ) {
     final dt = customer.timestamp.toDate();
-    final dateString = DateFormat('dd/MM/yyyy').format(dt);
-    final timeString = DateFormat('HH : mm').format(dt);
+    final dateString = DateFormat('dd MMM yyyy').format(dt);
+    final timeString = DateFormat('hh:mm a').format(dt);
     final displayStatus = isCanceled
         ? 'Canceled'
         : isAppointment
@@ -992,1867 +1331,741 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
         ? 'Completed'
         : status;
 
-    // Check if this is an AMC customer
-    final isAMC = customer.ticketId.toUpperCase().startsWith('AMC');
+    final primaryColor = Theme.of(context).primaryColor;
+    final isAMC = customer.bookingId.toUpperCase().startsWith('AMC');
 
-    final double sheetPaddingLeftRight = context.isMobile
-        ? screenWidth * 0.045
-        : 16.0;
-    final double innerPaddingLeft = context.isMobile
-        ? screenWidth * 0.06
-        : 24.0;
-    final double innerPaddingRight = context.isMobile
-        ? screenWidth * 0.04
-        : 16.0;
-    final double avatarSize = context.isMobile ? screenWidth * 0.14 : 56.0;
-    final double avatarRadius = context.isMobile ? screenWidth * 0.07 : 28.0;
-    final double iconSizedBoxWidth = context.isMobile
-        ? screenWidth * 0.075
-        : 24.0;
-    final double iconTextSpacing = context.isMobile ? screenWidth * 0.016 : 8.0;
-    final double buttonHPadding = context.isMobile ? screenWidth * 0.04 : 16.0;
-    final double buttonAssignHPadding = context.isMobile
-        ? screenWidth * 0.07
-        : 24.0;
-    final double buttonOuterRightPadding = context.isMobile
-        ? screenWidth * 0.06
-        : 24.0;
+    Color getStatusColor(String status) {
+      final s = status.toLowerCase().trim();
+      if (s == 'assigned') return const Color(0xFF0984E3);
+      if (s == 'completed' || s == 'complete' || s == 'delivered') return const Color(0xFF10B981);
+      if (s == 'not assigned' || s == 'not assinged') return const Color(0xFFEF4444);
+      if (s.contains('approval')) return const Color(0xFF8B5CF6);
+      if (s.contains('spare')) return const Color(0xFFF59E0B);
+      if (s.contains('observation')) return const Color(0xFF06B6D4);
+      if (s == 'canceled' || s == 'cancelled') return const Color(0xFF64748B);
+      if (s == 'appointment') return const Color(0xFFEC4899);
+      return const Color(0xFF3B82F6);
+    }
+
+    final statusColor = getStatusColor(displayStatus);
 
     return SafeArea(
       top: false,
       child: DraggableScrollableSheet(
         expand: false,
-        initialChildSize: isCanceledByCustomer ? 0.68 : 0.64,
-        minChildSize: 0.48,
-        maxChildSize: 0.94,
+        initialChildSize: 0.85,
+        minChildSize: 0.50,
+        maxChildSize: 0.95,
         builder: (context, controller) {
           return Container(
-            padding: EdgeInsets.only(top: screenHeight * 0.025),
-            decoration: BoxDecoration(
-              color: Theme.of(context).canvasColor,
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(getProportionalSize(24)),
-                topRight: Radius.circular(getProportionalSize(24)),
-              ),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
             ),
-            child: SingleChildScrollView(
-              controller: controller,
-              child: Padding(
-                padding: EdgeInsets.only(
-                  left: sheetPaddingLeftRight,
-                  right: sheetPaddingLeftRight,
-                  bottom: screenHeight * 0.02,
-                ),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: isCanceled
-                        ? Theme.of(context).disabledColor.withValues(alpha: 0.1)
-                        : isAppointment
-                        ? Color(0xFFFFF9C4)
-                        : isAMC
-                        ? Color(0xFFFFF8E1)
-                        : Theme.of(context).cardColor,
-                    borderRadius: BorderRadius.circular(
-                      getProportionalSize(12),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.13),
-                        blurRadius: getProportionalSize(6),
-                        offset: Offset(
-                          getProportionalSize(2),
-                          getProportionalSize(4),
+            child: Column(
+              children: [
+                // Sheet Handle Bar & Close Header
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFCBD5E1),
+                          borderRadius: BorderRadius.circular(2),
                         ),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: primaryColor.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(Icons.receipt_long_rounded, color: primaryColor, size: 20),
+                          ),
+                          const SizedBox(width: 12),
+                          const Text(
+                            'Ticket Details Workspace',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF0F172A),
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                          const Spacer(),
+                          IconButton(
+                            icon: const Icon(Icons.close_rounded, color: Color(0xFF64748B)),
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                        ],
                       ),
                     ],
-                    border: isAMC
-                        ? Border.all(color: Color(0xFFFFD700), width: 2)
-                        : null,
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Padding(
-                        padding: EdgeInsets.fromLTRB(
-                          innerPaddingLeft,
-                          screenHeight * 0.024,
-                          innerPaddingRight,
-                          0,
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: avatarSize,
-                              height: avatarSize,
-                              decoration: BoxDecoration(
-                                color: isCanceled
-                                    ? Colors.grey
-                                    : isAppointment
-                                    ? Colors.amber
-                                    : isAMC
-                                    ? const Color(0xFFFFD700)
-                                    : isCompleted
-                                    ? Colors.green
-                                    : Theme.of(context).primaryColor,
-                                borderRadius: BorderRadius.circular(
-                                  avatarRadius,
+                ),
+
+                const Divider(color: Color(0xFFF1F5F9), height: 1),
+
+                // Sheet Content Body
+                Expanded(
+                  child: SingleChildScrollView(
+                    controller: controller,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Hero Customer & Booking Header Card
+                        Container(
+                          padding: const EdgeInsets.all(18),
+                          decoration: BoxDecoration(
+                            color: isAMC
+                                ? const Color(0xFFFFFBEB)
+                                : const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: isAMC ? const Color(0xFFF59E0B) : const Color(0xFFE2E8F0),
+                              width: isAMC ? 1.5 : 1,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 52,
+                                height: 52,
+                                decoration: BoxDecoration(
+                                  color: isAMC
+                                      ? const Color(0xFFF59E0B)
+                                      : statusColor.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Icon(
+                                  isAMC
+                                      ? Icons.star_rounded
+                                      : isCompleted
+                                      ? Icons.check_circle_rounded
+                                      : isCanceled
+                                      ? Icons.cancel_rounded
+                                      : isAppointment
+                                      ? Icons.calendar_today_rounded
+                                      : Icons.build_circle_rounded,
+                                  color: isAMC ? Colors.white : statusColor,
+                                  size: 26,
                                 ),
                               ),
-                              child: Center(
-                                child: isCanceled
-                                    ? Icon(
-                                        Icons.cancel,
-                                        color: Colors.white,
-                                        size: getProportionalSize(24),
-                                      )
-                                    : isAppointment
-                                    ? Icon(
-                                        Icons.calendar_today,
-                                        color: Colors.white,
-                                        size: getProportionalSize(24),
-                                      )
-                                    : isAMC
-                                    ? Icon(
-                                        Icons.star,
-                                        color: Colors.white,
-                                        size: getProportionalSize(24),
-                                      )
-                                    : isCompleted
-                                    ? Icon(
-                                        Icons.check,
-                                        color: Colors.white,
-                                        size: getProportionalSize(24),
-                                      )
-                                    : Text(
-                                        serialNumber.toString(),
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: getProportionalSize(24),
-                                          fontFamily: 'Arial',
-                                          fontWeight: FontWeight.w400,
-                                        ),
-                                      ),
-                              ),
-                            ),
-                            SizedBox(width: iconTextSpacing),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  // Booking ID row
-                                  Row(
-                                    children: [
-                                      Text(
-                                        'Booking ID',
-                                        style: TextStyle(
-                                          color: Theme.of(
-                                            context,
-                                          ).textTheme.bodyMedium?.color,
-                                          fontSize: getProportionalSize(14),
-                                        ),
-                                      ),
-                                      Text(
-                                        ' : ',
-                                        style: TextStyle(
-                                          color: Theme.of(
-                                            context,
-                                          ).textTheme.bodyMedium?.color,
-                                          fontSize: getProportionalSize(14),
-                                        ),
-                                      ),
-                                      Expanded(
-                                        child: Text(
-                                          customer.ticketId,
-                                          style: TextStyle(
-                                            color: isAMC
-                                                ? const Color(0xFFFFD700)
-                                                : Theme.of(
-                                                    context,
-                                                  ).textTheme.bodyLarge?.color,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: getProportionalSize(14),
-                                          ),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                      SizedBox(width: iconTextSpacing),
-                                      Container(
-                                        padding: EdgeInsets.symmetric(
-                                          horizontal: context.isMobile
-                                              ? screenWidth * 0.022
-                                              : 8.0,
-                                          vertical: screenHeight * 0.003,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: getStatusColor(status),
-                                          borderRadius: BorderRadius.circular(
-                                            100,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          displayStatus,
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: getProportionalSize(13),
-                                            fontFamily: 'Arial',
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  SizedBox(height: screenHeight * 0.004),
-                                  if (isCompleted &&
-                                      assignedEmployee.isNotEmpty &&
-                                      assignedEmployee != 'Unassigned' &&
-                                      assignedEmployee != 'Not Assigned')
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
                                     Row(
                                       children: [
-                                        const Icon(
-                                          Icons.check_circle,
-                                          color: Colors.green,
-                                          size: 14,
-                                        ),
-                                        SizedBox(width: getProportionalSize(4)),
                                         Text(
-                                          'Service completed by: $assignedEmployee',
-                                          style: TextStyle(
-                                            color: Colors.green,
-                                            fontSize: getProportionalSize(12),
-                                            fontWeight: FontWeight.bold,
+                                          'Booking ID: #${customer.bookingId}',
+                                          style: const TextStyle(
+                                            fontSize: 17,
+                                            fontWeight: FontWeight.w800,
+                                            color: Color(0xFF0F172A),
+                                            letterSpacing: -0.3,
                                           ),
                                         ),
+                                        if (isAMC) ...[
+                                          const SizedBox(width: 8),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFF59E0B),
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: const Text(
+                                              'AMC',
+                                              style: TextStyle(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w900,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
                                       ],
                                     ),
-                                  SizedBox(height: screenHeight * 0.004),
-                                  // Customer row
-                                  Row(
-                                    children: [
-                                      Text(
-                                        'Customer',
-                                        style: TextStyle(
-                                          color: Theme.of(
-                                            context,
-                                          ).textTheme.bodyMedium?.color,
-                                          fontSize: getProportionalSize(14),
-                                        ),
-                                      ),
-                                      Text(
-                                        ' : ',
-                                        style: TextStyle(
-                                          color: Theme.of(
-                                            context,
-                                          ).textTheme.bodyMedium?.color,
-                                          fontSize: getProportionalSize(14),
-                                        ),
-                                      ),
-                                      Expanded(
-                                        child: Text(
-                                          customer.customerName,
-                                          style: TextStyle(
-                                            color: Theme.of(
-                                              context,
-                                            ).textTheme.bodyMedium?.color,
-                                            fontSize: getProportionalSize(14),
-                                            fontWeight: FontWeight.w400,
-                                          ),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  SizedBox(height: getProportionalSize(4)),
-                                  // Customers ID row - FIXED: Safe document reference
-                                  Row(
-                                    children: [
-                                      Text(
-                                        'Customer ID',
-                                        style: TextStyle(
-                                          color: Theme.of(
-                                            context,
-                                          ).textTheme.bodyMedium?.color,
-                                          fontSize: getProportionalSize(14),
-                                        ),
-                                      ),
-                                      Text(
-                                        ' : ',
-                                        style: TextStyle(
-                                          fontSize: getProportionalSize(14),
-                                        ),
-                                      ),
-                                      Expanded(
-                                        child: StreamBuilder<DocumentSnapshot>(
-                                          stream: _getCustomerIdStream(
-                                            customer,
-                                          ),
-                                          builder: (context, snapshot) {
-                                            String customerId = 'Not Found';
-
-                                            if (snapshot.hasData &&
-                                                snapshot.data!.exists) {
-                                              final customerData =
-                                                  snapshot.data!.data()
-                                                      as Map<String, dynamic>?;
-                                              if (customerData != null &&
-                                                  customerData.containsKey(
-                                                    'id',
-                                                  )) {
-                                                customerId = customerData['id']
-                                                    .toString();
-                                              }
-                                            }
-
-                                            return Text(
-                                              customerId,
-                                              style: TextStyle(
-                                                color: Theme.of(
-                                                  context,
-                                                ).textTheme.bodyLarge?.color,
-                                                fontSize: getProportionalSize(
-                                                  14,
-                                                ),
-                                                fontWeight: FontWeight.w400,
-                                              ),
-                                              overflow: TextOverflow.ellipsis,
-                                            );
-                                          },
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  SizedBox(height: getProportionalSize(4)),
-                                  // Job Type row
-                                  Row(
-                                    children: [
-                                      Text(
-                                        'Job Type',
-                                        style: TextStyle(
-                                          color: Theme.of(
-                                            context,
-                                          ).textTheme.bodyMedium?.color,
-                                          fontSize: getProportionalSize(14),
-                                        ),
-                                      ),
-                                      Text(
-                                        ' : ',
-                                        style: TextStyle(
-                                          fontSize: getProportionalSize(14),
-                                        ),
-                                      ),
-                                      Expanded(
-                                        child: Text(
-                                          'Service',
-                                          style: TextStyle(
-                                            color: Theme.of(
-                                              context,
-                                            ).primaryColor,
-                                            fontSize: getProportionalSize(14),
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  SizedBox(height: getProportionalSize(4)),
-                                  // Assigned Engineer row
-                                  Row(
-                                    children: [
-                                      Text(
-                                        'Assigned Engineer',
-                                        style: TextStyle(
-                                          color: Theme.of(
-                                            context,
-                                          ).textTheme.bodyMedium?.color,
-                                          fontSize: getProportionalSize(14),
-                                        ),
-                                      ),
-                                      Text(
-                                        ' : ',
-                                        style: TextStyle(
-                                          fontSize: getProportionalSize(14),
-                                        ),
-                                      ),
-                                      Expanded(
-                                        child: Row(
-                                          children: [
-                                            Expanded(
-                                              child: Text(
-                                                assignedEmployee,
-                                                style: TextStyle(
-                                                  color: Theme.of(
-                                                    context,
-                                                  ).textTheme.bodyMedium?.color,
-                                                  fontSize: getProportionalSize(
-                                                    14,
-                                                  ),
-                                                  fontWeight: FontWeight.w400,
-                                                ),
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ),
-                                            if (assignedEmployee.isNotEmpty &&
-                                                assignedEmployee !=
-                                                    'Unassigned')
-                                              TextButton.icon(
-                                                onPressed: () {
-                                                  Navigator.push(
-                                                    context,
-                                                    MaterialPageRoute(
-                                                      builder: (context) =>
-                                                          AdminGeoLocationScreen(
-                                                            engineerId:
-                                                                assignedEmployee,
-                                                            engineerName:
-                                                                assignedEmployee,
-                                                            bookingDocId: docId,
-                                                            customerLat:
-                                                                customerLat,
-                                                            customerLng:
-                                                                customerLng,
-                                                            customerAddress:
-                                                                customer
-                                                                    .address,
-                                                          ),
-                                                    ),
-                                                  );
-                                                },
-                                                icon: const Icon(
-                                                  Icons.map_outlined,
-                                                  size: 16,
-                                                ),
-                                                label: const Text(
-                                                  'Live Track',
-                                                  style: TextStyle(
-                                                    fontSize: 12,
-                                                  ),
-                                                ),
-                                                style: TextButton.styleFrom(
-                                                  padding: EdgeInsets.zero,
-                                                  minimumSize: Size.zero,
-                                                  tapTargetSize:
-                                                      MaterialTapTargetSize
-                                                          .shrinkWrap,
-                                                ),
-                                              ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      // Service completion message in detail sheet
-                      if (isCompleted &&
-                          assignedEmployee.isNotEmpty &&
-                          assignedEmployee != 'Unassigned' &&
-                          assignedEmployee != 'Not Assigned')
-                        Padding(
-                          padding: EdgeInsets.only(
-                            top: screenHeight * 0.015,
-                            left: innerPaddingLeft,
-                            right: innerPaddingLeft,
-                          ),
-                          child: Container(
-                            width: double.infinity,
-                            padding: EdgeInsets.symmetric(
-                              horizontal: innerPaddingRight,
-                              vertical: screenHeight * 0.012,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.green.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(
-                                getProportionalSize(8),
-                              ),
-                              border: Border.all(
-                                color: Colors.green,
-                                width: 1.5,
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.check_circle,
-                                  color: Colors.green,
-                                  size: getProportionalSize(20),
-                                ),
-                                SizedBox(width: iconTextSpacing),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Service Completed',
-                                        style: TextStyle(
-                                          color: Colors.green,
-                                          fontSize: getProportionalSize(14),
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      SizedBox(height: getProportionalSize(2)),
-                                      Text(
-                                        'Service completed by: $assignedEmployee',
-                                        style: TextStyle(
-                                          color: Colors.green.shade700,
-                                          fontSize: getProportionalSize(12),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      // Customer cancellation message in detail sheet
-                      if (isCanceledByCustomer)
-                        Padding(
-                          padding: EdgeInsets.only(
-                            top: screenHeight * 0.015,
-                            left: innerPaddingLeft,
-                            right: innerPaddingLeft,
-                          ),
-                          child: Container(
-                            width: double.infinity,
-                            padding: EdgeInsets.symmetric(
-                              horizontal: innerPaddingRight,
-                              vertical: screenHeight * 0.012,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.errorContainer,
-                              borderRadius: BorderRadius.circular(
-                                getProportionalSize(8),
-                              ),
-                              border: Border.all(
-                                color: Theme.of(context).colorScheme.error,
-                                width: 1.5,
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.cancel,
-                                  color: Theme.of(context).colorScheme.error,
-                                  size: getProportionalSize(20),
-                                ),
-                                SizedBox(width: iconTextSpacing),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Cancelled by Customer',
-                                        style: TextStyle(
-                                          color: Theme.of(
-                                            context,
-                                          ).colorScheme.error,
-                                          fontSize: getProportionalSize(14),
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      SizedBox(height: getProportionalSize(2)),
-                                      Text(
-                                        'This ticket was cancelled by ${customer.customerName}',
-                                        style: TextStyle(
-                                          color: Theme.of(
-                                            context,
-                                          ).colorScheme.error,
-                                          fontSize: getProportionalSize(12),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      // AMC Badge if applicable
-                      if (isAMC)
-                        Padding(
-                          padding: EdgeInsets.only(
-                            top: screenHeight * 0.01,
-                            left: innerPaddingLeft,
-                            right: innerPaddingLeft,
-                          ),
-                          child: Container(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: innerPaddingRight,
-                              vertical: screenHeight * 0.008,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(
-                                0xFFFFD700,
-                              ).withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: const Color(0xFFFFD700),
-                                width: 1,
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.star,
-                                  color: const Color(0xFFFFD700),
-                                  size: getProportionalSize(16),
-                                ),
-                                SizedBox(width: getProportionalSize(8)),
-                                Text(
-                                  'AMC Customer',
-                                  style: TextStyle(
-                                    color: const Color(0xFFB8860B),
-                                    fontSize: getProportionalSize(14),
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      Padding(
-                        padding: EdgeInsets.only(
-                          left: innerPaddingLeft,
-                          right: innerPaddingRight,
-                          top: screenHeight * 0.016,
-                        ),
-                        child: Column(
-                          children: [
-                            _buildJobTypeRow(
-                              customer.jobType,
-                              getProportionalSize,
-                            ),
-                            _ticketDetailRow(
-                              'Device',
-                              customer.deviceType,
-                              getProportionalSize,
-                            ),
-                            _ticketDetailRow(
-                              'Brand',
-                              customer.deviceBrand,
-                              getProportionalSize,
-                            ),
-                            _ticketDetailRow(
-                              'Condition',
-                              customer.deviceCondition,
-                              getProportionalSize,
-                            ),
-                            _ticketDetailRow(
-                              'Message',
-                              customer.issueDescription,
-                              getProportionalSize,
-                            ),
-                            _ticketDetailRow(
-                              'Created date',
-                              dateString,
-                              getProportionalSize,
-                            ),
-                            _ticketDetailRow(
-                              'Address',
-                              customer.address,
-                              getProportionalSize,
-                              valueStyle: TextStyle(
-                                fontSize: getProportionalSize(14),
-                                color: Theme.of(
-                                  context,
-                                ).textTheme.bodyMedium?.color,
-                                height: 1.3,
-                              ),
-                            ),
-                            // Payment Type field
-                            StreamBuilder<DocumentSnapshot>(
-                              stream: FirestoreService.instance
-                                  .collection('Raised_tickets')
-                                  .doc(customer.ticketId)
-                                  .snapshots(),
-                              builder: (context, snapshot) {
-                                String paymentType = 'N/A';
-
-                                if (snapshot.hasData && snapshot.data!.exists) {
-                                  final data =
-                                      snapshot.data!.data()
-                                          as Map<String, dynamic>?;
-                                  if (data != null) {
-                                    paymentType = getField(data, [
-                                      'PaymentType',
-                                      'paymentType',
-                                    ], 'N/A');
-                                  }
-                                }
-
-                                return _ticketDetailRow(
-                                  'Payment Type',
-                                  paymentType,
-                                  getProportionalSize,
-                                  valueStyle: TextStyle(
-                                    color: _getPaymentTypeColor(paymentType),
-                                    fontSize: getProportionalSize(14),
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                );
-                              },
-                            ),
-                            _ticketDetailRow(
-                              'Bill Amount',
-                              '₹ ${customer.amount}',
-                              getProportionalSize,
-                              valueStyle: TextStyle(
-                                color: Colors.green,
-                                fontSize: getProportionalSize(18),
-                                fontFamily: 'Times New Roman',
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            // NEW: Customer Location Button
-                            ElevatedButton.icon(
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        AdminGeoLocationScreen(
-                                          engineerId:
-                                              assignedEmployee != 'Not Assigned'
-                                              ? assignedEmployee
-                                              : 'N/A',
-                                          engineerName:
-                                              assignedEmployee != 'Not Assigned'
-                                              ? assignedEmployee
-                                              : 'N/A',
-                                          bookingDocId: docId,
-                                          customerLat: customerLat,
-                                          customerLng: customerLng,
-                                          customerAddress: customer.address,
-                                          bookingId: customer.ticketId,
-                                          customerName: customer.customerName,
-                                          jobType: customer.jobType,
-                                          deviceType: customer.deviceType,
-                                          deviceBrand: customer.deviceBrand,
-                                          assignedEmployee:
-                                              assignedEmployee != 'Not Assigned'
-                                              ? assignedEmployee
-                                              : null,
-                                          customerStatus: displayStatus,
-                                        ),
-                                  ),
-                                );
-                              },
-                              icon: const Icon(
-                                Icons.location_on,
-                                color: Colors.white,
-                              ),
-                              label: const Text(
-                                'CUSTOMER LOCATION',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.red.shade600,
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 12,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                            ),
-                            // NEW: View Attachment Button
-                            if (customer.customerFileUrl != null &&
-                                customer.customerFileUrl!.isNotEmpty &&
-                                customer.customerFileUrl != 'N/A')
-                              Padding(
-                                padding: const EdgeInsets.only(top: 12.0),
-                                child: ElevatedButton.icon(
-                                  onPressed: () async {
-                                    final url = Uri.parse(
-                                      customer.customerFileUrl!,
-                                    );
-                                    if (await canLaunchUrl(url)) {
-                                      await launchUrl(
-                                        url,
-                                        mode: LaunchMode.externalApplication,
-                                      );
-                                    } else {
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        const SnackBar(
-                                          content: Text('Could not open file'),
-                                        ),
-                                      );
-                                    }
-                                  },
-                                  icon: const Icon(
-                                    Icons.file_download_outlined,
-                                    color: Colors.white,
-                                  ),
-                                  label: Text(
-                                    'VIEW / DOWNLOAD (${customer.fileName ?? "Attachment"})',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.blue.shade700,
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 14,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    elevation: 2,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                      Divider(
-                        height: screenHeight * 0.033,
-                        thickness: 1,
-                        color: Theme.of(
-                          context,
-                        ).primaryColor.withValues(alpha: 0.5),
-                      ),
-                      Padding(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: innerPaddingLeft,
-                          vertical: screenHeight * 0.003,
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.center,
-                                    children: [
-                                      SizedBox(
-                                        width: iconSizedBoxWidth,
-                                        child: Icon(
-                                          Icons.location_on,
-                                          color: Theme.of(context).primaryColor,
-                                          size: getProportionalSize(22),
-                                        ),
-                                      ),
-                                      SizedBox(width: iconTextSpacing),
-                                      Expanded(
-                                        child: Text(
-                                          customer.address,
-                                          style: TextStyle(
-                                            color: Theme.of(
-                                              context,
-                                            ).textTheme.bodyMedium?.color,
-                                            fontSize: getProportionalSize(14),
-                                            height: 1.2,
-                                          ),
-                                          maxLines: 3,
-                                          overflow: TextOverflow.visible,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.end,
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.center,
-                                    children: [
-                                      SizedBox(
-                                        width: iconSizedBoxWidth,
-                                        child: Icon(
-                                          Icons.phone,
-                                          color: Theme.of(context).primaryColor,
-                                          size: getProportionalSize(22),
-                                        ),
-                                      ),
-                                      SizedBox(width: iconTextSpacing),
-                                      Flexible(
-                                        child: Text(
-                                          customer.mobileNumber,
-                                          style: TextStyle(
-                                            color: Theme.of(
-                                              context,
-                                            ).textTheme.bodyMedium?.color,
-                                            fontSize: getProportionalSize(14),
-                                          ),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            SizedBox(height: screenHeight * 0.015),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.center,
-                                    children: [
-                                      SizedBox(
-                                        width: iconSizedBoxWidth,
-                                        child: Icon(
-                                          Icons.calendar_today,
-                                          color: Theme.of(context).primaryColor,
-                                          size: getProportionalSize(20),
-                                        ),
-                                      ),
-                                      SizedBox(width: iconTextSpacing),
-                                      Text(
-                                        dateString,
-                                        style: TextStyle(
-                                          color: Theme.of(
-                                            context,
-                                          ).textTheme.bodyMedium?.color,
-                                          fontSize: getProportionalSize(14),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.end,
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.center,
-                                    children: [
-                                      SizedBox(
-                                        width: iconSizedBoxWidth,
-                                        child: Icon(
-                                          Icons.access_time,
-                                          color: Theme.of(context).primaryColor,
-                                          size: getProportionalSize(20),
-                                        ),
-                                      ),
-                                      SizedBox(width: iconTextSpacing),
-                                      Text(
-                                        timeString,
-                                        style: TextStyle(
-                                          color: Theme.of(
-                                            context,
-                                          ).textTheme.bodyMedium?.color,
-                                          fontSize: getProportionalSize(14),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      // Action buttons logic
-                      if (!isCompleted) ...[
-                        // For cancelled tickets - show reactivate button
-                        if (isCanceled)
-                          Padding(
-                            padding: EdgeInsets.only(
-                              right: buttonOuterRightPadding,
-                              top: screenHeight * 0.022,
-                              bottom: screenHeight * 0.013,
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                ElevatedButton(
-                                  style: ButtonStyle(
-                                    backgroundColor:
-                                        WidgetStateProperty.all<Color>(
-                                          Colors.green,
-                                        ),
-                                    foregroundColor:
-                                        WidgetStateProperty.all<Color>(
-                                          Colors.white,
-                                        ),
-                                    shape:
-                                        WidgetStateProperty.all<
-                                          RoundedRectangleBorder
-                                        >(
-                                          RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              getProportionalSize(4),
-                                            ),
-                                          ),
-                                        ),
-                                    padding:
-                                        WidgetStateProperty.all<EdgeInsets>(
-                                          EdgeInsets.symmetric(
-                                            horizontal: buttonHPadding,
-                                            vertical: screenHeight * 0.013,
-                                          ),
-                                        ),
-                                  ),
-                                  onPressed: () async {
-                                    final confirm = await showDialog<bool>(
-                                      context: context,
-                                      builder: (context) => AlertDialog(
-                                        title: const Text('Reactivate Ticket'),
-                                        content: const Text(
-                                          'Are you sure you want to reactivate this cancelled ticket?',
-                                        ),
-                                        actions: <Widget>[
-                                          TextButton(
-                                            onPressed: () => Navigator.of(
-                                              context,
-                                            ).pop(false),
-                                            child: const Text('Keep Cancelled'),
-                                          ),
-                                          TextButton(
-                                            onPressed: () =>
-                                                Navigator.of(context).pop(true),
-                                            child: const Text(
-                                              'Reactivate',
-                                              style: TextStyle(
-                                                color: Colors.green,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-
-                                    if (confirm == true) {
-                                      try {
-                                        await FirestoreService.instance
-                                            .collection('Admin_details')
-                                            .doc(docId)
-                                            .update({
-                                              'adminStatus': 'Open',
-                                              'Customer_decision': '',
-                                              'engineerStatus': 'Assigned',
-                                            });
-
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              'Ticket reactivated successfully!',
-                                            ),
-                                            backgroundColor: Colors.green,
-                                          ),
-                                        );
-
-                                        Navigator.pop(context);
-                                      } catch (e) {
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                              'Failed to reactivate ticket: $e',
-                                            ),
-                                            backgroundColor: Colors.red,
-                                          ),
-                                        );
-                                      }
-                                    }
-                                  },
-                                  child: Text(
-                                    'REACTIVATE TICKET',
-                                    style: TextStyle(
-                                      fontSize: getProportionalSize(13),
-                                      fontFamily: 'Roboto',
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )
-                        // For Appointment tickets - show different buttons
-                        else if (isAppointment)
-                          Padding(
-                            padding: EdgeInsets.only(
-                              right: buttonOuterRightPadding,
-                              top: screenHeight * 0.022,
-                              bottom: screenHeight * 0.013,
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                // ASSIGN Button for Appointment tickets
-                                ElevatedButton(
-                                  style: ButtonStyle(
-                                    backgroundColor:
-                                        WidgetStateProperty.all<Color>(
-                                          const Color(0xFF0B3470),
-                                        ),
-                                    foregroundColor:
-                                        WidgetStateProperty.all<Color>(
-                                          Colors.white,
-                                        ),
-                                    shape:
-                                        WidgetStateProperty.all<
-                                          RoundedRectangleBorder
-                                        >(
-                                          RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              getProportionalSize(4),
-                                            ),
-                                          ),
-                                        ),
-                                    padding:
-                                        WidgetStateProperty.all<EdgeInsets>(
-                                          EdgeInsets.symmetric(
-                                            horizontal: buttonAssignHPadding,
-                                            vertical: screenHeight * 0.013,
-                                          ),
-                                        ),
-                                  ),
-                                  onPressed: () async {
-                                    try {
-                                      final docRef = FirestoreService.instance
-                                          .collection('Admin_details')
-                                          .doc(customer.ticketId);
-                                      final docSnapshot = await docRef.get();
-                                      if (docSnapshot.exists) {
-                                        final data = docSnapshot.data() ?? {};
-                                        Map<String, dynamic> updateData = {
-                                          'adminStatus': 'Assigned',
-                                        };
-                                        if (!data.containsKey(
-                                          'engineerStatus',
-                                        )) {
-                                          updateData['engineerStatus'] = 'Open';
-                                        }
-                                        await docRef.update(updateData);
-                                      } else {
-                                        await docRef.set({
-                                          'adminStatus': 'Assigned',
-                                          'engineerStatus': 'Open',
-                                        });
-                                      }
-                                    } catch (e) {
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            'Failed to update status: $e',
-                                          ),
-                                        ),
-                                      );
-                                      return;
-                                    }
-                                    Navigator.pop(context);
-                                    _navigateToAssignPage(customer);
-                                  },
-                                  child: Text(
-                                    'ASSIGN',
-                                    style: TextStyle(
-                                      fontSize: getProportionalSize(13),
-                                      fontFamily: 'Roboto',
-                                      fontWeight: FontWeight.w500,
-                                      letterSpacing: 0.46,
-                                    ),
-                                  ),
-                                ),
-                                SizedBox(width: iconTextSpacing),
-                                // MARK AS ACTIVE Button - to remove appointment status
-                                ElevatedButton(
-                                  style: ButtonStyle(
-                                    backgroundColor:
-                                        WidgetStateProperty.all<Color>(
-                                          Colors.green,
-                                        ),
-                                    foregroundColor:
-                                        WidgetStateProperty.all<Color>(
-                                          Colors.white,
-                                        ),
-                                    shape:
-                                        WidgetStateProperty.all<
-                                          RoundedRectangleBorder
-                                        >(
-                                          RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              getProportionalSize(4),
-                                            ),
-                                          ),
-                                        ),
-                                    padding:
-                                        WidgetStateProperty.all<EdgeInsets>(
-                                          EdgeInsets.symmetric(
-                                            horizontal: buttonHPadding,
-                                            vertical: screenHeight * 0.013,
-                                          ),
-                                        ),
-                                  ),
-                                  onPressed: () async {
-                                    final confirm = await showDialog<bool>(
-                                      context: context,
-                                      builder: (context) => AlertDialog(
-                                        title: const Text('Mark as Active'),
-                                        content: const Text(
-                                          'Remove appointment status and mark this ticket as active?',
-                                        ),
-                                        actions: <Widget>[
-                                          TextButton(
-                                            onPressed: () => Navigator.of(
-                                              context,
-                                            ).pop(false),
-                                            child: const Text(
-                                              'Keep Appointment',
-                                            ),
-                                          ),
-                                          TextButton(
-                                            onPressed: () =>
-                                                Navigator.of(context).pop(true),
-                                            child: const Text(
-                                              'Mark Active',
-                                              style: TextStyle(
-                                                color: Colors.green,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-
-                                    if (confirm == true) {
-                                      try {
-                                        await FirestoreService.instance
-                                            .collection('Admin_details')
-                                            .doc(docId)
-                                            .update({'adminStatus': 'Open'});
-
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              'Ticket marked as active!',
-                                            ),
-                                            backgroundColor: Colors.green,
-                                          ),
-                                        );
-
-                                        Navigator.pop(context);
-                                      } catch (e) {
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                              'Failed to update ticket: $e',
-                                            ),
-                                            backgroundColor: Colors.red,
-                                          ),
-                                        );
-                                      }
-                                    }
-                                  },
-                                  child: Text(
-                                    'MARK ACTIVE',
-                                    style: TextStyle(
-                                      fontSize: getProportionalSize(13),
-                                      fontFamily: 'Roboto',
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )
-                        else
-                          // For regular active tickets (not appointment, not canceled, not completed)
-                          Padding(
-                            padding: EdgeInsets.only(
-                              right: buttonOuterRightPadding,
-                              top: screenHeight * 0.022,
-                              bottom: screenHeight * 0.013,
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                // APPOINTMENT Button for active tickets
-                                ElevatedButton(
-                                  style: ButtonStyle(
-                                    backgroundColor:
-                                        WidgetStateProperty.all<Color>(
-                                          Colors.purple,
-                                        ),
-                                    foregroundColor:
-                                        WidgetStateProperty.all<Color>(
-                                          Colors.white,
-                                        ),
-                                    shape:
-                                        WidgetStateProperty.all<
-                                          RoundedRectangleBorder
-                                        >(
-                                          RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              getProportionalSize(4),
-                                            ),
-                                          ),
-                                        ),
-                                    padding:
-                                        WidgetStateProperty.all<EdgeInsets>(
-                                          EdgeInsets.symmetric(
-                                            horizontal: buttonHPadding,
-                                            vertical: screenHeight * 0.013,
-                                          ),
-                                        ),
-                                  ),
-                                  onPressed: () async {
-                                    // Show appointment confirmation dialog
-                                    final confirmAppointment =
-                                        await showDialog<bool>(
-                                          context: context,
-                                          builder: (context) => AlertDialog(
-                                            title: const Text(
-                                              'Schedule Appointment',
-                                            ),
-                                            content: const Text(
-                                              'Set this ticket as Appointment status? This will mark it for scheduled service.',
-                                            ),
-                                            actions: <Widget>[
-                                              TextButton(
-                                                onPressed: () => Navigator.of(
-                                                  context,
-                                                ).pop(false),
-                                                child: const Text('Later'),
-                                              ),
-                                              TextButton(
-                                                onPressed: () => Navigator.of(
-                                                  context,
-                                                ).pop(true),
-                                                child: const Text(
-                                                  'Schedule Appointment',
-                                                  style: TextStyle(
-                                                    color: Colors.purple,
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        );
-
-                                    if (confirmAppointment == true) {
-                                      try {
-                                        // Update Firestore with appointment status
-                                        await FirestoreService.instance
-                                            .collection('Admin_details')
-                                            .doc(docId)
-                                            .update({
-                                              'adminStatus': 'Appointment',
-                                              'appointmentDate':
-                                                  FieldValue.serverTimestamp(),
-                                            });
-
-                                        // Add notification for Admin (Acknowledged)
-                                        await NotificationService.sendNotificationToFirestore(
-                                          audience: 'admin',
-                                          title: 'Ticket Acknowledged',
-                                          body:
-                                              'You have scheduled an appointment for ticket ${customer.ticketId} (${customer.customerName})',
-                                          type: 'ticket_acknowledged',
-                                          bookingId: customer.ticketId,
-                                          customerName: customer.customerName,
-                                        );
-
-                                        // Show success message
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              'Appointment scheduled successfully!',
-                                            ),
-                                            backgroundColor: Colors.purple,
-                                          ),
-                                        );
-
-                                        // Close the bottom sheet
-                                        Navigator.pop(context);
-                                      } catch (e) {
-                                        // Show error message
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                              'Failed to schedule appointment: $e',
-                                            ),
-                                            backgroundColor: Colors.red,
-                                          ),
-                                        );
-                                      }
-                                    }
-                                  },
-                                  child: Text(
-                                    'APPOINTMENT',
-                                    style: TextStyle(
-                                      fontSize: getProportionalSize(13),
-                                      fontFamily: 'Roboto',
-                                      fontWeight: FontWeight.w500,
-                                      letterSpacing: 0.46,
-                                    ),
-                                  ),
-                                ),
-                                SizedBox(width: iconTextSpacing),
-                                // ASSIGN Button for active tickets
-                                ElevatedButton(
-                                  style: ButtonStyle(
-                                    backgroundColor:
-                                        WidgetStateProperty.all<Color>(
-                                          const Color(0xFF0B3470),
-                                        ),
-                                    foregroundColor:
-                                        WidgetStateProperty.all<Color>(
-                                          Colors.white,
-                                        ),
-                                    shape:
-                                        WidgetStateProperty.all<
-                                          RoundedRectangleBorder
-                                        >(
-                                          RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              getProportionalSize(4),
-                                            ),
-                                          ),
-                                        ),
-                                    padding:
-                                        WidgetStateProperty.all<EdgeInsets>(
-                                          EdgeInsets.symmetric(
-                                            horizontal: buttonAssignHPadding,
-                                            vertical: screenHeight * 0.013,
-                                          ),
-                                        ),
-                                  ),
-                                  onPressed: () async {
-                                    try {
-                                      final docRef = FirestoreService.instance
-                                          .collection('Admin_details')
-                                          .doc(customer.ticketId);
-                                      final docSnapshot = await docRef.get();
-                                      if (docSnapshot.exists) {
-                                        final data = docSnapshot.data() ?? {};
-                                        Map<String, dynamic> updateData = {
-                                          'adminStatus': 'Assigned',
-                                        };
-                                        if (!data.containsKey(
-                                          'engineerStatus',
-                                        )) {
-                                          updateData['engineerStatus'] = 'Open';
-                                        }
-                                        await docRef.update(updateData);
-                                      } else {
-                                        await docRef.set({
-                                          'adminStatus': 'Assigned',
-                                          'engineerStatus': 'Open',
-                                        });
-                                      }
-                                    } catch (e) {
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            'Failed to update status: $e',
-                                          ),
-                                        ),
-                                      );
-                                      return;
-                                    }
-                                    Navigator.pop(context);
-                                    _navigateToAssignPage(customer);
-                                  },
-                                  child: Text(
-                                    'ASSIGN',
-                                    style: TextStyle(
-                                      fontSize: getProportionalSize(13),
-                                      fontFamily: 'Roboto',
-                                      fontWeight: FontWeight.w500,
-                                      letterSpacing: 0.46,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                      ],
-
-                      // CANCEL TICKET button (available for both active and appointment tickets)
-                      // Hide cancel button if already canceled by customer
-                      if (!isCanceled && !isCompleted)
-                        Padding(
-                          padding: EdgeInsets.only(
-                            right: buttonOuterRightPadding,
-                            left: buttonOuterRightPadding,
-                            bottom: screenHeight * 0.03,
-                          ),
-                          child: ElevatedButton(
-                            style: ButtonStyle(
-                              backgroundColor: WidgetStateProperty.all<Color>(
-                                Colors.orange,
-                              ),
-                              foregroundColor: WidgetStateProperty.all<Color>(
-                                Colors.white,
-                              ),
-                              shape:
-                                  WidgetStateProperty.all<
-                                    RoundedRectangleBorder
-                                  >(
-                                    RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(
-                                        getProportionalSize(4),
-                                      ),
-                                    ),
-                                  ),
-                              padding: WidgetStateProperty.all<EdgeInsets>(
-                                EdgeInsets.symmetric(
-                                  horizontal: buttonAssignHPadding,
-                                  vertical: screenHeight * 0.013,
-                                ),
-                              ),
-                            ),
-                            onPressed: () async {
-                              final confirm = await showDialog<bool>(
-                                context: context,
-                                builder: (context) => AlertDialog(
-                                  title: const Text('Confirm Cancel'),
-                                  content: const Text(
-                                    'Are you sure you want to cancel this ticket? This action cannot be undone.',
-                                  ),
-                                  actions: <Widget>[
-                                    TextButton(
-                                      onPressed: () =>
-                                          Navigator.of(context).pop(false),
-                                      child: const Text('No'),
-                                    ),
-                                    TextButton(
-                                      onPressed: () =>
-                                          Navigator.of(context).pop(true),
-                                      child: const Text(
-                                        'Yes, Cancel',
-                                        style: TextStyle(color: Colors.orange),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Customer: ${customer.customerName}',
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        color: Color(0xFF64748B),
+                                        fontWeight: FontWeight.w600,
                                       ),
                                     ),
                                   ],
                                 ),
-                              );
-                              if (confirm == true) {
-                                try {
-                                  await FirestoreService.instance
-                                      .collection('Admin_details')
-                                      .doc(docId)
-                                      .update({'adminStatus': 'Canceled'});
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: statusColor.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+                                ),
+                                child: Text(
+                                  displayStatus,
+                                  style: TextStyle(
+                                    color: statusColor,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
 
-                                  // Add notifications for Admin and Customer
-                                  await NotificationService.sendNotificationToFirestore(
-                                    audience: 'customer',
-                                    customerId: customer.customerid,
-                                    title: 'Ticket Canceled',
-                                    body:
-                                        'Your ticket ${customer.ticketId} has been canceled by the administrator.',
-                                    type: 'ticket_canceled',
-                                    bookingId: customer.ticketId,
-                                    customerName: customer.customerName,
-                                  );
+                        // Special Status Banners
+                        if (isCompleted && assignedEmployee.isNotEmpty && assignedEmployee != 'Not Assigned') ...[
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFECFDF5),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: const Color(0xFFA7F3D0)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 20),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Service Completed',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w800,
+                                          color: Color(0xFF065F46),
+                                        ),
+                                      ),
+                                      Text(
+                                        'Completed by $assignedEmployee',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          color: Color(0xFF047857),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
 
-                                  await NotificationService.sendNotificationToFirestore(
-                                    audience: 'admin',
-                                    title: 'Ticket Canceled',
-                                    body:
-                                        'You have canceled ticket ${customer.ticketId} (${customer.customerName})',
-                                    type: 'ticket_canceled',
-                                    bookingId: customer.ticketId,
-                                    customerName: customer.customerName,
-                                  );
+                        if (isCanceledByCustomer) ...[
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFEF2F2),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: const Color(0xFFFCA5A5)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.info_rounded, color: Color(0xFFEF4444), size: 20),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    'This service ticket was cancelled by ${customer.customerName}',
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF991B1B),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
 
-                                  Navigator.pop(context);
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Ticket canceled successfully.',
+                        const SizedBox(height: 16),
+
+                        // Section: Device & Service Details Card
+                        _buildSectionCard(
+                          title: 'Service & Device Specifications',
+                          icon: Icons.laptop_mac_rounded,
+                          child: Column(
+                            children: [
+                              _buildDetailGridRow('Job Type', customer.jobType, isHighlight: true),
+                              const Divider(color: Color(0xFFF1F5F9), height: 16),
+                              _buildDetailGridRow('Device Type', customer.deviceType),
+                              const Divider(color: Color(0xFFF1F5F9), height: 16),
+                              _buildDetailGridRow('Device Brand', customer.deviceBrand),
+                              const Divider(color: Color(0xFFF1F5F9), height: 16),
+                              _buildDetailGridRow('Condition', customer.deviceCondition),
+                              if (customer.message.isNotEmpty) ...[
+                                const Divider(color: Color(0xFFF1F5F9), height: 16),
+                                _buildDetailGridRow('Issue Description', customer.message),
+                              ],
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Section: Customer & Address Information Card
+                        _buildSectionCard(
+                          title: 'Customer & Assignment Info',
+                          icon: Icons.person_pin_rounded,
+                          child: Column(
+                            children: [
+                              StreamBuilder<DocumentSnapshot>(
+                                stream: _getCustomerIdStream(customer),
+                                builder: (context, snapshot) {
+                                  String customerId = 'Not Found';
+                                  if (snapshot.hasData && snapshot.data!.exists) {
+                                    final customerData = snapshot.data!.data() as Map<String, dynamic>?;
+                                    if (customerData != null && customerData.containsKey('id')) {
+                                      customerId = customerData['id'].toString();
+                                    }
+                                  }
+                                  return _buildDetailGridRow('Customer ID', customerId);
+                                },
+                              ),
+                              const Divider(color: Color(0xFFF1F5F9), height: 16),
+                              _buildDetailGridRow('Contact Number', customer.mobileNumber.isNotEmpty ? customer.mobileNumber : 'N/A'),
+                              const Divider(color: Color(0xFFF1F5F9), height: 16),
+                              _buildDetailGridRow('Full Address', customer.address.isNotEmpty ? customer.address : 'N/A', isFullWidth: true),
+                              const Divider(color: Color(0xFFF1F5F9), height: 16),
+                              _buildDetailGridRow(
+                                'Assigned Engineer',
+                                assignedEmployee,
+                                customValue: Row(
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: [
+                                    Text(
+                                      assignedEmployee,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: assignedEmployee != 'Not Assigned'
+                                            ? const Color(0xFF0984E3)
+                                            : const Color(0xFF94A3B8),
                                       ),
                                     ),
-                                  );
-                                } catch (e) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        'Failed to cancel ticket: $e',
+                                    if (assignedEmployee.isNotEmpty && assignedEmployee != 'Not Assigned' && assignedEmployee != 'Unassigned') ...[
+                                      const SizedBox(width: 8),
+                                      GestureDetector(
+                                        onTap: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) => AdminGeoLocationScreen(
+                                                engineerId: assignedEmployee,
+                                                engineerName: assignedEmployee,
+                                                bookingDocId: docId,
+                                                customerLat: customerLat,
+                                                customerLng: customerLng,
+                                                customerAddress: customer.address,
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFF0984E3).withValues(alpha: 0.1),
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: const Row(
+                                            children: [
+                                              Icon(Icons.map_rounded, size: 12, color: Color(0xFF0984E3)),
+                                              SizedBox(width: 4),
+                                              Text(
+                                                'Live Track',
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.w800,
+                                                  color: Color(0xFF0984E3),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
                                       ),
-                                    ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Section: Payment & Billing Card
+                        _buildSectionCard(
+                          title: 'Payment & Billing',
+                          icon: Icons.payments_rounded,
+                          child: Column(
+                            children: [
+                              StreamBuilder<DocumentSnapshot>(
+                                stream: FirestoreService.instance
+                                    .collection('Admin_ticket_entry')
+                                    .doc(customer.bookingId)
+                                    .snapshots(),
+                                builder: (context, snapshot) {
+                                  String paymentType = 'N/A';
+                                  if (snapshot.hasData && snapshot.data!.exists) {
+                                    final data = snapshot.data!.data() as Map<String, dynamic>?;
+                                    if (data != null) {
+                                      paymentType = getField(data, ['PaymentType', 'paymentType'], 'N/A');
+                                    }
+                                  }
+                                  return _buildDetailGridRow('Payment Method', paymentType);
+                                },
+                              ),
+                              const Divider(color: Color(0xFFF1F5F9), height: 16),
+                              _buildDetailGridRow(
+                                'Total Bill Amount',
+                                '₹ ${customer.amount}',
+                                customValue: Text(
+                                  '₹ ${customer.amount}',
+                                  textAlign: TextAlign.right,
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF10B981),
+                                  ),
+                                ),
+                              ),
+                              const Divider(color: Color(0xFFF1F5F9), height: 16),
+                              _buildDetailGridRow('Ticket Created', '$dateString at $timeString'),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 20),
+
+                        // Optional Attachment Action
+                        if (customer.customerFileUrl != null &&
+                            customer.customerFileUrl!.isNotEmpty &&
+                            customer.customerFileUrl != 'N/A') ...[
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: () async {
+                                final url = Uri.parse(customer.customerFileUrl!);
+                                if (await canLaunchUrl(url)) {
+                                  await launchUrl(url, mode: LaunchMode.externalApplication);
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Could not open file')),
                                   );
                                 }
-                              }
-                            },
-                            child: Text(
-                              'CANCEL TICKET',
-                              style: TextStyle(
-                                fontSize: getProportionalSize(13),
-                                fontWeight: FontWeight.w600,
+                              },
+                              icon: const Icon(Icons.file_download_rounded, size: 18, color: Colors.white),
+                              label: const Text(
+                                'View Attachment',
+                                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF0984E3),
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                elevation: 0,
                               ),
                             ),
                           ),
-                        ),
+                          const SizedBox(height: 12),
+                        ],
 
-                      // Show completed message if ticket is completed
-                      if (isCompleted)
-                        Padding(
-                          padding: EdgeInsets.only(
-                            top: screenHeight * 0.015,
-                            bottom: screenHeight * 0.02,
-                          ),
-                          child: Center(
-                            child: Text(
-                              'This ticket has been completed',
-                              style: TextStyle(
-                                color: Colors.green,
-                                fontSize: getProportionalSize(16),
-                                fontWeight: FontWeight.bold,
+                        // Main Action Buttons Bar (Exactly 2 Buttons: Customer Location & Assign Ticket)
+                        if (!isCompleted) ...[
+                          if (isCanceled) ...[
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF10B981),
+                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  elevation: 0,
+                                ),
+                                onPressed: () async {
+                                  final confirm = await showDialog<bool>(
+                                    context: context,
+                                    builder: (context) => AlertDialog(
+                                      title: const Text('Reactivate Ticket'),
+                                      content: const Text('Are you sure you want to reactivate this cancelled ticket?'),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.of(context).pop(false),
+                                          child: const Text('Keep Cancelled'),
+                                        ),
+                                        TextButton(
+                                          onPressed: () => Navigator.of(context).pop(true),
+                                          child: const Text('Reactivate', style: TextStyle(color: Color(0xFF10B981))),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+
+                                  if (confirm == true) {
+                                    try {
+                                      await FirestoreService.instance
+                                          .collection('Admin_ticket_entry')
+                                          .doc(docId)
+                                          .update({
+                                        'adminStatus': 'Open',
+                                        'Customer_decision': '',
+                                        'engineerStatus': 'Assigned',
+                                      });
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Ticket reactivated successfully!'),
+                                          backgroundColor: Color(0xFF10B981),
+                                        ),
+                                      );
+                                      Navigator.pop(context);
+                                    } catch (e) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(content: Text('Failed to reactivate ticket: $e'), backgroundColor: Colors.red),
+                                      );
+                                    }
+                                  }
+                                },
+                                icon: const Icon(Icons.refresh_rounded, size: 18, color: Colors.white),
+                                label: const Text(
+                                  'Reactivate Ticket',
+                                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white),
+                                ),
                               ),
                             ),
-                          ),
-                        ),
-
-                      // Customer feedback card (always visible)
-                      Padding(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: innerPaddingLeft,
-                          vertical: screenHeight * 0.02,
-                        ),
-                        child: Card(
-                          elevation: 4,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(
-                              getProportionalSize(12),
-                            ),
-                          ),
-                          shadowColor: Colors.black26,
-                          child: Padding(
-                            padding: EdgeInsets.all(getProportionalSize(16)),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                          ] else ...[
+                            Row(
                               children: [
-                                Container(
-                                  padding: EdgeInsets.only(
-                                    bottom: getProportionalSize(8),
-                                  ),
-                                  decoration: BoxDecoration(
-                                    border: Border(
-                                      bottom: BorderSide(
-                                        color: const Color(0xFF0B3470),
-                                        width: 2,
-                                      ),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    'Customer feedback',
-                                    style: TextStyle(
-                                      fontSize: getProportionalSize(20),
-                                      fontWeight: FontWeight.bold,
-                                      color: const Color(0xFF0B3470),
-                                      letterSpacing: 0.5,
-                                    ),
-                                  ),
-                                ),
-                                SizedBox(height: getProportionalSize(12)),
-                                StreamBuilder<DocumentSnapshot>(
-                                  stream: FirestoreService.instance
-                                      .collection('Admin_details')
-                                      .doc(customer.ticketId)
-                                      .snapshots(),
-                                  builder: (context, snapshot) {
-                                    if (snapshot.connectionState ==
-                                        ConnectionState.waiting) {
-                                      return Center(
-                                        child: SizedBox(
-                                          width: getProportionalSize(24),
-                                          height: getProportionalSize(24),
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 3,
-                                            color: Theme.of(
-                                              context,
-                                            ).primaryColor,
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    onPressed: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => AdminGeoLocationScreen(
+                                            engineerId: assignedEmployee != 'Not Assigned' ? assignedEmployee : 'N/A',
+                                            engineerName: assignedEmployee != 'Not Assigned' ? assignedEmployee : 'N/A',
+                                            bookingDocId: docId,
+                                            customerLat: customerLat,
+                                            customerLng: customerLng,
+                                            customerAddress: customer.address,
+                                            bookingId: customer.bookingId,
+                                            customerName: customer.customerName,
+                                            jobType: customer.jobType,
+                                            deviceType: customer.deviceType,
+                                            deviceBrand: customer.deviceBrand,
+                                            assignedEmployee: assignedEmployee != 'Not Assigned' ? assignedEmployee : null,
+                                            customerStatus: displayStatus,
                                           ),
                                         ),
                                       );
-                                    }
-                                    if (!snapshot.hasData ||
-                                        !snapshot.data!.exists) {
-                                      return Text(
-                                        'No feedback available.',
-                                        style: TextStyle(
-                                          fontSize: getProportionalSize(16),
-                                          fontStyle: FontStyle.italic,
-                                          color: Colors.grey[600],
-                                        ),
-                                      );
-                                    }
-                                    Map<String, dynamic>? data =
-                                        snapshot.data!.data()
-                                            as Map<String, dynamic>?;
-                                    String feedback =
-                                        data != null &&
-                                            data.containsKey('feedback') &&
-                                            data['feedback'] != null
-                                        ? data['feedback'].toString()
-                                        : 'No feedback available.';
-                                    return Text(
-                                      feedback,
-                                      style: TextStyle(
-                                        fontSize: getProportionalSize(16),
-                                        color: Colors.black87,
-                                        height: 1.4,
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      // Helpers card with table layout including S.No (always visible)
-                      Padding(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: innerPaddingLeft,
-                          vertical: screenHeight * 0.02,
-                        ),
-                        child: Card(
-                          elevation: 4,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(
-                              getProportionalSize(12),
-                            ),
-                          ),
-                          shadowColor: Colors.black26,
-                          child: Padding(
-                            padding: EdgeInsets.all(getProportionalSize(16)),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Container(
-                                  padding: EdgeInsets.only(
-                                    bottom: getProportionalSize(8),
-                                  ),
-                                  decoration: BoxDecoration(
-                                    border: Border(
-                                      bottom: BorderSide(
-                                        color: const Color(0xFF0B3470),
-                                        width: 2,
-                                      ),
+                                    },
+                                    icon: const Icon(Icons.location_on_rounded, size: 18, color: Colors.white),
+                                    label: const Text(
+                                      'Customer Location',
+                                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white),
                                     ),
-                                  ),
-                                  child: Text(
-                                    'Assigned Helpers',
-                                    style: TextStyle(
-                                      fontSize: getProportionalSize(20),
-                                      fontWeight: FontWeight.bold,
-                                      color: const Color(0xFF0B3470),
-                                      letterSpacing: 0.5,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFFEF4444),
+                                      padding: const EdgeInsets.symmetric(vertical: 16),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                      elevation: 0,
                                     ),
                                   ),
                                 ),
-                                SizedBox(height: getProportionalSize(12)),
-                                StreamBuilder<DocumentSnapshot>(
-                                  stream: FirestoreService.instance
-                                      .collection('Admin_details')
-                                      .doc(customer.ticketId)
-                                      .snapshots(),
-                                  builder: (context, snapshot) {
-                                    if (snapshot.connectionState ==
-                                        ConnectionState.waiting) {
-                                      return Center(
-                                        child: SizedBox(
-                                          width: getProportionalSize(24),
-                                          height: getProportionalSize(24),
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 3,
-                                            color: Theme.of(
-                                              context,
-                                            ).primaryColor,
-                                          ),
-                                        ),
-                                      );
-                                    }
-
-                                    if (!snapshot.hasData ||
-                                        !snapshot.data!.exists) {
-                                      return Text(
-                                        'No helpers assigned.',
-                                        style: TextStyle(
-                                          fontSize: getProportionalSize(16),
-                                          fontStyle: FontStyle.italic,
-                                          color: Colors.grey[600],
-                                        ),
-                                      );
-                                    }
-
-                                    Map<String, dynamic>? data =
-                                        snapshot.data!.data()
-                                            as Map<String, dynamic>?;
-
-                                    if (data == null) {
-                                      return Text(
-                                        'No helpers assigned.',
-                                        style: TextStyle(
-                                          fontSize: getProportionalSize(16),
-                                          fontStyle: FontStyle.italic,
-                                          color: Colors.grey[600],
-                                        ),
-                                      );
-                                    }
-
-                                    // Extract and pair helper-reason data
-                                    final helperPairs = _extractHelperPairs(
-                                      data,
-                                    );
-
-                                    if (helperPairs.isEmpty) {
-                                      return Text(
-                                        'No helpers assigned.',
-                                        style: TextStyle(
-                                          fontSize: getProportionalSize(16),
-                                          fontStyle: FontStyle.italic,
-                                          color: Colors.grey[600],
-                                        ),
-                                      );
-                                    }
-
-                                    return _buildHelpersTable(
-                                      helperPairs,
-                                      getProportionalSize,
-                                    );
-                                  },
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: primaryColor,
+                                      padding: const EdgeInsets.symmetric(vertical: 16),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                      elevation: 0,
+                                    ),
+                                    onPressed: () async {
+                                      try {
+                                        final docRef = FirestoreService.instance.collection('Admin_ticket_entry').doc(customer.bookingId);
+                                        final docSnapshot = await docRef.get();
+                                        if (docSnapshot.exists) {
+                                          final data = docSnapshot.data() ?? {};
+                                          Map<String, dynamic> updateData = {'adminStatus': 'Assigned'};
+                                          if (!data.containsKey('engineerStatus')) {
+                                            updateData['engineerStatus'] = 'Open';
+                                          }
+                                          await docRef.update(updateData);
+                                        } else {
+                                          await docRef.set({'adminStatus': 'Assigned', 'engineerStatus': 'Open'});
+                                        }
+                                      } catch (e) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(content: Text('Failed to update status: $e')),
+                                        );
+                                        return;
+                                      }
+                                      Navigator.pop(context);
+                                      _navigateToAssignPage(customer);
+                                    },
+                                    icon: const Icon(Icons.person_add_rounded, size: 18, color: Colors.white),
+                                    label: const Text(
+                                      'Assign Ticket',
+                                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white),
+                                    ),
+                                  ),
                                 ),
                               ],
                             ),
-                          ),
-                        ),
-                      ),
-                    ],
+                          ],
+                        ],
+                        const SizedBox(height: 16),
+                      ],
+                    ),
                   ),
                 ),
-              ),
+              ],
             ),
           );
         },
       ),
+    );
+  }
+
+  Widget _buildSectionCard({
+    required String title,
+    required IconData icon,
+    required Widget child,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+            child: Row(
+              children: [
+                Icon(icon, size: 18, color: Theme.of(context).primaryColor),
+                const SizedBox(width: 8),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF0F172A),
+                    letterSpacing: -0.2,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(color: Color(0xFFF1F5F9), height: 1),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: child,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailGridRow(
+    String label,
+    String value, {
+    bool isHighlight = false,
+    bool isFullWidth = false,
+    Widget? customValue,
+  }) {
+    if (isFullWidth) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              color: Color(0xFF64748B),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          customValue ??
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: isHighlight ? FontWeight.w800 : FontWeight.w600,
+                  color: isHighlight ? Theme.of(context).primaryColor : const Color(0xFF0F172A),
+                  height: 1.4,
+                ),
+              ),
+        ],
+      );
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        SizedBox(
+          width: 140,
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 13,
+              color: Color(0xFF64748B),
+              fontWeight: FontWeight.w500,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        Expanded(
+          child: customValue ??
+              Text(
+                value,
+                textAlign: TextAlign.right,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: isHighlight ? FontWeight.w800 : FontWeight.w600,
+                  color: isHighlight ? Theme.of(context).primaryColor : const Color(0xFF0F172A),
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+        ),
+      ],
     );
   }
 
@@ -3239,11 +2452,21 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
   }
 
   void _navigateToAssignPage(customer_var.Customer customer) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => AssignEngineerPage(customer: customer),
-      ),
-    );
+    final isDelivery = customer.jobType.toLowerCase().trim() == 'delivery' || customer.bookingId.toUpperCase().startsWith('D');
+    if (isDelivery) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => AssigndeliveryCustomerPage(customer: customer),
+        ),
+      );
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => AssignEngineerPage(customer: customer),
+        ),
+      );
+    }
   }
 }
