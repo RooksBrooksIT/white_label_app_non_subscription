@@ -191,6 +191,7 @@ class ThemeService extends ChangeNotifier {
     _isDarkMode = false;
     _fontFamily = 'Roboto';
     _appName = 'ServNex';
+    _databaseName = '';
     _logoUrl = null;
     notifyListeners();
     saveToLocal();

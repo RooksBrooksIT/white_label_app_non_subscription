@@ -133,13 +133,21 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     };
 
     if (_selectedRole == 'admin') {
+      final tenantId = FirestoreService.generateTenantId(
+        _nameController.text.trim(),
+      );
+      final extraDataWithTenant = {
+        'tenantId': tenantId,
+        ...extraData,
+      };
+
       // For Admins: Defer registration until after payment
       final result = await AuthStateService.instance.registerUser(
         name: _nameController.text.trim(),
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
         role: _selectedRole,
-        additionalData: extraData.isNotEmpty ? extraData : null,
+        additionalData: extraDataWithTenant,
         deferAuth: true,
       );
 
@@ -147,9 +155,6 @@ class _WelcomeScreenState extends State<WelcomeScreen>
       if (!mounted) return;
 
       if (result['success']) {
-        final tenantId = FirestoreService.generateTenantId(
-          _nameController.text.trim(),
-        );
         final pendingUserData = {
           'name': _nameController.text.trim(),
           'email': _emailController.text.trim(),

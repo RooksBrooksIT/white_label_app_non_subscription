@@ -582,7 +582,9 @@ class _PaymentScreenState extends State<PaymentScreen>
     else {
       // isPending or FAILED/CANCELLED
       final uid = AuthStateService.instance.currentUser?.uid;
-      final tenantId = ThemeService.instance.databaseName;
+      final tenantId =
+          widget.pendingUserData?['tenantId'] ??
+          ThemeService.instance.databaseName;
       
       final String displayError = isPending 
           ? 'Your payment is currently pending or being processed by the bank. Once confirmed, your subscription will activate automatically. You can check your status in a few minutes.' 
@@ -1255,7 +1257,9 @@ class _PaymentScreenState extends State<PaymentScreen>
     );
 
     try {
-      final tenantId = ThemeService.instance.databaseName;
+      final tenantId =
+          widget.pendingUserData?['tenantId'] ??
+          ThemeService.instance.databaseName;
       final appId = ThemeService.instance.appName;
 
       // Use pending email if user is not logged in yet

@@ -63,6 +63,7 @@ class _GlobalRegistrationScreenState extends State<GlobalRegistrationScreen> {
       email: _emailController.text.trim(),
       password: _passwordController.text.trim(),
       role: _selectedRole,
+      additionalData: {'tenantId': tenantId},
       deferAuth: _selectedRole == 'admin',
     );
 

@@ -117,6 +117,8 @@ class AuthStateService extends ChangeNotifier {
           'password': password,
           'role': role,
           'additionalData': additionalData,
+          if (additionalData != null && additionalData.containsKey('tenantId'))
+            'tenantId': additionalData['tenantId'],
         };
         debugPrint('Account auth validated and registration deferred for $email');
         return {'success': true, 'message': 'Account details saved locally.'};
@@ -165,6 +167,8 @@ class AuthStateService extends ChangeNotifier {
         'password': password,
         'role': role,
         'additionalData': additionalData,
+        if (additionalData != null && additionalData.containsKey('tenantId'))
+          'tenantId': additionalData['tenantId'],
       };
 
       return await finalizeRegistration();
@@ -516,11 +520,35 @@ class AuthStateService extends ChangeNotifier {
     await prefs.remove(_kUserRole);
     await prefs.remove('last_role');
     await prefs.remove('tenantId');
+    await prefs.remove('databaseName');
+    await prefs.remove('appName');
+    await prefs.remove('primaryColor');
+    await prefs.remove('secondaryColor');
+    await prefs.remove('backgroundColor');
+    await prefs.remove('isDarkMode');
+    await prefs.remove('fontFamily');
+    await prefs.remove('logoUrl');
+    await prefs.remove(_kBrandingCompleted);
+
+    // Clear any tenant-specific branding completion flags
+    final keys = prefs.getKeys();
+    for (final key in keys) {
+      if (key.startsWith('${_kBrandingCompleted}_')) {
+        await prefs.remove(key);
+      }
+    }
+
+    // Clear pending recovery payment state
+    await PaymentRecoveryService.instance.clearPendingPayment();
 
     // Stop subscription listener on logout
     SubscriptionExpiryService.instance.stopListening();
 
+    // Reset ThemeService in-memory state
+    ThemeService.instance.resetToDefault();
+
     _isRegistered = false;
+    _pendingRegistrationData = null;
     notifyListeners();
   }
 

@@ -8,8 +8,8 @@ class FirestoreService {
 
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  /// Generates a consistent tenant ID based on user/organization name and registration date.
-  /// Format: {CleanName}_{YYYYMMDD} (e.g. Abi_20260610)
+  /// Generates a unique tenant ID based on user/organization name and registration timestamp.
+  /// Format: {CleanName}_{YYYYMMDD}_{UniqueSuffix} (e.g. Abi_20260610_l9f2k7)
   static String generateTenantId(String name, [DateTime? registrationDate]) {
     final date = registrationDate ?? DateTime.now();
     final yearStr = date.year.toString();
@@ -17,8 +17,10 @@ class FirestoreService {
     final dayStr = date.day.toString().padLeft(2, '0');
     final dateStr = "$yearStr$monthStr$dayStr";
     // Clean name: alphanumeric only, remove spaces/special chars (preserve case)
-    final cleanName = name.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '');
-    return "${cleanName}_$dateStr";
+    String cleanName = name.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '');
+    if (cleanName.isEmpty) cleanName = 'Org';
+    final uniqueSuffix = date.microsecondsSinceEpoch.toRadixString(36);
+    return "${cleanName}_${dateStr}_$uniqueSuffix";
   }
 
   /// Returns a collection reference rooted under:
