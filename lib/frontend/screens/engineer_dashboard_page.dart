@@ -1497,62 +1497,78 @@ class _EngineerPageState extends State<EngineerPage> {
         statusBarIconBrightness: Brightness.dark,
         statusBarBrightness: Brightness.light,
       ),
-      child: Scaffold(
-        key: _scaffoldKey,
-        backgroundColor: const Color(0xFFF8FAFC),
-        endDrawer: ProfessionalNavigationDrawer(
-          userName: widget.userName,
-          userEmail: widget.userEmail,
-          onLogout: _showLogoutConfirmation,
-          currentSection: _currentSection,
-          onSectionChange: (section) {
-            setState(() {
-              _currentSection = section;
-              if (section == 'completed') {
-                _selectedIndex = 1;
-                _statusFilter = null;
-                _isLoading = true;
-              } else if (section == 'dashboard') {
-                _selectedIndex = 0;
-                _statusFilter = null;
-                _isLoading = true;
-              }
-            });
-          },
-          barcodeEnabled: _barcodeEnabled,
-          onStartTour: () => _checkAndStartEngineerTour(force: true),
-        ),
-        body: Column(
-          children: [
-            // Status bar background (time/battery area)
-            Container(
-              height: MediaQuery.of(context).padding.top,
-              color: Colors.white,
-            ),
-            Expanded(
-              child: SafeArea(
-                top: false,
-                child: Column(
-                  children: [
-                    _buildTopSection(),
-                    Expanded(
-                      child: IndexedStack(
-                        index: _selectedIndex,
-                        children: [
-                          _buildDashboardView(),
-                          _buildBookingsView(),
-                          _buildLocationView(),
-                          _buildProfileView(),
-                        ],
+      child: PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, result) {
+          if (didPop) return;
+          if (_scaffoldKey.currentState?.isEndDrawerOpen ?? false) {
+            _scaffoldKey.currentState?.closeEndDrawer();
+            return;
+          }
+          if (_scaffoldKey.currentState?.isDrawerOpen ?? false) {
+            _scaffoldKey.currentState?.closeDrawer();
+            return;
+          }
+          // Minimize app to home screen like Instagram without logging out
+          SystemNavigator.pop();
+        },
+        child: Scaffold(
+          key: _scaffoldKey,
+          backgroundColor: const Color(0xFFF8FAFC),
+          endDrawer: ProfessionalNavigationDrawer(
+            userName: widget.userName,
+            userEmail: widget.userEmail,
+            onLogout: _showLogoutConfirmation,
+            currentSection: _currentSection,
+            onSectionChange: (section) {
+              setState(() {
+                _currentSection = section;
+                if (section == 'completed') {
+                  _selectedIndex = 1;
+                  _statusFilter = null;
+                  _isLoading = true;
+                } else if (section == 'dashboard') {
+                  _selectedIndex = 0;
+                  _statusFilter = null;
+                  _isLoading = true;
+                }
+              });
+            },
+            barcodeEnabled: _barcodeEnabled,
+            onStartTour: () => _checkAndStartEngineerTour(force: true),
+          ),
+          body: Column(
+            children: [
+              // Status bar background (time/battery area)
+              Container(
+                height: MediaQuery.of(context).padding.top,
+                color: Colors.white,
+              ),
+              Expanded(
+                child: SafeArea(
+                  top: false,
+                  child: Column(
+                    children: [
+                      _buildTopSection(),
+                      Expanded(
+                        child: IndexedStack(
+                          index: _selectedIndex,
+                          children: [
+                            _buildDashboardView(),
+                            _buildBookingsView(),
+                            _buildLocationView(),
+                            _buildProfileView(),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
+          bottomNavigationBar: _buildBottomNavigationBar(),
         ),
-        bottomNavigationBar: _buildBottomNavigationBar(),
       ),
     );
   }

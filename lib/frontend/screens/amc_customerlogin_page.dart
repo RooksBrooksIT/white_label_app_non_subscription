@@ -56,8 +56,9 @@ class _AMCLoginPageState extends State<AMCLoginPage>
 
     if (result['success']) {
       if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => AMCCustomerMainPage()),
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const AMCCustomerMainPage()),
+        (route) => false,
       );
     } else {
       _showSnackBar(result['message']);

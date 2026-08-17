@@ -75,6 +75,9 @@ class EngineerLoginBackend {
         SharedPreferences prefs = await SharedPreferences.getInstance();
         await prefs.setString('engineerName', username);
         await prefs.setString('tenantId', tenantId); // Store tenant association
+        await prefs.setBool('app_is_registered', true);
+        await prefs.setString('user_role', 'engineer');
+        await prefs.setString('last_role', 'engineer');
         await registerFcmToken(username);
 
         // Sync branding configuration immediately

@@ -64,12 +64,13 @@ class _EngineerloginState extends State<Engineerlogin> {
           );
           return;
         }
-        Navigator.pushReplacement(
+        Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(
             builder: (context) =>
                 EngineerPage(userEmail: '', userName: result['username']),
           ),
+          (route) => false,
         );
       } else {
         _showErrorDialog(result['message']);

@@ -55,9 +55,10 @@ class _AdminLoginState extends State<AdminLogin> {
 
     if (result['success']) {
       if (!mounted) return;
-      Navigator.pushReplacement(
+      Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (context) => const admindashboard()),
+        (route) => false,
       );
     } else {
       _showSnackBar(result['message']);
