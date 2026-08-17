@@ -9,7 +9,6 @@ import 'package:subscription_rooks_app/frontend/screens/engineer_dashboard_page.
 import 'package:subscription_rooks_app/subscription/subscription_plans_screen.dart';
 import 'package:subscription_rooks_app/frontend/screens/amc_main_page.dart';
 import 'package:subscription_rooks_app/frontend/screens/role_selection_screen.dart';
-import 'package:subscription_rooks_app/frontend/screens/admin_login_page.dart';
 import 'package:subscription_rooks_app/backend/screens/admin_login_page.dart';
 import 'package:subscription_rooks_app/backend/screens/engineer_login_page.dart';
 import 'package:subscription_rooks_app/backend/screens/amc_customerlogin_page.dart';
@@ -492,13 +491,18 @@ class AuthStateService extends ChangeNotifier {
   }
 
   Future<void> logout() async {
-    await auth.signOut();
+    try {
+      await auth.signOut();
+    } catch (e) {
+      debugPrint('AuthStateService: Error signing out Firebase Auth: $e');
+    }
 
     final prefs = await SharedPreferences.getInstance();
 
-    // Clear Admin session (but keep org/branding context)
+    // Clear Admin session
     await prefs.remove('admin_isLoggedIn');
     await prefs.remove('admin_email');
+    await prefs.remove('admin_org_collection');
 
     // Clear Engineer session
     await prefs.remove('engineerName');
@@ -508,8 +512,10 @@ class AuthStateService extends ChangeNotifier {
     await prefs.remove('email');
 
     // Clear unified session flags
+    await prefs.remove(_kIsRegistered);
     await prefs.remove(_kUserRole);
     await prefs.remove('last_role');
+    await prefs.remove('tenantId');
 
     // Stop subscription listener on logout
     SubscriptionExpiryService.instance.stopListening();
@@ -832,13 +838,8 @@ class AuthStateService extends ChangeNotifier {
       }
 
       debugPrint(
-        'AuthStateService: No session found, checking for last used role',
+        'AuthStateService: No active session found, showing RoleSelectionScreen',
       );
-      final lastRole = prefs.getString('last_role');
-      if (lastRole == 'admin' || lastRole == 'Owner') {
-        return const AdminLogin();
-      }
-
       return const RoleSelectionScreen();
     } catch (e) {
       debugPrint('AuthStateService: Error determining initial screen: $e');

@@ -115,9 +115,10 @@ class _UnifiedLoginScreenState extends State<UnifiedLoginScreen>
       }
 
       if (!mounted) return;
-      Navigator.pushReplacement(
+      Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => nextScreen),
+        (route) => false,
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(

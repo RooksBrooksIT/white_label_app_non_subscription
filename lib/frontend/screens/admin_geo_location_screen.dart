@@ -873,31 +873,73 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
   }
 
   Widget _buildTopHeaderSegmentedBar(Color primaryColor) {
+    final onlineCount = _engineersList.where((e) => e['isOnline'] == true).length;
     return Positioned(
-      top: 12,
-      left: 14,
-      right: 14,
-      child: Container(
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 14,
-              offset: const Offset(0, 4),
+      top: 14,
+      left: 16,
+      right: 16,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          // Floating Top Segmented Bar
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: Row(
-          children: [
-            _buildTabSegmentPill('ALL', _activeTabFilter == 'ALL', primaryColor),
-            _buildTabSegmentPill('ONLINE', _activeTabFilter == 'ONLINE', const Color(0xFF10B981)),
-            _buildTabSegmentPill('TRACKING', _activeTabFilter == 'TRACKING', const Color(0xFF3B82F6)),
-          ],
-        ),
+            child: Row(
+              children: [
+                _buildTabSegmentPill('ALL', _activeTabFilter == 'ALL', primaryColor),
+                _buildTabSegmentPill('ONLINE', _activeTabFilter == 'ONLINE', const Color(0xFF10B981)),
+                _buildTabSegmentPill('TRACKING', _activeTabFilter == 'TRACKING', const Color(0xFF6366F1)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          // Floating "CHECK IN" / "FOCUS" Pill Button (Reference Style)
+          GestureDetector(
+            onTap: _centerOnEngineer,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.10),
+                    blurRadius: 12,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.gps_fixed_rounded, size: 14, color: primaryColor),
+                  const SizedBox(width: 6),
+                  Text(
+                    'FOCUS',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      color: const Color(0xFF1E293B),
+                      letterSpacing: 1.1,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -911,7 +953,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
           padding: const EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
             color: isSelected ? color : Colors.transparent,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(20),
           ),
           child: Text(
             label,
@@ -920,7 +962,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
               fontSize: 11,
               fontWeight: isSelected ? FontWeight.w800 : FontWeight.w700,
               color: isSelected ? Colors.white : const Color(0xFF64748B),
-              letterSpacing: 0.5,
+              letterSpacing: 0.6,
             ),
           ),
         ),
@@ -940,49 +982,50 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
     }).toList();
 
     return AnimatedPositioned(
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 320),
       curve: Curves.fastOutSlowIn,
       bottom: 0,
       left: 0,
       right: 0,
-      height: _isDrawerExpanded ? 320 : 65,
+      height: _isDrawerExpanded ? 340 : 65,
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(36)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.12),
-              blurRadius: 20,
-              offset: const Offset(0, -4),
+              color: Colors.black.withValues(alpha: 0.14),
+              blurRadius: 24,
+              offset: const Offset(0, -6),
             ),
           ],
         ),
         child: Column(
           children: [
-            // Floating Center Handle Downward Arrow Button
+            // Floating Center Handle Downward / Upward Arrow Button
             GestureDetector(
               onTap: () {
                 setState(() => _isDrawerExpanded = !_isDrawerExpanded);
               },
               child: Container(
                 margin: const EdgeInsets.only(top: 8, bottom: 4),
-                width: 36,
-                height: 36,
+                width: 38,
+                height: 38,
                 decoration: BoxDecoration(
                   color: const Color(0xFFF1F5F9),
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 6,
+                      color: Colors.black.withValues(alpha: 0.06),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
                     ),
                   ],
                 ),
                 child: Icon(
                   _isDrawerExpanded ? Icons.keyboard_arrow_down_rounded : Icons.keyboard_arrow_up_rounded,
                   color: const Color(0xFF0F172A),
-                  size: 22,
+                  size: 24,
                 ),
               ),
             ),
@@ -990,21 +1033,21 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
             if (_isDrawerExpanded) ...[
               // Directory Header & Search input
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
                 child: Container(
-                  height: 38,
+                  height: 40,
                   decoration: BoxDecoration(
                     color: const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(16),
                   ),
                   child: TextField(
                     onChanged: (val) => setState(() => _drawerSearchQuery = val),
                     decoration: const InputDecoration(
                       hintText: 'Search field engineer by name...',
-                      hintStyle: TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
-                      prefixIcon: Icon(Icons.search_rounded, size: 16, color: Color(0xFF64748B)),
+                      hintStyle: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                      prefixIcon: Icon(Icons.search_rounded, size: 18, color: Color(0xFF64748B)),
                       border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(vertical: 8),
+                      contentPadding: EdgeInsets.symmetric(vertical: 9),
                     ),
                   ),
                 ),
@@ -1021,10 +1064,15 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                           style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
                         ),
                       )
-                    : ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                    : ListView.separated(
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
                         physics: const BouncingScrollPhysics(),
                         itemCount: filteredList.length,
+                        separatorBuilder: (context, index) => const Divider(
+                          height: 1,
+                          thickness: 0.8,
+                          color: Color(0xFFF1F5F9),
+                        ),
                         itemBuilder: (context, index) {
                           final eng = filteredList[index];
                           final username = (eng['username'] ?? 'Staff').toString();
@@ -1035,20 +1083,14 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                             onTap: () {
                               _switchEngineer(username, username);
                             },
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: BorderRadius.circular(16),
                             child: Container(
-                              margin: const EdgeInsets.only(bottom: 8),
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
                               decoration: BoxDecoration(
                                 color: isSelected
-                                    ? primaryColor.withValues(alpha: 0.08)
-                                    : const Color(0xFFF8FAFC),
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(
-                                  color: isSelected
-                                      ? primaryColor.withValues(alpha: 0.3)
-                                      : const Color(0xFFE2E8F0),
-                                ),
+                                    ? primaryColor.withValues(alpha: 0.06)
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(16),
                               ),
                               child: Row(
                                 children: [
@@ -1056,17 +1098,17 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                                   Stack(
                                     children: [
                                       Container(
-                                        width: 38,
-                                        height: 38,
+                                        width: 44,
+                                        height: 44,
                                         decoration: BoxDecoration(
-                                          color: isSelected ? primaryColor : const Color(0xFF0F172A),
+                                          color: isSelected ? primaryColor : const Color(0xFF1E293B),
                                           shape: BoxShape.circle,
                                         ),
                                         child: Center(
                                           child: Text(
                                             username.isNotEmpty ? username[0].toUpperCase() : 'E',
                                             style: const TextStyle(
-                                              fontSize: 15,
+                                              fontSize: 17,
                                               fontWeight: FontWeight.w800,
                                               color: Colors.white,
                                             ),
@@ -1075,21 +1117,21 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                                       ),
                                       if (isOnline)
                                         Positioned(
-                                          right: 0,
-                                          bottom: 0,
+                                          right: 1,
+                                          bottom: 1,
                                           child: Container(
-                                            width: 10,
-                                            height: 10,
+                                            width: 11,
+                                            height: 11,
                                             decoration: BoxDecoration(
                                               color: const Color(0xFF10B981),
                                               shape: BoxShape.circle,
-                                              border: Border.all(color: Colors.white, width: 1.5),
+                                              border: Border.all(color: Colors.white, width: 2),
                                             ),
                                           ),
                                         ),
                                     ],
                                   ),
-                                  const SizedBox(width: 12),
+                                  const SizedBox(width: 14),
                                   Expanded(
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1097,7 +1139,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                                         Text(
                                           username.toUpperCase(),
                                           style: const TextStyle(
-                                            fontSize: 13,
+                                            fontSize: 14,
                                             fontWeight: FontWeight.w800,
                                             color: Color(0xFF0F172A),
                                             letterSpacing: 0.3,
@@ -1107,9 +1149,9 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                                         Text(
                                           isOnline ? 'Online • Field Active' : 'Offline • Last Location Saved',
                                           style: TextStyle(
-                                            fontSize: 11,
+                                            fontSize: 11.5,
                                             fontWeight: FontWeight.w500,
-                                            color: isOnline ? const Color(0xFF059669) : const Color(0xFF64748B),
+                                            color: isOnline ? const Color(0xFF059669) : const Color(0xFF94A3B8),
                                           ),
                                         ),
                                       ],
@@ -1120,16 +1162,16 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                                       Text(
                                         isOnline ? 'Active' : 'Offline',
                                         style: TextStyle(
-                                          fontSize: 11,
+                                          fontSize: 12,
                                           fontWeight: FontWeight.w700,
                                           color: isOnline ? const Color(0xFF10B981) : const Color(0xFF94A3B8),
                                         ),
                                       ),
-                                      const SizedBox(width: 6),
+                                      const SizedBox(width: 8),
                                       Icon(
-                                        Icons.arrow_forward_ios_rounded,
-                                        size: 14,
-                                        color: isSelected ? primaryColor : const Color(0xFF94A3B8),
+                                        Icons.arrow_forward_rounded,
+                                        size: 18,
+                                        color: isSelected ? primaryColor : const Color(0xFFCBD5E1),
                                       ),
                                     ],
                                   ),
@@ -1628,13 +1670,13 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
             markers: [
               Marker(
                 point: _customerLocation!,
-                width: 80,
-                height: 80,
-                child: Icon(Icons.location_pin, color: primaryColor, size: 50),
+                width: 64,
+                height: 76,
+                child: _buildCustomerTeardropMarker(primaryColor: primaryColor),
               ),
             ],
           ),
-        // All engineers' markers (custom circular profile pins like reference screenshot)
+        // All engineers' markers (Teardrop profile pins matching reference screenshot)
         MarkerLayer(
           markers: _allEngineersData.entries
               .where((entry) => entry.value['location'] != null)
@@ -1647,127 +1689,23 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
 
                 return Marker(
                   point: location,
-                  width: 90,
-                  height: 95,
+                  width: 72,
+                  height: 84,
                   child: GestureDetector(
                     onTap: () {
                       _switchEngineer(username, username);
                     },
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Circular Teardrop Avatar Container
-                        Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            // Pulse Shadow Ring
-                            Container(
-                              width: 54,
-                              height: 54,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: isOnline
-                                    ? const Color(0xFF10B981).withValues(alpha: 0.22)
-                                    : Colors.black.withValues(alpha: 0.06),
-                              ),
-                            ),
-                            // Profile Avatar Ring
-                            Container(
-                              width: 44,
-                              height: 44,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: isSelected ? primaryColor : const Color(0xFF0F172A),
-                                border: Border.all(
-                                  color: isSelected
-                                      ? primaryColor
-                                      : (isOnline ? const Color(0xFF10B981) : Colors.white),
-                                  width: isSelected ? 3 : 2,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.15),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
-                              ),
-                              child: Center(
-                                child: Text(
-                                  username.isNotEmpty ? username[0].toUpperCase() : 'E',
-                                  style: const TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w900,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            // Live Status Badge Dot
-                            if (isOnline)
-                              Positioned(
-                                right: 3,
-                                top: 3,
-                                child: Container(
-                                  width: 12,
-                                  height: 12,
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF10B981),
-                                    shape: BoxShape.circle,
-                                    border: Border.all(color: Colors.white, width: 2),
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                        const SizedBox(height: 2),
-                        // Username Tag Pill
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: isSelected ? primaryColor : const Color(0xFFE2E8F0),
-                              width: 1,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.08),
-                                blurRadius: 6,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Text(
-                            username.toUpperCase(),
-                            style: TextStyle(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w800,
-                              color: isSelected ? primaryColor : const Color(0xFF0F172A),
-                              letterSpacing: 0.3,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 1,
-                          ),
-                        ),
-                      ],
+                    child: _buildTeardropMarker(
+                      username: username,
+                      isOnline: isOnline,
+                      isSelected: isSelected,
+                      primaryColor: primaryColor,
                     ),
                   ),
                 );
               })
               .toList(),
         ),
-        if (_pathHistory.isNotEmpty)
-          PolylineLayer(
-            polylines: [
-              Polyline(
-                points: _pathHistory,
-                strokeWidth: 4,
-                color: primaryColor.withValues(alpha: 0.6),
-              ),
-            ],
-          ),
         if (_jobUpdatePoints.isNotEmpty)
           MarkerLayer(
             markers: _jobUpdatePoints.map((item) {
@@ -1775,19 +1713,20 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
               final status = item['status'] as String;
               return Marker(
                 point: pos,
-                width: 30,
-                height: 30,
+                width: 32,
+                height: 32,
                 child: Tooltip(
                   message: 'Job Update: $status',
                   child: Container(
                     decoration: BoxDecoration(
-                      color: Colors.green.withValues(alpha: 0.8),
+                      color: const Color(0xFF10B981),
                       shape: BoxShape.circle,
                       border: Border.all(color: Colors.white, width: 2),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.2),
-                          blurRadius: 4,
+                          color: Colors.black.withValues(alpha: 0.25),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
                         ),
                       ],
                     ),
@@ -1805,32 +1744,166 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
     );
   }
 
+  /// Authentic teardrop map marker with avatar and ground pulse circle
+  Widget _buildTeardropMarker({
+    required String username,
+    required bool isOnline,
+    required bool isSelected,
+    required Color primaryColor,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Teardrop Pin Housing
+        SizedBox(
+          width: 54,
+          height: 64,
+          child: Stack(
+            alignment: Alignment.topCenter,
+            children: [
+              // Custom Teardrop Pin Shape
+              CustomPaint(
+                size: const Size(54, 64),
+                painter: TeardropPinPainter(
+                  pinColor: Colors.white,
+                  borderColor: isSelected
+                      ? primaryColor
+                      : (isOnline ? const Color(0xFF10B981) : const Color(0xFFCBD5E1)),
+                  borderWidth: isSelected ? 3.0 : 2.0,
+                ),
+              ),
+              // Circular Avatar
+              Positioned(
+                top: 4,
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isSelected ? primaryColor : const Color(0xFF1E293B),
+                  ),
+                  child: Center(
+                    child: Text(
+                      username.isNotEmpty ? username[0].toUpperCase() : 'E',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              // Green Online Dot
+              if (isOnline)
+                Positioned(
+                  right: 4,
+                  top: 4,
+                  child: Container(
+                    width: 11,
+                    height: 11,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF10B981),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        // Ground Translucent Shadow Pulse beneath teardrop tip
+        Container(
+          width: 22,
+          height: 6,
+          decoration: BoxDecoration(
+            color: (isSelected ? primaryColor : const Color(0xFF6366F1))
+                .withValues(alpha: 0.28),
+            borderRadius: const BorderRadius.all(Radius.elliptical(22, 6)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Pink Teardrop Home Pin for Customer Destination (Reference Style)
+  Widget _buildCustomerTeardropMarker({required Color primaryColor}) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: 54,
+          height: 64,
+          child: Stack(
+            alignment: Alignment.topCenter,
+            children: [
+              CustomPaint(
+                size: const Size(54, 64),
+                painter: TeardropPinPainter(
+                  pinColor: const Color(0xFFEC4899),
+                  borderColor: Colors.white,
+                  borderWidth: 2.2,
+                ),
+              ),
+              Positioned(
+                top: 4,
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Color(0xFFEC4899),
+                  ),
+                  child: const Center(
+                    child: Icon(
+                      Icons.home_rounded,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Container(
+          width: 22,
+          height: 6,
+          decoration: BoxDecoration(
+            color: const Color(0xFFEC4899).withValues(alpha: 0.35),
+            borderRadius: const BorderRadius.all(Radius.elliptical(22, 6)),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildFloatingControls() {
     final primaryColor = ThemeService.instance.primaryColor;
     final isDark = ThemeService.instance.isDarkMode;
     final textColor = isDark ? Colors.white : const Color(0xFF374151);
     return Positioned(
       right: 14,
-      top: 76,
+      top: 130,
       child: Column(
         children: [
           Container(
             decoration: BoxDecoration(
               color: isDark ? Colors.grey.shade800 : Colors.white,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.08),
-                  blurRadius: 12,
-                  offset: const Offset(0, 2),
+                  color: Colors.black.withValues(alpha: 0.10),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
                 ),
               ],
             ),
             child: Column(
               children: [
-                _buildMapButton(Icons.add, _zoomIn, textColor: textColor),
-                Divider(height: 1, color: Colors.grey.shade300),
-                _buildMapButton(Icons.remove, _zoomOut, textColor: textColor),
+                _buildMapButton(Icons.add_rounded, _zoomIn, textColor: textColor),
+                Divider(height: 1, color: Colors.grey.shade200),
+                _buildMapButton(Icons.remove_rounded, _zoomOut, textColor: textColor),
               ],
             ),
           ),
@@ -1839,17 +1912,17 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
             Container(
               decoration: BoxDecoration(
                 color: isDark ? Colors.grey.shade800 : Colors.white,
-                borderRadius: BorderRadius.circular(12),
+                shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.08),
-                    blurRadius: 12,
-                    offset: const Offset(0, 2),
+                    color: Colors.black.withValues(alpha: 0.10),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
                   ),
                 ],
               ),
               child: _buildMapButton(
-                Icons.my_location,
+                Icons.my_location_rounded,
                 _centerOnEngineer,
                 color: _autoFollow ? primaryColor : null,
                 textColor: textColor,
@@ -2328,4 +2401,64 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
       ),
     );
   }
+}
+
+/// Custom painter for authentic teardrop map pin matching modern tracking apps (e.g. Life360/Circle)
+class TeardropPinPainter extends CustomPainter {
+  final Color pinColor;
+  final Color borderColor;
+  final double borderWidth;
+
+  TeardropPinPainter({
+    required this.pinColor,
+    required this.borderColor,
+    this.borderWidth = 2.5,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = pinColor
+      ..style = PaintingStyle.fill;
+
+    final borderPaint = Paint()
+      ..color = borderColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = borderWidth;
+
+    final shadowPaint = Paint()
+      ..color = Colors.black.withValues(alpha: 0.18)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
+
+    final path = Path();
+    final double radius = size.width / 2;
+    final double centerX = size.width / 2;
+    final double centerY = radius;
+
+    // Draw teardrop pin shape: circular top + pointed bottom tail
+    path.moveTo(centerX, size.height);
+    path.lineTo(centerX - 8, centerY + radius * 0.72);
+    path.arcToPoint(
+      Offset(centerX + 8, centerY + radius * 0.72),
+      radius: Radius.circular(radius),
+      clockwise: true,
+      largeArc: true,
+    );
+    path.close();
+
+    // Draw drop shadow
+    canvas.drawPath(path.shift(const Offset(0, 3)), shadowPaint);
+    // Draw pin fill
+    canvas.drawPath(path, paint);
+    // Draw pin border
+    if (borderWidth > 0) {
+      canvas.drawPath(path, borderPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant TeardropPinPainter oldDelegate) =>
+      oldDelegate.pinColor != pinColor ||
+      oldDelegate.borderColor != borderColor ||
+      oldDelegate.borderWidth != borderWidth;
 }

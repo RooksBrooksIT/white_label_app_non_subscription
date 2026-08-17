@@ -893,23 +893,16 @@ class _admindashboardState extends State<admindashboard> {
       ),
     ];
 
-    return WillPopScope(
-      onWillPop: () async {
-        final now = DateTime.now();
-        if (_lastBackPressed == null ||
-            now.difference(_lastBackPressed!) > const Duration(seconds: 2)) {
-          _lastBackPressed = now;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Press back again to exit'),
-              duration: Duration(seconds: 2),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-          return false;
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (_scaffoldKey.currentState?.isDrawerOpen ?? false) {
+          _scaffoldKey.currentState?.closeDrawer();
+          return;
         }
+        // Minimize app to home screen like Instagram without logging out
         SystemNavigator.pop();
-        return true;
       },
       child: Scaffold(
         key: _scaffoldKey,

@@ -47,6 +47,9 @@ class AMCLoginBackend {
         SharedPreferences prefs = await SharedPreferences.getInstance();
         await prefs.setString('email', email);
         await prefs.setString('tenantId', tenantId); // Store tenant association
+        await prefs.setBool('app_is_registered', true);
+        await prefs.setString('user_role', 'customer');
+        await prefs.setString('last_role', 'customer');
 
         // Sync branding configuration immediately
         await FirestoreService.instance.syncBranding(tenantId);

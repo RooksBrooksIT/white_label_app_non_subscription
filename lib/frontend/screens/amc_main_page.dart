@@ -2034,69 +2034,7 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
     }
   }
 
-  Future<bool> _onWillPop() async {
-    await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext dialogContext) {
-        return WillPopScope(
-          onWillPop: () async {
-            SystemNavigator.pop();
-            return true;
-          },
-          child: AlertDialog(
-            title: Row(
-              children: [
-                Icon(Icons.exit_to_app, color: Theme.of(context).primaryColor),
-                const SizedBox(width: 10),
-                Text(
-                  "Exit App",
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).primaryColor,
-                  ),
-                ),
-              ],
-            ),
-            content: const Text(
-              "Are you sure you want to exit the app?",
-              style: TextStyle(fontSize: 16),
-            ),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.of(dialogContext).pop(false);
-                },
-                child: const Text(
-                  "Cancel",
-                  style: TextStyle(color: Colors.grey),
-                ),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  SystemNavigator.pop();
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).primaryColor,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: const Text(
-                  "Exit",
-                  style: TextStyle(color: Colors.white),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-    return false;
-  }
+
 
   Future<void> handleLogout(BuildContext context) async {
     final primaryError = const Color(0xFFEF4444);
@@ -2250,8 +2188,13 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: _onWillPop,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        // Minimize app to home screen like Instagram without logging out
+        SystemNavigator.pop();
+      },
       child: Scaffold(
         backgroundColor: const Color(0xFFF8FAFC),
         appBar: _buildAppBar(),
