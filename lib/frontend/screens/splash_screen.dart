@@ -1,5 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:subscription_rooks_app/services/app_update_service.dart';
 import 'package:subscription_rooks_app/services/auth_state_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
@@ -15,32 +19,67 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
+    with TickerProviderStateMixin {
+  late AnimationController _entranceController;
+  late AnimationController _rippleController;
+
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
+  late Animation<double> _slideAnimation;
 
   @override
   void initState() {
     super.initState();
 
-    _controller = AnimationController(
+    // 1. Entrance animation
+    _entranceController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 1400),
     );
 
     _fadeAnimation = Tween<double>(
       begin: 0.0,
       end: 1.0,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeIn));
+    ).animate(CurvedAnimation(
+      parent: _entranceController,
+      curve: const Interval(0.0, 0.65, curve: Curves.easeOut),
+    ));
 
     _scaleAnimation = Tween<double>(
-      begin: 0.8,
+      begin: 0.82,
       end: 1.0,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
+    ).animate(CurvedAnimation(
+      parent: _entranceController,
+      curve: const Interval(0.0, 0.75, curve: Curves.easeOutBack),
+    ));
 
-    _controller.forward();
+    _slideAnimation = Tween<double>(
+      begin: 20.0,
+      end: 0.0,
+    ).animate(CurvedAnimation(
+      parent: _entranceController,
+      curve: const Interval(0.2, 0.85, curve: Curves.easeOutCubic),
+    ));
+
+    // 2. Continuous subtle breathing / ripple animation
+    _rippleController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2400),
+    )..repeat();
+
+    _entranceController.forward();
     _handleInitialLaunch();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final logoUrl = ThemeService.instance.logoUrl;
+    if (logoUrl != null &&
+        logoUrl.isNotEmpty &&
+        (logoUrl.startsWith('http://') || logoUrl.startsWith('https://'))) {
+      precacheImage(NetworkImage(logoUrl), context).catchError((_) {});
+    }
   }
 
   Future<void> _handleInitialLaunch() async {
@@ -54,7 +93,9 @@ class _SplashScreenState extends State<SplashScreen>
     }
 
     // Check for update
-    await AppUpdateService.instance.checkForUpdate(context);
+    if (mounted) {
+      await AppUpdateService.instance.checkForUpdate(context);
+    }
 
     _navigateToNext();
   }
@@ -78,7 +119,7 @@ class _SplashScreenState extends State<SplashScreen>
     final Widget target = await AuthStateService.instance.getInitialScreen();
 
     // Ensure splash is visible for at least some time
-    await Future.delayed(const Duration(seconds: 2));
+    await Future.delayed(const Duration(milliseconds: 2400));
 
     if (mounted) {
       Navigator.of(context).pushReplacement(
@@ -95,103 +136,426 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   void dispose() {
-    _controller.dispose();
+    _entranceController.dispose();
+    _rippleController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = ThemeService.instance;
+    final primary = theme.primaryColor;
+    final size = MediaQuery.sizeOf(context);
+    final logoSize = (size.width * 0.34).clamp(125.0, 170.0);
 
-    return Scaffold(
-      backgroundColor: theme.primaryColor, // Solid orange background
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        color: theme.primaryColor,
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              /// LOGO SECTION (Exact Image Style)
-              FadeTransition(
-                opacity: _fadeAnimation,
-                child: ScaleTransition(
-                  scale: _scaleAnimation,
-                  child: Container(
-                    width: 160,
-                    height: 160,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white, // Outer white ring
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.15),
-                          blurRadius: 25,
-                          spreadRadius: 3,
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+        statusBarBrightness: Brightness.dark,
+      ),
+      child: Scaffold(
+        backgroundColor: const Color(0xFF090D16), // Deep premium obsidian slate
+        body: Stack(
+          children: [
+            // ── Background Ambient Radial Flare ──
+            Positioned(
+              top: size.height * 0.22,
+              left: (size.width - size.width * 1.1) / 2,
+              child: AnimatedBuilder(
+                animation: _rippleController,
+                builder: (context, child) {
+                  final scale = 1.0 + (_rippleController.value * 0.12);
+                  return Transform.scale(
+                    scale: scale,
+                    child: Container(
+                      width: size.width * 1.1,
+                      height: size.width * 1.1,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: RadialGradient(
+                          colors: [
+                            primary.withValues(alpha: 0.38),
+                            primary.withValues(alpha: 0.14),
+                            Colors.transparent,
+                          ],
+                          stops: const [0.0, 0.45, 1.0],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+
+            // Top-left subtle ambient orb
+            Positioned(
+              top: -size.width * 0.2,
+              left: -size.width * 0.2,
+              child: Container(
+                width: size.width * 0.7,
+                height: size.width * 0.7,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      primary.withValues(alpha: 0.18),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            // ── Center Brand Showcase ──
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Concentric Animated Ripple Rings around Logo
+                    Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        // Ripple Ring 1
+                        AnimatedBuilder(
+                          animation: _rippleController,
+                          builder: (context, child) {
+                            final progress = _rippleController.value;
+                            return Container(
+                              width: logoSize + 55 + (progress * 25),
+                              height: logoSize + 55 + (progress * 25),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: primary.withValues(
+                                    alpha: (1.0 - progress) * 0.35,
+                                  ),
+                                  width: 1.5,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+
+                        // Ripple Ring 2 (Offset)
+                        AnimatedBuilder(
+                          animation: _rippleController,
+                          builder: (context, child) {
+                            final progress = (_rippleController.value + 0.5) % 1.0;
+                            return Container(
+                              width: logoSize + 30 + (progress * 30),
+                              height: logoSize + 30 + (progress * 30),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Colors.white.withValues(
+                                    alpha: (1.0 - progress) * 0.22,
+                                  ),
+                                  width: 1.2,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+
+                        // Frosted Logo Badge
+                        FadeTransition(
+                          opacity: _fadeAnimation,
+                          child: ScaleTransition(
+                            scale: _scaleAnimation,
+                            child: Container(
+                              width: logoSize,
+                              height: logoSize,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: const LinearGradient(
+                                  colors: [
+                                    Colors.white,
+                                    Color(0xFFF1F5F9),
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: primary.withValues(alpha: 0.45),
+                                    blurRadius: 36,
+                                    spreadRadius: 6,
+                                    offset: const Offset(0, 8),
+                                  ),
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.6),
+                                    blurRadius: 28,
+                                    spreadRadius: 2,
+                                    offset: const Offset(0, 14),
+                                  ),
+                                ],
+                              ),
+                              padding: const EdgeInsets.all(5),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: primary.withValues(alpha: 0.15),
+                                    width: 1.5,
+                                  ),
+                                ),
+                                padding: const EdgeInsets.all(3),
+                                child: ClipOval(
+                                  child: _buildInstantLogoWidget(
+                                    theme.logoUrl,
+                                    primary,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
                       ],
                     ),
-                    padding: const EdgeInsets.all(6), // White ring thickness
-                    child: Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: Colors.grey.shade300, // Thin grey border
-                          width: 2,
-                        ),
-                      ),
-                      padding: const EdgeInsets.all(4),
-                      child: ClipOval(
-                        child:
-                            theme.logoUrl != null && theme.logoUrl!.isNotEmpty
-                            ? Image.network(
-                                theme.logoUrl!,
-                                fit: BoxFit.contain,
-                                errorBuilder: (context, error, stackTrace) =>
-                                    _buildDefaultLogo(),
-                              )
-                            : _buildDefaultLogo(),
+
+                    const SizedBox(height: 38),
+
+                    // App Title with Slide & Fade Transition
+                    AnimatedBuilder(
+                      animation: _entranceController,
+                      builder: (context, child) {
+                        return Transform.translate(
+                          offset: Offset(0, _slideAnimation.value),
+                          child: Opacity(
+                            opacity: _fadeAnimation.value,
+                            child: child,
+                          ),
+                        );
+                      },
+                      child: Column(
+                        children: [
+                          Text(
+                            theme.appName,
+                            style: GoogleFonts.outfit(
+                              fontSize: 32,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                              letterSpacing: 0.8,
+                              shadows: [
+                                Shadow(
+                                  color: Colors.black.withValues(alpha: 0.6),
+                                  blurRadius: 20,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+
+                          // Subtitle Badge
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.14),
+                              ),
+                            ),
+                            child: Text(
+                              'SERVICE MANAGEMENT SUITE',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white.withValues(alpha: 0.85),
+                                letterSpacing: 1.6,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ),
+
+                    const SizedBox(height: 32),
+
+                    // Modern Glowing Gradient Progress Line
+                    FadeTransition(
+                      opacity: _fadeAnimation,
+                      child: SizedBox(
+                        width: 90,
+                        height: 3.5,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: Stack(
+                            children: [
+                              Container(
+                                color: Colors.white.withValues(alpha: 0.12),
+                              ),
+                              AnimatedBuilder(
+                                animation: _rippleController,
+                                builder: (context, child) {
+                                  return Align(
+                                    alignment: Alignment(
+                                      -1.5 + (_rippleController.value * 3.0),
+                                      0.0,
+                                    ),
+                                    child: Container(
+                                      width: 40,
+                                      height: 3.5,
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(10),
+                                        gradient: LinearGradient(
+                                          colors: [
+                                            Colors.transparent,
+                                            primary,
+                                            Colors.white,
+                                            primary,
+                                            Colors.transparent,
+                                          ],
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: primary.withValues(alpha: 0.8),
+                                            blurRadius: 10,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
+            ),
 
-              const SizedBox(height: 40),
-
-              /// APP NAME
-              FadeTransition(
+            // ── Bottom Secure Cloud Badge ──
+            Positioned(
+              bottom: 30,
+              left: 0,
+              right: 0,
+              child: FadeTransition(
                 opacity: _fadeAnimation,
-                child: Text(
-                  theme.appName,
-                  style: const TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    letterSpacing: 2,
+                child: Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.shield_rounded,
+                        size: 13,
+                        color: Colors.white.withValues(alpha: 0.45),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Secure Enterprise Cloud Platform',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white.withValues(alpha: 0.50),
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-
-              const SizedBox(height: 12),
-
-              /// SMALL LINE BELOW NAME
-              FadeTransition(
-                opacity: _fadeAnimation,
-                child: Container(
-                  width: 50,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.8),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
+    );
+  }
+
+  /// Multi-format instant logo loader supporting Base64, Asset, File, and Network with zero-latency fallback
+  Widget _buildInstantLogoWidget(String? logoUrl, Color primaryColor) {
+    if (logoUrl == null || logoUrl.trim().isEmpty) {
+      return _buildDefaultLogo();
+    }
+
+    final trimmed = logoUrl.trim();
+
+    // 1. Check if it is a Base64 data URL (e.g. data:image/png;base64,...)
+    if (trimmed.startsWith('data:image') || trimmed.contains(';base64,')) {
+      try {
+        final base64String = trimmed.split('base64,').last.trim();
+        final bytes = base64Decode(base64String);
+        return Image.memory(
+          bytes,
+          fit: BoxFit.contain,
+          gaplessPlayback: true,
+          filterQuality: FilterQuality.high,
+          errorBuilder: (context, error, stackTrace) => _buildDefaultLogo(),
+        );
+      } catch (_) {
+        // continue to next formats
+      }
+    }
+
+    // 2. Check if it is a local asset path
+    if (trimmed.startsWith('assets/')) {
+      return Image.asset(
+        trimmed,
+        fit: BoxFit.contain,
+        gaplessPlayback: true,
+        filterQuality: FilterQuality.high,
+        errorBuilder: (context, error, stackTrace) => _buildDefaultLogo(),
+      );
+    }
+
+    // 3. Check if it is a local file path
+    if (trimmed.startsWith('/') || trimmed.startsWith('file://')) {
+      try {
+        final cleanPath = trimmed.replaceFirst('file://', '');
+        final file = File(cleanPath);
+        if (file.existsSync()) {
+          return Image.file(
+            file,
+            fit: BoxFit.contain,
+            gaplessPlayback: true,
+            filterQuality: FilterQuality.high,
+            errorBuilder: (context, error, stackTrace) => _buildDefaultLogo(),
+          );
+        }
+      } catch (_) {}
+    }
+
+    // 4. Check if it is a raw Base64 string (without data:image prefix)
+    if (!trimmed.startsWith('http://') &&
+        !trimmed.startsWith('https://') &&
+        trimmed.length > 60 &&
+        !trimmed.contains(' ')) {
+      try {
+        final bytes = base64Decode(trimmed);
+        return Image.memory(
+          bytes,
+          fit: BoxFit.contain,
+          gaplessPlayback: true,
+          filterQuality: FilterQuality.high,
+          errorBuilder: (context, error, stackTrace) => _buildDefaultLogo(),
+        );
+      } catch (_) {}
+    }
+
+    // 5. Network URL with instant fallback overlay & gapless playback
+    return Image.network(
+      trimmed,
+      fit: BoxFit.contain,
+      gaplessPlayback: true,
+      filterQuality: FilterQuality.high,
+      frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+        if (wasSynchronouslyLoaded || frame != null) {
+          return child;
+        }
+        // While fetching network bytes, render default logo immediately with zero white void
+        return _buildDefaultLogo();
+      },
+      errorBuilder: (context, error, stackTrace) => _buildDefaultLogo(),
     );
   }
 
@@ -199,10 +563,17 @@ class _SplashScreenState extends State<SplashScreen>
     return Image.asset(
       'assets/images/logo.png',
       fit: BoxFit.contain,
-      errorBuilder: (context, error, stackTrace) => Icon(
-        Icons.rocket_launch_rounded,
-        size: 50,
-        color: ThemeService.instance.primaryColor,
+      gaplessPlayback: true,
+      filterQuality: FilterQuality.high,
+      errorBuilder: (context, error, stackTrace) => Image.asset(
+        'assets/logo.png',
+        fit: BoxFit.contain,
+        gaplessPlayback: true,
+        errorBuilder: (c, e, s) => Icon(
+          Icons.rocket_launch_rounded,
+          size: 48,
+          color: ThemeService.instance.primaryColor,
+        ),
       ),
     );
   }

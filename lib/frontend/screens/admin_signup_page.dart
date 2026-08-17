@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:subscription_rooks_app/services/auth_state_service.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/subscription/subscription_plans_screen.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class AdminSignup extends StatefulWidget {
   const AdminSignup({super.key});
@@ -36,7 +38,7 @@ class _AdminSignupState extends State<AdminSignup> {
 
     setState(() => _isLoading = true);
 
-    // Instead of immediate registration, pass data to subscription flow
+    // Authenticate and validate credentials with Firebase Auth
     final tenantId = FirestoreService.generateTenantId(name);
     final pendingUserData = {
       'name': name,
@@ -46,7 +48,21 @@ class _AdminSignupState extends State<AdminSignup> {
       'tenantId': tenantId,
     };
 
+    final result = await AuthStateService.instance.registerUser(
+      name: name,
+      email: email,
+      password: password,
+      role: 'admin',
+      deferAuth: true,
+    );
+
     setState(() => _isLoading = false);
+
+    if (!result['success']) {
+      if (!mounted) return;
+      _showSnackBar(result['message'] ?? 'Registration failed');
+      return;
+    }
 
     if (!mounted) return;
 
@@ -79,11 +95,13 @@ class _AdminSignupState extends State<AdminSignup> {
           ),
         ),
         child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: kMaxFormWidth),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
                 const SizedBox(height: 20),
                 Card(
                   elevation: 12,
@@ -210,6 +228,7 @@ class _AdminSignupState extends State<AdminSignup> {
                   ),
                 ),
               ],
+            ),
             ),
           ),
         ),

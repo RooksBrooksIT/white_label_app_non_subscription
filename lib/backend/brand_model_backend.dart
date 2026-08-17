@@ -148,6 +148,71 @@ class BrandModelBackend {
     }
   }
 
+  /// Saves a device entry to the 'Devices' collection.
+  /// Document ID format: "deviceName_YYYY-MM-DD" (e.g., "Laptop_2024-08-12").
+  /// Fields saved: deviceName, brandName, model, specification, description, createdAt.
+  Future<void> saveDeviceEntry({
+    required String deviceName,
+    required String brandName,
+    required String model,
+    required String specification,
+    required String description,
+    String? editingDocumentId,
+  }) async {
+    if (editingDocumentId != null) {
+      // Update existing document
+      await _firestore.collection('Devices').doc(editingDocumentId).update({
+        'deviceName': deviceName,
+        'brandName': brandName,
+        'model': model,
+        'specification': specification,
+        'description': description,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } else {
+      // Generate document ID: "deviceName_YYYY-MM-DD"
+      final now = DateTime.now();
+      final dateStr =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+      final safeDeviceName =
+          deviceName.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_');
+      final documentId = '${safeDeviceName}_$dateStr';
+
+      // Check for duplicates
+      final existing =
+          await _firestore.collection('Devices').doc(documentId).get();
+      if (existing.exists) {
+        // Append a counter suffix to make it unique
+        int counter = 1;
+        String uniqueId = '${documentId}_$counter';
+        while (true) {
+          final check =
+              await _firestore.collection('Devices').doc(uniqueId).get();
+          if (!check.exists) break;
+          counter++;
+          uniqueId = '${documentId}_$counter';
+        }
+        await _firestore.collection('Devices').doc(uniqueId).set({
+          'deviceName': deviceName,
+          'brandName': brandName,
+          'model': model,
+          'specification': specification,
+          'description': description,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      } else {
+        await _firestore.collection('Devices').doc(documentId).set({
+          'deviceName': deviceName,
+          'brandName': brandName,
+          'model': model,
+          'specification': specification,
+          'description': description,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+    }
+  }
+
   /// Deletes a device record.
   Future<void> deleteDeviceItem(
     String collectionName,

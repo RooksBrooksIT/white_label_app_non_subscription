@@ -85,6 +85,61 @@ class _TransactionCompletedScreenState
     }
   }
 
+  /// Returns a user-friendly payment mode label.
+  ///
+  /// Priority:
+  ///   1. Actual mode from Firestore (set by gateway webhook)
+  ///   2. [widget.paymentMethod] passed from the payment screen
+  ///
+  /// Raw ICICI codes are mapped to readable labels:
+  ///   CC / CREDIT / CREDITCARD  → Credit Card
+  ///   DC / DEBIT  / DEBITCARD   → Debit Card
+  ///   NB / NETBANKING            → Net Banking
+  ///   UPI                        → UPI
+  ///   CARD                       → Card
+  String _resolvePaymentMethod() {
+    // Prefer the value written by the webhook / payment_screen finalization
+    final raw = (_paymentData?['paymentMode'] ??
+            _paymentData?['payMode'] ??
+            _paymentData?['txnPaymentMode'] ??
+            _paymentData?['paymentMethod'] ??
+            widget.paymentMethod)
+        .toString()
+        .trim()
+        .toUpperCase();
+
+    switch (raw) {
+      case 'CC':
+      case 'CREDIT':
+      case 'CREDITCARD':
+      case 'CREDIT_CARD':
+        return 'Credit Card';
+      case 'DC':
+      case 'DEBIT':
+      case 'DEBITCARD':
+      case 'DEBIT_CARD':
+        return 'Debit Card';
+      case 'NB':
+      case 'NETBANKING':
+      case 'NET_BANKING':
+      case 'NET BANKING':
+        return 'Net Banking';
+      case 'UPI':
+        return 'UPI';
+      case 'WALLET':
+        return 'Wallet';
+      case 'EMI':
+        return 'EMI';
+      case 'CARD':
+        return 'Card';
+      default:
+        // If the raw value is already human-readable, return it as-is
+        if (raw.isEmpty) return 'Card';
+        // Title-case the raw value for unknown modes
+        return raw[0] + raw.substring(1).toLowerCase();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final customerName =
@@ -224,7 +279,7 @@ class _TransactionCompletedScreenState
                             ),
                             _buildDetailRow(
                               'PAYMENT MODE',
-                              widget.paymentMethod,
+                              _resolvePaymentMethod(),
                             ),
                             _buildDetailRow(
                               'DATE & TIME',
@@ -432,12 +487,11 @@ class _TransactionCompletedScreenState
   }
 
   Future<void> _viewReceipt(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
     try {
       final user = AuthStateService.instance.currentUser;
       if (user == null) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('User not found')));
+        messenger.showSnackBar(const SnackBar(content: Text('User not found')));
         return;
       }
 
@@ -447,9 +501,10 @@ class _TransactionCompletedScreenState
         isSixMonths: widget.isSixMonths,
         amount: widget.amountPaid,
         transactionId: widget.transactionId,
-        paymentMethod: widget.paymentMethod,
+        paymentMethod: _resolvePaymentMethod(),
         userName: user.displayName,
         userEmail: user.email,
+        gstNumber: _paymentData?['gstNumber'],
         appName: 'Rooks White Label',
       );
 
@@ -461,9 +516,9 @@ class _TransactionCompletedScreenState
         name: 'Receipt_${widget.transactionId}.pdf',
       );
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error generating receipt: $e')));
+      messenger.showSnackBar(
+        SnackBar(content: Text('Error generating receipt: $e')),
+      );
     }
   }
 }

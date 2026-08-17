@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_tickets_overview.dart';
 import 'package:subscription_rooks_app/services/notification_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:intl/intl.dart';
 import 'package:subscription_rooks_app/models/notification_model.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class AdminNotificationsPage extends StatelessWidget {
   const AdminNotificationsPage({super.key});
@@ -15,161 +17,247 @@ class AdminNotificationsPage extends StatelessWidget {
     final primaryColor = ThemeService.instance.primaryColor;
 
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text(
+        title: Text(
           'Notifications',
-          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+          style: GoogleFonts.plusJakartaSans(
+            fontWeight: FontWeight.w700,
+            fontSize: 18,
+            color: const Color(0xFF0F172A),
+          ),
         ),
-        backgroundColor: primaryColor,
+        backgroundColor: Colors.white,
         elevation: 0,
+        centerTitle: true,
+        leading: InkWell(
+          onTap: () => Navigator.pop(context),
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            margin: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: const Icon(
+              Icons.arrow_back_ios_new_rounded,
+              size: 15,
+              color: Color(0xFF0F172A),
+            ),
+          ),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.done_all, color: Colors.white),
+            icon: const Icon(Icons.done_all_rounded, color: Color(0xFF0F172A)),
             tooltip: 'Mark all as read',
             onPressed: () => _markAllAsRead(context, tenantId),
           ),
         ],
-      ),
-      body: StreamBuilder<List<Map<String, dynamic>>>(
-        stream: NotificationService.instance.getAdminNotificationsStream(
-          tenantId,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(color: const Color(0xFFE2E8F0), height: 1),
         ),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      ),
+      body: ResponsiveWrapper(
+        maxWidth: kMaxContentWidth,
+        child: StreamBuilder<List<Map<String, dynamic>>>(
+          stream: NotificationService.instance.getAdminNotificationsStream(
+            tenantId,
+          ),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
-
-          final rawNotifications = snapshot.data ?? [];
-          final notifications = rawNotifications
-              .map(
-                (data) => NotificationModel(
-                  id: data['id'],
-                  title: data['title'] ?? 'No Title',
-                  body: data['body'] ?? 'No Content',
-                  timestamp:
-                      (data['timestamp'] as Timestamp?)?.toDate() ??
-                      DateTime.now(),
-                  seen: data['seen'] ?? false,
-                  type: data['type'],
-                  bookingId: data['bookingId'],
-                  customerName: data['customerName'],
-                  audience: data['audience'],
+            if (snapshot.hasError) {
+              return Center(
+                child: Text(
+                  'Error: ${snapshot.error}',
+                  style: GoogleFonts.inter(color: Colors.red),
                 ),
-              )
-              .toList();
+              );
+            }
 
-          if (notifications.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.notifications_none_outlined,
-                    size: 80,
-                    color: Colors.grey[400],
+            final rawNotifications = snapshot.data ?? [];
+            final notifications = rawNotifications
+                .map(
+                  (data) => NotificationModel(
+                    id: data['id'],
+                    title: data['title'] ?? 'No Title',
+                    body: data['body'] ?? 'No Content',
+                    timestamp:
+                        (data['timestamp'] as Timestamp?)?.toDate() ??
+                        DateTime.now(),
+                    seen: data['seen'] ?? false,
+                    type: data['type'],
+                    bookingId: data['bookingId'],
+                    customerName: data['customerName'],
+                    audience: data['audience'],
                   ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No notifications yet',
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: Colors.grey[600],
-                      fontWeight: FontWeight.w500,
+                )
+                .toList();
+
+            if (notifications.isEmpty) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.notifications_none_rounded,
+                        size: 48,
+                        color: Color(0xFF94A3B8),
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          return ListView.builder(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            itemCount: notifications.length,
-            itemBuilder: (context, index) {
-              final notification = notifications[index];
-              final isSeen = notification.seen;
-              final formattedDate = DateFormat(
-                'MMM d, h:mm a',
-              ).format(notification.timestamp);
-
-              return Container(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
+                    const SizedBox(height: 16),
+                    Text(
+                      'No notifications yet',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 16,
+                        color: const Color(0xFF0F172A),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'You are completely caught up!',
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        color: const Color(0xFF64748B),
+                      ),
                     ),
                   ],
-                  border: isSeen
-                      ? null
-                      : Border.all(
-                          color: primaryColor.withValues(alpha: 0.3),
-                          width: 1.5,
-                        ),
                 ),
-                child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  leading: CircleAvatar(
-                    backgroundColor: isSeen
-                        ? Colors.grey[200]
-                        : primaryColor.withValues(alpha: 0.1),
-                    child: Icon(
-                      _getIconForType(notification.type),
-                      color: isSeen ? Colors.grey[600] : primaryColor,
+              );
+            }
+
+            return ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              itemCount: notifications.length,
+              itemBuilder: (context, index) {
+                final notification = notifications[index];
+                final isSeen = notification.seen;
+                final formattedDate = DateFormat(
+                  'MMM d, h:mm a',
+                ).format(notification.timestamp);
+
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: isSeen
+                          ? const Color(0xFFE2E8F0)
+                          : primaryColor.withValues(alpha: 0.35),
+                      width: isSeen ? 1.2 : 1.5,
                     ),
-                  ),
-                  title: Text(
-                    notification.title,
-                    style: TextStyle(
-                      fontWeight: isSeen ? FontWeight.normal : FontWeight.bold,
-                      fontSize: 16,
-                      color: isSeen ? Colors.grey[800] : Colors.black,
-                    ),
-                  ),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 4),
-                      Text(
-                        notification.body,
-                        style: TextStyle(color: Colors.grey[600], fontSize: 14),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        formattedDate,
-                        style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.025),
+                        blurRadius: 14,
+                        offset: const Offset(0, 4),
                       ),
                     ],
                   ),
-                  trailing: !isSeen
-                      ? Container(
-                          width: 10,
-                          height: 10,
-                          decoration: BoxDecoration(
-                            color: primaryColor,
-                            shape: BoxShape.circle,
-                          ),
-                        )
-                      : null,
-                  onTap: () =>
-                      _handleNotificationTap(context, tenantId, notification),
-                ),
-              );
-            },
-          );
-        },
+                  child: Material(
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(18),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(18),
+                      onTap: () => _handleNotificationTap(
+                        context,
+                        tenantId,
+                        notification,
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: isSeen
+                                    ? const Color(0xFFF1F5F9)
+                                    : primaryColor.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Icon(
+                                _getIconForType(notification.type),
+                                color: isSeen
+                                    ? const Color(0xFF64748B)
+                                    : primaryColor,
+                                size: 22,
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          notification.title,
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontWeight: isSeen
+                                                ? FontWeight.w600
+                                                : FontWeight.w700,
+                                            fontSize: 14.5,
+                                            color: const Color(0xFF0F172A),
+                                          ),
+                                        ),
+                                      ),
+                                      if (!isSeen)
+                                        Container(
+                                          width: 8,
+                                          height: 8,
+                                          decoration: BoxDecoration(
+                                            color: primaryColor,
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    notification.body,
+                                    style: GoogleFonts.inter(
+                                      color: const Color(0xFF64748B),
+                                      fontSize: 13,
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    formattedDate,
+                                    style: GoogleFonts.inter(
+                                      color: const Color(0xFF94A3B8),
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }
@@ -178,10 +266,10 @@ class AdminNotificationsPage extends StatelessWidget {
     switch (type) {
       case 'ticket_assigned':
       case 'new_assignment':
-        return Icons.assignment_turned_in;
+        return Icons.assignment_turned_in_rounded;
       case 'ticket_update':
       case 'status_update':
-        return Icons.update;
+        return Icons.update_rounded;
       case 'new_ticket':
         return Icons.add_alert_rounded;
       case 'ticket_acknowledged':
@@ -189,11 +277,11 @@ class AdminNotificationsPage extends StatelessWidget {
       case 'ticket_canceled':
         return Icons.cancel_presentation_rounded;
       case 'monthly_status':
-        return Icons.calendar_today;
+        return Icons.calendar_today_rounded;
       case 'subscription_expiry':
         return Icons.warning_amber_rounded;
       default:
-        return Icons.notifications;
+        return Icons.notifications_rounded;
     }
   }
 
@@ -211,7 +299,6 @@ class AdminNotificationsPage extends StatelessWidget {
 
     final bookingId = notification.bookingId;
     if (bookingId != null && bookingId.toString().isNotEmpty) {
-      // Navigate to the tickets overview with a filter or search
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -225,7 +312,14 @@ class AdminNotificationsPage extends StatelessWidget {
   void _markAllAsRead(BuildContext context, String tenantId) {
     NotificationService.instance.markAllNotificationsAsRead(tenantId);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('All notifications marked as read')),
+      SnackBar(
+        content: Text(
+          'All notifications marked as read',
+          style: GoogleFonts.inter(fontWeight: FontWeight.w500),
+        ),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
     );
   }
 }

@@ -3,6 +3,7 @@ import 'package:subscription_rooks_app/services/auth_state_service.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:subscription_rooks_app/subscription/subscription_plans_screen.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class GlobalRegistrationScreen extends StatefulWidget {
   const GlobalRegistrationScreen({super.key});
@@ -57,6 +58,26 @@ class _GlobalRegistrationScreenState extends State<GlobalRegistrationScreen> {
       'tenantId': tenantId,
     };
 
+    final result = await AuthStateService.instance.registerUser(
+      name: name,
+      email: _emailController.text.trim(),
+      password: _passwordController.text.trim(),
+      role: _selectedRole,
+      deferAuth: _selectedRole == 'admin',
+    );
+
+    if (!result['success']) {
+      setState(() => _isLoading = false);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result['message'] ?? 'Registration failed'),
+          behavior: SnackBarBehavior.fixed,
+        ),
+      );
+      return;
+    }
+
     if (_selectedRole == 'admin') {
       setState(() => _isLoading = false);
       if (!mounted) return;
@@ -70,13 +91,6 @@ class _GlobalRegistrationScreenState extends State<GlobalRegistrationScreen> {
       return;
     }
 
-    final result = await AuthStateService.instance.registerUser(
-      name: pendingUserData['name']!,
-      email: pendingUserData['email']!,
-      password: pendingUserData['password']!,
-      role: pendingUserData['role']!,
-    );
-
     if (!mounted) return;
     setState(() => _isLoading = false);
 
@@ -84,6 +98,7 @@ class _GlobalRegistrationScreenState extends State<GlobalRegistrationScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Registration successful! You can now log in.'),
+          behavior: SnackBarBehavior.fixed,
         ),
       );
       Navigator.pop(
@@ -91,7 +106,10 @@ class _GlobalRegistrationScreenState extends State<GlobalRegistrationScreen> {
       ); // Go back to selection screen which will now show Login
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result['message'] ?? 'Registration failed')),
+        SnackBar(
+          content: Text(result['message'] ?? 'Registration failed'),
+          behavior: SnackBarBehavior.fixed,
+        ),
       );
     }
   }
@@ -109,9 +127,11 @@ class _GlobalRegistrationScreenState extends State<GlobalRegistrationScreen> {
         ),
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Form(
+        child: ResponsiveWrapper(
+          maxWidth: kMaxFormWidth,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Form(
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -241,6 +261,7 @@ class _GlobalRegistrationScreenState extends State<GlobalRegistrationScreen> {
                 const SizedBox(height: 40),
               ],
             ),
+          ),
           ),
         ),
       ),

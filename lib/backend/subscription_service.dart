@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart';
 import '../services/firestore_service.dart';
 
 /// A service class responsible for handling subscription-related Firestore operations.
@@ -16,19 +15,13 @@ class SubscriptionService {
     return sanitized;
   }
 
-  /// Generates the dynamic username_date segment in the format: username_yyyyMMdd
+  /// Generates the dynamic username_date segment in the format: username_dd_MM_yyyy
   String generateUsernameDateSegment(String username) {
-    String sanitized = sanitizeUsername(username);
-    String datePart = DateFormat('yyyyMMdd').format(DateTime.now());
-    return '${sanitized}_$datePart';
+    return FirestoreService.generateTenantId(username);
   }
 
-  /// Saves subscription data to Firestore using a dynamic path structure:
-  /// default_db -> main -> {appName} -> {username_date} -> {autoDocumentId}
-  ///
-  /// Note: The 'default_db' part is usually handled by the Firestore instance configuration
-  /// if you are using multiple databases, but for standard implementations,
-  /// it starts from the 'main' collection.
+  /// Saves subscription data to Firestore using a dynamic user tenant path structure:
+  /// {username_date} -> subscription -> entries -> {autoDocumentId}
   Future<void> saveSubscription({
     required String appName,
     required String username,

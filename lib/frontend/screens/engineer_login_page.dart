@@ -5,12 +5,13 @@ import 'package:subscription_rooks_app/backend/screens/engineer_login_page.dart'
 import 'package:subscription_rooks_app/frontend/screens/engineer_dashboard_page.dart';
 import 'package:subscription_rooks_app/subscription/access_restricted_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class Engineerlogin extends StatefulWidget {
   const Engineerlogin({super.key});
 
   @override
-  _EngineerloginState createState() => _EngineerloginState();
+  State<Engineerlogin> createState() => _EngineerloginState();
 }
 
 class _EngineerloginState extends State<Engineerlogin> {
@@ -137,9 +138,12 @@ class _EngineerloginState extends State<Engineerlogin> {
         ),
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Form(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: kMaxFormWidth),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Form(
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -234,7 +238,7 @@ class _EngineerloginState extends State<Engineerlogin> {
                   width: double.infinity,
                   height: 60,
                   child: ElevatedButton(
-                    onPressed: _login,
+                    onPressed: _isLoading ? null : _login,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.black,
                       foregroundColor: Colors.white,
@@ -243,13 +247,22 @@ class _EngineerloginState extends State<Engineerlogin> {
                       ),
                       elevation: 0,
                     ),
-                    child: Text(
-                      'Log In',
-                      style: GoogleFonts.inter(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2.5,
+                            ),
+                          )
+                        : Text(
+                            'Log In',
+                            style: GoogleFonts.inter(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -276,6 +289,8 @@ class _EngineerloginState extends State<Engineerlogin> {
                 const SizedBox(height: 40),
               ],
             ),
+          ),
+          ),
           ),
         ),
       ),

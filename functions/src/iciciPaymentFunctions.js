@@ -448,7 +448,13 @@ exports.activateSubscription = onDocumentUpdated(
     }
 );
 
-            return res.status(200).json({ success: true, status, txnId });
+            return res.status(200).json({ 
+                success: true, 
+                status: status, 
+                txnId: txnId,
+                paymentMode: resolvePaymentMethod(data, null),
+                paymentMethod: resolvePaymentMethod(data, null)
+            });
         } catch (error) {
             return res.status(500).json({ success: false, error: error.message });
         }

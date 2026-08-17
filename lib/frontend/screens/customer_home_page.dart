@@ -11,6 +11,7 @@ import 'package:subscription_rooks_app/services/location_service.dart';
 import 'package:subscription_rooks_app/services/storage_service.dart';
 import 'package:file_picker/file_picker.dart' as picker;
 import 'dart:io';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 // -- CustomerHomePage now gets these values upon navigation --
 class CustomerHomePage extends StatefulWidget {
@@ -18,6 +19,7 @@ class CustomerHomePage extends StatefulWidget {
   final String customerName;
   final String mobileNumber;
   final String categoryName;
+  final String customerType; // "amc" or "nonamc"
   final String? initialJobType;
   final String? initialDeviceType;
   final String? initialCustomDeviceType;
@@ -28,6 +30,7 @@ class CustomerHomePage extends StatefulWidget {
     required this.customerName,
     required this.mobileNumber,
     required this.categoryName,
+    required this.customerType,
     this.initialJobType,
     this.initialDeviceType,
     this.initialCustomDeviceType,
@@ -223,247 +226,239 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          NotificationService.instance.showNotification(
-            title: 'Test Notification',
-            body: 'If you see this, local notifications are working!',
-          );
-        },
-        child: const Icon(Icons.notifications_active),
-      ),
       appBar: AppBar(
         title: Text(
           ThemeService.instance.appName,
-          style: TextStyle(
-            color:
-                Theme.of(context).appBarTheme.foregroundColor ?? Colors.white,
+          style: const TextStyle(
+            color: Colors.white,
             fontWeight: FontWeight.bold,
           ),
         ),
         leading: IconButton(
-          icon: Icon(
-            Icons.arrow_back,
-            color:
-                Theme.of(context).appBarTheme.foregroundColor ?? Colors.white,
-          ),
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
         backgroundColor: Theme.of(context).primaryColor,
+        foregroundColor: Colors.white,
+        iconTheme: const IconThemeData(color: Colors.white),
+        actionsIconTheme: const IconThemeData(color: Colors.white),
         elevation: 0,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(bottom: Radius.circular(15)),
-        ),
       ),
       body: Container(
         decoration: BoxDecoration(
           color: Theme.of(context).scaffoldBackgroundColor,
         ),
-        padding: const EdgeInsets.all(20.0),
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            children: [
-              const SizedBox(height: 10),
-              _buildHeader(),
-              const SizedBox(height: 20),
-              _buildTextField(
-                'Customer ID',
-                '',
-                Icons.perm_identity,
-                _customerIdController,
-                enabled: false,
-              ),
-              const SizedBox(height: 20),
-              _buildTextField(
-                'Customer Name',
-                '',
-                Icons.person,
-                _customerNameController,
-                enabled: false,
-              ),
-              const SizedBox(height: 20),
-              _buildTextField(
-                'Mobile Number',
-                '',
-                Icons.phone,
-                _mobileNumberController,
-                enabled: false,
-              ),
-              const SizedBox(height: 20),
-              _buildDropdownField(
-                'Job Type',
-                jobTypes,
-                Icons.work,
-                (value) {
-                  setState(() {
-                    jobType = value ?? '';
-                    if (jobType == 'Delivery') {
-                      deviceType = '';
-                      deviceBrand = '';
-                      deviceCondition = '';
-                      _messageController.clear();
-                      _customDeviceTypeController.clear();
-                      _customDeviceBrandController.clear();
-                    } else {
-                      _descriptionController.clear();
-                    }
-                  });
-                },
-                value: jobType.isNotEmpty ? jobType : null,
-              ),
-              if (jobType == 'Service') ...[
+        child: ResponsiveWrapper(
+          maxWidth: 960.0,
+          padding: const EdgeInsets.all(20.0),
+          child: Form(
+            key: _formKey,
+            child: ListView(
+              children: [
+                const SizedBox(height: 10),
+                _buildHeader(),
                 const SizedBox(height: 20),
-                _isDeviceTypesLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : _buildDropdownField(
-                        'Device Type',
-                        deviceTypes,
-                        Icons.devices,
-                        (value) async {
-                          setState(() {
-                            deviceType = value ?? '';
-                            if (deviceType != 'Others') {
-                              _customDeviceTypeController.clear();
-                            }
-                            deviceBrand = '';
-                            _customDeviceBrandController.clear();
-                          });
-                          if (value != null && value != 'Others') {
-                            await _fetchDeviceBrands(value);
-                          } else {
-                            // Fetch dynamic brands from master collection for "Others" or null
-                            final brands = await BrandModelBackend()
-                                .fetchAllDeviceBrands();
-                            if (!brands.contains('Others')) {
-                              brands.add('Others');
-                            }
-                            setState(() {
-                              deviceBrands = brands;
-                            });
-                          }
-                        },
-                        value: deviceType.isNotEmpty ? deviceType : null,
-                      ),
-                if (deviceType == 'Others')
-                  Padding(
-                    padding: const EdgeInsets.only(top: 12.0),
-                    child: _buildTextField(
-                      'Custom Device Type',
-                      'Enter your device type',
-                      Icons.devices_other,
-                      _customDeviceTypeController,
-                    ),
-                  ),
+                _buildTextField(
+                  'Customer ID',
+                  '',
+                  Icons.perm_identity,
+                  _customerIdController,
+                  enabled: false,
+                ),
                 const SizedBox(height: 20),
-                _isDeviceBrandsLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : _buildDropdownField(
-                        'Device Brand',
-                        deviceBrands.isNotEmpty ? deviceBrands : ['Others'],
-                        Icons.branding_watermark,
-                        (value) {
-                          setState(() {
-                            deviceBrand = value ?? '';
-                            if (deviceBrand != 'Others') {
-                              _customDeviceBrandController.clear();
-                            }
-                          });
-                        },
-                        value: deviceBrand.isNotEmpty ? deviceBrand : null,
-                      ),
-                if (deviceBrand == 'Others')
-                  Padding(
-                    padding: const EdgeInsets.only(top: 12.0),
-                    child: _buildTextField(
-                      'Custom Device Brand',
-                      'Enter your device brand',
-                      Icons.branding_watermark,
-                      _customDeviceBrandController,
-                    ),
-                  ),
+                _buildTextField(
+                  'Customer Name',
+                  '',
+                  Icons.person,
+                  _customerNameController,
+                  enabled: false,
+                ),
+                const SizedBox(height: 20),
+                _buildTextField(
+                  'Mobile Number',
+                  '',
+                  Icons.phone,
+                  _mobileNumberController,
+                  enabled: false,
+                ),
                 const SizedBox(height: 20),
                 _buildDropdownField(
-                  'Device Condition',
-                  currentDeviceConditions,
-                  Icons.build,
+                  'Job Type',
+                  jobTypes,
+                  Icons.work,
                   (value) {
                     setState(() {
-                      deviceCondition = value ?? '';
-                      if (deviceCondition != 'Others') {
-                        _customDeviceConditionController.clear();
+                      jobType = value ?? '';
+                      if (jobType == 'Delivery') {
+                        deviceType = '';
+                        deviceBrand = '';
+                        deviceCondition = '';
+                        _messageController.clear();
+                        _customDeviceTypeController.clear();
+                        _customDeviceBrandController.clear();
+                      } else {
+                        _descriptionController.clear();
                       }
                     });
                   },
-                  value: deviceCondition.isNotEmpty ? deviceCondition : null,
+                  value: jobType.isNotEmpty ? jobType : null,
                 ),
-                if (deviceCondition == 'Others')
-                  Padding(
-                    padding: const EdgeInsets.only(top: 12.0),
-                    child: _buildTextField(
-                      'Custom Device Condition',
-                      'Enter device condition',
-                      Icons.build_circle,
-                      _customDeviceConditionController,
+                if (jobType == 'Service') ...[
+                  const SizedBox(height: 20),
+                  _isDeviceTypesLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : _buildDropdownField(
+                          'Device Type',
+                          deviceTypes,
+                          Icons.devices,
+                          (value) async {
+                            setState(() {
+                              deviceType = value ?? '';
+                              if (deviceType != 'Others') {
+                                _customDeviceTypeController.clear();
+                              }
+                              deviceBrand = '';
+                              _customDeviceBrandController.clear();
+                            });
+                            if (value != null && value != 'Others') {
+                              await _fetchDeviceBrands(value);
+                            } else {
+                              // Fetch dynamic brands from master collection for "Others" or null
+                              final brands = await BrandModelBackend()
+                                  .fetchAllDeviceBrands();
+                              if (!brands.contains('Others')) {
+                                brands.add('Others');
+                              }
+                              setState(() {
+                                deviceBrands = brands;
+                              });
+                            }
+                          },
+                          value: deviceType.isNotEmpty ? deviceType : null,
+                        ),
+                  if (deviceType == 'Others')
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12.0),
+                      child: _buildTextField(
+                        'Custom Device Type',
+                        'Enter your device type',
+                        Icons.devices_other,
+                        _customDeviceTypeController,
+                      ),
                     ),
+                  const SizedBox(height: 20),
+                  _isDeviceBrandsLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : _buildDropdownField(
+                          'Device Brand',
+                          deviceBrands.isNotEmpty ? deviceBrands : ['Others'],
+                          Icons.branding_watermark,
+                          (value) {
+                            setState(() {
+                              deviceBrand = value ?? '';
+                              if (deviceBrand != 'Others') {
+                                _customDeviceBrandController.clear();
+                              }
+                            });
+                          },
+                          value: deviceBrand.isNotEmpty ? deviceBrand : null,
+                        ),
+                  if (deviceBrand == 'Others')
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12.0),
+                      child: _buildTextField(
+                        'Custom Device Brand',
+                        'Enter your device brand',
+                        Icons.branding_watermark,
+                        _customDeviceBrandController,
+                      ),
+                    ),
+                  const SizedBox(height: 20),
+                  _buildDropdownField(
+                    'Device Condition',
+                    currentDeviceConditions,
+                    Icons.build,
+                    (value) {
+                      setState(() {
+                        deviceCondition = value ?? '';
+                        if (deviceCondition != 'Others') {
+                          _customDeviceConditionController.clear();
+                        }
+                      });
+                    },
+                    value: deviceCondition.isNotEmpty ? deviceCondition : null,
                   ),
+                  if (deviceCondition == 'Others')
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12.0),
+                      child: _buildTextField(
+                        'Custom Device Condition',
+                        'Enter device condition',
+                        Icons.build_circle,
+                        _customDeviceConditionController,
+                      ),
+                    ),
+                  const SizedBox(height: 20),
+                  _buildTextField(
+                    'Message',
+                    'Enter additional details',
+                    Icons.message,
+                    _messageController,
+                    maxLines: 3,
+                  ),
+                ],
+                if (jobType == 'Delivery') ...[
+                  const SizedBox(height: 20),
+                  _buildTextField(
+                    'Description',
+                    'Enter delivery description',
+                    Icons.description,
+                    _descriptionController,
+                    maxLines: 3,
+                  ),
+                ],
                 const SizedBox(height: 20),
                 _buildTextField(
-                  'Message',
-                  'Enter additional details',
-                  Icons.message,
-                  _messageController,
-                  maxLines: 3,
-                ),
-              ],
-              if (jobType == 'Delivery') ...[
-                const SizedBox(height: 20),
-                _buildTextField(
-                  'Description',
-                  'Enter delivery description',
-                  Icons.description,
-                  _descriptionController,
-                  maxLines: 3,
-                ),
-              ],
-              const SizedBox(height: 20),
-              _buildTextField(
-                'Address',
-                'Enter your address',
-                Icons.location_on,
-                _addressController,
-                maxLines: 2,
-                suffixIcon: _isGeoLocationEnabled
-                    ? IconButton(
-                        icon: _isFetchingLocation
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
+                  'Address',
+                  'Enter your address',
+                  Icons.location_on,
+                  _addressController,
+                  maxLines: 2,
+                  suffixIcon: _isGeoLocationEnabled
+                      ? IconButton(
+                          icon: _isFetchingLocation
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : Icon(
+                                  Icons.my_location,
+                                  color: Theme.of(context).primaryColor,
                                 ),
-                              )
-                            : Icon(
-                                Icons.my_location,
-                                color: Theme.of(context).primaryColor,
-                              ),
-                        onPressed: _isFetchingLocation
-                            ? null
-                            : _handleLocationPinTap,
-                      )
-                    : null,
-              ),
-              const SizedBox(height: 20),
-              _buildFileUploadField(),
-              const SizedBox(height: 30),
-              Center(
-                child: _isSubmitting
-                    ? CircularProgressIndicator(
-                        color: Theme.of(context).primaryColor,
-                      )
-                    : GradientButton(onPressed: _handleSubmit, text: 'Submit'),
-              ),
-            ],
+                          onPressed: _isFetchingLocation
+                              ? null
+                              : _handleLocationPinTap,
+                        )
+                      : null,
+                ),
+                const SizedBox(height: 20),
+                _buildFileUploadField(),
+                const SizedBox(height: 30),
+                Center(
+                  child: _isSubmitting
+                      ? CircularProgressIndicator(
+                          color: Theme.of(context).primaryColor,
+                        )
+                      : GradientButton(
+                          onPressed: _handleSubmit,
+                          text: 'Submit',
+                        ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -828,7 +823,11 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
       });
 
       try {
-        final bookingId = await _generateBookingId();
+        // Generate new ticket ID
+        final ticketId = await FirestoreService.instance.generateTicketId(
+          customerName: widget.customerName,
+          customerType: widget.customerType,
+        );
         final actualDeviceType = deviceType == 'Others'
             ? _customDeviceTypeController.text.trim()
             : deviceType;
@@ -849,62 +848,57 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
           );
         }
 
-        Map<String, dynamic> customerData = {
-          'id': _customerIdController.text, // Add fixed customer id
-          'bookingId': bookingId,
+        Map<String, dynamic> ticketData = {
+          'ticketId': ticketId,
+          'customerId': _customerIdController.text,
           'customerName': _customerNameController.text,
+          'customerType': widget.customerType,
           'mobileNumber': _mobileNumberController.text,
           'address': _addressController.text,
-          'categoryName': widget.categoryName,
-          'timestamp': Timestamp.now(),
-          'JobType': jobType,
-          'customerFileUrl': fileUrl,
-          'fileName': _selectedFile?.name,
+          'deviceType': jobType == 'Service' ? actualDeviceType : null,
+          'deviceBrand': jobType == 'Service' ? actualDeviceBrand : null,
+          'deviceCondition': jobType == 'Service'
+              ? actualDeviceCondition
+              : null,
+          'issueDescription': _messageController.text.isNotEmpty
+              ? _messageController.text
+              : _descriptionController.text,
+          'customerStatus': 'Ticket Created',
+          'adminStatus': 'Open',
+          'engineerStatus': 'Not Assigned',
+          'assignedEngineer': null,
+          'paymentDetails': null,
+          'uploadedFiles': fileUrl != null
+              ? [
+                  {'url': fileUrl, 'name': _selectedFile?.name},
+                ]
+              : [],
+          'createdAt': Timestamp.now(),
+          'updatedAt': Timestamp.now(),
+          'completionTimestamp': null,
+          'jobType': jobType,
         };
 
         // Add location data if available
         if (_currentLocationData != null) {
-          customerData['latitude'] = _currentLocationData!['latitude'];
-          customerData['longitude'] = _currentLocationData!['longitude'];
+          ticketData['latitude'] = _currentLocationData!['latitude'];
+          ticketData['longitude'] = _currentLocationData!['longitude'];
         }
 
-        if (jobType == 'Service') {
-          customerData.addAll({
-            'deviceType': actualDeviceType,
-            'deviceBrand': actualDeviceBrand,
-            'deviceCondition': actualDeviceCondition,
-            'message': _messageController.text,
-          });
-        } else if (jobType == 'Delivery') {
-          customerData.addAll({'message': _descriptionController.text});
-        }
-
-        // Also store in Admin_details
-        final adminData = Map<String, dynamic>.from(customerData);
-        adminData['adminStatus'] = 'Open';
-        adminData['customerStatus'] = 'Ticket Created';
-        adminData['engineerStatus'] = 'Not Assigned';
-
-        String docId = bookingId;
-
+        // Write only to Raised_tickets collection!
         await FirestoreService.instance
-            .collection('customers')
-            .doc(docId)
-            .set(customerData);
-
-        await FirestoreService.instance
-            .collection('Admin_details')
-            .doc(docId)
-            .set(adminData);
+            .collection('Raised_tickets')
+            .doc(ticketId)
+            .set(ticketData);
 
         // Add real-time notification for Admin
         await NotificationService.sendNotificationToFirestore(
           audience: 'admin',
           title: 'New Ticket Received',
           body:
-              'A new ticket ($bookingId) has been raised by ${_customerNameController.text}',
+              'A new ticket ($ticketId) has been raised by ${_customerNameController.text}',
           type: 'new_ticket',
-          bookingId: bookingId,
+          bookingId: ticketId,
           customerName: _customerNameController.text,
         );
 
@@ -936,6 +930,11 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                   ),
                 ),
                 const SizedBox(height: 8),
+                Text(
+                  'Ticket ID: $ticketId',
+                  style: const TextStyle(color: Colors.grey),
+                ),
+                const SizedBox(height: 4),
                 const Text(
                   'Our team will contact you soon.',
                   textAlign: TextAlign.center,

@@ -23,6 +23,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
     with SingleTickerProviderStateMixin {
   final TextEditingController _controller = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
+  Map<String, dynamic>? amcCustomerData;
   Map<String, dynamic>? resultData;
   List<Map<String, dynamic>>? multipleResults;
   bool _loading = false;
@@ -64,7 +65,8 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
   Color get primaryColor => _brand;
 
   Future<void> _fetchData(String input) async {
-    if (input.isEmpty) {
+    final searchInput = input.trim();
+    if (searchInput.isEmpty) {
       _showSnack('Please enter Customer ID, Phone, or Booking ID',
           color: Colors.orange);
       return;
@@ -72,6 +74,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
 
     setState(() {
       _loading = true;
+      amcCustomerData = null;
       resultData = null;
       multipleResults = null;
       _selectedRows.clear();
@@ -80,51 +83,101 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
     _animController.reset();
 
     try {
-      final List<QuerySnapshot> snapshots = await Future.wait([
-        FirestoreService.instance
-            .collection('Admin_details')
-            .where('id', isEqualTo: input)
-            .get(),
-        FirestoreService.instance
-            .collection('Admin_details')
-            .where('mobileNumber', isEqualTo: input)
-            .get(),
-        FirestoreService.instance
-            .collection('Admin_details')
-            .where('bookingId', isEqualTo: input)
-            .get(),
-      ]);
+      final firestore = FirestoreService.instance;
 
-      if (snapshots[1].docs.isNotEmpty) {
-        multipleResults = snapshots[1].docs
-            .map((doc) => doc.data() as Map<String, dynamic>)
-            .toList();
-        for (int i = 0; i < multipleResults!.length; i++) {
-          _selectedRows[i] = false;
+      // 1. Search AMC_user collection for Customer Profile
+      Map<String, dynamic>? foundAmcUser;
+      try {
+        final docById = await firestore.collection('AMC_user').doc(searchInput).get();
+        if (docById.exists && docById.data() != null) {
+          foundAmcUser = docById.data();
         }
-        setState(() {});
-        _animController.forward();
-        _showSnack(
-            'Found ${multipleResults!.length} entries for Mobile Number',
-            color: Colors.green);
-      } else {
-        QuerySnapshot? foundSnapshot;
-        for (int i in [0, 2]) {
-          if (snapshots[i].docs.isNotEmpty) {
-            foundSnapshot = snapshots[i];
+      } catch (_) {}
+
+      if (foundAmcUser == null) {
+        final amcSnapshots = await Future.wait([
+          firestore.collection('AMC_user').where('Id', isEqualTo: searchInput).get(),
+          firestore.collection('AMC_user').where('Phone Number', isEqualTo: searchInput).get(),
+          firestore.collection('AMC_user').where('email', isEqualTo: searchInput).get(),
+        ]);
+        for (final snap in amcSnapshots) {
+          if (snap.docs.isNotEmpty) {
+            foundAmcUser = snap.docs.first.data();
             break;
           }
         }
-        if (foundSnapshot != null) {
-          final data =
-              foundSnapshot.docs.first.data() as Map<String, dynamic>;
-          setState(() => resultData = data);
-          _animController.forward();
-          _showSnack('Record found!', color: Colors.green);
-        } else {
-          setState(() {});
-          _showSnack('No data found for "$input"', color: Colors.red);
+      }
+
+      // If still not found, search all AMC_user documents for matching fields
+      if (foundAmcUser == null) {
+        final allAmcUsers = await firestore.collection('AMC_user').get();
+        final lowerInput = searchInput.toLowerCase();
+        for (final doc in allAmcUsers.docs) {
+          final data = doc.data();
+          final id = (data['Id'] ?? '').toString().toLowerCase();
+          final phone = (data['Phone Number'] ?? '').toString().toLowerCase();
+          final email = (data['email'] ?? '').toString().toLowerCase();
+          final name = (data['name'] ?? '').toString().toLowerCase();
+
+          if (id == lowerInput ||
+              phone == lowerInput ||
+              email == lowerInput ||
+              name == lowerInput ||
+              doc.id.toLowerCase() == lowerInput) {
+            foundAmcUser = data;
+            break;
+          }
         }
+      }
+
+      amcCustomerData = foundAmcUser;
+
+      // 2. Search Admin_ticket_entry collection for tickets
+      final String amcId = (foundAmcUser?['Id'] ?? searchInput).toString();
+      final String amcPhone = (foundAmcUser?['Phone Number'] ?? searchInput).toString();
+
+      final ticketSnapshots = await Future.wait([
+        firestore.collection('Admin_ticket_entry').where('id', isEqualTo: searchInput).get(),
+        firestore.collection('Admin_ticket_entry').where('mobileNumber', isEqualTo: searchInput).get(),
+        firestore.collection('Admin_ticket_entry').where('bookingId', isEqualTo: searchInput).get(),
+        if (amcId != searchInput)
+          firestore.collection('Admin_ticket_entry').where('id', isEqualTo: amcId).get(),
+        if (amcPhone != searchInput)
+          firestore.collection('Admin_ticket_entry').where('mobileNumber', isEqualTo: amcPhone).get(),
+      ]);
+
+      final Map<String, Map<String, dynamic>> uniqueTickets = {};
+      for (final snap in ticketSnapshots) {
+        for (final doc in snap.docs) {
+          final data = doc.data();
+          final key = data['bookingId']?.toString() ?? doc.id;
+          uniqueTickets[key] = data;
+        }
+      }
+
+      final ticketList = uniqueTickets.values.toList();
+
+      if (ticketList.isNotEmpty) {
+        if (ticketList.length == 1) {
+          resultData = ticketList.first;
+        } else {
+          multipleResults = ticketList;
+          for (int i = 0; i < ticketList.length; i++) {
+            _selectedRows[i] = false;
+          }
+        }
+      }
+
+      if (foundAmcUser != null || ticketList.isNotEmpty) {
+        _animController.forward();
+        _showSnack(
+          ticketList.isNotEmpty
+              ? 'Found ${ticketList.length} ticket(s)!'
+              : 'Customer record found!',
+          color: Colors.green,
+        );
+      } else {
+        _showSnack('No data found for "$searchInput"', color: Colors.red);
       }
     } catch (e) {
       _showSnack('Error: $e', color: Colors.red);
@@ -627,35 +680,46 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F7FC),
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0.5,
+        leading: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: CircleAvatar(
+            backgroundColor: const Color(0xFFF1F5F9),
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF0F172A), size: 18),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ),
+        ),
         title: const Text(
           'Customer Report Generator',
           style: TextStyle(
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
-              fontSize: 18,
-              letterSpacing: -0.3),
-        ),
-        backgroundColor: _brand,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: true,
-        shape: const RoundedRectangleBorder(
-          borderRadius:
-              BorderRadius.vertical(bottom: Radius.circular(20)),
+            color: Color(0xFF0F172A),
+            fontWeight: FontWeight.w800,
+            fontSize: 18,
+            letterSpacing: -0.4,
+          ),
         ),
       ),
       body: SafeArea(
         bottom: false,
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              _buildTopHeroBanner(),
+              const SizedBox(height: 10),
               _buildSearchCard(),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
               if (_loading) _buildLoading(),
+              if (!_loading && amcCustomerData != null) ...[
+                _buildAmcCustomerHeaderCard(),
+                const SizedBox(height: 12),
+              ],
               if (!_loading && _displayRecords.isNotEmpty)
                 FadeTransition(
                   opacity: _fadeAnim,
@@ -664,13 +728,84 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                     child: _buildResultsSection(),
                   ),
                 ),
-              if (!_loading &&
-                  resultData == null &&
-                  (multipleResults == null || multipleResults!.isEmpty))
+              if (!_loading && amcCustomerData != null && _displayRecords.isEmpty)
+                _buildNoTicketsForCustomerCard(),
+              if (!_loading && amcCustomerData == null && _displayRecords.isEmpty)
                 _buildEmptyState(),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildTopHeroBanner() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+      decoration: BoxDecoration(
+        color: _brand.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: _brand.withOpacity(0.18),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: _brand.withOpacity(0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [
+                BoxShadow(
+                  color: _brand.withOpacity(0.12),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Icon(
+              Icons.manage_search_rounded,
+              color: _brand,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Customer Report Generator',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF0F172A),
+                    letterSpacing: -0.4,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Lookup customer history by ID, Phone, or Booking ID',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: _brand.withOpacity(0.85),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -682,15 +817,16 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
         boxShadow: [
           BoxShadow(
-            color: _brand.withOpacity(0.08),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
           )
         ],
       ),
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -698,39 +834,41 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
           Row(
             children: [
               Container(
-                width: 40,
-                height: 40,
+                width: 38,
+                height: 38,
                 decoration: BoxDecoration(
                   color: _brandLight,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(Icons.person_search_rounded,
-                    color: _brand, size: 22),
+                    color: _brand, size: 20),
               ),
               const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Find Customer',
-                      style: TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w700,
-                          color: _brand,
-                          letterSpacing: -0.3)),
-                  const Text('Search by ID, Phone or Booking ID',
-                      style: TextStyle(
-                          fontSize: 12, color: Color(0xFF8A9BB8))),
-                ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Find Customer',
+                        style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF0F172A),
+                            letterSpacing: -0.3)),
+                    const Text('Search by ID, Phone Number or Booking ID',
+                        style: TextStyle(
+                            fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w500)),
+                  ],
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 16),
           // Search field
           Container(
             decoration: BoxDecoration(
-              color: const Color(0xFFF4F7FC),
+              color: const Color(0xFFF8FAFC),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFFDDE4F0)),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
             ),
             child: Row(
               children: [
@@ -738,19 +876,19 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                   child: TextField(
                     controller: _controller,
                     focusNode: _searchFocusNode,
-                    style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w500,
-                        color: _brand),
+                    style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0F172A)),
                     decoration: const InputDecoration(
-                      hintText: 'Enter Customer ID, Phone, or Booking ID',
+                      hintText: 'Enter Customer ID, Phone, or Booking ID...',
                       hintStyle: TextStyle(
-                          color: Color(0xFFADB9CC), fontSize: 14),
+                          color: Color(0xFF94A3B8), fontSize: 13, fontWeight: FontWeight.w500),
                       border: InputBorder.none,
                       prefixIcon: Icon(Icons.search_rounded,
-                          color: Color(0xFF8A9BB8), size: 20),
+                          color: Color(0xFF64748B), size: 18),
                       contentPadding:
-                          EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+                          EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     ),
                     onSubmitted: (v) => _fetchData(v.trim()),
                   ),
@@ -758,7 +896,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                 if (_controller.text.isNotEmpty)
                   IconButton(
                     icon: const Icon(Icons.close_rounded,
-                        color: Color(0xFF8A9BB8), size: 20),
+                        color: Color(0xFF64748B), size: 18),
                     onPressed: () {
                       _controller.clear();
                       setState(() {
@@ -770,20 +908,21 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
               ],
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
           // Quick-search chips
           Wrap(
             spacing: 8,
+            runSpacing: 6,
             children: ['Customer ID', 'Phone Number', 'Booking ID']
                 .map((label) => _searchChip(label))
                 .toList(),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 16),
           // Search button
           SizedBox(
             width: double.infinity,
-            height: 50,
-            child: ElevatedButton(
+            height: 46,
+            child: ElevatedButton.icon(
               onPressed: _loading
                   ? null
                   : () {
@@ -798,24 +937,228 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14)),
               ),
-              child: _loading
+              icon: _loading
                   ? const SizedBox(
-                      width: 22,
-                      height: 22,
+                      width: 18,
+                      height: 18,
                       child: CircularProgressIndicator(
-                          strokeWidth: 2.5, color: Colors.white))
-                  : const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                          strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.manage_search_rounded, size: 18),
+              label: Text(
+                _loading ? 'Searching Records...' : 'Search & Generate Report',
+                style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAmcCustomerHeaderCard() {
+    if (amcCustomerData == null) return const SizedBox.shrink();
+    final name = (amcCustomerData!['name'] ?? amcCustomerData!['Id'] ?? 'AMC Customer').toString();
+    final amcId = (amcCustomerData!['Id'] ?? 'AMC Customer').toString();
+    final phone = (amcCustomerData!['Phone Number'] ?? 'N/A').toString();
+    final email = (amcCustomerData!['email'] ?? 'N/A').toString();
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: primaryColor.withValues(alpha: 0.3), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: primaryColor.withValues(alpha: 0.06),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [primaryColor, primaryColor.withValues(alpha: 0.75)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: primaryColor.withValues(alpha: 0.2),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Center(
+                  child: Text(
+                    name.isNotEmpty ? name[0].toUpperCase() : 'C',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       children: [
-                        Icon(Icons.manage_search_rounded, size: 20),
-                        SizedBox(width: 8),
-                        Text('Search & Generate Report',
+                        Expanded(
+                          child: Text(
+                            name,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF0F172A),
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: primaryColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            amcId,
                             style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: -0.2)),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: primaryColor,
+                            ),
+                          ),
+                        ),
                       ],
                     ),
+                    const SizedBox(height: 2),
+                    const Row(
+                      children: [
+                        Icon(Icons.check_circle_rounded, size: 12, color: Color(0xFF10B981)),
+                        SizedBox(width: 4),
+                        Text(
+                          'Registered AMC Customer',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF059669),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Divider(height: 1, color: Color(0xFFE2E8F0)),
+          ),
+          Row(
+            children: [
+              Expanded(
+                child: Row(
+                  children: [
+                    const Icon(Icons.phone_android_rounded, size: 14, color: Color(0xFF64748B)),
+                    const SizedBox(width: 6),
+                    Text(
+                      phone,
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Row(
+                  children: [
+                    const Icon(Icons.email_outlined, size: 14, color: Color(0xFF64748B)),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        email,
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNoTicketsForCustomerCard() {
+    final name = amcCustomerData!['name'] ?? amcCustomerData!['Id'] ?? 'Customer';
+    final id = amcCustomerData!['Id'] ?? '';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 60,
+            height: 60,
+            decoration: const BoxDecoration(
+              color: Color(0xFFFEF3C7),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.receipt_long_outlined,
+              size: 30,
+              color: Color(0xFFD97706),
+            ),
+          ),
+          const SizedBox(height: 14),
+          const Text(
+            'No Service Tickets Created Yet',
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF0F172A),
+              letterSpacing: -0.3,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Customer details for $name ($id) were loaded successfully, but no service or repair tickets have been created yet under this customer.',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 13,
+              color: Color(0xFF64748B),
+              fontWeight: FontWeight.w500,
+              height: 1.4,
             ),
           ),
         ],
@@ -1474,46 +1817,48 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
 
   Widget _buildEmptyState() {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
+      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 16,
-              offset: const Offset(0, 4))
+              color: Colors.black.withOpacity(0.02),
+              blurRadius: 12,
+              offset: const Offset(0, 3))
         ],
       ),
       child: Column(
         children: [
           Container(
-            width: 80,
-            height: 80,
+            width: 72,
+            height: 72,
             decoration: BoxDecoration(
-              color: _brandLight,
-              borderRadius: BorderRadius.circular(24),
+              color: _brand.withOpacity(0.1),
+              shape: BoxShape.circle,
             ),
-            child: Icon(Icons.assignment_outlined,
-                size: 40, color: _brand),
+            child: Icon(Icons.feed_outlined,
+                size: 36, color: _brand),
           ),
-          const SizedBox(height: 20),
-          Text('No Records Yet',
+          const SizedBox(height: 16),
+          const Text('No Records Loaded Yet',
               style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  color: _brand,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF0F172A),
                   letterSpacing: -0.3)),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           const Text(
-            'Search by Customer ID, Phone Number\nor Booking ID to generate a report',
+            'Search by Customer ID, Phone Number\nor Booking ID to compile customer report',
             textAlign: TextAlign.center,
             style: TextStyle(
-                fontSize: 14,
-                color: Color(0xFF8A9BB8),
-                height: 1.5),
+                fontSize: 13,
+                color: Color(0xFF64748B),
+                fontWeight: FontWeight.w500,
+                height: 1.4),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -1521,8 +1866,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
             children: [
               _tipChip(Icons.badge_outlined, 'Customer ID'),
               _tipChip(Icons.phone_outlined, 'Phone Number'),
-              _tipChip(
-                  Icons.confirmation_number_outlined, 'Booking ID'),
+              _tipChip(Icons.confirmation_number_outlined, 'Booking ID'),
             ],
           ),
         ],
@@ -1532,11 +1876,11 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
 
   Widget _tipChip(IconData icon, String label) {
     return Container(
-      padding:
-          const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: _brandLight,
-        borderRadius: BorderRadius.circular(20),
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1545,9 +1889,9 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
           const SizedBox(width: 6),
           Text(label,
               style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 11,
                   color: _brand,
-                  fontWeight: FontWeight.w600)),
+                  fontWeight: FontWeight.w700)),
         ],
       ),
     );

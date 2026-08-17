@@ -15,6 +15,7 @@ class ReceiptService {
     required String paymentMethod,
     String? userName,
     String? userEmail,
+    String? gstNumber,
     String? logoUrl,
     String appName = 'Rooks White Label',
   }) async {
@@ -33,11 +34,14 @@ class ReceiptService {
 
     // Calculate GST (18%)
     final double gstRate = 0.18;
+    final double halfRate = gstRate / 2;
     final double taxableAmount = amount / (1 + gstRate);
-    final double gstAmount = amount - taxableAmount;
+    final double cgstAmount = taxableAmount * halfRate;
+    final double sgstAmount = taxableAmount * halfRate;
 
     final String taxableAmountStr = taxableAmount.toStringAsFixed(2);
-    final String gstAmountStr = gstAmount.toStringAsFixed(2);
+    final String cgstAmountStr = cgstAmount.toStringAsFixed(2);
+    final String sgstAmountStr = sgstAmount.toStringAsFixed(2);
     final String totalAmountStr = amount.toString();
 
     pdf.addPage(
@@ -74,6 +78,14 @@ class ReceiptService {
                             color: PdfColors.grey700,
                           ),
                         ),
+                        pw.SizedBox(height: 4),
+                        pw.Text(
+                          'Seller GSTIN: 33AAMCR8640J1ZZ',
+                          style: pw.TextStyle(
+                            fontSize: 10,
+                            color: PdfColors.grey600,
+                          ),
+                        ),
                       ],
                     ),
                     pw.Column(
@@ -90,7 +102,7 @@ class ReceiptService {
                 pw.SizedBox(height: 20),
 
                 // User Details
-                if (userName != null || userEmail != null) ...[
+                if (userName != null || userEmail != null || (gstNumber != null && gstNumber.isNotEmpty)) ...[
                   pw.Text(
                     'Customer Details',
                     style: pw.TextStyle(
@@ -101,6 +113,7 @@ class ReceiptService {
                   pw.SizedBox(height: 10),
                   if (userName != null) _buildRow('Name', userName),
                   if (userEmail != null) _buildRow('Email', userEmail),
+                  if (gstNumber != null && gstNumber.isNotEmpty) _buildRow('Customer GSTIN', gstNumber),
                   pw.SizedBox(height: 20),
                   pw.Divider(),
                   pw.SizedBox(height: 20),
@@ -132,7 +145,8 @@ class ReceiptService {
                 ),
                 pw.SizedBox(height: 10),
                 _buildRow('Taxable Amount (Base Price)', 'INR $taxableAmountStr'),
-                _buildRow('GST (18%)', 'INR $gstAmountStr'),
+                _buildRow('CGST (9%)', 'INR $cgstAmountStr'),
+                _buildRow('SGST (9%)', 'INR $sgstAmountStr'),
                 pw.SizedBox(height: 10),
                 pw.Divider(),
                 pw.SizedBox(height: 10),

@@ -1,4 +1,3 @@
-
 import 'dart:typed_data';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -38,9 +37,11 @@ class InvoicePdfService {
     final duration = isYearly
         ? '1 Year'
         : isSixMonths
-            ? '6 Months'
-            : '1 Month';
-    final formattedDate = DateFormat('dd MMM yyyy, hh:mm a').format(paymentDate);
+        ? '6 Months'
+        : '1 Month';
+    final formattedDate = DateFormat(
+      'dd MMM yyyy, hh:mm a',
+    ).format(paymentDate);
 
     // GST calculations – default to 0% if not provided.
     final double gstPercent = gstPercentage ?? 0.0;
@@ -101,10 +102,22 @@ class InvoicePdfService {
                           fontWeight: pw.FontWeight.bold,
                         ),
                       ),
-                      pw.Text('GSTIN: 33AAMCR8640J1ZZ', style: const pw.TextStyle(fontSize: 10)),
-                      pw.Text('support@rookstechnologies@gmail.com', style: const pw.TextStyle(fontSize: 10)),
-                      pw.Text('www.rookstechnologies.com', style: const pw.TextStyle(fontSize: 10)),
-                      pw.Text('Registered Address: [Insert Address Here]', style: const pw.TextStyle(fontSize: 10)),
+                      pw.Text(
+                        'GSTIN: 33AAMCR8640J1ZZ',
+                        style: const pw.TextStyle(fontSize: 10),
+                      ),
+                      pw.Text(
+                        'support@rookstechnologies@gmail.com',
+                        style: const pw.TextStyle(fontSize: 10),
+                      ),
+                      pw.Text(
+                        'www.rookstechnologies.com',
+                        style: const pw.TextStyle(fontSize: 10),
+                      ),
+                      pw.Text(
+                        'Registered Address: No:17, Jawahar Street,Ramavarmapuram,Nagercoil-629001',
+                        style: const pw.TextStyle(fontSize: 10),
+                      ),
                     ],
                   ),
                 ],
@@ -118,11 +131,24 @@ class InvoicePdfService {
                     child: pw.Column(
                       crossAxisAlignment: pw.CrossAxisAlignment.start,
                       children: [
-                        pw.Text('Billed To:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: primaryColor)),
+                        pw.Text(
+                          'Billed To:',
+                          style: pw.TextStyle(
+                            fontWeight: pw.FontWeight.bold,
+                            color: primaryColor,
+                          ),
+                        ),
                         pw.SizedBox(height: 4),
-                        pw.Text(customerName, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14)),
+                        pw.Text(
+                          customerName,
+                          style: pw.TextStyle(
+                            fontWeight: pw.FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
                         pw.Text(customerEmail),
-                        if (gstNumber != null && gstNumber.isNotEmpty) pw.Text('GSTIN: $gstNumber'),
+                        if (gstNumber != null && gstNumber.isNotEmpty)
+                          pw.Text('GSTIN: $gstNumber'),
                       ],
                     ),
                   ),
@@ -130,10 +156,22 @@ class InvoicePdfService {
                     child: pw.Column(
                       crossAxisAlignment: pw.CrossAxisAlignment.end,
                       children: [
-                        pw.Text('Payment Details:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: primaryColor)),
+                        pw.Text(
+                          'Payment Details:',
+                          style: pw.TextStyle(
+                            fontWeight: pw.FontWeight.bold,
+                            color: primaryColor,
+                          ),
+                        ),
                         pw.SizedBox(height: 4),
                         pw.Text('Transaction ID: $transactionId'),
-                        pw.Text('Status: SUCCESS', style: pw.TextStyle(color: PdfColors.green700, fontWeight: pw.FontWeight.bold)),
+                        pw.Text(
+                          'Status: SUCCESS',
+                          style: pw.TextStyle(
+                            color: PdfColors.green700,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -144,28 +182,63 @@ class InvoicePdfService {
               pw.Container(
                 decoration: pw.BoxDecoration(
                   color: PdfColors.grey200,
-                  border: pw.Border(bottom: pw.BorderSide(color: primaryColor, width: 2)),
+                  border: pw.Border(
+                    bottom: pw.BorderSide(color: primaryColor, width: 2),
+                  ),
                 ),
                 padding: const pw.EdgeInsets.all(12),
                 child: pw.Row(
                   children: [
-                    pw.Expanded(flex: 3, child: pw.Text('Description', style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
-                    pw.Expanded(flex: 1, child: pw.Text('Duration', style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
-                    pw.Expanded(flex: 1, child: pw.Text('Total', textAlign: pw.TextAlign.right, style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
+                    pw.Expanded(
+                      flex: 3,
+                      child: pw.Text(
+                        'Description',
+                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                      ),
+                    ),
+                    pw.Expanded(
+                      flex: 1,
+                      child: pw.Text(
+                        'Duration',
+                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                      ),
+                    ),
+                    pw.Expanded(
+                      flex: 1,
+                      child: pw.Text(
+                        'Total',
+                        textAlign: pw.TextAlign.right,
+                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                      ),
+                    ),
                   ],
                 ),
               ),
               // Subscription line item.
               pw.Container(
-                padding: const pw.EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+                padding: const pw.EdgeInsets.symmetric(
+                  vertical: 16,
+                  horizontal: 12,
+                ),
                 decoration: const pw.BoxDecoration(
-                  border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey300, width: 1)),
+                  border: pw.Border(
+                    bottom: pw.BorderSide(color: PdfColors.grey300, width: 1),
+                  ),
                 ),
                 child: pw.Row(
                   children: [
-                    pw.Expanded(flex: 3, child: pw.Text('Subscription - $planName')),
+                    pw.Expanded(
+                      flex: 3,
+                      child: pw.Text('Subscription - $planName'),
+                    ),
                     pw.Expanded(flex: 1, child: pw.Text(duration)),
-                    pw.Expanded(flex: 1, child: pw.Text('Rs. $amountPaid', textAlign: pw.TextAlign.right)),
+                    pw.Expanded(
+                      flex: 1,
+                      child: pw.Text(
+                        'Rs. $amountPaid',
+                        textAlign: pw.TextAlign.right,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -182,23 +255,48 @@ class InvoicePdfService {
                         pw.Row(
                           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                           children: [
-                            pw.Text('Subtotal:', style: pw.TextStyle(fontSize: 12)),
-                            pw.Text('Rs. ${subTotal.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 12)),
+                            pw.Text(
+                              'Subtotal:',
+                              style: pw.TextStyle(fontSize: 12),
+                            ),
+                            pw.Text(
+                              'Rs. ${subTotal.toStringAsFixed(2)}',
+                              style: pw.TextStyle(fontSize: 12),
+                            ),
                           ],
                         ),
                         pw.Row(
                           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                           children: [
-                            pw.Text('GST (${gstPercent.toStringAsFixed(2)}%):', style: pw.TextStyle(fontSize: 12)),
-                            pw.Text('Rs. ${gstAmount.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 12)),
+                            pw.Text(
+                              'GST (${gstPercent.toStringAsFixed(2)}%):',
+                              style: pw.TextStyle(fontSize: 12),
+                            ),
+                            pw.Text(
+                              'Rs. ${gstAmount.toStringAsFixed(2)}',
+                              style: pw.TextStyle(fontSize: 12),
+                            ),
                           ],
                         ),
                         pw.Divider(thickness: 1, color: PdfColors.grey400),
                         pw.Row(
                           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                           children: [
-                            pw.Text('Total Amount Paid:', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
-                            pw.Text('Rs. $amountPaid', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: primaryColor)),
+                            pw.Text(
+                              'Total Amount Paid:',
+                              style: pw.TextStyle(
+                                fontSize: 14,
+                                fontWeight: pw.FontWeight.bold,
+                              ),
+                            ),
+                            pw.Text(
+                              'Rs. $amountPaid',
+                              style: pw.TextStyle(
+                                fontSize: 16,
+                                fontWeight: pw.FontWeight.bold,
+                                color: primaryColor,
+                              ),
+                            ),
                           ],
                         ),
                       ],

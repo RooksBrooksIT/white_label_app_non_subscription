@@ -12,6 +12,9 @@ import 'package:subscription_rooks_app/frontend/screens/customer_createtickets_d
 import 'package:flutter/services.dart';
 import 'package:subscription_rooks_app/services/notification_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
+import 'package:subscription_rooks_app/services/app_tour_service.dart';
+import 'package:subscription_rooks_app/widgets/interactive_tour/tour_step_model.dart';
 
 class AMCTrackMyService extends StatefulWidget {
   final String customerName;
@@ -31,6 +34,7 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
   bool showBanner = false;
   String bannerMessage = '';
   StreamSubscription? _notificationSubscription;
+  Timer? _timer;
 
   @override
   void initState() {
@@ -44,6 +48,29 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
       );
     }
     _setupNotificationListener();
+    // Update relative time every minute
+    _timer = Timer.periodic(const Duration(seconds: 60), (timer) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  String _getRelativeTime(Timestamp? timestamp) {
+    if (timestamp == null) return 'Unknown';
+    final now = DateTime.now();
+    final dateTime = timestamp.toDate();
+    final difference = now.difference(dateTime);
+
+    if (difference.inSeconds < 60) {
+      return 'Posted just now';
+    } else if (difference.inMinutes < 60) {
+      return 'Posted ${difference.inMinutes} minute${difference.inMinutes == 1 ? '' : 's'} ago';
+    } else if (difference.inHours < 24) {
+      return 'Posted ${difference.inHours} hour${difference.inHours == 1 ? '' : 's'} ago';
+    } else if (difference.inDays < 7) {
+      return 'Posted ${difference.inDays} day${difference.inDays == 1 ? '' : 's'} ago';
+    } else {
+      return DateFormat('dd MMM yyyy, hh:mm a').format(dateTime);
+    }
   }
 
   void _setupNotificationListener() {
@@ -82,6 +109,7 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
   @override
   void dispose() {
     _notificationSubscription?.cancel();
+    _timer?.cancel();
     super.dispose();
   }
 
@@ -93,21 +121,24 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
         backgroundColor: Theme.of(context).primaryColor,
         elevation: 0,
         centerTitle: true,
-        iconTheme: IconThemeData(
-          color: Theme.of(context).appBarTheme.foregroundColor ?? Colors.white,
-        ),
+        iconTheme: const IconThemeData(color: Colors.white),
+        foregroundColor: Colors.white,
+        actionsIconTheme: const IconThemeData(color: Colors.white),
         title: Text(
           ThemeService.instance.appName,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.w800,
-            color:
-                Theme.of(context).appBarTheme.foregroundColor ?? Colors.white,
+            color: Colors.white,
             letterSpacing: 1.2,
           ),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            size: 20,
+            color: Colors.white,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         // actions: [
@@ -132,8 +163,9 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
               Expanded(
                 child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                   stream: FirestoreService.instance
-                      .collection('Admin_details')
-                      .where('id', isEqualTo: widget.customerId)
+                      .collection('Raised_tickets')
+                      .where('customerName', isEqualTo: widget.customerName)
+                      .orderBy('createdAt', descending: true)
                       .snapshots(),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
@@ -220,7 +252,10 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
                 offset: const Offset(0, 10),
               ),
             ],
-            border: Border.all(color: Colors.green.withValues(alpha: 0.3), width: 1),
+            border: Border.all(
+              color: Colors.green.withValues(alpha: 0.3),
+              width: 1,
+            ),
           ),
           child: Row(
             children: [
@@ -308,191 +343,58 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
     Map<String, dynamic> data,
     String documentId,
   ) {
-    final bookingId = data['bookingId'] ?? 'N/A';
-    final customerId = data['id'] ?? 'Not Assigned';
-    final jobType = data['JobType'] ?? 'N/A';
-    final deviceBrand = data['deviceBrand'] ?? 'N/A';
-    final amount = data['amount']?.toString() ?? '0';
-    final timestamp = data['timestamp'] as Timestamp?;
-    final rawStatus = data['engineerStatus'] ?? '';
-    final adminStatus = data['adminStatus']?.toString().toLowerCase() ?? '';
-    final isCanceled = adminStatus == 'canceled' || adminStatus == 'cancelled';
-    final statusInfo = _mapEngineerStatus(rawStatus);
+    return _ExpandableTicketCard(data: data, documentId: documentId);
+  }
+}
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 15,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header Section
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Icon(
-                    Icons.receipt_long_rounded,
-                    color: Theme.of(context).primaryColor,
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "ID: $bookingId",
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF1E293B),
-                          letterSpacing: -0.5,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        "Job: $jobType • ID: $customerId",
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF64748B),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                _buildStatusBadge(
-                  isCanceled ? 'CANCELED' : statusInfo.label.toUpperCase(),
-                  isCanceled ? Colors.red : statusInfo.color,
-                ),
-              ],
-            ),
-          ),
+class _ExpandableTicketCard extends StatefulWidget {
+  final Map<String, dynamic> data;
+  final String documentId;
 
-          const Divider(
-            height: 1,
-            indent: 20,
-            endIndent: 20,
-            color: Color(0xFFF1F5F9),
-          ),
+  const _ExpandableTicketCard({required this.data, required this.documentId});
 
-          // Progress Tracker
-          if (!isCanceled) _buildStatusTracker(rawStatus),
+  @override
+  State<_ExpandableTicketCard> createState() => _ExpandableTicketCardState();
+}
 
-          // Main Info
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    _buildInfoItem(
-                      Icons.devices_rounded,
-                      "Device",
-                      deviceBrand,
-                    ),
-                    const SizedBox(width: 12),
-                    _buildInfoItem(
-                      Icons.calendar_today_rounded,
-                      "Date",
-                      _formatTimestamp(timestamp),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                _buildDetailSection(data, isCanceled),
-              ],
-            ),
-          ),
+class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
+  bool _isExpanded = false;
 
-          // Footer
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: const BoxDecoration(
-              color: Color(0xFFF8FAFC),
-              // borderRadius: BorderRadius.only(
-              //   bottomLeft: Radius.circular(24),
-              //   bottomRight: Radius.circular(24),
-              // ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      "ESTIMATED BILL",
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF94A3B8),
-                        letterSpacing: 1.0,
-                      ),
-                    ),
-                    Text(
-                      "₹$amount",
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                        color: isCanceled
-                            ? const Color(0xFF94A3B8)
-                            : const Color(0xFF059669),
-                      ),
-                    ),
-                  ],
-                ),
-                if (!isCanceled &&
-                    statusInfo.label == 'Completed' &&
-                    (data['FeedBack'] ?? '').isEmpty)
-                  _buildActionIndicator(
-                    "Rate Service",
-                    Icons.star_border_rounded,
-                    () {
-                      showDialog(
-                        context: context,
-                        builder: (ctx) => FeedbackDialog(
-                          bookingId: bookingId.toString(),
-                          documentId: documentId,
-                        ),
-                      );
-                    },
-                  )
-                else if (!isCanceled &&
-                    statusInfo.label != 'Completed' &&
-                    statusInfo.label != 'In Progress')
-                  _buildActionIndicator("Cancel", Icons.close_rounded, () {
-                    showDialog(
-                      context: context,
-                      builder: (ctx) => CancelTicketDialog(
-                        bookingId: bookingId.toString(),
-                        documentId: documentId,
-                      ),
-                    );
-                  }, isDanger: true),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
+  _StatusInfo _mapEngineerStatus(String status) {
+    final lowerStatus = status.toLowerCase().trim();
+    switch (lowerStatus) {
+      case 'complete':
+      case 'completed':
+        return _StatusInfo('Completed', Colors.green.shade600);
+      case 'assigned':
+        return _StatusInfo('Assigned', Colors.green.shade600);
+      case 'in progress':
+        return _StatusInfo('In Progress', Colors.blue.shade600);
+      case 'pending':
+        return _StatusInfo('Pending', Colors.orange.shade700);
+      case 'not assigned':
+        return _StatusInfo('Not Assigned', Colors.red.shade700);
+      case 'cancelled':
+      case 'canceled':
+        return _StatusInfo('Cancelled', Colors.grey.shade600);
+      default:
+        // Check for specific substrings if exact match fails
+        if (lowerStatus.contains('approval')) {
+          return _StatusInfo('Pending Approval', Colors.purple.shade600);
+        }
+        if (lowerStatus.contains('spare')) {
+          return _StatusInfo('Pending Spares', Colors.amber.shade700);
+        }
+        if (lowerStatus.contains('observation')) {
+          return _StatusInfo('Observation', Colors.cyan.shade600);
+        }
+
+        // Capitalize first letter if it's unknown
+        String formatted = status.isNotEmpty
+            ? status[0].toUpperCase() + status.substring(1)
+            : 'Unknown';
+        return _StatusInfo(formatted, Colors.grey.shade500);
+    }
   }
 
   Widget _buildStatusBadge(String label, Color color) {
@@ -514,15 +416,28 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
     );
   }
 
-  Widget _buildStatusTracker(String currentStatus) {
-    final status = currentStatus.toLowerCase().trim();
+  Widget _buildStatusTracker(Map<String, dynamic> data) {
+    final adminStatus = data['adminStatus']?.toString().toLowerCase() ?? '';
+    final engineerStatus =
+        data['engineerStatus']?.toString().toLowerCase() ?? '';
+    final assignedEngineer = data['assignedEngineer'];
+
     int currentStep = 0;
-    if (status == 'assigned') {
+    // Stage 1: Raised (default)
+    // Stage 2: Assigned (if adminStatus is assigned or assignedEngineer exists)
+    if (adminStatus == 'assigned' || assignedEngineer != null) {
       currentStep = 1;
-    } else if (status == 'in progress')
+    }
+    // Stage 3: Repairing (if engineerStatus is not "not assigned" or "completed")
+    if (engineerStatus != 'not assigned' &&
+        engineerStatus != 'completed' &&
+        engineerStatus != '') {
       currentStep = 2;
-    else if (status == 'completed')
+    }
+    // Stage 4: Done (only if both engineerStatus and adminStatus are "completed")
+    if (engineerStatus == 'completed' && adminStatus == 'completed') {
       currentStep = 3;
+    }
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(25, 20, 25, 10),
@@ -558,7 +473,9 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
               boxShadow: isActive
                   ? [
                       BoxShadow(
-                        color: Theme.of(context).primaryColor.withValues(alpha: 0.3),
+                        color: Theme.of(
+                          context,
+                        ).primaryColor.withValues(alpha: 0.3),
                         blurRadius: 6,
                         offset: const Offset(0, 3),
                       ),
@@ -637,6 +554,34 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
         ),
       ),
     );
+  }
+
+  String _formatTimestamp(Timestamp? timestamp) {
+    if (timestamp == null) return 'Unknown';
+    return DateFormat('dd MMM yyyy').format(timestamp.toDate());
+  }
+
+  double _calculateTotalAmount(Map<String, dynamic> record) {
+    double total = 0.0;
+    // Add admin's amount
+    if (record['amount'] != null) {
+      total += (double.tryParse(record['amount'].toString()) ?? 0.0);
+    }
+    // Add all engineer's payments
+    if (record['payments'] is List) {
+      for (var payment in record['payments']) {
+        if (payment is Map && payment['amount'] != null) {
+          total += (double.tryParse(payment['amount'].toString()) ?? 0.0);
+        }
+      }
+    }
+    return total;
+  }
+
+  String _formatAmount(double amount) {
+    return amount == amount.roundToDouble()
+        ? '₹${amount.toInt()}'
+        : '₹${amount.toStringAsFixed(2)}';
   }
 
   Widget _buildDetailSection(Map<String, dynamic> data, bool isCanceled) {
@@ -773,46 +718,625 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
     );
   }
 
-  _StatusInfo _mapEngineerStatus(String status) {
-    final lowerStatus = status.toLowerCase().trim();
-    switch (lowerStatus) {
-      case 'complete':
-      case 'completed':
-        return _StatusInfo('Completed', Colors.green.shade600);
-      case 'assigned':
-        return _StatusInfo('Assigned', Colors.green.shade600);
-      case 'in progress':
-        return _StatusInfo('In Progress', Colors.blue.shade600);
-      case 'pending':
-        return _StatusInfo('Pending', Colors.orange.shade700);
-      case 'not assigned':
-        return _StatusInfo('Not Assigned', Colors.red.shade700);
-      case 'cancelled':
-      case 'canceled':
-        return _StatusInfo('Cancelled', Colors.grey.shade600);
-      default:
-        // Check for specific substrings if exact match fails
-        if (lowerStatus.contains('approval')) {
-          return _StatusInfo('Pending Approval', Colors.purple.shade600);
-        }
-        if (lowerStatus.contains('spare')) {
-          return _StatusInfo('Pending Spares', Colors.amber.shade700);
-        }
-        if (lowerStatus.contains('observation')) {
-          return _StatusInfo('Observation', Colors.cyan.shade600);
-        }
+  String _getRelativeTime(Timestamp? timestamp) {
+    if (timestamp == null) return 'Unknown';
+    final now = DateTime.now();
+    final dateTime = timestamp.toDate();
+    final difference = now.difference(dateTime);
 
-        // Capitalize first letter if it's unknown
-        String formatted = status.isNotEmpty
-            ? status[0].toUpperCase() + status.substring(1)
-            : 'Unknown';
-        return _StatusInfo(formatted, Colors.grey.shade500);
+    if (difference.inSeconds < 60) {
+      return 'Posted just now';
+    } else if (difference.inMinutes < 60) {
+      return 'Posted ${difference.inMinutes} minute${difference.inMinutes == 1 ? '' : 's'} ago';
+    } else if (difference.inHours < 24) {
+      return 'Posted ${difference.inHours} hour${difference.inHours == 1 ? '' : 's'} ago';
+    } else if (difference.inDays < 7) {
+      return 'Posted ${difference.inDays} day${difference.inDays == 1 ? '' : 's'} ago';
+    } else {
+      return DateFormat('dd MMM yyyy, hh:mm a').format(dateTime);
     }
   }
 
-  String _formatTimestamp(Timestamp? timestamp) {
-    if (timestamp == null) return 'Unknown';
-    return DateFormat('dd MMM yyyy').format(timestamp.toDate());
+  @override
+  Widget build(BuildContext context) {
+    final ticketId = widget.data['ticketId'] ?? 'N/A';
+    final jobType = widget.data['jobType'] ?? 'N/A';
+    final deviceBrand = widget.data['deviceBrand'] ?? 'N/A';
+    final deviceType = widget.data['deviceType'] ?? 'N/A';
+    final customerName = widget.data['customerName'] ?? 'N/A';
+    final mobileNumber = widget.data['mobileNumber'] ?? 'N/A';
+    final issueDescription = widget.data['issueDescription'] ?? 'N/A';
+    final address = widget.data['address'] ?? 'N/A';
+    final assignedEngineer = widget.data['assignedEngineer'];
+    final assignedTimestamp = widget.data['assignedTimestamp'] as Timestamp?;
+    final paymentDetails = widget.data['paymentDetails'];
+    final paymentApproved = widget.data['paymentApprovedByAdmin'] ?? false;
+    final uploadedFiles = widget.data['uploadedFiles'] as List?;
+    final statusHistory = widget.data['statusHistory'] as List?;
+    final createdAt = widget.data['createdAt'] as Timestamp?;
+    final updatedAt = widget.data['updatedAt'] as Timestamp?;
+    final rawStatus = widget.data['engineerStatus'] ?? '';
+    final adminStatus =
+        widget.data['adminStatus']?.toString().toLowerCase() ?? '';
+    final isCanceled = adminStatus == 'canceled' || adminStatus == 'cancelled';
+    final statusInfo = _mapEngineerStatus(rawStatus);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Collapsible Header (always visible)
+          Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(24),
+            child: InkWell(
+              onTap: () {
+                setState(() {
+                  _isExpanded = !_isExpanded;
+                });
+              },
+              borderRadius: BorderRadius.circular(24),
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Theme.of(
+                              context,
+                            ).primaryColor.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Icon(
+                            Icons.receipt_long_rounded,
+                            color: Theme.of(context).primaryColor,
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "ID: $ticketId",
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF1E293B),
+                                  letterSpacing: -0.5,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                "Customer: $customerName",
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF64748B),
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                _getRelativeTime(createdAt),
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  color: Color(0xFF94A3B8),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        _buildStatusBadge(
+                          isCanceled
+                              ? 'CANCELED'
+                              : statusInfo.label.toUpperCase(),
+                          isCanceled ? Colors.red : statusInfo.color,
+                        ),
+                        const SizedBox(width: 8),
+                        Icon(
+                          _isExpanded ? Icons.expand_less : Icons.expand_more,
+                          color: const Color(0xFF94A3B8),
+                        ),
+                      ],
+                    ),
+                    // Progress Tracker (always visible in collapsed state)
+                    if (!isCanceled) ...[
+                      const SizedBox(height: 16),
+                      _buildStatusTracker(widget.data),
+                    ],
+                    // Quick device info (always visible)
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        _buildInfoItem(
+                          Icons.devices_rounded,
+                          "Device",
+                          deviceBrand,
+                        ),
+                        const SizedBox(width: 12),
+                        _buildInfoItem(
+                          Icons.category_rounded,
+                          "Type",
+                          deviceType,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          // Expanded Content
+          if (_isExpanded) ...[
+            const Divider(
+              height: 1,
+              indent: 20,
+              endIndent: 20,
+              color: Color(0xFFF1F5F9),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      _buildInfoItem(Icons.work_rounded, "Job", jobType),
+                      const SizedBox(width: 12),
+                      _buildInfoItem(
+                        Icons.calendar_today_rounded,
+                        "Created",
+                        _formatTimestamp(createdAt),
+                      ),
+                    ],
+                  ),
+                  if (updatedAt != null) ...[
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        _buildInfoItem(
+                          Icons.update_rounded,
+                          "Updated",
+                          DateFormat('dd MMM yyyy').format(updatedAt.toDate()),
+                        ),
+                        const SizedBox(width: 12),
+                        _buildInfoItem(
+                          Icons.phone_rounded,
+                          "Mobile",
+                          mobileNumber,
+                        ),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  // Address
+                  if (address != 'N/A') ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "ADDRESS",
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF94A3B8),
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            address,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFF475569),
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  // Issue Description
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          "ISSUE DESCRIPTION",
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF94A3B8),
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          issueDescription,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Color(0xFF475569),
+                            height: 1.4,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (assignedEngineer != null) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Colors.green.withValues(alpha: 0.1),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "ASSIGNED ENGINEER",
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF16A34A),
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            assignedEngineer,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF16A34A),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  if (paymentApproved) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Colors.blue.withValues(alpha: 0.1),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "PAYMENT DETAILS",
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF2563EB),
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          // Show individual payments
+                          if (widget.data['payments'] is List &&
+                              (widget.data['payments'] as List).isNotEmpty)
+                            ...(widget.data['payments'] as List).map((payment) {
+                              if (payment is Map) {
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 4.0),
+                                  child: Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        payment['paymentMethod']?.toString() ??
+                                            'Payment',
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          color: Color(0xFF1D4ED8),
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                      Text(
+                                        _formatAmount(
+                                          double.tryParse(
+                                                payment['amount'].toString(),
+                                              ) ??
+                                              0.0,
+                                        ),
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          color: Color(0xFF1D4ED8),
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }
+                              return const SizedBox.shrink();
+                            }),
+                          const SizedBox(height: 8),
+                          // Show total
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  "Total Amount",
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Color(0xFF1D4ED8),
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                Text(
+                                  _formatAmount(
+                                    _calculateTotalAmount(widget.data),
+                                  ),
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    color: Color(0xFF1D4ED8),
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ] else if (paymentDetails != null) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Colors.orange.withValues(alpha: 0.1),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.pending_actions_rounded,
+                            color: Colors.orange,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              "Payment details will be available after admin approval",
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.orange[800],
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  if (uploadedFiles != null && uploadedFiles.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.purple.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Colors.purple.withValues(alpha: 0.1),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "UPLOADED FILES",
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF9333EA),
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          ...uploadedFiles.map((file) {
+                            final fileName = file['name'] ?? 'Unknown file';
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.attach_file_rounded,
+                                    color: Theme.of(context).primaryColor,
+                                    size: 16,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      fileName,
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        color: Color(0xFF475569),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }),
+                        ],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  _buildDetailSection(widget.data, isCanceled),
+                  if (statusHistory != null && statusHistory.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                    const SizedBox(height: 16),
+                    const Text(
+                      "STATUS HISTORY",
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF94A3B8),
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    ...statusHistory.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final historyItem = entry.value;
+                      final historyTimestamp =
+                          historyItem['timestamp'] as Timestamp?;
+                      final historyStatus = historyItem['status'] ?? '';
+                      return Padding(
+                        padding: EdgeInsets.only(
+                          bottom: index == statusHistory.length - 1 ? 0 : 12,
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              margin: const EdgeInsets.only(top: 6),
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).primaryColor,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (historyTimestamp != null)
+                                    Text(
+                                      DateFormat(
+                                        'dd MMM yyyy, hh:mm a',
+                                      ).format(historyTimestamp.toDate()),
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: Color(0xFF94A3B8),
+                                      ),
+                                    ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    historyStatus,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF475569),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                  ],
+                ],
+              ),
+            ),
+          ],
+          // Footer (only visible when expanded)
+          if (_isExpanded)
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: const BoxDecoration(color: Color(0xFFF8FAFC)),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  if (!isCanceled &&
+                      statusInfo.label == 'Completed' &&
+                      (widget.data['FeedBack'] ?? '').isEmpty)
+                    _buildActionIndicator(
+                      "Rate Service",
+                      Icons.star_border_rounded,
+                      () {
+                        showDialog(
+                          context: context,
+                          builder: (ctx) => FeedbackDialog(
+                            bookingId: ticketId.toString(),
+                            documentId: widget.documentId,
+                          ),
+                        );
+                      },
+                    )
+                  else if (!isCanceled &&
+                      statusInfo.label != 'Completed' &&
+                      statusInfo.label != 'In Progress')
+                    _buildActionIndicator("Cancel", Icons.close_rounded, () {
+                      showDialog(
+                        context: context,
+                        builder: (ctx) => CancelTicketDialog(
+                          bookingId: ticketId.toString(),
+                          documentId: widget.documentId,
+                        ),
+                      );
+                    }, isDanger: true),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }
 
@@ -857,13 +1381,14 @@ class _CancelTicketDialogState extends State<CancelTicketDialog> {
 
     try {
       await FirestoreService.instance
-          .collection('Admin_details')
+          .collection('Raised_tickets')
           .doc(widget.documentId)
           .update({
             'Reason_cancel': _reasonController.text.trim(),
             'adminStatus': 'Canceled',
             'engineerStatus': 'Cancelled',
             'cancelledAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
           });
 
       // Close the dialog
@@ -1014,7 +1539,9 @@ class _CancelTicketDialogState extends State<CancelTicketDialog> {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      disabledBackgroundColor: Colors.red.withValues(alpha: 0.3),
+                      disabledBackgroundColor: Colors.red.withValues(
+                        alpha: 0.3,
+                      ),
                     ),
                     child: _isSubmitting
                         ? const SizedBox(
@@ -1056,9 +1583,12 @@ class FeedbackDialog extends StatelessWidget {
   Future<void> _submitFeedback(BuildContext context, String feedback) async {
     try {
       await FirestoreService.instance
-          .collection('Admin_details')
+          .collection('Raised_tickets')
           .doc(documentId)
-          .update({'FeedBack': feedback});
+          .update({
+            'FeedBack': feedback,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
 
       // Close the feedback dialog
       Navigator.of(context).pop();
@@ -1338,10 +1868,111 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
   String phoneNumber = '';
   bool isLoading = true;
 
+  // GlobalKeys for Customer Interactive Tour
+  final GlobalKey _custHeaderKey = GlobalKey();
+  final GlobalKey _custWelcomeCardKey = GlobalKey();
+  final GlobalKey _custAddDeviceKey = GlobalKey();
+  final GlobalKey _custTrackServiceKey = GlobalKey();
+  final GlobalKey _custUpdatesKey = GlobalKey();
+  final GlobalKey _custSupportKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
     loadUserData();
+  }
+
+  Future<void> _checkAndStartCustomerTour({bool force = false}) async {
+    if (!mounted) return;
+    final prefs = await SharedPreferences.getInstance();
+    final completed = prefs.getBool('hasCompletedCustomerTour') ?? false;
+    if (!completed || force) {
+      final steps = _buildCustomerTourSteps();
+      if (mounted && steps.isNotEmpty) {
+        AppTourService.instance.startTour(
+          context: context,
+          steps: steps,
+          force: force,
+          onComplete: () async {
+            final p = await SharedPreferences.getInstance();
+            await p.setBool('hasCompletedCustomerTour', true);
+          },
+        );
+      }
+    }
+  }
+
+  List<TourStep> _buildCustomerTourSteps() {
+    final primary = Theme.of(context).primaryColor;
+    return [
+      TourStep(
+        id: 'cust_header',
+        targetKey: _custHeaderKey,
+        category: '👋 Welcome Customer',
+        title: 'Customer Self-Service Hub',
+        description:
+            'Welcome to your personal service portal! From here, you can manage your maintenance contracts, request device repairs, and track live status.',
+        icon: Icons.account_circle_rounded,
+        accentColor: primary,
+      ),
+      TourStep(
+        id: 'cust_welcome_card',
+        targetKey: _custWelcomeCardKey,
+        category: '🏠 Account Dashboard',
+        title: 'Your Account Overview',
+        description:
+            'Quickly access your service summary and find everything you need to keep your devices running smoothly.',
+        icon: Icons.home_rounded,
+        accentColor: primary,
+      ),
+      TourStep(
+        id: 'cust_add_device',
+        targetKey: _custAddDeviceKey,
+        category: '➕ Book Service Request',
+        title: 'Add Device & Book Repair',
+        description:
+            'Need service or maintenance? Tap "Explore" to select your device brand and type, enter issue details, and instantly schedule a technician visit.',
+        icon: Icons.add_to_photos_rounded,
+        accentColor: primary,
+        workflowSteps: const [
+          '1. Select Device',
+          '2. Enter Symptoms',
+          '3. Submit Ticket',
+          '4. Tech Dispatched',
+        ],
+        currentWorkflowIndex: 0,
+      ),
+      TourStep(
+        id: 'cust_track_service',
+        targetKey: _custTrackServiceKey,
+        category: '📍 Live Tracking',
+        title: 'Track Active Service',
+        description:
+            'Track real-time progress on your open repairs. View assigned engineer name, live GPS status, repair notes, and invoice details.',
+        icon: Icons.track_changes_rounded,
+        accentColor: const Color(0xFF059669),
+      ),
+      TourStep(
+        id: 'cust_updates',
+        targetKey: _custUpdatesKey,
+        category: '🔔 Instant Notifications',
+        title: 'Real-time Updates',
+        description:
+            'Receive instant push notifications as soon as a technician is assigned, checks in onsite, or completes your repair.',
+        icon: Icons.bolt_rounded,
+        accentColor: const Color(0xFF3B82F6),
+      ),
+      TourStep(
+        id: 'cust_support',
+        targetKey: _custSupportKey,
+        category: '⭐ Certified Support',
+        title: 'Expert Assistance',
+        description:
+            'Rest assured knowing all repairs are carried out by certified field specialists with professional support anytime.',
+        icon: Icons.workspace_premium_rounded,
+        accentColor: const Color(0xFF8B5CF6),
+      ),
+    ];
   }
 
   Future<void> loadUserData() async {
@@ -1394,6 +2025,11 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
     } finally {
       setState(() {
         isLoading = false;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Future.delayed(const Duration(milliseconds: 600), () {
+          if (mounted) _checkAndStartCustomerTour();
+        });
       });
     }
   }
@@ -1463,43 +2099,132 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
   }
 
   Future<void> handleLogout(BuildContext context) async {
+    final primaryError = const Color(0xFFEF4444);
     bool? confirmLogout = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.logout, color: Theme.of(context).primaryColor),
-            const SizedBox(width: 10),
-            Text(
-              "Logout",
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).primaryColor,
-              ),
+      builder: (context) => Dialog(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 380),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        primaryError.withValues(alpha: 0.15),
+                        primaryError.withValues(alpha: 0.05),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: primaryError.withValues(alpha: 0.25),
+                      width: 2,
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.logout_rounded,
+                    color: primaryError,
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                const Text(
+                  'Confirm Logout',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF0F172A),
+                    letterSpacing: -0.4,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Are you sure you want to logout? You will need to sign in again to access your account.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF64748B),
+                    fontWeight: FontWeight.w500,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: SizedBox(
+                        height: 48,
+                        child: TextButton(
+                          onPressed: () => Navigator.of(context).pop(false),
+                          style: TextButton.styleFrom(
+                            backgroundColor: const Color(0xFFF1F5F9),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          child: const Text(
+                            'Cancel',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF475569),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: SizedBox(
+                        height: 48,
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.of(context).pop(true),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primaryError,
+                            elevation: 3,
+                            shadowColor: primaryError.withValues(alpha: 0.35),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                'Logout',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              SizedBox(width: 6),
+                              Icon(
+                                Icons.arrow_forward_rounded,
+                                size: 16,
+                                color: Colors.white,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-          ],
-        ),
-        content: const Text(
-          "Are you sure you want to logout?",
-          style: TextStyle(fontSize: 16),
-        ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text("Cancel", style: TextStyle(color: Colors.grey)),
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(context).primaryColor,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            child: const Text("Logout", style: TextStyle(color: Colors.white)),
-          ),
-        ],
+        ),
       ),
     );
 
@@ -1528,7 +2253,7 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
     return WillPopScope(
       onWillPop: _onWillPop,
       child: Scaffold(
-        backgroundColor: const Color.fromARGB(255, 223, 224, 224),
+        backgroundColor: const Color(0xFFF8FAFC),
         appBar: _buildAppBar(),
         body: isLoading
             ? Center(
@@ -1544,75 +2269,144 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
   }
 
   AppBar _buildAppBar() {
+    final primary = Theme.of(context).primaryColor;
     return AppBar(
       automaticallyImplyLeading: false,
-      backgroundColor: Theme.of(context).primaryColor,
+      backgroundColor: primary,
       elevation: 0,
       centerTitle: false,
       toolbarHeight: 90,
+      flexibleSpace: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              primary,
+              HSLColor.fromColor(primary).withLightness(0.32).toColor(),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+      ),
       title: Padding(
         padding: const EdgeInsets.only(top: 8.0),
-        child: Row(
-          children: [
-            if (ThemeService.instance.logoUrl != null)
+        child: Container(
+          key: _custHeaderKey,
+          child: Row(
+            children: [
               Container(
-                padding: const EdgeInsets.all(3),
+                padding: const EdgeInsets.all(2),
                 decoration: BoxDecoration(
-                  color: Colors.white,
                   shape: BoxShape.circle,
+                  border: Border.all(
+                    color: const Color(0xFFF59E0B),
+                    width: 2,
+                  ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.1),
-                      blurRadius: 8,
+                      color: Colors.black.withValues(alpha: 0.15),
+                      blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
                   ],
                 ),
-                child: CircleAvatar(
-                  radius: 24,
-                  backgroundColor: Colors.white,
-                  backgroundImage: NetworkImage(ThemeService.instance.logoUrl!),
+                child: ThemeService.instance.logoUrl != null
+                    ? CircleAvatar(
+                        radius: 22,
+                        backgroundColor: Colors.white,
+                        backgroundImage: NetworkImage(ThemeService.instance.logoUrl!),
+                      )
+                    : CircleAvatar(
+                        radius: 22,
+                        backgroundColor: Colors.white.withValues(alpha: 0.2),
+                        child: Text(
+                          userName.isNotEmpty ? userName[0].toUpperCase() : 'C',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.25),
+                        ),
+                      ),
+                      child: Text(
+                        ThemeService.instance.appName.toUpperCase(),
+                        style: const TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      "Hello, $userName 👋",
+                      style: const TextStyle(
+                        fontSize: 19,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        letterSpacing: -0.4,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
               ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    ThemeService.instance.appName.toUpperCase(),
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white.withValues(alpha: 0.7),
-                      letterSpacing: 2.0,
-                    ),
-                  ),
-                  Text(
-                    "Hello, $userName",
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.white,
-                      letterSpacing: -0.5,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
       actions: [
         Padding(
-          padding: const EdgeInsets.only(right: 12.0, top: 4.0),
+          padding: const EdgeInsets.only(right: 8.0, top: 4.0),
           child: Container(
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.15),
+              color: Colors.white.withValues(alpha: 0.18),
               borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.25),
+              ),
+            ),
+            child: IconButton(
+              icon: const Icon(
+                Icons.explore_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
+              onPressed: () => _checkAndStartCustomerTour(force: true),
+              tooltip: 'App Tour & Guide',
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(right: 14.0, top: 4.0),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.25),
+              ),
             ),
             child: IconButton(
               icon: const Icon(
@@ -1630,159 +2424,220 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
   }
 
   Widget _buildBody() {
+    final primary = Theme.of(context).primaryColor;
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header Decoration (matching Track My Service style)
-          _buildHeaderDecoration(),
+      child: ResponsiveWrapper(
+        maxWidth: kMaxContentWidth,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Top Gradient Curve Banner Transition
+            _buildHeaderDecoration(),
 
-          // Welcome Section
-          Padding(
-            padding: const EdgeInsets.fromLTRB(28, 20, 28, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'WELCOME BACK',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Theme.of(context).primaryColor.withValues(alpha: 0.6),
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.5,
-                  ),
+            // Welcome Section Hero Card
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+              child: Container(
+                key: _custWelcomeCardKey,
+                width: double.infinity,
+                padding: const EdgeInsets.all(22),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.04),
+                      blurRadius: 18,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  userName,
-                  style: const TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.w900,
-                    color: Color(0xFF1E293B),
-                    letterSpacing: -1.0,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).primaryColor,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  'How can we help you maintain your balance today?',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Color(0xFF64748B),
-                    fontWeight: FontWeight.w500,
-                    height: 1.4,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 32),
-
-          const SizedBox(height: 32),
-
-          // Main Action Cards
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _buildActionCard(
-                    icon: Icons.add_rounded,
-                    title: 'Add Device',
-                    subtitle: 'Create new requests',
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => CustomerDeviceType(
-                            name: userName,
-                            loggedInName: userName,
-                            phoneNumber: phoneNumber,
-                            customerId: customerId,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
                           ),
-                        ),
-                      );
-                    },
-                    color: Theme.of(context).primaryColor,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _buildActionCard(
-                    icon: Icons.track_changes_rounded,
-                    title: 'Track Service',
-                    subtitle: 'Manage active requests',
-                    onTap: userName != 'Guest'
-                        ? () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => AMCTrackMyService(
-                                  customerName: userName,
-                                  customerId: customerId,
+                          decoration: BoxDecoration(
+                            color: primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.stars_rounded,
+                                size: 14,
+                                color: primary,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                'WELCOME BACK',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w900,
+                                  color: primary,
+                                  letterSpacing: 1.2,
                                 ),
                               ),
-                            );
-                          }
-                        : null,
-                    color: const Color(0xFF059669),
-                  ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      userName,
+                      style: const TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF0F172A),
+                        letterSpacing: -0.8,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'How can we help you maintain your balance today?',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF64748B),
+                        fontWeight: FontWeight.w500,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
-          ),
 
-          const SizedBox(height: 32),
+            const SizedBox(height: 24),
 
-          // Additional Info Section
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _buildInfoCard(
-                    icon: Icons.bolt_rounded,
-                    title: 'Real-time Updates',
-                    subtitle: 'Stay notified instantly',
+            // Main Action Cards Grid
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      key: _custAddDeviceKey,
+                      child: _buildActionCard(
+                        icon: Icons.add_to_photos_rounded,
+                        title: 'Add Device',
+                        subtitle: 'Create new service requests',
+                        buttonLabel: 'Explore',
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => CustomerDeviceType(
+                                name: userName,
+                                loggedInName: userName,
+                                phoneNumber: phoneNumber,
+                                customerId: customerId,
+                                customerType: "amc",
+                              ),
+                            ),
+                          );
+                        },
+                        color: primary,
+                      ),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _buildInfoCard(
-                    icon: Icons.workspace_premium_rounded,
-                    title: 'Expert Support',
-                    subtitle: 'Professionals at duty',
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Container(
+                      key: _custTrackServiceKey,
+                      child: _buildActionCard(
+                        icon: Icons.track_changes_rounded,
+                        title: 'Track Service',
+                        subtitle: 'Manage active repair requests',
+                        buttonLabel: 'Track Now',
+                        onTap: userName != 'Guest'
+                            ? () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => AMCTrackMyService(
+                                      customerName: userName,
+                                      customerId: customerId,
+                                    ),
+                                  ),
+                                );
+                              }
+                            : null,
+                        color: const Color(0xFF059669),
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 40),
-        ],
+
+            const SizedBox(height: 20),
+
+            // Additional Info Section
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      key: _custUpdatesKey,
+                      child: _buildInfoCard(
+                        icon: Icons.bolt_rounded,
+                        title: 'Real-time Updates',
+                        subtitle: 'Stay notified instantly',
+                        accentColor: const Color(0xFF3B82F6),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Container(
+                      key: _custSupportKey,
+                      child: _buildInfoCard(
+                        icon: Icons.workspace_premium_rounded,
+                        title: 'Expert Support',
+                        subtitle: 'Professionals at duty',
+                        accentColor: const Color(0xFF8B5CF6),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 32),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildHeaderDecoration() {
+    final primary = Theme.of(context).primaryColor;
     return Container(
       width: double.infinity,
-      height: 40,
+      height: 24,
       decoration: BoxDecoration(
-        color: Theme.of(context).primaryColor,
-        // borderRadius: const BorderRadius.only(
-        //   bottomLeft: Radius.circular(40),
-        //   bottomRight: Radius.circular(40),
-        // ),
+        gradient: LinearGradient(
+          colors: [
+            primary,
+            HSLColor.fromColor(primary).withLightness(0.32).toColor(),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(28),
+          bottomRight: Radius.circular(28),
+        ),
       ),
     );
   }
@@ -1791,48 +2646,57 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
     required IconData icon,
     required String title,
     required String subtitle,
+    required String buttonLabel,
     required VoidCallback? onTap,
     required Color color,
   }) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
-            color: color.withValues(alpha: 0.1),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
+            color: color.withValues(alpha: 0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(22),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(28),
+          borderRadius: BorderRadius.circular(22),
           child: Padding(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.1),
+                    gradient: LinearGradient(
+                      colors: [
+                        color.withValues(alpha: 0.15),
+                        color.withValues(alpha: 0.05),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: Icon(icon, color: color, size: 28),
+                  child: Icon(icon, color: color, size: 26),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
                 Text(
                   title,
                   style: const TextStyle(
-                    fontSize: 18,
+                    fontSize: 17,
                     fontWeight: FontWeight.w900,
-                    color: Color(0xFF1E293B),
-                    letterSpacing: -0.5,
+                    color: Color(0xFF0F172A),
+                    letterSpacing: -0.4,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -1845,20 +2709,35 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
                     height: 1.3,
                   ),
                 ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Text(
-                      "Explore",
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        color: color,
+                const SizedBox(height: 18),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: color,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        buttonLabel,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 4),
-                    Icon(Icons.arrow_forward_rounded, color: color, size: 14),
-                  ],
+                      const SizedBox(width: 4),
+                      const Icon(
+                        Icons.arrow_forward_rounded,
+                        color: Colors.white,
+                        size: 14,
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -1872,28 +2751,43 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
     required IconData icon,
     required String title,
     required String subtitle,
+    required Color accentColor,
   }) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white, width: 2),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         children: [
-          Icon(
-            icon,
-            color: Theme.of(context).primaryColor.withValues(alpha: 0.4),
-            size: 24,
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: accentColor.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              icon,
+              color: accentColor,
+              size: 22,
+            ),
           ),
           const SizedBox(height: 12),
           Text(
             title,
             style: const TextStyle(
               fontSize: 13,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF1E293B),
+              fontWeight: FontWeight.w900,
+              color: Color(0xFF0F172A),
             ),
             textAlign: TextAlign.center,
           ),
@@ -1902,8 +2796,8 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
             subtitle,
             style: const TextStyle(
               fontSize: 11,
-              color: Color(0xFF94A3B8),
-              fontWeight: FontWeight.w600,
+              color: Color(0xFF64748B),
+              fontWeight: FontWeight.w500,
             ),
             textAlign: TextAlign.center,
           ),

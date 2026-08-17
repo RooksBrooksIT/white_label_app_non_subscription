@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
+import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:intl/intl.dart';
-
 class AttendanceBackend {
   static void logFirestoreError(
     String source,
@@ -142,7 +142,6 @@ class AttendanceBackend {
         .snapshots();
   }
 
-  /// Gets attendance history for a specific engineer
   static Stream<List<Map<String, dynamic>>> getEngineerAttendanceHistory(
     String engineerId, {
     DateTime? fromDate,
@@ -163,6 +162,12 @@ class AttendanceBackend {
 
     return _withErrorLogging(
       query.snapshots().asyncMap((snapshot) async {
+        final tenantId = ThemeService.instance.databaseName;
+        final filteredDocs = snapshot.docs.where((doc) {
+          final pathSegments = doc.reference.path.split('/');
+          return pathSegments.isNotEmpty && pathSegments.first == tenantId;
+        }).toList();
+
         String username = 'Unknown';
         try {
           final userDoc = await FirestoreService.instance
@@ -176,7 +181,7 @@ class AttendanceBackend {
           print('Error fetching user name: $e');
         }
 
-        return snapshot.docs.map((doc) {
+        return filteredDocs.map((doc) {
           final data = doc.data();
           return {...data, 'engineerUsername': username};
         }).toList();
@@ -185,11 +190,16 @@ class AttendanceBackend {
     );
   }
 
-  /// Gets all attendance history
   static Stream<List<Map<String, dynamic>>> getAllAttendanceHistory() {
     return _withErrorLogging(
       FirestoreService.instance.collectionGroup('daily').snapshots().asyncMap(
         (snapshot) async {
+          final tenantId = ThemeService.instance.databaseName;
+          final filteredDocs = snapshot.docs.where((doc) {
+            final pathSegments = doc.reference.path.split('/');
+            return pathSegments.isNotEmpty && pathSegments.first == tenantId;
+          }).toList();
+
           final usersMap = <String, String>{};
           try {
             final engineers = await getEngineers();
@@ -200,7 +210,7 @@ class AttendanceBackend {
             print('Error fetching engineers for mapping: $e');
           }
 
-          return snapshot.docs.map((doc) {
+          return filteredDocs.map((doc) {
             final data = doc.data();
             final engId = data['engineerId'] as String?;
             String username = 'Unknown';
@@ -336,18 +346,24 @@ class AttendanceBackend {
     }
   }
 
-  /// Fetches attendance for all engineers on a specific date.
   static Future<List<Map<String, dynamic>>> getDailyAttendance(
     DateTime date,
   ) async {
     try {
       final dateStr = DateFormat('yyyy-MM-dd').format(date);
+      final tenantId = ThemeService.instance.databaseName;
       final snapshot = await FirestoreService.instance
           .collectionGroup('daily')
           .where('date', isEqualTo: dateStr)
           .get();
 
-      return snapshot.docs.map((doc) => doc.data()).toList();
+      return snapshot.docs
+          .where((doc) {
+            final pathSegments = doc.reference.path.split('/');
+            return pathSegments.isNotEmpty && pathSegments.first == tenantId;
+          })
+          .map((doc) => doc.data())
+          .toList();
     } catch (e, stackTrace) {
       logFirestoreError('getDailyAttendance', e, stackTrace);
       return [];

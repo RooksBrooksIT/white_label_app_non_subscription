@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -6,6 +7,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart' as geo;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:subscription_rooks_app/services/theme_service.dart';
 
 class LocationService {
@@ -138,8 +140,9 @@ class LocationService {
     try {
       final sanitizedId = _sanitizePath(engineerId);
       final tenantId = ThemeService.instance.databaseName;
-      // Use set() or update() depending on preference. update() is safer for existing data.
-      final ref = _db.ref('$tenantId/engineers/$sanitizedId/location');
+      final engineerRef = _db.ref('$tenantId/engineers/$sanitizedId');
+      final locationRef = engineerRef.child('location');
+
       final updateData = {
         'lat': position.latitude,
         'lng': position.longitude,
@@ -150,10 +153,19 @@ class LocationService {
       };
 
       try {
-        await ref.update(updateData);
+        await locationRef.update(updateData);
       } catch (e) {
-        // If the existing location node was a primitive (String, etc), update() fails. Fallback to set().
-        await ref.set(updateData);
+        // If parent node or location node was stored as a String/primitive, update() fails.
+        // Fallback to set() to replace node with a proper Map.
+        try {
+          await locationRef.set(updateData);
+        } catch (_) {
+          await engineerRef.set({
+            'isOnline': true,
+            'lastOnline': ServerValue.timestamp,
+            'location': updateData,
+          });
+        }
       }
 
       // 5-minute Firestore heartbeat
@@ -170,11 +182,19 @@ class LocationService {
         final orderRef = _db.ref(
           '$tenantId/order_tracking/$sanitizedBookingId/lastLocation',
         );
-        await orderRef.update({
-          'lat': position.latitude,
-          'lng': position.longitude,
-          'timestamp': ServerValue.timestamp,
-        });
+        try {
+          await orderRef.update({
+            'lat': position.latitude,
+            'lng': position.longitude,
+            'timestamp': ServerValue.timestamp,
+          });
+        } catch (_) {
+          await orderRef.set({
+            'lat': position.latitude,
+            'lng': position.longitude,
+            'timestamp': ServerValue.timestamp,
+          });
+        }
       }
     } catch (e) {
       debugPrint('Database Update Error: $e');
@@ -214,10 +234,18 @@ class LocationService {
     try {
       final sanitizedId = _sanitizePath(engineerId);
       final tenantId = ThemeService.instance.databaseName;
-      // Update active booking in Realtime Database
-      await _db.ref('$tenantId/engineers/$sanitizedId').update({
-        'activeBookingId': bookingId,
-      });
+      final ref = _db.ref('$tenantId/engineers/$sanitizedId');
+      try {
+        await ref.update({
+          'activeBookingId': bookingId,
+        });
+      } catch (_) {
+        await ref.set({
+          'activeBookingId': bookingId,
+          'isOnline': true,
+          'lastOnline': ServerValue.timestamp,
+        });
+      }
       // Also store booking reference in Firestore for consistency
       final querySnapshot = await FirebaseFirestore.instance
           .collection('EngineerLogin')
@@ -246,14 +274,18 @@ class LocationService {
       final sanitizedId = _sanitizePath(engineerId);
       final tenantId = ThemeService.instance.databaseName;
       final ref = _db.ref('$tenantId/engineers/$sanitizedId');
-      final updates = {
+      final updates = <String, dynamic>{
         'isOnline': isOnline,
         'lastOnline': ServerValue.timestamp,
       };
       if (isOnline && bookingId != null) {
         updates['activeBookingId'] = bookingId;
       }
-      await ref.update(updates);
+      try {
+        await ref.update(updates);
+      } catch (_) {
+        await ref.set(updates);
+      }
     } catch (e) {
       debugPrint('Status Update Error: $e');
     }
@@ -284,9 +316,10 @@ class LocationService {
       return false;
     }
 
-    // For background tracking on Android and iOS
-    if (defaultTargetPlatform == TargetPlatform.android ||
-        defaultTargetPlatform == TargetPlatform.iOS) {
+    // For background tracking on Android and iOS (skip on web)
+    if (!kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS)) {
       // Request 'locationAlways' specifically for background support if needed
       var alwaysStatus = await Permission.locationAlways.status;
       if (!alwaysStatus.isGranted) {
@@ -316,19 +349,39 @@ class LocationService {
 
     try {
       Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
-
-      List<geo.Placemark> placemarks = await geo.placemarkFromCoordinates(
-        position.latitude,
-        position.longitude,
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
       );
 
       String address = "";
-      if (placemarks.isNotEmpty) {
-        geo.Placemark place = placemarks[0];
-        address =
-            "${place.street}, ${place.subLocality}, ${place.locality}, ${place.postalCode}, ${place.country}";
+      if (kIsWeb) {
+        try {
+          final url = Uri.parse(
+            'https://nominatim.openstreetmap.org/reverse?format=json&lat=${position.latitude}&lon=${position.longitude}',
+          );
+          final response = await http.get(url, headers: {
+            'User-Agent': 'subscription_rooks_app/1.0',
+          });
+          if (response.statusCode == 200) {
+            final data = json.decode(response.body);
+            address = data['display_name'] ?? '';
+          }
+        } catch (e) {
+          debugPrint('Web geocoding error: $e');
+        }
+        if (address.isEmpty) {
+          address = "Lat: ${position.latitude}, Lng: ${position.longitude}";
+        }
+      } else {
+        List<geo.Placemark> placemarks = await geo.placemarkFromCoordinates(
+          position.latitude,
+          position.longitude,
+        );
+
+        if (placemarks.isNotEmpty) {
+          geo.Placemark place = placemarks[0];
+          address =
+              "${place.street}, ${place.subLocality}, ${place.locality}, ${place.postalCode}, ${place.country}";
+        }
       }
 
       return {

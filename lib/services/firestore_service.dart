@@ -8,27 +8,33 @@ class FirestoreService {
 
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  /// Generates a consistent tenant ID based on organization name and current date.
-  /// Format: {CleanName}_YYYYMMDD
-  static String generateTenantId(String name) {
-    final now = DateTime.now();
-    final dateStr =
-        "${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}";
-    // Clean name: alphanumeric only, remove spaces
+  /// Generates a consistent tenant ID based on user/organization name and registration date.
+  /// Format: {CleanName}_{YYYYMMDD} (e.g. Abi_20260610)
+  static String generateTenantId(String name, [DateTime? registrationDate]) {
+    final date = registrationDate ?? DateTime.now();
+    final yearStr = date.year.toString();
+    final monthStr = date.month.toString().padLeft(2, '0');
+    final dayStr = date.day.toString().padLeft(2, '0');
+    final dateStr = "$yearStr$monthStr$dayStr";
+    // Clean name: alphanumeric only, remove spaces/special chars (preserve case)
     final cleanName = name.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '');
     return "${cleanName}_$dateStr";
   }
 
   /// Returns a collection reference rooted under:
-  /// {organizationName}_{createdDate} (coll) -> {documentId} (doc) -> {subCollectionName} (coll)
-  /// This follows the format: OrganizationName_createdDate
+  /// {tenantId} (coll) -> {appId} (doc) -> {collectionName} (coll)
   /// Standardized tenant collection path: {tenantId} (coll) -> data (doc) -> {subCollection} (coll)
   CollectionReference<Map<String, dynamic>> collection(
     String collectionName, {
     String? tenantId,
     String? appId,
   }) {
-    final effectiveTenant = tenantId ?? ThemeService.instance.databaseName;
+    String effectiveTenant = (tenantId != null && tenantId.isNotEmpty)
+        ? tenantId
+        : ThemeService.instance.databaseName;
+    if (effectiveTenant.isEmpty) {
+      effectiveTenant = 'global_user_directory';
+    }
     final effectiveApp = appId ?? 'data';
     return _db
         .collection(effectiveTenant)
@@ -96,6 +102,39 @@ class FirestoreService {
       }
     } catch (_) {}
     return null;
+  }
+
+  /// Generates a new ticket ID in the sequential format: T001, T002, T003...
+  Future<String> generateTicketId({
+    String? customerName,
+    String? customerType,
+  }) async {
+    // Reference to counter document
+    final counterRef = collection('counters').doc('ticket_counter');
+
+    return runTransaction((transaction) async {
+      final snapshot = await transaction.get(counterRef);
+
+      // Get current counter value (or start at 0)
+      int currentCount = 0;
+      if (snapshot.exists && snapshot.data() != null) {
+        final data = snapshot.data()!['lastTicketCount'] as int? ?? 0;
+        currentCount = data;
+      }
+
+      // Increment counter
+      final newCount = currentCount + 1;
+
+      // Update counter
+      transaction.set(counterRef, {
+        'lastTicketCount': newCount,
+      }, SetOptions(merge: true));
+
+      // Generate padded to 3 digits (e.g. T001, T002...)
+      final paddedNumber = newCount.toString().padLeft(3, '0');
+
+      return 'T$paddedNumber';
+    });
   }
 
   /// New: Get User Role and Org/App associations
@@ -200,16 +239,15 @@ class FirestoreService {
       'expiresAt':
           nextBilling, // DateTime is converted to Timestamp by Firestore
       'updatedAt': FieldValue.serverTimestamp(),
-      if (originalPrice != null) 'originalPrice': originalPrice,
+      'originalPrice': ?originalPrice,
       if (customerMobile != null && customerMobile.isNotEmpty)
         'customerMobile': customerMobile,
-      if (gstNumber != null && gstNumber.isNotEmpty)
-        'gstNumber': gstNumber,
-      if (limits != null) 'limits': limits,
-      if (geoLocation != null) 'geoLocation': geoLocation,
-      if (attendance != null) 'attendance': attendance,
-      if (barcode != null) 'barcode': barcode,
-      if (reportExport != null) 'reportExport': reportExport,
+      if (gstNumber != null && gstNumber.isNotEmpty) 'gstNumber': gstNumber,
+      'limits': ?limits,
+      'geoLocation': ?geoLocation,
+      'attendance': ?attendance,
+      'barcode': ?barcode,
+      'reportExport': ?reportExport,
     };
 
     if (brandingData != null) {
@@ -635,13 +673,13 @@ class FirestoreService {
         'userIdOrMobile': uidOrMobile,
         'planName': planName,
         'newPlan': newPlan ?? planName,
-        if (previousPlan != null) 'previousPlan': previousPlan,
+        'previousPlan': ?previousPlan,
         'amount': amount,
         'status': status,
         'isYearly': isYearly,
         'isSixMonths': isSixMonths,
         'queueStatus': queueStatus,
-        if (failureReason != null) 'failureReason': failureReason,
+        'failureReason': ?failureReason,
         'timestamp': FieldValue.serverTimestamp(),
         'registrationCompleted': registrationCompleted,
         'firestoreSynced': firestoreSynced,
@@ -651,9 +689,11 @@ class FirestoreService {
         'invoiceDetails': {
           'planName': planName,
           'amount': amount,
-          'billingCycle': isYearly ? 'Yearly' : (isSixMonths ? '6 Months' : 'Monthly'),
-          if (customerName != null) 'customerName': customerName,
-          if (customerEmail != null) 'customerEmail': customerEmail,
+          'billingCycle': isYearly
+              ? 'Yearly'
+              : (isSixMonths ? '6 Months' : 'Monthly'),
+          'customerName': ?customerName,
+          'customerEmail': ?customerEmail,
         },
       };
 
@@ -680,7 +720,7 @@ class FirestoreService {
           'customerMobile': customerMobile ?? '',
           'planName': planName,
           'queueStatus': queueStatus,
-          if (previousPlan != null) 'previousPlan': previousPlan,
+          'previousPlan': ?previousPlan,
           'newPlan': newPlan ?? planName,
           'gatewayResponse': gatewayResponse ?? {},
           'createdAt': FieldValue.serverTimestamp(),
@@ -741,4 +781,3 @@ class FirestoreService {
         .collection('queued_subscriptions');
   }
 }
-

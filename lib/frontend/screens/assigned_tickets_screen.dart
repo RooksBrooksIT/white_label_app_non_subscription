@@ -11,7 +11,7 @@ class AssignedTicketsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final stream = FirestoreService.instance
-        .collection('Admin_details')
+        .collection('Admin_ticket_entry')
         .where('assignedEmployee', isEqualTo: engineerName)
         .snapshots();
 
@@ -41,8 +41,9 @@ class AssignedTicketsScreen extends StatelessWidget {
           final docs = snapshot.data!.docs;
           final assignedDocs = docs.where((d) {
             final data = d.data() as Map<String, dynamic>;
-            final status =
-                (data['engineerStatus'] ?? '').toString().toLowerCase();
+            final status = (data['engineerStatus'] ?? '')
+                .toString()
+                .toLowerCase();
             return status != 'completed';
           }).toList();
 
@@ -90,17 +91,17 @@ class AssignedTicketsScreen extends StatelessWidget {
 
   Widget _buildTicketCard(BuildContext context, Map<String, dynamic> data) {
     final customerName = (data['customerName'] ?? 'Customer').toString();
-    final serviceName = (data['deviceBrand'] ??
-            data['serviceName'] ??
-            data['workName'] ??
-            data['deviceType'] ??
-            'Service')
-        .toString();
+    final serviceName =
+        (data['deviceBrand'] ??
+                data['serviceName'] ??
+                data['workName'] ??
+                data['deviceType'] ??
+                'Service')
+            .toString();
     final address = (data['address'] ?? 'Address not available').toString();
     final status = (data['engineerStatus'] ?? data['adminStatus'] ?? 'Assigned')
         .toString();
     final bookingId = (data['bookingId'] ?? 'N/A').toString();
-    final assignedDate = (data['assignedDate'] ?? 'Unknown date').toString();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -194,32 +195,21 @@ class AssignedTicketsScreen extends StatelessWidget {
             text: 'ID: $bookingId',
           ),
           const SizedBox(height: 8),
-          _buildInfoRow(
-            context,
-            icon: Icons.calendar_today_rounded,
-            text: 'Assigned: $assignedDate',
-          ),
-          const SizedBox(height: 8),
-          _buildInfoRow(
-            context,
-            icon: Icons.place_rounded,
-            text: address,
-          ),
+          _buildInfoRow(context, icon: Icons.place_rounded, text: address),
         ],
       ),
     );
   }
 
-  Widget _buildInfoRow(BuildContext context,
-      {required IconData icon, required String text}) {
+  Widget _buildInfoRow(
+    BuildContext context, {
+    required IconData icon,
+    required String text,
+  }) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(
-          icon,
-          size: 16,
-          color: ProfessionalTheme.textTertiary(context),
-        ),
+        Icon(icon, size: 16, color: ProfessionalTheme.textTertiary(context)),
         const SizedBox(width: 8),
         Expanded(
           child: Text(

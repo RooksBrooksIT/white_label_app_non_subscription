@@ -77,11 +77,8 @@ class AdminLoginBackend {
         };
       }
 
-      // Format organization name: OrganizationName_YYYYMMDD
-      final now = DateTime.now();
-      final dateStr =
-          "${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}";
-      final orgCollectionName = "${name.replaceAll(' ', '')}_$dateStr";
+      // Format tenant collection name: cleanName_dd_mm_yyyy
+      final orgCollectionName = FirestoreService.generateTenantId(name);
 
       // Store in the organizational root collection
       await FirestoreService.instance

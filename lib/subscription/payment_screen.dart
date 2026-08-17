@@ -136,6 +136,17 @@ class _PaymentScreenState extends State<PaymentScreen>
     String fallback = 'CARD',
   }) {
     if (result == null) return fallback;
+    
+    // 1. Check inside iciciResponse object if available
+    final iciciResponse = result['iciciResponse'];
+    if (iciciResponse is Map<String, dynamic>) {
+      final iciciMode = iciciResponse['paymentMode'] ?? iciciResponse['paymentMethod'];
+      if (iciciMode != null && iciciMode.toString().trim().isNotEmpty) {
+        return iciciMode.toString().trim().toUpperCase();
+      }
+    }
+
+    // 2. Fallback to root-level fields
     final rawValue =
         result['paymentMethod'] ??
         result['paymentMode'] ??
@@ -338,6 +349,56 @@ class _PaymentScreenState extends State<PaymentScreen>
           if (result['success']) {
             uid = result['uid'];
           } else {
+            if (result['message'].toString().contains('invalid-credential') || 
+                result['message'].toString().contains('wrong-password') ||
+                result['message'].toString().contains('incorrect, malformed or has expired')) {
+                
+                final email = widget.pendingUserData?['email'] ?? 'unknown';
+                
+                try {
+                  await FirebaseFirestore.instance.collection('payments').doc(txnId).update({
+                    'status': 'SUCCESS_ORPHANED',
+                    'email': email,
+                    'error': 'User provided wrong password for existing account',
+                    'updatedAt': FieldValue.serverTimestamp(),
+                  });
+
+                  await FirestoreService.instance.logPaymentTransaction(
+                    txnId: txnId,
+                    uidOrMobile: email,
+                    userId: 'ORPHANED',
+                    planName: widget.planName,
+                    amount: actualAmount,
+                    status: 'SUCCESS_ORPHANED',
+                    isYearly: widget.isYearly,
+                    isSixMonths: widget.isSixMonths,
+                    registrationCompleted: false,
+                    firestoreSynced: false,
+                    failureReason: 'Wrong password for existing account',
+                    customerEmail: email,
+                  );
+                } catch (e) {
+                  debugPrint('Failed to log orphaned payment: $e');
+                }
+
+                await PaymentRecoveryService.instance.clearPendingPayment();
+
+                if (!mounted) return;
+                Navigator.pop(context); // Pop Finalizing dialog
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => PaymentFailedScreen(
+                      errorMessage: 'Your payment was successful, but the email provided is already registered with a different password. Please reset your password and contact support with Transaction ID: $txnId to claim your subscription.',
+                      paymentMethod: resolvedPaymentMethod,
+                      amount: widget.price,
+                      transactionId: txnId,
+                    ),
+                  ),
+                );
+                return;
+            }
+
             throw Exception(
               result['message'] ?? 'Failed to create and finalize account.',
             );
@@ -746,40 +807,25 @@ class _PaymentScreenState extends State<PaymentScreen>
           body: SafeArea(
             child: SingleChildScrollView(
               padding: screenPadding,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Summary Section (Moved to top for better flow)
-                  _buildSubscriptionSummary(formattedDate),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 500),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Summary Section
+                      _buildSubscriptionSummary(formattedDate),
 
-                  const SizedBox(height: 100),
-
-                  // Responsive Layout for Payment Actions
-                  if (isDesktop)
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Expanded(
-                          flex: 2,
-                          child: SizedBox(),
-                        ), // Placeholder for balance
-                        const SizedBox(width: 32),
-                        Expanded(flex: 1, child: _buildRightSideSidebar()),
-                      ],
-                    )
-                  else
-                    Column(
-                      children: [
-                        const SizedBox(height: 16),
-                        _buildSecurityBadges(),
-                        const SizedBox(height: 40),
-                        _buildActionButtons(),
-                        const SizedBox(height: 24),
-                        _buildTermsText(),
-                      ],
-                    ),
-                  const SizedBox(height: 40),
-                ],
+                      const SizedBox(height: 40),
+                      _buildSecurityBadges(),
+                      const SizedBox(height: 40),
+                      _buildActionButtons(),
+                      const SizedBox(height: 24),
+                      _buildTermsText(),
+                      const SizedBox(height: 40),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
@@ -788,31 +834,20 @@ class _PaymentScreenState extends State<PaymentScreen>
     );
   }
 
-  Widget _buildRightSideSidebar() {
-    return Column(
-      children: [
-        _buildSecurityBadges(),
-        const SizedBox(height: 40),
-        _buildActionButtons(),
-        const SizedBox(height: 24),
-        _buildTermsText(),
-      ],
-    );
-  }
 
   Widget _buildSubscriptionSummary(String formattedDate) {
     return Container(
-      width: isDesktop ? 400 : double.infinity,
+      width: double.infinity,
       padding: EdgeInsets.all(containerPadding),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(borderRadius + 4),
-        border: Border.all(color: Color(0xFFE2E8F0), width: 1),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 12,
-            offset: Offset(0, 4),
+            offset: const Offset(0, 4),
           ),
         ],
       ),
