@@ -367,6 +367,38 @@ class NotificationService {
         .map((snapshot) => snapshot.docs.length);
   }
 
+  /// Stream of unread new ticket notifications for admin indicators and banners
+  Stream<List<Map<String, dynamic>>> getUnreadNewTicketsNotificationStream(
+    String tenantId, {
+    String? appId,
+  }) {
+    return FirestoreService.instance
+        .collection('notifications', tenantId: tenantId, appId: appId)
+        .where('audience', isEqualTo: 'admin')
+        .where('seen', isEqualTo: false)
+        .snapshots()
+        .map((snapshot) {
+          final docs = snapshot.docs
+              .map((doc) {
+                final data = doc.data();
+                data['id'] = doc.id;
+                return data;
+              })
+              .where((data) => data['type'] == 'new_ticket')
+              .toList();
+
+          docs.sort((a, b) {
+            final tsA = a['timestamp'] as Timestamp?;
+            final tsB = b['timestamp'] as Timestamp?;
+            if (tsA == null && tsB == null) return 0;
+            if (tsA == null) return 1;
+            if (tsB == null) return -1;
+            return tsB.compareTo(tsA);
+          });
+          return docs;
+        });
+  }
+
   Future<void> registerToken({
     required String role,
     required String userId,

@@ -359,56 +359,76 @@ class _ExpandableTicketCard extends StatefulWidget {
 
 class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
   bool _isExpanded = false;
+  int _selectedRating = 5;
+  final TextEditingController _ratingCommentController = TextEditingController();
+  bool _isSubmittingRating = false;
+  bool _hasSubmittedRating = false;
 
-  _StatusInfo _mapEngineerStatus(String status) {
+  @override
+  void dispose() {
+    _ratingCommentController.dispose();
+    super.dispose();
+  }
+
+  _StatusInfo _mapEngineerStatus(String status, {Map<String, dynamic>? data}) {
+    final isDelivered = data?['orderDelivered'] == true ||
+        data?['isDelivered'] == true ||
+        data?['adminStatus']?.toString().toLowerCase().trim() == 'delivered' ||
+        data?['customerStatus']?.toString().toLowerCase().trim() == 'delivered';
+    if (isDelivered) {
+      return _StatusInfo('DELIVERED', const Color(0xFF059669));
+    }
+
     final lowerStatus = status.toLowerCase().trim();
     switch (lowerStatus) {
+      case 'delivered':
+        return _StatusInfo('DELIVERED', const Color(0xFF059669));
       case 'complete':
       case 'completed':
-        return _StatusInfo('Completed', Colors.green.shade600);
+        return _StatusInfo('COMPLETED', const Color(0xFF10B981));
       case 'assigned':
-        return _StatusInfo('Assigned', Colors.green.shade600);
+        return _StatusInfo('ASSIGNED', const Color(0xFF0284C7));
       case 'in progress':
-        return _StatusInfo('In Progress', Colors.blue.shade600);
+      case 'in-progress':
+      case 'repairing':
+        return _StatusInfo('IN PROGRESS', const Color(0xFF2563EB));
       case 'pending':
-        return _StatusInfo('Pending', Colors.orange.shade700);
+        return _StatusInfo('PENDING', const Color(0xFFD97706));
       case 'not assigned':
-        return _StatusInfo('Not Assigned', Colors.red.shade700);
+        return _StatusInfo('NOT ASSIGNED', const Color(0xFFDC2626));
       case 'cancelled':
       case 'canceled':
-        return _StatusInfo('Cancelled', Colors.grey.shade600);
+        return _StatusInfo('CANCELLED', const Color(0xFF64748B));
       default:
-        // Check for specific substrings if exact match fails
         if (lowerStatus.contains('approval')) {
-          return _StatusInfo('Pending Approval', Colors.purple.shade600);
+          return _StatusInfo('PENDING APPROVAL', const Color(0xFF7C3AED));
         }
         if (lowerStatus.contains('spare')) {
-          return _StatusInfo('Pending Spares', Colors.amber.shade700);
+          return _StatusInfo('PENDING SPARES', const Color(0xFFD97706));
         }
         if (lowerStatus.contains('observation')) {
-          return _StatusInfo('Observation', Colors.cyan.shade600);
+          return _StatusInfo('UNDER OBSERVATION', const Color(0xFF0D9488));
         }
-
-        // Capitalize first letter if it's unknown
         String formatted = status.isNotEmpty
-            ? status[0].toUpperCase() + status.substring(1)
-            : 'Unknown';
-        return _StatusInfo(formatted, Colors.grey.shade500);
+            ? status.toUpperCase()
+            : 'OPEN';
+        return _StatusInfo(formatted, const Color(0xFF64748B));
     }
   }
 
   Widget _buildStatusBadge(String label, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
       ),
       child: Text(
         label,
         style: TextStyle(
           color: color,
-          fontSize: 10,
+          fontSize: 10.5,
           fontWeight: FontWeight.w800,
           letterSpacing: 0.5,
         ),
@@ -417,39 +437,68 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
   }
 
   Widget _buildStatusTracker(Map<String, dynamic> data) {
-    final adminStatus = data['adminStatus']?.toString().toLowerCase() ?? '';
-    final engineerStatus =
-        data['engineerStatus']?.toString().toLowerCase() ?? '';
-    final assignedEngineer = data['assignedEngineer'];
+    final adminStatus = data['adminStatus']?.toString().toLowerCase().trim() ?? '';
+    final engineerStatus = data['engineerStatus']?.toString().toLowerCase().trim() ?? '';
+    final customerStatus = data['customerStatus']?.toString().toLowerCase().trim() ?? '';
+    final assignedEngineer = data['assignedEngineer'] ?? data['assignedEmployee'];
+    final bool hasAssignedEngineer = assignedEngineer != null &&
+        assignedEngineer.toString().trim().isNotEmpty &&
+        assignedEngineer.toString().toLowerCase() != 'not assigned';
 
-    int currentStep = 0;
-    // Stage 1: Raised (default)
-    // Stage 2: Assigned (if adminStatus is assigned or assignedEngineer exists)
-    if (adminStatus == 'assigned' || assignedEngineer != null) {
-      currentStep = 1;
-    }
-    // Stage 3: Repairing (if engineerStatus is not "not assigned" or "completed")
-    if (engineerStatus != 'not assigned' &&
-        engineerStatus != 'completed' &&
-        engineerStatus != '') {
-      currentStep = 2;
-    }
-    // Stage 4: Done (only if both engineerStatus and adminStatus are "completed")
-    if (engineerStatus == 'completed' && adminStatus == 'completed') {
-      currentStep = 3;
-    }
+    final bool isDelivered = data['orderDelivered'] == true ||
+        data['isDelivered'] == true ||
+        adminStatus == 'delivered' ||
+        customerStatus == 'delivered';
+
+    final bool isCompleted = engineerStatus == 'completed' ||
+        adminStatus == 'completed' ||
+        isDelivered;
+
+    final inProgressKeywords = [
+      'in progress',
+      'in-progress',
+      'repairing',
+      'under observation',
+      'observation',
+      'pending for spares',
+      'pending spares',
+      'pending for approval',
+      'pending approval',
+      'order taken',
+      'order received',
+    ];
+
+    final bool isInProgress = inProgressKeywords.contains(engineerStatus) ||
+        engineerStatus.contains('progress') ||
+        engineerStatus.contains('observation') ||
+        engineerStatus.contains('spare') ||
+        engineerStatus.contains('approval') ||
+        isCompleted;
+
+    final bool isAssigned = hasAssignedEngineer ||
+        adminStatus == 'assigned' ||
+        engineerStatus == 'assigned' ||
+        isInProgress;
+
+    int currentStep = 0; // 0: Raised
+    if (isAssigned) currentStep = 1;     // 1: Assigned
+    if (isInProgress) currentStep = 2;   // 2: In Progress
+    if (isCompleted) currentStep = 3;    // 3: Completed
+    if (isDelivered) currentStep = 4;    // 4: Delivered
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(25, 20, 25, 10),
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 10),
       child: Row(
         children: [
           _buildStep(0, "Raised", currentStep >= 0),
           _buildStepLine(currentStep >= 1),
           _buildStep(1, "Assigned", currentStep >= 1),
           _buildStepLine(currentStep >= 2),
-          _buildStep(2, "Repairing", currentStep >= 2),
+          _buildStep(2, "In Progress", currentStep >= 2),
           _buildStepLine(currentStep >= 3),
-          _buildStep(3, "Done", currentStep >= 3),
+          _buildStep(3, "Completed", currentStep >= 3),
+          _buildStepLine(currentStep >= 4),
+          _buildStep(4, "Delivered", currentStep >= 4),
         ],
       ),
     );
@@ -460,8 +509,8 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
       child: Column(
         children: [
           Container(
-            width: 24,
-            height: 24,
+            width: 22,
+            height: 22,
             decoration: BoxDecoration(
               color: isActive
                   ? Theme.of(context).primaryColor
@@ -477,20 +526,21 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
                           context,
                         ).primaryColor.withValues(alpha: 0.3),
                         blurRadius: 6,
-                        offset: const Offset(0, 3),
+                        offset: const Offset(0, 2),
                       ),
                     ]
                   : null,
             ),
             child: isActive
-                ? const Icon(Icons.check, size: 14, color: Colors.white)
+                ? const Icon(Icons.check, size: 12, color: Colors.white)
                 : null,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
             label,
+            textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 10,
+              fontSize: 9.5,
               fontWeight: isActive ? FontWeight.w800 : FontWeight.w500,
               color: isActive
                   ? Theme.of(context).primaryColor
@@ -504,9 +554,9 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
 
   Widget _buildStepLine(bool isActive) {
     return Container(
-      width: 20,
+      width: 14,
       height: 2,
-      margin: const EdgeInsets.only(bottom: 18),
+      margin: const EdgeInsets.only(bottom: 16),
       color: isActive
           ? Theme.of(context).primaryColor
           : const Color(0xFFE2E8F0),
@@ -737,6 +787,331 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
     }
   }
 
+  Widget _buildRatingSection(Map<String, dynamic> data) {
+    final hasRating = data['rating'] != null || _hasSubmittedRating;
+    final existingRating = (data['rating'] as num?)?.toDouble() ?? _selectedRating.toDouble();
+    final existingComment = (data['ratingComment'] ?? data['comment'] ?? _ratingCommentController.text).toString();
+    final assignedEngineer = data['assignedEngineer']?.toString() ?? 'our technician';
+
+    if (hasRating) {
+      return Container(
+        margin: const EdgeInsets.only(top: 14),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFFBEB),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFFDE68A)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(5),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFF59E0B),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.star_rounded, size: 14, color: Colors.white),
+                ),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    "Your Rating & Feedback",
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF92400E),
+                    ),
+                  ),
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: List.generate(5, (index) {
+                    return Icon(
+                      index < existingRating.round()
+                          ? Icons.star_rounded
+                          : Icons.star_outline_rounded,
+                      color: const Color(0xFFF59E0B),
+                      size: 16,
+                    );
+                  }),
+                ),
+              ],
+            ),
+            if (existingComment.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.8),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '"$existingComment"',
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontStyle: FontStyle.italic,
+                    color: Color(0xFF78350F),
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 6),
+            const Text(
+              "Thank you for sharing your feedback!",
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFFB45309),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Rating Input Form
+    const ratingLabels = ['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent!'];
+
+    return Container(
+      margin: const EdgeInsets.only(top: 14),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.star_rounded, color: Color(0xFFD97706), size: 18),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "Rate Your Service Experience",
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    Text(
+                      "How was the service provided by $assignedEngineer?",
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFF64748B),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // 5 Interactive Stars
+          Center(
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(5, (index) {
+                    final starValue = index + 1;
+                    final isSelected = starValue <= _selectedRating;
+                    return GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _selectedRating = starValue;
+                        });
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: AnimatedScale(
+                          scale: isSelected ? 1.15 : 1.0,
+                          duration: const Duration(milliseconds: 150),
+                          child: Icon(
+                            isSelected ? Icons.star_rounded : Icons.star_outline_rounded,
+                            size: 32,
+                            color: isSelected ? const Color(0xFFF59E0B) : const Color(0xFFCBD5E1),
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  ratingLabels[_selectedRating.clamp(1, 5)],
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFFD97706),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+
+          // Comments TextField
+          TextField(
+            controller: _ratingCommentController,
+            maxLines: 2,
+            decoration: InputDecoration(
+              hintText: 'Add comments or feedback (optional)...',
+              hintStyle: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: Theme.of(context).primaryColor, width: 1.5),
+              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            ),
+          ),
+          const SizedBox(height: 10),
+
+          // Submit Rating Button
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _isSubmittingRating
+                  ? null
+                  : () async {
+                      setState(() => _isSubmittingRating = true);
+                      try {
+                        final ticketId = (widget.data['ticketId'] ?? widget.data['bookingId'] ?? widget.documentId).toString();
+                        final customerName = (widget.data['customerName'] ?? '').toString();
+                        final comment = _ratingCommentController.text.trim();
+                        final ratingDocRef = FirestoreService.instance.collection('ratings').doc();
+
+                        final ratingPayload = {
+                          'id': ratingDocRef.id,
+                          'ratingId': ratingDocRef.id,
+                          'ticketId': ticketId,
+                          'bookingId': ticketId,
+                          'customerName': customerName,
+                          'customerId': widget.data['customerId'] ?? widget.data['customerid'] ?? '',
+                          'engineerName': widget.data['assignedEngineer'] ?? '',
+                          'rating': _selectedRating,
+                          'comment': comment,
+                          'deviceBrand': widget.data['deviceBrand'] ?? '',
+                          'deviceType': widget.data['deviceType'] ?? '',
+                          'jobType': widget.data['jobType'] ?? '',
+                          'createdAt': FieldValue.serverTimestamp(),
+                          'timestamp': FieldValue.serverTimestamp(),
+                        };
+
+                        await ratingDocRef.set(ratingPayload);
+
+                        final ticketUpdate = {
+                          'rating': _selectedRating,
+                          'ratingComment': comment,
+                          'ratedAt': FieldValue.serverTimestamp(),
+                        };
+
+                        try {
+                          await FirestoreService.instance
+                              .collection('Raised_tickets')
+                              .doc(widget.documentId)
+                              .set(ticketUpdate, SetOptions(merge: true));
+                        } catch (_) {}
+
+                        try {
+                          await FirestoreService.instance
+                              .collection('Admin_ticket_entry')
+                              .doc(widget.documentId)
+                              .set(ticketUpdate, SetOptions(merge: true));
+                        } catch (_) {}
+
+                        await NotificationService.sendNotificationToFirestore(
+                          audience: 'admin',
+                          title: 'New Customer Rating Received',
+                          body: '$customerName rated ticket #$ticketId: $_selectedRating★ ($comment)',
+                          type: 'customer_rating',
+                          bookingId: ticketId,
+                          customerName: customerName,
+                        );
+
+                        if (mounted) {
+                          setState(() {
+                            _hasSubmittedRating = true;
+                            _isSubmittingRating = false;
+                          });
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Thank you! Your rating has been submitted.'),
+                              backgroundColor: Color(0xFF10B981),
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          setState(() => _isSubmittingRating = false);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Failed to submit rating: $e'), backgroundColor: Colors.red),
+                          );
+                        }
+                      }
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).primaryColor,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                elevation: 0,
+              ),
+              child: _isSubmittingRating
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                    )
+                  : const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.send_rounded, size: 15, color: Colors.white),
+                        SizedBox(width: 6),
+                        Text(
+                          'Submit Rating',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ticketId = widget.data['ticketId'] ?? 'N/A';
@@ -757,9 +1132,18 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
     final updatedAt = widget.data['updatedAt'] as Timestamp?;
     final rawStatus = widget.data['engineerStatus'] ?? '';
     final adminStatus =
-        widget.data['adminStatus']?.toString().toLowerCase() ?? '';
+        widget.data['adminStatus']?.toString().toLowerCase().trim() ?? '';
+    final customerStatus =
+        widget.data['customerStatus']?.toString().toLowerCase().trim() ?? '';
     final isCanceled = adminStatus == 'canceled' || adminStatus == 'cancelled';
-    final statusInfo = _mapEngineerStatus(rawStatus);
+    final isOrderDelivered = widget.data['orderDelivered'] == true ||
+        widget.data['isDelivered'] == true ||
+        adminStatus == 'delivered' ||
+        customerStatus == 'delivered';
+    final isCompleted = rawStatus.toString().toLowerCase().trim() == 'completed' ||
+        adminStatus == 'completed' ||
+        isOrderDelivered;
+    final statusInfo = _mapEngineerStatus(rawStatus, data: widget.data);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
@@ -878,6 +1262,10 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
                         ),
                       ],
                     ),
+                    // Customer Star Rating Section (Visible when service is completed)
+                    if (isCompleted && !isCanceled) ...[
+                      _buildRatingSection(widget.data),
+                    ],
                   ],
                 ),
               ),

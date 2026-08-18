@@ -72,6 +72,93 @@ class FirestoreService {
     String? appId,
   }) => collection('branding', tenantId: tenantId, appId: appId).doc('config');
 
+  /// Stream of all tickets combined from both Admin_ticket_entry and Raised_tickets
+  Stream<List<DocumentSnapshot>> getAllTicketsCombinedStream({
+    String? tenantId,
+    String? appId,
+  }) {
+    final adminStream = collection(
+      'Admin_ticket_entry',
+      tenantId: tenantId,
+      appId: appId,
+    ).snapshots();
+
+    final raisedStream = collection(
+      'Raised_tickets',
+      tenantId: tenantId,
+      appId: appId,
+    ).snapshots();
+
+    return Stream<List<DocumentSnapshot>>.multi((controller) {
+      List<DocumentSnapshot> adminDocs = [];
+      List<DocumentSnapshot> raisedDocs = [];
+
+      void emitCombined() {
+        final Map<String, DocumentSnapshot> combinedMap = {};
+
+        // 1. Add Raised_tickets docs (Customer raised tickets)
+        for (var doc in raisedDocs) {
+          final data = doc.data() as Map<String, dynamic>?;
+          final key = data?['bookingId']?.toString() ??
+              data?['ticketId']?.toString() ??
+              doc.id;
+          if (key.isNotEmpty) {
+            combinedMap[key] = doc;
+          }
+        }
+
+        // 2. Add/Merge Admin_ticket_entry docs
+        for (var doc in adminDocs) {
+          final data = doc.data() as Map<String, dynamic>?;
+          final key = data?['bookingId']?.toString() ??
+              data?['ticketId']?.toString() ??
+              doc.id;
+          if (key.isNotEmpty) {
+            combinedMap[key] = doc;
+          }
+        }
+
+        final result = combinedMap.values.toList();
+        result.sort((a, b) {
+          final dataA = a.data() as Map<String, dynamic>? ?? {};
+          final dataB = b.data() as Map<String, dynamic>? ?? {};
+          final keyA = dataA['bookingId']?.toString() ??
+              dataA['ticketId']?.toString() ??
+              a.id;
+          final keyB = dataB['bookingId']?.toString() ??
+              dataB['ticketId']?.toString() ??
+              b.id;
+          return keyB.compareTo(keyA); // Descending (e.g. T002, T001)
+        });
+
+        controller.add(result);
+      }
+
+      final subAdmin = adminStream.listen(
+        (snap) {
+          adminDocs = snap.docs;
+          emitCombined();
+        },
+        onError: controller.addError,
+      );
+
+      final subRaised = raisedStream.listen(
+        (snap) {
+          raisedDocs = snap.docs;
+          emitCombined();
+        },
+        onError: (_) {
+          emitCombined();
+        },
+      );
+
+      controller.onCancel = () {
+        subAdmin.cancel();
+        subRaised.cancel();
+      };
+    });
+  }
+
   // --- Global User Directory ---
   // Maps UID -> AppName/TenantID
   Future<void> saveUserDirectory({

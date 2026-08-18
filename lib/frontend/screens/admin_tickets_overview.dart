@@ -83,16 +83,24 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
       final completed = completedTs.toDate();
       final wd = _workingDaysBetween(created, completed);
       return {
-        'label': 'This ticket was completed in $wd day${wd == 1 ? '' : 's'}',
-        'color': Colors.green.shade600,
-        'bg': Colors.green.shade50,
+        'label': 'Completed in $wd d',
+        'color': const Color(0xFF10B981),
+        'bg': const Color(0xFFECFDF5),
+      };
+    }
+
+    if (isCompleted) {
+      return {
+        'label': 'Completed',
+        'color': const Color(0xFF10B981),
+        'bg': const Color(0xFFECFDF5),
       };
     }
 
     // Open/in-progress ticket: countdown to today from created
     final wdOpen = _workingDaysBetween(created, now);
     return {
-      'label': '$wdOpen day${wdOpen == 1 ? '' : 's'} to go',
+      'label': '$wdOpen d to go',
       'color': Theme.of(context).primaryColor,
       'bg': Theme.of(context).primaryColor.withValues(alpha: 0.1),
     };
@@ -685,13 +693,8 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
     double screenHeight,
     double Function(double) getProportionalSize,
   ) {
-    // Modified query to order by bookingId in descending order
-    Query query = FirestoreService.instance
-        .collection('Admin_ticket_entry')
-        .orderBy('bookingId', descending: true);
-
-    return StreamBuilder<QuerySnapshot>(
-      stream: query.snapshots(),
+    return StreamBuilder<List<DocumentSnapshot>>(
+      stream: FirestoreService.instance.getAllTicketsCombinedStream(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Center(child: CircularProgressIndicator(color: Theme.of(context).primaryColor));
@@ -700,13 +703,13 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
           return Center(child: Text('Error: ${snapshot.error}'));
         }
 
-        List<DocumentSnapshot> docs = snapshot.data?.docs ?? [];
+        List<DocumentSnapshot> docs = snapshot.data ?? [];
 
         List<DocumentSnapshot> filteredDocs = docs.where((doc) {
           final data = doc.data() as Map<String, dynamic>?;
           if (data == null) return false;
 
-          final bookingIdRaw = getField(data, ['bookingId'], '');
+          final bookingIdRaw = getField(data, ['bookingId', 'ticketId'], doc.id);
           final jobTypeRaw = getField(data, [
             'jobType',
             'JobType',
@@ -837,18 +840,19 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
             if (data == null) return const SizedBox.shrink();
 
             final customer = customer_var.Customer(
-              bookingId: getField(data, ['bookingId']),
+              bookingId: getField(data, ['bookingId', 'ticketId'], filteredDocs[index].id),
               customerName: getField(data, ['customerName', 'CustomerName']),
               deviceType: getField(data, ['deviceType', 'description']),
               deviceBrand: getField(data, ['deviceBrand']),
               deviceCondition: getField(data, ['deviceCondition']),
-              message: getField(data, ['message', 'Message']),
-              timestamp: parseTimestamp(data['timestamp']),
+              message: getField(data, ['issueDescription', 'message', 'Message']),
+              timestamp: parseTimestamp(data['timestamp'] ?? data['createdAt'] ?? data['updatedAt']),
               address: getField(data, ['address', 'Address']),
               mobileNumber: getField(data, ['mobileNumber', 'MobileNumber']),
               jobType: getField(data, ['jobType', 'JobType']),
-              amount: getField(data, ['amount']),
-              customerid: getField(data, ['customerid', 'id', 'Id']),
+              amount: getField(data, ['amount', 'paymentDetails']),
+              customerid: getField(data, ['customerid', 'id', 'Id', 'customerId']),
+              customerType: getField(data, ['customerType', 'customer_type', 'CustomerType']),
               customerFileUrl: getField(data, ['customerFileUrl']),
               fileName: getField(data, ['fileName']),
             );
@@ -949,7 +953,10 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
       return const Color(0xFF3B82F6);
     }
 
-    final isAMC = customer.bookingId.toUpperCase().startsWith('AMC');
+    final isAMC = customer.bookingId.toUpperCase().startsWith('AMC') ||
+        customer.customerType.toLowerCase().trim() == 'amc' ||
+        customer.customerid.toUpperCase().startsWith('AMC') ||
+        customer.jobType.toLowerCase().trim() == 'amc';
     final isDelivery = customer.jobType.toLowerCase().trim() == 'delivery' || customer.bookingId.toUpperCase().startsWith('D');
     final statusColor = getStatusColor(status);
 
@@ -1041,30 +1048,50 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                       children: [
                         Row(
                           children: [
-                            Text(
-                              customer.bookingId,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF0F172A),
-                                letterSpacing: -0.3,
+                            Flexible(
+                              child: Text(
+                                customer.bookingId,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF0F172A),
+                                  letterSpacing: -0.3,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                             if (isAMC) ...[
                               const SizedBox(width: 6),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                                  color: const Color(0xFFFFFBEB),
                                   borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: const Text(
-                                  'AMC',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w800,
-                                    color: Color(0xFFD97706),
+                                  border: Border.all(
+                                    color: const Color(0xFFF59E0B).withValues(alpha: 0.5),
+                                    width: 1,
                                   ),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.star_rounded,
+                                      size: 12,
+                                      color: Color(0xFFD97706),
+                                    ),
+                                    SizedBox(width: 2),
+                                    Text(
+                                      'AMC',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w900,
+                                        color: Color(0xFFD97706),
+                                        letterSpacing: 0.3,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
@@ -1225,31 +1252,43 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.calendar_today_rounded, size: 14, color: Color(0xFF64748B)),
-                  const SizedBox(width: 6),
-                  Text(
-                    DateFormat('dd MMM yyyy').format(customer.timestamp.toDate()),
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF64748B),
-                      fontWeight: FontWeight.w600,
+                  Expanded(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.calendar_today_rounded, size: 13, color: Color(0xFF64748B)),
+                        const SizedBox(width: 4),
+                        Text(
+                          DateFormat('dd MMM yyyy').format(customer.timestamp.toDate()),
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            color: Color(0xFF64748B),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (!isCanceled) ...[
+                          const SizedBox(width: 8),
+                          const Icon(Icons.schedule_rounded, size: 13, color: Color(0xFF64748B)),
+                          const SizedBox(width: 3),
+                          Flexible(
+                            child: Text(
+                              durationInfo['label'] as String? ?? '',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w800,
+                                color: (durationInfo['color'] as Color?) ?? primaryColor,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
-                  if (!isCanceled) ...[
-                    const SizedBox(width: 10),
-                    const Icon(Icons.schedule_rounded, size: 14, color: Color(0xFF64748B)),
-                    const SizedBox(width: 4),
-                    Text(
-                      durationInfo['label'] as String? ?? '',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        color: (durationInfo['color'] as Color?) ?? primaryColor,
-                      ),
-                    ),
-                  ],
-                  const Spacer(),
+                  const SizedBox(width: 8),
                   Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
                         'View Details',
@@ -1259,10 +1298,10 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                           color: primaryColor,
                         ),
                       ),
-                      const SizedBox(width: 4),
+                      const SizedBox(width: 2),
                       Icon(
                         Icons.arrow_forward_rounded,
-                        size: 14,
+                        size: 13,
                         color: primaryColor,
                       ),
                     ],
@@ -1332,7 +1371,10 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
         : status;
 
     final primaryColor = Theme.of(context).primaryColor;
-    final isAMC = customer.bookingId.toUpperCase().startsWith('AMC');
+    final isAMC = customer.bookingId.toUpperCase().startsWith('AMC') ||
+        customer.customerType.toLowerCase().trim() == 'amc' ||
+        customer.customerid.toUpperCase().startsWith('AMC') ||
+        customer.jobType.toLowerCase().trim() == 'amc';
 
     Color getStatusColor(String status) {
       final s = status.toLowerCase().trim();
@@ -1464,30 +1506,42 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                   children: [
                                     Row(
                                       children: [
-                                        Text(
-                                          'Booking ID: #${customer.bookingId}',
-                                          style: const TextStyle(
-                                            fontSize: 17,
-                                            fontWeight: FontWeight.w800,
-                                            color: Color(0xFF0F172A),
-                                            letterSpacing: -0.3,
+                                        Flexible(
+                                          child: Text(
+                                            customer.bookingId,
+                                            style: const TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w800,
+                                              color: Color(0xFF0F172A),
+                                              letterSpacing: -0.3,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
                                           ),
                                         ),
                                         if (isAMC) ...[
-                                          const SizedBox(width: 8),
+                                          const SizedBox(width: 6),
                                           Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
                                             decoration: BoxDecoration(
                                               color: const Color(0xFFF59E0B),
-                                              borderRadius: BorderRadius.circular(8),
+                                              borderRadius: BorderRadius.circular(6),
                                             ),
-                                            child: const Text(
-                                              'AMC',
-                                              style: TextStyle(
-                                                fontSize: 10,
-                                                fontWeight: FontWeight.w900,
-                                                color: Colors.white,
-                                              ),
+                                            child: const Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(Icons.star_rounded, color: Colors.white, size: 12),
+                                                SizedBox(width: 2),
+                                                Text(
+                                                  'AMC',
+                                                  style: TextStyle(
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.w900,
+                                                    color: Colors.white,
+                                                    letterSpacing: 0.3,
+                                                  ),
+                                                ),
+                                              ],
                                             ),
                                           ),
                                         ],
@@ -1497,10 +1551,12 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                     Text(
                                       'Customer: ${customer.customerName}',
                                       style: const TextStyle(
-                                        fontSize: 14,
+                                        fontSize: 13,
                                         color: Color(0xFF64748B),
                                         fontWeight: FontWeight.w600,
                                       ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ],
                                 ),
@@ -1628,7 +1684,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                               StreamBuilder<DocumentSnapshot>(
                                 stream: _getCustomerIdStream(customer),
                                 builder: (context, snapshot) {
-                                  String customerId = 'Not Found';
+                                  String customerId = customer.customerid.isNotEmpty ? customer.customerid : 'N/A';
                                   if (snapshot.hasData && snapshot.data!.exists) {
                                     final customerData = snapshot.data!.data() as Map<String, dynamic>?;
                                     if (customerData != null && customerData.containsKey('id')) {
@@ -1641,7 +1697,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                               const Divider(color: Color(0xFFF1F5F9), height: 16),
                               _buildDetailGridRow('Contact Number', customer.mobileNumber.isNotEmpty ? customer.mobileNumber : 'N/A'),
                               const Divider(color: Color(0xFFF1F5F9), height: 16),
-                              _buildDetailGridRow('Full Address', customer.address.isNotEmpty ? customer.address : 'N/A', isFullWidth: true),
+                              _buildDetailGridRow('Full Address', customer.address.isNotEmpty ? customer.address : 'N/A'),
                               const Divider(color: Color(0xFFF1F5F9), height: 16),
                               _buildDetailGridRow(
                                 'Assigned Engineer',
@@ -1852,6 +1908,136 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                 ),
                               ),
                             ),
+                          ] else if (isCompleted) ...[
+                            StreamBuilder<DocumentSnapshot>(
+                              stream: FirestoreService.instance
+                                  .collection('Admin_ticket_entry')
+                                  .doc(customer.bookingId)
+                                  .snapshots(),
+                              builder: (context, snapshot) {
+                                final data = snapshot.data?.data() as Map<String, dynamic>? ?? {};
+                                final bool isOrderDelivered = data['orderDelivered'] == true ||
+                                    data['isDelivered'] == true ||
+                                    data['adminStatus'] == 'Delivered';
+
+                                return Row(
+                                  children: [
+                                    Expanded(
+                                      child: ElevatedButton.icon(
+                                        onPressed: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) => AdminGeoLocationScreen(
+                                                engineerId: assignedEmployee != 'Not Assigned' ? assignedEmployee : 'N/A',
+                                                engineerName: assignedEmployee != 'Not Assigned' ? assignedEmployee : 'N/A',
+                                                bookingDocId: docId,
+                                                customerLat: customerLat,
+                                                customerLng: customerLng,
+                                                customerAddress: customer.address,
+                                                bookingId: customer.bookingId,
+                                                customerName: customer.customerName,
+                                                jobType: customer.jobType,
+                                                deviceType: customer.deviceType,
+                                                deviceBrand: customer.deviceBrand,
+                                                assignedEmployee: assignedEmployee != 'Not Assigned' ? assignedEmployee : null,
+                                                customerStatus: displayStatus,
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                        icon: const Icon(Icons.location_on_rounded, size: 18, color: Colors.white),
+                                        label: const Text(
+                                          'Customer Location',
+                                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white),
+                                        ),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: const Color(0xFFEF4444),
+                                          padding: const EdgeInsets.symmetric(vertical: 16),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(16),
+                                          ),
+                                          elevation: 0,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: ElevatedButton.icon(
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: isOrderDelivered ? const Color(0xFF059669) : const Color(0xFF10B981),
+                                          padding: const EdgeInsets.symmetric(vertical: 16),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(16),
+                                          ),
+                                          elevation: 0,
+                                        ),
+                                        onPressed: isOrderDelivered
+                                            ? null
+                                            : () async {
+                                                try {
+                                                  final updateData = {
+                                                    'orderDelivered': true,
+                                                    'isDelivered': true,
+                                                    'deliveredAt': FieldValue.serverTimestamp(),
+                                                    'adminStatus': 'Delivered',
+                                                    'customerStatus': 'Delivered',
+                                                    'engineerStatus': 'Completed',
+                                                    'lastUpdated': FieldValue.serverTimestamp(),
+                                                  };
+
+                                                  await FirestoreService.instance
+                                                      .collection('Admin_ticket_entry')
+                                                      .doc(customer.bookingId)
+                                                      .set(updateData, SetOptions(merge: true));
+
+                                                  try {
+                                                    await FirestoreService.instance
+                                                        .collection('Raised_tickets')
+                                                        .doc(customer.bookingId)
+                                                        .set(updateData, SetOptions(merge: true));
+                                                  } catch (_) {}
+
+                                                  await NotificationService.sendNotificationToFirestore(
+                                                    audience: 'customer',
+                                                    customerName: customer.customerName,
+                                                    type: 'order_delivered',
+                                                    bookingId: customer.bookingId,
+                                                    title: 'Service Order Delivered!',
+                                                    body: 'Your service for ticket #${customer.bookingId} is completed and delivered. Please rate your experience!',
+                                                  );
+
+                                                  if (context.mounted) {
+                                                    ScaffoldMessenger.of(context).showSnackBar(
+                                                      const SnackBar(
+                                                        content: Text('Order marked as Delivered! Customer can now rate the service.'),
+                                                        backgroundColor: Color(0xFF10B981),
+                                                      ),
+                                                    );
+                                                  }
+                                                } catch (e) {
+                                                  if (context.mounted) {
+                                                    ScaffoldMessenger.of(context).showSnackBar(
+                                                      SnackBar(content: Text('Failed to update status: $e'), backgroundColor: Colors.red),
+                                                    );
+                                                  }
+                                                }
+                                              },
+                                        icon: Icon(
+                                          isOrderDelivered ? Icons.verified_rounded : Icons.local_shipping_rounded,
+                                          size: 18,
+                                          color: Colors.white,
+                                        ),
+                                        label: Text(
+                                          isOrderDelivered ? 'Order Delivered' : 'Order Delivered',
+                                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
+                            ),
                           ] else ...[
                             Row(
                               children: [
@@ -2036,10 +2222,10 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
     }
 
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(
-          width: 140,
+          width: 125,
           child: Text(
             label,
             style: const TextStyle(
@@ -2047,10 +2233,9 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
               color: Color(0xFF64748B),
               fontWeight: FontWeight.w500,
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
           ),
         ),
+        const SizedBox(width: 10),
         Expanded(
           child: customValue ??
               Text(
@@ -2060,9 +2245,8 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                   fontSize: 13,
                   fontWeight: isHighlight ? FontWeight.w800 : FontWeight.w600,
                   color: isHighlight ? Theme.of(context).primaryColor : const Color(0xFF0F172A),
+                  height: 1.35,
                 ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
               ),
         ),
       ],

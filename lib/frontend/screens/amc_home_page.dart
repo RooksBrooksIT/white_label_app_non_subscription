@@ -372,9 +372,14 @@ class _AmcCustomerHomePageState extends State<AmcCustomerHomePage> {
           'jobType': jobType,
         };
 
-        // Write only to Raised_tickets collection!
+        // Write to Raised_tickets and Admin_ticket_entry collections
         await FirestoreService.instance
             .collection('Raised_tickets')
+            .doc(ticketId)
+            .set(ticketData);
+
+        await FirestoreService.instance
+            .collection('Admin_ticket_entry')
             .doc(ticketId)
             .set(ticketData);
 
