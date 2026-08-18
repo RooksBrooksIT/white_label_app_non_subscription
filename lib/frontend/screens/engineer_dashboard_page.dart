@@ -207,6 +207,16 @@ class AdminDetails {
     );
   }
 
+  bool get isCompleted {
+    final engStatus = selectedStatus.toLowerCase().trim();
+    final admStatus = adminStatus.toLowerCase().trim();
+    return engStatus == 'completed' ||
+        engStatus.contains('complete') ||
+        admStatus == 'completed' ||
+        admStatus == 'delivered' ||
+        completedAt != null;
+  }
+
   bool get isCanceled {
     return adminStatus.toLowerCase() == 'canceled' ||
         customerDecision.toLowerCase() == 'canceled';
@@ -2549,59 +2559,32 @@ class _EngineerPageState extends State<EngineerPage> {
           .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-            ),
-            child: Center(
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.assignment_turned_in_rounded,
-                    size: 40,
-                    color: primary.withValues(alpha: 0.4),
-                  ),
-                  const SizedBox(height: 10),
-                  const Text(
-                    'No active tasks assigned',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF475569),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'When new service requests are assigned to you,\nthey will appear here.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF94A3B8),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
+          return _buildNoActiveTasksEmptyState(primary);
         }
 
         final docs = snapshot.data!.docs;
         final activeTasks = docs.where((d) {
           final data = d.data() as Map<String, dynamic>;
-          final status = (data['engineerStatus'] ?? data['adminStatus'] ?? '')
-              .toString()
-              .toLowerCase();
-          return status != 'completed';
+          final engStatus = (data['engineerStatus'] ?? '').toString().toLowerCase().trim();
+          final admStatus = (data['adminStatus'] ?? '').toString().toLowerCase().trim();
+          final bool isCompleted = engStatus == 'completed' ||
+              engStatus.contains('complete') ||
+              admStatus == 'completed' ||
+              admStatus == 'delivered' ||
+              data['orderDelivered'] == true ||
+              data['isDelivered'] == true ||
+              data['completedAt'] != null;
+          final bool isCanceled = admStatus == 'canceled' || admStatus == 'cancelled';
+          return !isCompleted && !isCanceled;
         }).toList();
 
-        final displayDocs = activeTasks.isNotEmpty ? activeTasks : docs;
+        if (activeTasks.isEmpty) {
+          return _buildNoActiveTasksEmptyState(primary);
+        }
 
-        final firstDoc = displayDocs.first;
+        final firstDoc = activeTasks.first;
         final firstData = firstDoc.data() as Map<String, dynamic>;
-        final otherDocs = displayDocs.skip(1).take(2).toList();
+        final otherDocs = activeTasks.skip(1).take(2).toList();
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2628,6 +2611,62 @@ class _EngineerPageState extends State<EngineerPage> {
           ],
         );
       },
+    );
+  }
+
+  Widget _buildNoActiveTasksEmptyState(Color primary) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Center(
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF10B981).withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.task_alt_rounded,
+                size: 32,
+                color: Color(0xFF10B981),
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'No active tasks pending',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF0F172A),
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'All tasks are completed! When new requests are assigned to you, they will appear here.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12,
+                color: Color(0xFF94A3B8),
+                height: 1.4,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -3496,59 +3535,24 @@ class _EngineerPageState extends State<EngineerPage> {
           return _buildEmptyState();
         }
 
-        int assignedCount = 0;
-        int completedCount = 0;
+        final allBookings = snapshot.data!.docs
+            .map((doc) => AdminDetails.fromFirestore(doc))
+            .toList();
 
-        // Process data based on current section
-        if (_isLoading ||
-            snapshot.data!.docs.length != _allBookings.length ||
-            _hasDataChanged(snapshot.data!.docs)) {
-          // Get all bookings assigned to this engineer
-          var allBookings = snapshot.data!.docs
-              .map((doc) => AdminDetails.fromFirestore(doc))
-              .toList();
+        final int assignedCount = allBookings.where((b) => !b.isCompleted).length;
+        final int completedCount = allBookings.where((b) => b.isCompleted).length;
 
-          assignedCount = allBookings
-              .where((b) => b.selectedStatus.toLowerCase() != 'completed')
-              .length;
-          completedCount = allBookings
-              .where((b) => b.selectedStatus.toLowerCase() == 'completed')
-              .length;
-
-          // Filter based on current section
-          if (_currentSection == 'completed') {
-            _allBookings = allBookings
-                .where(
-                  (booking) =>
-                      booking.selectedStatus.toLowerCase() == 'completed',
-                )
-                .toList();
-          } else {
-            // Dashboard shows all non-completed tickets
-            _allBookings = allBookings
-                .where(
-                  (booking) =>
-                      booking.selectedStatus.toLowerCase() != 'completed',
-                )
-                .toList();
-          }
-
-          _allBookings.sort((a, b) => b.bookingId.compareTo(a.bookingId));
-          _applyFilters();
-          _isLoading = false;
+        // Filter based on current section
+        if (_currentSection == 'completed') {
+          _allBookings = allBookings.where((b) => b.isCompleted).toList();
         } else {
-          // If we didn't rebuild _allBookings, still derive header counts
-          // from latest snapshot for accuracy.
-          final allBookings = snapshot.data!.docs
-              .map((doc) => AdminDetails.fromFirestore(doc))
-              .toList();
-          assignedCount = allBookings
-              .where((b) => b.selectedStatus.toLowerCase() != 'completed')
-              .length;
-          completedCount = allBookings
-              .where((b) => b.selectedStatus.toLowerCase() == 'completed')
-              .length;
+          // Assigned tab shows ONLY non-completed tickets
+          _allBookings = allBookings.where((b) => !b.isCompleted).toList();
         }
+
+        _allBookings.sort((a, b) => b.bookingId.compareTo(a.bookingId));
+        _applyFilters();
+        _isLoading = false;
 
         return Column(
           children: [
@@ -3571,7 +3575,7 @@ class _EngineerPageState extends State<EngineerPage> {
                     key: _engBookingsSearchKey,
                     child: _buildSearchField(),
                   ),
-                  if (_currentSection == 'dashboard') ...[
+                  if (_currentSection != 'completed') ...[
                     const SizedBox(height: 12),
                     Container(
                       key: _engBookingsFilterChipsKey,
@@ -3756,11 +3760,10 @@ class _EngineerPageState extends State<EngineerPage> {
           count: assignedCount.toString(),
           icon: Icons.assignment_rounded,
           onTap: () {
-            if (_currentSection == 'dashboard') return;
+            if (_currentSection == 'dashboard' || _currentSection == 'assigned') return;
             setState(() {
               _currentSection = 'dashboard';
               _statusFilter = null;
-              _applyFilters();
             });
           },
         ),
@@ -3775,7 +3778,6 @@ class _EngineerPageState extends State<EngineerPage> {
             setState(() {
               _currentSection = 'completed';
               _statusFilter = null;
-              _applyFilters();
             });
           },
         ),
@@ -3962,8 +3964,6 @@ class _EngineerPageState extends State<EngineerPage> {
   }
 
   void _applyFilters() {
-    if (_allBookings.isEmpty) return;
-
     _filteredBookings = _allBookings.where((b) {
       final matchesSearch =
           _searchQuery.isEmpty ||
@@ -3971,7 +3971,7 @@ class _EngineerPageState extends State<EngineerPage> {
           b.customerName.toLowerCase().contains(_searchQuery.toLowerCase());
       final matchesStatus = _statusFilter == null || _statusFilter!.isEmpty
           ? true
-          : b.selectedStatus == _statusFilter;
+          : b.selectedStatus.toLowerCase().trim() == _statusFilter!.toLowerCase().trim();
       return matchesSearch && matchesStatus;
     }).toList();
   }

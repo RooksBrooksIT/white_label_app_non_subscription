@@ -54,12 +54,13 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
       TextEditingController();
   final TextEditingController _customDeviceConditionController =
       TextEditingController();
+  final TextEditingController _productNameController = TextEditingController();
 
   late String deviceType;
   String deviceBrand = '';
   String deviceCondition = '';
 
-  final List<String> jobTypes = ['Service', 'Delivery'];
+  final List<String> jobTypes = ['Service', 'Delivery', 'Product'];
   String jobType = '';
 
   List<String> deviceTypes = [];
@@ -289,15 +290,19 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                   (value) {
                     setState(() {
                       jobType = value ?? '';
-                      if (jobType == 'Delivery') {
+                      if (jobType == 'Delivery' || jobType == 'Product') {
                         deviceType = '';
                         deviceBrand = '';
                         deviceCondition = '';
                         _messageController.clear();
                         _customDeviceTypeController.clear();
                         _customDeviceBrandController.clear();
+                        if (jobType == 'Delivery') {
+                          _productNameController.clear();
+                        }
                       } else {
                         _descriptionController.clear();
+                        _productNameController.clear();
                       }
                     });
                   },
@@ -404,6 +409,23 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                     'Enter additional details',
                     Icons.message,
                     _messageController,
+                    maxLines: 3,
+                  ),
+                ],
+                if (jobType == 'Product') ...[
+                  const SizedBox(height: 20),
+                  _buildTextField(
+                    'Product Name',
+                    'Enter product / spare part name (e.g. CCTV, Battery, Adapter)',
+                    Icons.inventory_2_rounded,
+                    _productNameController,
+                  ),
+                  const SizedBox(height: 20),
+                  _buildTextField(
+                    'Description',
+                    'Enter quantity, model or specifications',
+                    Icons.description,
+                    _descriptionController,
                     maxLines: 3,
                   ),
                 ],
@@ -848,6 +870,14 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
           );
         }
 
+        final productOrIssueDescription = jobType == 'Product'
+            ? (_productNameController.text.isNotEmpty
+                ? '${_productNameController.text.trim()} - ${_descriptionController.text.trim()}'
+                : _descriptionController.text.trim())
+            : (_messageController.text.isNotEmpty
+                ? _messageController.text
+                : _descriptionController.text);
+
         Map<String, dynamic> ticketData = {
           'ticketId': ticketId,
           'customerId': _customerIdController.text,
@@ -855,14 +885,19 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
           'customerType': widget.customerType,
           'mobileNumber': _mobileNumberController.text,
           'address': _addressController.text,
-          'deviceType': jobType == 'Service' ? actualDeviceType : null,
+          'productName': jobType == 'Product'
+              ? _productNameController.text.trim()
+              : null,
+          'deviceType': jobType == 'Service'
+              ? actualDeviceType
+              : (jobType == 'Product'
+                  ? _productNameController.text.trim()
+                  : null),
           'deviceBrand': jobType == 'Service' ? actualDeviceBrand : null,
           'deviceCondition': jobType == 'Service'
               ? actualDeviceCondition
               : null,
-          'issueDescription': _messageController.text.isNotEmpty
-              ? _messageController.text
-              : _descriptionController.text,
+          'issueDescription': productOrIssueDescription,
           'customerStatus': 'Ticket Created',
           'adminStatus': 'Open',
           'engineerStatus': 'Not Assigned',

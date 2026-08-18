@@ -338,8 +338,8 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
     final primaryColor = Theme.of(context).primaryColor;
     final options = [
       {'label': 'All', 'value': 'All', 'icon': null},
-      {'label': 'Service', 'value': 'Service', 'icon': Icons.build_circle_rounded},
-      {'label': 'Delivery', 'value': 'Delivery', 'icon': Icons.local_shipping_rounded},
+      {'label': 'Service', 'value': 'Service', 'icon': Icons.handyman_rounded},
+      {'label': 'Product', 'value': 'Product', 'icon': Icons.inventory_2_rounded},
     ];
 
     return Padding(
@@ -388,7 +388,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                           icon,
                           size: 16,
                           color: isSelected
-                              ? (val == 'Delivery' ? const Color(0xFF10B981) : primaryColor)
+                              ? (val == 'Product' ? const Color(0xFF059669) : primaryColor)
                               : const Color(0xFF64748B),
                         ),
                         const SizedBox(width: 6),
@@ -715,14 +715,19 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
             'JobType',
           ], '').toLowerCase().trim();
 
-          final bool isDeliveryTicket = jobTypeRaw == 'delivery' || bookingIdRaw.toUpperCase().startsWith('D');
-          final bool isServiceTicket = jobTypeRaw == 'service' || bookingIdRaw.toUpperCase().startsWith('S') || !isDeliveryTicket;
+          final bool isProductTicket = jobTypeRaw == 'product' ||
+              jobTypeRaw == 'delivery' ||
+              bookingIdRaw.toUpperCase().startsWith('P') ||
+              bookingIdRaw.toUpperCase().startsWith('D');
+          final bool isServiceTicket = jobTypeRaw == 'service' ||
+              bookingIdRaw.toUpperCase().startsWith('S') ||
+              (!isProductTicket && jobTypeRaw != 'product' && jobTypeRaw != 'delivery');
 
           // Ticket Type Segment Filter
           if (ticketTypeFilter == 'Service' && !isServiceTicket) {
             return false;
           }
-          if (ticketTypeFilter == 'Delivery' && !isDeliveryTicket) {
+          if (ticketTypeFilter == 'Product' && !isProductTicket) {
             return false;
           }
 
@@ -790,16 +795,16 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
         if (filteredDocs.isEmpty) {
           IconData emptyIcon = Icons.inbox_rounded;
           String emptyTitle = 'No tickets found';
-          String emptySubtitle = 'Service and delivery tickets will appear here.';
+          String emptySubtitle = 'Service and product tickets will appear here.';
 
           if (ticketTypeFilter == 'Service') {
-            emptyIcon = Icons.build_circle_outlined;
+            emptyIcon = Icons.handyman_outlined;
             emptyTitle = 'No service tickets found';
-            emptySubtitle = 'Create a service ticket to get started.';
-          } else if (ticketTypeFilter == 'Delivery') {
-            emptyIcon = Icons.local_shipping_outlined;
-            emptyTitle = 'No delivery tickets found';
-            emptySubtitle = 'Create a delivery ticket to get started.';
+            emptySubtitle = 'Create a service repair ticket to get started.';
+          } else if (ticketTypeFilter == 'Product') {
+            emptyIcon = Icons.inventory_2_outlined;
+            emptyTitle = 'No product tickets found';
+            emptySubtitle = 'Create a product/spare parts request to get started.';
           }
 
           return Center(
@@ -889,7 +894,10 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
             final assignedEmployee = getField(data, [
               'assignedEmployee',
             ], 'Not Assigned');
-            final bool isCompleted = status.toLowerCase().contains('complete');
+            final bool isCompleted = status.toLowerCase().contains('complete') ||
+                data['completedAt'] != null ||
+                data['orderDelivered'] == true ||
+                adminStatus.toLowerCase() == 'delivered';
 
             final double? customerLat = data['latitude'] != null
                 ? (data['latitude'] as num).toDouble()
@@ -957,7 +965,11 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
         customer.customerType.toLowerCase().trim() == 'amc' ||
         customer.customerid.toUpperCase().startsWith('AMC') ||
         customer.jobType.toLowerCase().trim() == 'amc';
-    final isDelivery = customer.jobType.toLowerCase().trim() == 'delivery' || customer.bookingId.toUpperCase().startsWith('D');
+    final isProduct = customer.jobType.toLowerCase().trim() == 'product' ||
+        customer.jobType.toLowerCase().trim() == 'delivery' ||
+        customer.bookingId.toUpperCase().startsWith('P') ||
+        customer.bookingId.toUpperCase().startsWith('D');
+    final isService = !isProduct;
     final statusColor = getStatusColor(status);
 
     return GestureDetector(
@@ -990,16 +1002,20 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isAMC ? const Color(0xFFF59E0B) : const Color(0xFFE2E8F0),
-            width: isAMC ? 1.5 : 1,
+            color: isProduct
+                ? const Color(0xFF10B981).withValues(alpha: 0.3)
+                : isAMC
+                ? const Color(0xFFF59E0B).withValues(alpha: 0.4)
+                : const Color(0xFFE2E8F0),
+            width: (isProduct || isAMC) ? 1.2 : 1,
           ),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 16,
-              offset: const Offset(0, 4),
+              blurRadius: 12,
+              offset: const Offset(0, 3),
             ),
           ],
         ),
@@ -1007,70 +1023,71 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
           children: [
             // Header Row
             Padding(
-              padding: const EdgeInsets.all(18),
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
               child: Row(
                 children: [
                   Container(
-                    width: 48,
-                    height: 48,
+                    width: 40,
+                    height: 40,
                     decoration: BoxDecoration(
-                      color: isDelivery
+                      color: isProduct
                           ? const Color(0xFFECFDF5)
-                          : isAMC
-                          ? const Color(0xFFFFFBEB)
-                          : statusColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(14),
+                          : const Color(0xFFEFF6FF),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(
-                      isDelivery
-                          ? Icons.local_shipping_rounded
-                          : isAMC
-                          ? Icons.star_rounded
-                          : isCompleted
-                          ? Icons.check_circle_rounded
-                          : isCanceled
-                          ? Icons.cancel_rounded
-                          : isAppointment
-                          ? Icons.calendar_today_rounded
-                          : Icons.build_circle_rounded,
-                      color: isDelivery
-                          ? const Color(0xFF10B981)
-                          : isAMC
-                          ? const Color(0xFFF59E0B)
-                          : statusColor,
-                      size: 24,
+                      isProduct
+                          ? Icons.inventory_2_rounded
+                          : Icons.handyman_rounded,
+                      color: isProduct
+                          ? const Color(0xFF059669)
+                          : const Color(0xFF2563EB),
+                      size: 20,
                     ),
                   ),
-                  const SizedBox(width: 14),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: [
-                            Flexible(
+                            Text(
+                              customer.bookingId,
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w900,
+                                color: Color(0xFF0F172A),
+                                letterSpacing: -0.3,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
                               child: Text(
-                                customer.bookingId,
+                                '•  ${customer.customerName}',
                                 style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w800,
-                                  color: Color(0xFF0F172A),
-                                  letterSpacing: -0.3,
+                                  fontSize: 13,
+                                  color: Color(0xFF64748B),
+                                  fontWeight: FontWeight.w600,
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
                             if (isAMC) ...[
-                              const SizedBox(width: 6),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
                                   color: const Color(0xFFFFFBEB),
-                                  borderRadius: BorderRadius.circular(6),
+                                  borderRadius: BorderRadius.circular(5),
                                   border: Border.all(
                                     color: const Color(0xFFF59E0B).withValues(alpha: 0.5),
-                                    width: 1,
+                                    width: 0.8,
                                   ),
                                 ),
                                 child: const Row(
@@ -1078,44 +1095,67 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                   children: [
                                     Icon(
                                       Icons.star_rounded,
-                                      size: 12,
+                                      size: 11,
                                       color: Color(0xFFD97706),
                                     ),
                                     SizedBox(width: 2),
                                     Text(
                                       'AMC',
                                       style: TextStyle(
-                                        fontSize: 10,
+                                        fontSize: 9.5,
                                         fontWeight: FontWeight.w900,
                                         color: Color(0xFFD97706),
-                                        letterSpacing: 0.3,
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
+                              const SizedBox(width: 5),
                             ],
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: isProduct
+                                    ? const Color(0xFFECFDF5)
+                                    : const Color(0xFFEFF6FF),
+                                borderRadius: BorderRadius.circular(5),
+                                border: Border.all(
+                                  color: isProduct
+                                      ? const Color(0xFF10B981).withValues(alpha: 0.4)
+                                      : const Color(0xFF3B82F6).withValues(alpha: 0.4),
+                                  width: 0.8,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    isProduct ? Icons.inventory_2_rounded : Icons.handyman_rounded,
+                                    size: 10,
+                                    color: isProduct ? const Color(0xFF059669) : const Color(0xFF2563EB),
+                                  ),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    isProduct ? 'Product' : 'Service',
+                                    style: TextStyle(
+                                      fontSize: 9.5,
+                                      fontWeight: FontWeight.w900,
+                                      color: isProduct ? const Color(0xFF059669) : const Color(0xFF2563EB),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ],
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          customer.customerName,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: Color(0xFF64748B),
-                            fontWeight: FontWeight.w500,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
                       color: statusColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: statusColor.withValues(alpha: 0.2)),
                     ),
                     child: Text(
@@ -1123,12 +1163,12 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                       style: TextStyle(
                         color: statusColor,
                         fontWeight: FontWeight.w800,
-                        fontSize: 12,
+                        fontSize: 11.5,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Color(0xFF94A3B8)),
+                  const SizedBox(width: 4),
+                  const Icon(Icons.chevron_right_rounded, size: 18, color: Color(0xFF94A3B8)),
                 ],
               ),
             ),
@@ -1137,77 +1177,70 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
 
             // Card Body Information
             Padding(
-              padding: const EdgeInsets.all(18),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
               child: Column(
                 children: [
                   Row(
+                    children: [
+                      Icon(
+                        isProduct ? Icons.inventory_2_outlined : Icons.laptop_mac_rounded,
+                        size: 15,
+                        color: isProduct ? const Color(0xFF059669) : primaryColor,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          isProduct
+                              ? (customer.deviceType.isNotEmpty
+                                  ? customer.deviceType
+                                  : (customer.message.isNotEmpty
+                                      ? customer.message
+                                      : 'Product Request'))
+                              : (customer.deviceBrand.isNotEmpty && customer.deviceType.isNotEmpty
+                                  ? '${customer.deviceBrand} - ${customer.deviceType}'
+                                  : (customer.deviceType.isNotEmpty
+                                      ? customer.deviceType
+                                      : (customer.deviceBrand.isNotEmpty
+                                          ? customer.deviceBrand
+                                          : 'General Service'))),
+                          style: const TextStyle(
+                            fontSize: 13.5,
+                            color: Color(0xFF0F172A),
+                            fontWeight: FontWeight.w700,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (customer.mobileNumber.isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        const Icon(Icons.phone_outlined, size: 13, color: Color(0xFF64748B)),
+                        const SizedBox(width: 4),
+                        Text(
+                          customer.mobileNumber,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF64748B),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF1F5F9),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Icon(Icons.location_on_rounded, size: 14, color: Color(0xFF64748B)),
-                      ),
-                      const SizedBox(width: 10),
+                      const Icon(Icons.location_on_outlined, size: 15, color: Color(0xFF64748B)),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           customer.address.isNotEmpty ? customer.address : 'No address provided',
                           style: const TextStyle(
-                            fontSize: 13,
-                            color: Color(0xFF334155),
+                            fontSize: 12,
+                            color: Color(0xFF64748B),
                             fontWeight: FontWeight.w500,
-                            height: 1.4,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF1F5F9),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Icon(Icons.phone_android_rounded, size: 14, color: Color(0xFF64748B)),
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        customer.mobileNumber.isNotEmpty ? customer.mobileNumber : 'No mobile number',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: Color(0xFF334155),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF1F5F9),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Icon(Icons.laptop_mac_rounded, size: 14, color: Color(0xFF64748B)),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          '${customer.deviceBrand} - ${customer.deviceType}',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: Color(0xFF334155),
-                            fontWeight: FontWeight.w600,
+                            height: 1.3,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -1216,22 +1249,15 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                     ],
                   ),
                   if (assignedEmployee != 'Not Assigned') ...[
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8),
                     Row(
                       children: [
-                        Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF0984E3).withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Icon(Icons.person_rounded, size: 14, color: Color(0xFF0984E3)),
-                        ),
-                        const SizedBox(width: 10),
+                        const Icon(Icons.person_outline_rounded, size: 15, color: Color(0xFF0984E3)),
+                        const SizedBox(width: 8),
                         Text(
                           'Assigned: $assignedEmployee',
                           style: const TextStyle(
-                            fontSize: 13,
+                            fontSize: 12,
                             color: Color(0xFF0984E3),
                             fontWeight: FontWeight.w700,
                           ),
@@ -1245,65 +1271,53 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
 
             // Footer Bar Container
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: const BoxDecoration(
                 color: Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
+                borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
               ),
               child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Expanded(
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.calendar_today_rounded, size: 13, color: Color(0xFF64748B)),
-                        const SizedBox(width: 4),
+                  Row(
+                    children: [
+                      const Icon(Icons.calendar_today_rounded, size: 12, color: Color(0xFF64748B)),
+                      const SizedBox(width: 4),
+                      Text(
+                        DateFormat('dd MMM yyyy').format(customer.timestamp.toDate()),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF64748B),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      if (!isCanceled) ...[
+                        const SizedBox(width: 8),
+                        const Icon(Icons.schedule_rounded, size: 12, color: Color(0xFF64748B)),
+                        const SizedBox(width: 3),
                         Text(
-                          DateFormat('dd MMM yyyy').format(customer.timestamp.toDate()),
-                          style: const TextStyle(
-                            fontSize: 11.5,
-                            color: Color(0xFF64748B),
+                          durationInfo['text'] ?? '',
+                          style: TextStyle(
+                            fontSize: 11,
                             fontWeight: FontWeight.w600,
+                            color: durationInfo['color'] as Color? ?? const Color(0xFF64748B),
                           ),
                         ),
-                        if (!isCanceled) ...[
-                          const SizedBox(width: 8),
-                          const Icon(Icons.schedule_rounded, size: 13, color: Color(0xFF64748B)),
-                          const SizedBox(width: 3),
-                          Flexible(
-                            child: Text(
-                              durationInfo['label'] as String? ?? '',
-                              style: TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w800,
-                                color: (durationInfo['color'] as Color?) ?? primaryColor,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
                       ],
-                    ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
                   Row(
-                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
                         'View Details',
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 11.5,
                           fontWeight: FontWeight.w800,
                           color: primaryColor,
                         ),
                       ),
                       const SizedBox(width: 2),
-                      Icon(
-                        Icons.arrow_forward_rounded,
-                        size: 13,
-                        color: primaryColor,
-                      ),
+                      Icon(Icons.arrow_forward_rounded, size: 12, color: primaryColor),
                     ],
                   ),
                 ],
@@ -1375,6 +1389,10 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
         customer.customerType.toLowerCase().trim() == 'amc' ||
         customer.customerid.toUpperCase().startsWith('AMC') ||
         customer.jobType.toLowerCase().trim() == 'amc';
+    final isProduct = customer.jobType.toLowerCase().trim() == 'product' ||
+        customer.jobType.toLowerCase().trim() == 'delivery' ||
+        customer.bookingId.toUpperCase().startsWith('P') ||
+        customer.bookingId.toUpperCase().startsWith('D');
 
     Color getStatusColor(String status) {
       final s = status.toLowerCase().trim();
@@ -1480,22 +1498,18 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                 width: 52,
                                 height: 52,
                                 decoration: BoxDecoration(
-                                  color: isAMC
-                                      ? const Color(0xFFF59E0B)
-                                      : statusColor.withValues(alpha: 0.12),
+                                  color: isProduct
+                                      ? const Color(0xFFECFDF5)
+                                      : const Color(0xFFEFF6FF),
                                   borderRadius: BorderRadius.circular(16),
                                 ),
                                 child: Icon(
-                                  isAMC
-                                      ? Icons.star_rounded
-                                      : isCompleted
-                                      ? Icons.check_circle_rounded
-                                      : isCanceled
-                                      ? Icons.cancel_rounded
-                                      : isAppointment
-                                      ? Icons.calendar_today_rounded
-                                      : Icons.build_circle_rounded,
-                                  color: isAMC ? Colors.white : statusColor,
+                                  isProduct
+                                      ? Icons.inventory_2_rounded
+                                      : Icons.handyman_rounded,
+                                  color: isProduct
+                                      ? const Color(0xFF059669)
+                                      : const Color(0xFF2563EB),
                                   size: 26,
                                 ),
                               ),
@@ -1654,20 +1668,56 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
 
                         // Section: Device & Service Details Card
                         _buildSectionCard(
-                          title: 'Service & Device Specifications',
-                          icon: Icons.laptop_mac_rounded,
+                          title: isProduct
+                              ? 'Product Specifications'
+                              : 'Service & Device Specifications',
+                          icon: isProduct
+                              ? Icons.inventory_2_rounded
+                              : Icons.laptop_mac_rounded,
                           child: Column(
                             children: [
-                              _buildDetailGridRow('Job Type', customer.jobType, isHighlight: true),
-                              const Divider(color: Color(0xFFF1F5F9), height: 16),
-                              _buildDetailGridRow('Device Type', customer.deviceType),
-                              const Divider(color: Color(0xFFF1F5F9), height: 16),
-                              _buildDetailGridRow('Device Brand', customer.deviceBrand),
-                              const Divider(color: Color(0xFFF1F5F9), height: 16),
-                              _buildDetailGridRow('Condition', customer.deviceCondition),
-                              if (customer.message.isNotEmpty) ...[
+                              _buildDetailGridRow(
+                                'Job Type',
+                                customer.jobType.isNotEmpty
+                                    ? customer.jobType
+                                    : (isProduct ? 'Product' : 'Service'),
+                                isHighlight: true,
+                              ),
+                              if (isProduct) ...[
                                 const Divider(color: Color(0xFFF1F5F9), height: 16),
-                                _buildDetailGridRow('Issue Description', customer.message),
+                                _buildDetailGridRow(
+                                  'Product Name',
+                                  customer.deviceType.isNotEmpty
+                                      ? customer.deviceType
+                                      : 'N/A',
+                                ),
+                                if (customer.message.isNotEmpty) ...[
+                                  const Divider(color: Color(0xFFF1F5F9), height: 16),
+                                  _buildDetailGridRow(
+                                    'Product Description',
+                                    customer.message,
+                                  ),
+                                ],
+                              ] else ...[
+                                const Divider(color: Color(0xFFF1F5F9), height: 16),
+                                _buildDetailGridRow(
+                                  'Device Type',
+                                  customer.deviceType.isNotEmpty
+                                      ? customer.deviceType
+                                      : 'N/A',
+                                ),
+                                if (customer.deviceBrand.isNotEmpty) ...[
+                                  const Divider(color: Color(0xFFF1F5F9), height: 16),
+                                  _buildDetailGridRow('Device Brand', customer.deviceBrand),
+                                ],
+                                if (customer.deviceCondition.isNotEmpty) ...[
+                                  const Divider(color: Color(0xFFF1F5F9), height: 16),
+                                  _buildDetailGridRow('Condition', customer.deviceCondition),
+                                ],
+                                if (customer.message.isNotEmpty) ...[
+                                  const Divider(color: Color(0xFFF1F5F9), height: 16),
+                                  _buildDetailGridRow('Issue Description', customer.message),
+                                ],
                               ],
                             ],
                           ),
@@ -1844,202 +1894,168 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                           const SizedBox(height: 12),
                         ],
 
-                        // Main Action Buttons Bar (Exactly 2 Buttons: Customer Location & Assign Ticket)
-                        if (!isCompleted) ...[
-                          if (isCanceled) ...[
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton.icon(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF10B981),
-                                  padding: const EdgeInsets.symmetric(vertical: 16),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16),
+                        // Main Action Buttons Bar
+                        StreamBuilder<DocumentSnapshot>(
+                          stream: FirestoreService.instance
+                              .collection('Admin_ticket_entry')
+                              .doc(customer.bookingId)
+                              .snapshots(),
+                          builder: (context, snapshot) {
+                            final ticketData = snapshot.data?.data() as Map<String, dynamic>? ?? {};
+                            final engStatus = (ticketData['engineerStatus'] ?? status).toString().toLowerCase().trim();
+                            final admStatus = (ticketData['adminStatus'] ?? '').toString().toLowerCase().trim();
+                            final bool isCompletedByEngineer = isCompleted ||
+                                engStatus == 'completed' ||
+                                engStatus.contains('complete') ||
+                                ticketData['completedAt'] != null;
+                            final bool isOrderDelivered = ticketData['orderDelivered'] == true ||
+                                ticketData['isDelivered'] == true ||
+                                admStatus == 'delivered';
+
+                            if (isCanceled) {
+                              return SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF10B981),
+                                    padding: const EdgeInsets.symmetric(vertical: 16),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    elevation: 0,
                                   ),
-                                  elevation: 0,
-                                ),
-                                onPressed: () async {
-                                  final confirm = await showDialog<bool>(
-                                    context: context,
-                                    builder: (context) => AlertDialog(
-                                      title: const Text('Reactivate Ticket'),
-                                      content: const Text('Are you sure you want to reactivate this cancelled ticket?'),
-                                      actions: [
-                                        TextButton(
-                                          onPressed: () => Navigator.of(context).pop(false),
-                                          child: const Text('Keep Cancelled'),
-                                        ),
-                                        TextButton(
-                                          onPressed: () => Navigator.of(context).pop(true),
-                                          child: const Text('Reactivate', style: TextStyle(color: Color(0xFF10B981))),
-                                        ),
-                                      ],
-                                    ),
-                                  );
+                                  onPressed: () async {
+                                    final confirm = await showDialog<bool>(
+                                      context: context,
+                                      builder: (context) => AlertDialog(
+                                        title: const Text('Reactivate Ticket'),
+                                        content: const Text('Are you sure you want to reactivate this cancelled ticket?'),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () => Navigator.of(context).pop(false),
+                                            child: const Text('Keep Cancelled'),
+                                          ),
+                                          TextButton(
+                                            onPressed: () => Navigator.of(context).pop(true),
+                                            child: const Text('Reactivate', style: TextStyle(color: Color(0xFF10B981))),
+                                          ),
+                                        ],
+                                      ),
+                                    );
 
-                                  if (confirm == true) {
-                                    try {
-                                      await FirestoreService.instance
-                                          .collection('Admin_ticket_entry')
-                                          .doc(docId)
-                                          .update({
-                                        'adminStatus': 'Open',
-                                        'Customer_decision': '',
-                                        'engineerStatus': 'Assigned',
-                                      });
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(
-                                          content: Text('Ticket reactivated successfully!'),
-                                          backgroundColor: Color(0xFF10B981),
-                                        ),
-                                      );
-                                      Navigator.pop(context);
-                                    } catch (e) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(content: Text('Failed to reactivate ticket: $e'), backgroundColor: Colors.red),
-                                      );
+                                    if (confirm == true) {
+                                      try {
+                                        await FirestoreService.instance
+                                            .collection('Admin_ticket_entry')
+                                            .doc(docId)
+                                            .update({
+                                          'adminStatus': 'Open',
+                                          'Customer_decision': '',
+                                          'engineerStatus': 'Assigned',
+                                        });
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(
+                                            content: Text('Ticket reactivated successfully!'),
+                                            backgroundColor: Color(0xFF10B981),
+                                          ),
+                                        );
+                                        Navigator.pop(context);
+                                      } catch (e) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(content: Text('Failed to reactivate ticket: $e'), backgroundColor: Colors.red),
+                                        );
+                                      }
                                     }
-                                  }
-                                },
-                                icon: const Icon(Icons.refresh_rounded, size: 18, color: Colors.white),
-                                label: const Text(
-                                  'Reactivate Ticket',
-                                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white),
+                                  },
+                                  icon: const Icon(Icons.refresh_rounded, size: 18, color: Colors.white),
+                                  label: const Text(
+                                    'Reactivate Ticket',
+                                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white),
+                                  ),
                                 ),
-                              ),
-                            ),
-                          ] else if (isCompleted) ...[
-                            StreamBuilder<DocumentSnapshot>(
-                              stream: FirestoreService.instance
-                                  .collection('Admin_ticket_entry')
-                                  .doc(customer.bookingId)
-                                  .snapshots(),
-                              builder: (context, snapshot) {
-                                final data = snapshot.data?.data() as Map<String, dynamic>? ?? {};
-                                final bool isOrderDelivered = data['orderDelivered'] == true ||
-                                    data['isDelivered'] == true ||
-                                    data['adminStatus'] == 'Delivered';
+                              );
+                            }
 
-                                return Row(
-                                  children: [
-                                    Expanded(
-                                      child: ElevatedButton.icon(
-                                        onPressed: () {
-                                          Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (context) => AdminGeoLocationScreen(
-                                                engineerId: assignedEmployee != 'Not Assigned' ? assignedEmployee : 'N/A',
-                                                engineerName: assignedEmployee != 'Not Assigned' ? assignedEmployee : 'N/A',
-                                                bookingDocId: docId,
-                                                customerLat: customerLat,
-                                                customerLng: customerLng,
-                                                customerAddress: customer.address,
-                                                bookingId: customer.bookingId,
-                                                customerName: customer.customerName,
-                                                jobType: customer.jobType,
-                                                deviceType: customer.deviceType,
-                                                deviceBrand: customer.deviceBrand,
-                                                assignedEmployee: assignedEmployee != 'Not Assigned' ? assignedEmployee : null,
-                                                customerStatus: displayStatus,
-                                              ),
-                                            ),
-                                          );
+                            if (isCompletedByEngineer) {
+                              return SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: isOrderDelivered
+                                        ? const Color(0xFF059669)
+                                        : const Color(0xFF10B981),
+                                    padding: const EdgeInsets.symmetric(vertical: 16),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    elevation: 0,
+                                  ),
+                                  onPressed: isOrderDelivered
+                                      ? null
+                                      : () async {
+                                          try {
+                                            final updateData = {
+                                              'orderDelivered': true,
+                                              'isDelivered': true,
+                                              'deliveredAt': FieldValue.serverTimestamp(),
+                                              'adminStatus': 'Delivered',
+                                              'customerStatus': 'Delivered',
+                                              'engineerStatus': 'Completed',
+                                              'lastUpdated': FieldValue.serverTimestamp(),
+                                            };
+
+                                            await FirestoreService.instance
+                                                .collection('Admin_ticket_entry')
+                                                .doc(customer.bookingId)
+                                                .set(updateData, SetOptions(merge: true));
+
+                                            try {
+                                              await FirestoreService.instance
+                                                  .collection('Raised_tickets')
+                                                  .doc(customer.bookingId)
+                                                  .set(updateData, SetOptions(merge: true));
+                                            } catch (_) {}
+
+                                            await NotificationService.sendNotificationToFirestore(
+                                              audience: 'customer',
+                                              customerName: customer.customerName,
+                                              type: 'order_delivered',
+                                              bookingId: customer.bookingId,
+                                              title: 'Service Order Delivered!',
+                                              body: 'Your service for ticket #${customer.bookingId} has been delivered. Please rate your experience!',
+                                            );
+
+                                            if (context.mounted) {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                const SnackBar(
+                                                  content: Text('Order marked as Delivered! Admin status updated to Delivered.'),
+                                                  backgroundColor: Color(0xFF10B981),
+                                                ),
+                                              );
+                                            }
+                                          } catch (e) {
+                                            if (context.mounted) {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                SnackBar(content: Text('Failed to update status: $e'), backgroundColor: Colors.red),
+                                              );
+                                            }
+                                          }
                                         },
-                                        icon: const Icon(Icons.location_on_rounded, size: 18, color: Colors.white),
-                                        label: const Text(
-                                          'Customer Location',
-                                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white),
-                                        ),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: const Color(0xFFEF4444),
-                                          padding: const EdgeInsets.symmetric(vertical: 16),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(16),
-                                          ),
-                                          elevation: 0,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: ElevatedButton.icon(
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: isOrderDelivered ? const Color(0xFF059669) : const Color(0xFF10B981),
-                                          padding: const EdgeInsets.symmetric(vertical: 16),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(16),
-                                          ),
-                                          elevation: 0,
-                                        ),
-                                        onPressed: isOrderDelivered
-                                            ? null
-                                            : () async {
-                                                try {
-                                                  final updateData = {
-                                                    'orderDelivered': true,
-                                                    'isDelivered': true,
-                                                    'deliveredAt': FieldValue.serverTimestamp(),
-                                                    'adminStatus': 'Delivered',
-                                                    'customerStatus': 'Delivered',
-                                                    'engineerStatus': 'Completed',
-                                                    'lastUpdated': FieldValue.serverTimestamp(),
-                                                  };
+                                  icon: Icon(
+                                    isOrderDelivered ? Icons.verified_rounded : Icons.local_shipping_rounded,
+                                    size: 20,
+                                    color: Colors.white,
+                                  ),
+                                  label: Text(
+                                    isOrderDelivered ? 'Order Delivered' : 'Order Delivered',
+                                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white),
+                                  ),
+                                ),
+                              );
+                            }
 
-                                                  await FirestoreService.instance
-                                                      .collection('Admin_ticket_entry')
-                                                      .doc(customer.bookingId)
-                                                      .set(updateData, SetOptions(merge: true));
-
-                                                  try {
-                                                    await FirestoreService.instance
-                                                        .collection('Raised_tickets')
-                                                        .doc(customer.bookingId)
-                                                        .set(updateData, SetOptions(merge: true));
-                                                  } catch (_) {}
-
-                                                  await NotificationService.sendNotificationToFirestore(
-                                                    audience: 'customer',
-                                                    customerName: customer.customerName,
-                                                    type: 'order_delivered',
-                                                    bookingId: customer.bookingId,
-                                                    title: 'Service Order Delivered!',
-                                                    body: 'Your service for ticket #${customer.bookingId} is completed and delivered. Please rate your experience!',
-                                                  );
-
-                                                  if (context.mounted) {
-                                                    ScaffoldMessenger.of(context).showSnackBar(
-                                                      const SnackBar(
-                                                        content: Text('Order marked as Delivered! Customer can now rate the service.'),
-                                                        backgroundColor: Color(0xFF10B981),
-                                                      ),
-                                                    );
-                                                  }
-                                                } catch (e) {
-                                                  if (context.mounted) {
-                                                    ScaffoldMessenger.of(context).showSnackBar(
-                                                      SnackBar(content: Text('Failed to update status: $e'), backgroundColor: Colors.red),
-                                                    );
-                                                  }
-                                                }
-                                              },
-                                        icon: Icon(
-                                          isOrderDelivered ? Icons.verified_rounded : Icons.local_shipping_rounded,
-                                          size: 18,
-                                          color: Colors.white,
-                                        ),
-                                        label: Text(
-                                          isOrderDelivered ? 'Order Delivered' : 'Order Delivered',
-                                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                );
-                              },
-                            ),
-                          ] else ...[
-                            Row(
+                            // Default (Assigned / Open)
+                            return Row(
                               children: [
                                 Expanded(
                                   child: ElevatedButton.icon(
@@ -2122,9 +2138,9 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                   ),
                                 ),
                               ],
-                            ),
-                          ],
-                        ],
+                            );
+                          },
+                        ),
                         const SizedBox(height: 16),
                       ],
                     ),
