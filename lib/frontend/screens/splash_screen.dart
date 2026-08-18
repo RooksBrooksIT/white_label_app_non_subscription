@@ -11,6 +11,8 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:geolocator/geolocator.dart';
 
+import 'package:subscription_rooks_app/frontend/screens/role_selection_screen.dart';
+
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -31,10 +33,10 @@ class _SplashScreenState extends State<SplashScreen>
   void initState() {
     super.initState();
 
-    // 1. Entrance animation
+    // 1. Snappy entrance animation (0.9s)
     _entranceController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1400),
+      duration: const Duration(milliseconds: 900),
     );
 
     _fadeAnimation = Tween<double>(
@@ -46,7 +48,7 @@ class _SplashScreenState extends State<SplashScreen>
     ));
 
     _scaleAnimation = Tween<double>(
-      begin: 0.82,
+      begin: 0.85,
       end: 1.0,
     ).animate(CurvedAnimation(
       parent: _entranceController,
@@ -54,17 +56,17 @@ class _SplashScreenState extends State<SplashScreen>
     ));
 
     _slideAnimation = Tween<double>(
-      begin: 20.0,
+      begin: 18.0,
       end: 0.0,
     ).animate(CurvedAnimation(
       parent: _entranceController,
-      curve: const Interval(0.2, 0.85, curve: Curves.easeOutCubic),
+      curve: const Interval(0.15, 0.85, curve: Curves.easeOutCubic),
     ));
 
     // 2. Continuous subtle breathing / ripple animation
     _rippleController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2400),
+      duration: const Duration(milliseconds: 2000),
     )..repeat();
 
     _entranceController.forward();
@@ -83,21 +85,65 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _handleInitialLaunch() async {
-    final prefs = await SharedPreferences.getInstance();
-    final isFirstLaunch = prefs.getBool('is_first_launch') ?? true;
+    Widget target = const RoleSelectionScreen();
 
-    if (isFirstLaunch) {
-      // Request permissions sequentially on first launch
-      await _requestPermissions();
-      await prefs.setBool('is_first_launch', false);
+    try {
+      // Execute initial screen determination, background checks, and minimum 2.0s delay in parallel
+      final results = await Future.wait([
+        // Task 1: Determine initial screen with a 2.5s safety timeout
+        AuthStateService.instance.getInitialScreen().timeout(
+          const Duration(milliseconds: 2500),
+          onTimeout: () => const RoleSelectionScreen(),
+        ),
+        // Task 2: Background checks (permissions & update check)
+        _performBackgroundChecks(),
+        // Task 3: Minimum visual display duration (2000ms) for a perfect 2-3s splash
+        Future.delayed(const Duration(milliseconds: 2000)),
+      ]);
+
+      target = results[0] as Widget;
+    } catch (e) {
+      debugPrint('SplashScreen initialization error: $e');
+      target = await AuthStateService.instance.getInitialScreen().catchError(
+        (_) => const RoleSelectionScreen(),
+      );
     }
 
-    // Check for update
-    if (mounted) {
-      await AppUpdateService.instance.checkForUpdate(context);
-    }
+    if (!mounted) return;
 
-    _navigateToNext();
+    Navigator.of(context).pushReplacement(
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) => target,
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+        transitionDuration: const Duration(milliseconds: 400),
+      ),
+    );
+  }
+
+  Future<void> _performBackgroundChecks() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final isFirstLaunch = prefs.getBool('is_first_launch') ?? true;
+
+      if (isFirstLaunch) {
+        await _requestPermissions().timeout(
+          const Duration(milliseconds: 1500),
+          onTimeout: () {},
+        );
+        await prefs.setBool('is_first_launch', false);
+      }
+
+      if (mounted) {
+        await AppUpdateService.instance.checkForUpdate(context).timeout(
+          const Duration(milliseconds: 1500),
+          onTimeout: () {},
+        );
+      }
+    } catch (e) {
+      debugPrint('SplashScreen background checks: $e');
+    }
   }
 
   Future<void> _requestPermissions() async {
@@ -112,25 +158,6 @@ class _SplashScreenState extends State<SplashScreen>
       }
     } catch (e) {
       debugPrint('Error requesting location permission in splash: $e');
-    }
-  }
-
-  Future<void> _navigateToNext() async {
-    final Widget target = await AuthStateService.instance.getInitialScreen();
-
-    // Ensure splash is visible for at least some time
-    await Future.delayed(const Duration(milliseconds: 2400));
-
-    if (mounted) {
-      Navigator.of(context).pushReplacement(
-        PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) => target,
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            return FadeTransition(opacity: animation, child: child);
-          },
-          transitionDuration: const Duration(milliseconds: 800),
-        ),
-      );
     }
   }
 
