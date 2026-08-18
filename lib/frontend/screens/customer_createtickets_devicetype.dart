@@ -271,9 +271,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        showDeviceSelection
-                            ? 'Select Your Device'
-                            : 'Welcome, ${widget.loggedInName} 👋',
+                        'Welcome, ${widget.loggedInName} 👋',
                         style: const TextStyle(
                           fontSize: 21,
                           fontWeight: FontWeight.w900,
@@ -283,9 +281,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        showDeviceSelection
-                            ? 'Choose your device type'
-                            : 'What service do you need today?',
+                        'What service do you need today?',
                         style: TextStyle(
                           fontSize: 13,
                           color: Colors.white.withValues(alpha: 0.88),
@@ -324,9 +320,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                     horizontal: 16.0,
                     vertical: 12.0,
                   ),
-                  child: !showDeviceSelection
-                      ? _buildServiceSelection()
-                      : _buildDeviceSelection(),
+                  child: _buildServiceSelection(),
                 ),
               ),
             ),
@@ -337,8 +331,6 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
   }
 
   Widget _buildServiceSelection() {
-    final isMobile = ResponsiveHelper.isMobile;
-    final serviceGridCount = isMobile ? 2 : 3;
     final primary = Theme.of(context).primaryColor;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -364,7 +356,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    'REPAIR & DELIVERY',
+                    'SERVICE & PRODUCTS',
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w900,
@@ -396,56 +388,58 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
             fontWeight: FontWeight.w500,
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 20),
 
-        // Service Cards
-        GridView(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: serviceGridCount,
-            crossAxisSpacing: 14,
-            mainAxisSpacing: 14,
-            childAspectRatio: isMobile ? 0.72 : 0.90,
-          ),
-          children: [
-            _buildServiceCard(
-              title: 'Service',
-              subtitle: 'Professional repair & diagnostics',
-              icon: Icons.handyman_rounded,
-              color: primary,
-              onTap: () {
-                setState(() {
-                  showDeviceSelection = true;
-                });
-              },
-            ),
-            _buildServiceCard(
-              title: 'Request',
-              subtitle: 'Pickup & doorstep drop-off',
-              icon: Icons.local_shipping_rounded,
-              color: const Color(0xFF059669),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => CustomerHomePage(
-                      customerId: widget.customerId,
-                      customerName: widget.loggedInName,
-                      mobileNumber: widget.phoneNumber,
-                      categoryName: '',
-                      customerType: widget.customerType,
-                      initialJobType: 'Delivery',
-                      initialDeviceType: '',
-                    ),
-                  ),
-                );
-              },
-            ),
-          ],
+        // Service List Options
+        _buildServiceListItem(
+          title: 'Service',
+          subtitle: 'Professional repair, diagnostics & maintenance',
+          badge: 'DIAGNOSTICS & REPAIR',
+          icon: Icons.handyman_rounded,
+          color: primary,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => CustomerHomePage(
+                  customerId: widget.customerId,
+                  customerName: widget.loggedInName,
+                  mobileNumber: widget.phoneNumber,
+                  categoryName: ThemeService.instance.appName,
+                  customerType: widget.customerType,
+                  initialJobType: 'Service',
+                  initialDeviceType: '',
+                ),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 14),
+        _buildServiceListItem(
+          title: 'Product',
+          subtitle: 'Doorstep delivery, spare parts & equipment request',
+          badge: 'SPARES & DELIVERY',
+          icon: Icons.inventory_2_rounded,
+          color: const Color(0xFF059669),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => CustomerHomePage(
+                  customerId: widget.customerId,
+                  customerName: widget.loggedInName,
+                  mobileNumber: widget.phoneNumber,
+                  categoryName: ThemeService.instance.appName,
+                  customerType: widget.customerType,
+                  initialJobType: 'Product',
+                  initialDeviceType: '',
+                ),
+              ),
+            );
+          },
         ),
 
-        const SizedBox(height: 28),
+        const SizedBox(height: 24),
 
         // Guarantee Hero Card
         Container(
@@ -519,9 +513,10 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
     );
   }
 
-  Widget _buildServiceCard({
+  Widget _buildServiceListItem({
     required String title,
     required String subtitle,
+    required String badge,
     required IconData icon,
     required Color color,
     required VoidCallback onTap,
@@ -535,7 +530,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
           BoxShadow(
             color: color.withValues(alpha: 0.08),
             blurRadius: 16,
-            offset: const Offset(0, 6),
+            offset: const Offset(0, 5),
           ),
         ],
       ),
@@ -547,11 +542,11 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
           borderRadius: BorderRadius.circular(22),
           child: Padding(
             padding: const EdgeInsets.all(18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  width: 52,
+                  height: 52,
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [
@@ -562,59 +557,82 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                       end: Alignment.bottomRight,
                     ),
                     borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: color.withValues(alpha: 0.18),
+                    ),
                   ),
                   child: Icon(icon, color: color, size: 26),
                 ),
-                const SizedBox(height: 14),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w900,
-                    color: Color(0xFF0F172A),
-                    letterSpacing: -0.4,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF64748B),
-                    fontWeight: FontWeight.w500,
-                    height: 1.3,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const Spacer(),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: color,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Row(
+                        children: [
+                          Text(
+                            title,
+                            style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xFF0F172A),
+                              letterSpacing: -0.4,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: color.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              badge,
+                              style: TextStyle(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w800,
+                                color: color,
+                                letterSpacing: 0.4,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
                       Text(
-                        'Get Started',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
+                        subtitle,
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          color: Color(0xFF64748B),
+                          fontWeight: FontWeight.w500,
+                          height: 1.3,
                         ),
                       ),
-                      SizedBox(width: 4),
-                      Icon(
-                        Icons.arrow_forward_rounded,
-                        color: Colors.white,
-                        size: 14,
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: color.withValues(alpha: 0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
                       ),
                     ],
+                  ),
+                  child: const Icon(
+                    Icons.arrow_forward_rounded,
+                    color: Colors.white,
+                    size: 16,
                   ),
                 ),
               ],
