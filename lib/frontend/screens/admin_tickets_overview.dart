@@ -889,7 +889,10 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
             final assignedEmployee = getField(data, [
               'assignedEmployee',
             ], 'Not Assigned');
-            final bool isCompleted = status.toLowerCase().contains('complete');
+            final bool isCompleted = status.toLowerCase().contains('complete') ||
+                data['completedAt'] != null ||
+                data['orderDelivered'] == true ||
+                adminStatus.toLowerCase() == 'delivered';
 
             final double? customerLat = data['latitude'] != null
                 ? (data['latitude'] as num).toDouble()
@@ -1844,202 +1847,168 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                           const SizedBox(height: 12),
                         ],
 
-                        // Main Action Buttons Bar (Exactly 2 Buttons: Customer Location & Assign Ticket)
-                        if (!isCompleted) ...[
-                          if (isCanceled) ...[
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton.icon(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF10B981),
-                                  padding: const EdgeInsets.symmetric(vertical: 16),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16),
+                        // Main Action Buttons Bar
+                        StreamBuilder<DocumentSnapshot>(
+                          stream: FirestoreService.instance
+                              .collection('Admin_ticket_entry')
+                              .doc(customer.bookingId)
+                              .snapshots(),
+                          builder: (context, snapshot) {
+                            final ticketData = snapshot.data?.data() as Map<String, dynamic>? ?? {};
+                            final engStatus = (ticketData['engineerStatus'] ?? status).toString().toLowerCase().trim();
+                            final admStatus = (ticketData['adminStatus'] ?? '').toString().toLowerCase().trim();
+                            final bool isCompletedByEngineer = isCompleted ||
+                                engStatus == 'completed' ||
+                                engStatus.contains('complete') ||
+                                ticketData['completedAt'] != null;
+                            final bool isOrderDelivered = ticketData['orderDelivered'] == true ||
+                                ticketData['isDelivered'] == true ||
+                                admStatus == 'delivered';
+
+                            if (isCanceled) {
+                              return SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF10B981),
+                                    padding: const EdgeInsets.symmetric(vertical: 16),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    elevation: 0,
                                   ),
-                                  elevation: 0,
-                                ),
-                                onPressed: () async {
-                                  final confirm = await showDialog<bool>(
-                                    context: context,
-                                    builder: (context) => AlertDialog(
-                                      title: const Text('Reactivate Ticket'),
-                                      content: const Text('Are you sure you want to reactivate this cancelled ticket?'),
-                                      actions: [
-                                        TextButton(
-                                          onPressed: () => Navigator.of(context).pop(false),
-                                          child: const Text('Keep Cancelled'),
-                                        ),
-                                        TextButton(
-                                          onPressed: () => Navigator.of(context).pop(true),
-                                          child: const Text('Reactivate', style: TextStyle(color: Color(0xFF10B981))),
-                                        ),
-                                      ],
-                                    ),
-                                  );
+                                  onPressed: () async {
+                                    final confirm = await showDialog<bool>(
+                                      context: context,
+                                      builder: (context) => AlertDialog(
+                                        title: const Text('Reactivate Ticket'),
+                                        content: const Text('Are you sure you want to reactivate this cancelled ticket?'),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () => Navigator.of(context).pop(false),
+                                            child: const Text('Keep Cancelled'),
+                                          ),
+                                          TextButton(
+                                            onPressed: () => Navigator.of(context).pop(true),
+                                            child: const Text('Reactivate', style: TextStyle(color: Color(0xFF10B981))),
+                                          ),
+                                        ],
+                                      ),
+                                    );
 
-                                  if (confirm == true) {
-                                    try {
-                                      await FirestoreService.instance
-                                          .collection('Admin_ticket_entry')
-                                          .doc(docId)
-                                          .update({
-                                        'adminStatus': 'Open',
-                                        'Customer_decision': '',
-                                        'engineerStatus': 'Assigned',
-                                      });
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(
-                                          content: Text('Ticket reactivated successfully!'),
-                                          backgroundColor: Color(0xFF10B981),
-                                        ),
-                                      );
-                                      Navigator.pop(context);
-                                    } catch (e) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(content: Text('Failed to reactivate ticket: $e'), backgroundColor: Colors.red),
-                                      );
+                                    if (confirm == true) {
+                                      try {
+                                        await FirestoreService.instance
+                                            .collection('Admin_ticket_entry')
+                                            .doc(docId)
+                                            .update({
+                                          'adminStatus': 'Open',
+                                          'Customer_decision': '',
+                                          'engineerStatus': 'Assigned',
+                                        });
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(
+                                            content: Text('Ticket reactivated successfully!'),
+                                            backgroundColor: Color(0xFF10B981),
+                                          ),
+                                        );
+                                        Navigator.pop(context);
+                                      } catch (e) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(content: Text('Failed to reactivate ticket: $e'), backgroundColor: Colors.red),
+                                        );
+                                      }
                                     }
-                                  }
-                                },
-                                icon: const Icon(Icons.refresh_rounded, size: 18, color: Colors.white),
-                                label: const Text(
-                                  'Reactivate Ticket',
-                                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white),
+                                  },
+                                  icon: const Icon(Icons.refresh_rounded, size: 18, color: Colors.white),
+                                  label: const Text(
+                                    'Reactivate Ticket',
+                                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white),
+                                  ),
                                 ),
-                              ),
-                            ),
-                          ] else if (isCompleted) ...[
-                            StreamBuilder<DocumentSnapshot>(
-                              stream: FirestoreService.instance
-                                  .collection('Admin_ticket_entry')
-                                  .doc(customer.bookingId)
-                                  .snapshots(),
-                              builder: (context, snapshot) {
-                                final data = snapshot.data?.data() as Map<String, dynamic>? ?? {};
-                                final bool isOrderDelivered = data['orderDelivered'] == true ||
-                                    data['isDelivered'] == true ||
-                                    data['adminStatus'] == 'Delivered';
+                              );
+                            }
 
-                                return Row(
-                                  children: [
-                                    Expanded(
-                                      child: ElevatedButton.icon(
-                                        onPressed: () {
-                                          Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (context) => AdminGeoLocationScreen(
-                                                engineerId: assignedEmployee != 'Not Assigned' ? assignedEmployee : 'N/A',
-                                                engineerName: assignedEmployee != 'Not Assigned' ? assignedEmployee : 'N/A',
-                                                bookingDocId: docId,
-                                                customerLat: customerLat,
-                                                customerLng: customerLng,
-                                                customerAddress: customer.address,
-                                                bookingId: customer.bookingId,
-                                                customerName: customer.customerName,
-                                                jobType: customer.jobType,
-                                                deviceType: customer.deviceType,
-                                                deviceBrand: customer.deviceBrand,
-                                                assignedEmployee: assignedEmployee != 'Not Assigned' ? assignedEmployee : null,
-                                                customerStatus: displayStatus,
-                                              ),
-                                            ),
-                                          );
+                            if (isCompletedByEngineer) {
+                              return SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: isOrderDelivered
+                                        ? const Color(0xFF059669)
+                                        : const Color(0xFF10B981),
+                                    padding: const EdgeInsets.symmetric(vertical: 16),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    elevation: 0,
+                                  ),
+                                  onPressed: isOrderDelivered
+                                      ? null
+                                      : () async {
+                                          try {
+                                            final updateData = {
+                                              'orderDelivered': true,
+                                              'isDelivered': true,
+                                              'deliveredAt': FieldValue.serverTimestamp(),
+                                              'adminStatus': 'Delivered',
+                                              'customerStatus': 'Delivered',
+                                              'engineerStatus': 'Completed',
+                                              'lastUpdated': FieldValue.serverTimestamp(),
+                                            };
+
+                                            await FirestoreService.instance
+                                                .collection('Admin_ticket_entry')
+                                                .doc(customer.bookingId)
+                                                .set(updateData, SetOptions(merge: true));
+
+                                            try {
+                                              await FirestoreService.instance
+                                                  .collection('Raised_tickets')
+                                                  .doc(customer.bookingId)
+                                                  .set(updateData, SetOptions(merge: true));
+                                            } catch (_) {}
+
+                                            await NotificationService.sendNotificationToFirestore(
+                                              audience: 'customer',
+                                              customerName: customer.customerName,
+                                              type: 'order_delivered',
+                                              bookingId: customer.bookingId,
+                                              title: 'Service Order Delivered!',
+                                              body: 'Your service for ticket #${customer.bookingId} has been delivered. Please rate your experience!',
+                                            );
+
+                                            if (context.mounted) {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                const SnackBar(
+                                                  content: Text('Order marked as Delivered! Admin status updated to Delivered.'),
+                                                  backgroundColor: Color(0xFF10B981),
+                                                ),
+                                              );
+                                            }
+                                          } catch (e) {
+                                            if (context.mounted) {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                SnackBar(content: Text('Failed to update status: $e'), backgroundColor: Colors.red),
+                                              );
+                                            }
+                                          }
                                         },
-                                        icon: const Icon(Icons.location_on_rounded, size: 18, color: Colors.white),
-                                        label: const Text(
-                                          'Customer Location',
-                                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white),
-                                        ),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: const Color(0xFFEF4444),
-                                          padding: const EdgeInsets.symmetric(vertical: 16),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(16),
-                                          ),
-                                          elevation: 0,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: ElevatedButton.icon(
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: isOrderDelivered ? const Color(0xFF059669) : const Color(0xFF10B981),
-                                          padding: const EdgeInsets.symmetric(vertical: 16),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(16),
-                                          ),
-                                          elevation: 0,
-                                        ),
-                                        onPressed: isOrderDelivered
-                                            ? null
-                                            : () async {
-                                                try {
-                                                  final updateData = {
-                                                    'orderDelivered': true,
-                                                    'isDelivered': true,
-                                                    'deliveredAt': FieldValue.serverTimestamp(),
-                                                    'adminStatus': 'Delivered',
-                                                    'customerStatus': 'Delivered',
-                                                    'engineerStatus': 'Completed',
-                                                    'lastUpdated': FieldValue.serverTimestamp(),
-                                                  };
+                                  icon: Icon(
+                                    isOrderDelivered ? Icons.verified_rounded : Icons.local_shipping_rounded,
+                                    size: 20,
+                                    color: Colors.white,
+                                  ),
+                                  label: Text(
+                                    isOrderDelivered ? 'Order Delivered' : 'Order Delivered',
+                                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white),
+                                  ),
+                                ),
+                              );
+                            }
 
-                                                  await FirestoreService.instance
-                                                      .collection('Admin_ticket_entry')
-                                                      .doc(customer.bookingId)
-                                                      .set(updateData, SetOptions(merge: true));
-
-                                                  try {
-                                                    await FirestoreService.instance
-                                                        .collection('Raised_tickets')
-                                                        .doc(customer.bookingId)
-                                                        .set(updateData, SetOptions(merge: true));
-                                                  } catch (_) {}
-
-                                                  await NotificationService.sendNotificationToFirestore(
-                                                    audience: 'customer',
-                                                    customerName: customer.customerName,
-                                                    type: 'order_delivered',
-                                                    bookingId: customer.bookingId,
-                                                    title: 'Service Order Delivered!',
-                                                    body: 'Your service for ticket #${customer.bookingId} is completed and delivered. Please rate your experience!',
-                                                  );
-
-                                                  if (context.mounted) {
-                                                    ScaffoldMessenger.of(context).showSnackBar(
-                                                      const SnackBar(
-                                                        content: Text('Order marked as Delivered! Customer can now rate the service.'),
-                                                        backgroundColor: Color(0xFF10B981),
-                                                      ),
-                                                    );
-                                                  }
-                                                } catch (e) {
-                                                  if (context.mounted) {
-                                                    ScaffoldMessenger.of(context).showSnackBar(
-                                                      SnackBar(content: Text('Failed to update status: $e'), backgroundColor: Colors.red),
-                                                    );
-                                                  }
-                                                }
-                                              },
-                                        icon: Icon(
-                                          isOrderDelivered ? Icons.verified_rounded : Icons.local_shipping_rounded,
-                                          size: 18,
-                                          color: Colors.white,
-                                        ),
-                                        label: Text(
-                                          isOrderDelivered ? 'Order Delivered' : 'Order Delivered',
-                                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                );
-                              },
-                            ),
-                          ] else ...[
-                            Row(
+                            // Default (Assigned / Open)
+                            return Row(
                               children: [
                                 Expanded(
                                   child: ElevatedButton.icon(
@@ -2122,9 +2091,9 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                   ),
                                 ),
                               ],
-                            ),
-                          ],
-                        ],
+                            );
+                          },
+                        ),
                         const SizedBox(height: 16),
                       ],
                     ),
