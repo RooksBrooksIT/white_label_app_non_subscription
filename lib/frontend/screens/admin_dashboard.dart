@@ -38,6 +38,7 @@ import 'package:subscription_rooks_app/frontend/screens/about_us_screen.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/frontend/screens/contact_us_screen.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_notifications_page.dart';
+import 'package:subscription_rooks_app/frontend/screens/admin_ratings_page.dart';
 import 'package:subscription_rooks_app/frontend/screens/refund_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:subscription_rooks_app/widgets/subscription_welcome_modal.dart';
@@ -168,17 +169,12 @@ class _admindashboardState extends State<admindashboard> {
                   body: body,
                 );
 
-                // Store in SharedPreferences so reopening the app won't trigger it again
+                // Store in SharedPreferences so reopening the app won't trigger local push again
                 shownSet.add(docId);
                 await prefs.setStringList(
                   'shown_admin_notification_ids',
                   shownSet.toList(),
                 );
-
-                // Update Firestore document to seen
-                try {
-                  change.doc.reference.update({'seen': true});
-                } catch (_) {}
               }
             }
           }
@@ -778,6 +774,20 @@ class _admindashboardState extends State<admindashboard> {
               );
             },
           ),
+          DomainSubItem(
+            title: 'Customer Ratings',
+            subtitle: 'Review star ratings & customer feedback for completed jobs',
+            icon: Icons.star_rounded,
+            iconColor: const Color(0xFFF59E0B),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const AdminRatingsPage(),
+                ),
+              );
+            },
+          ),
         ],
       ),
       DomainModel(
@@ -891,6 +901,32 @@ class _admindashboardState extends State<admindashboard> {
           ),
         ],
       ),
+      DomainModel(
+        id: 'ratings',
+        title: 'Customer Ratings',
+        description: 'Customer feedback, star ratings & service reviews',
+        icon: Icons.star_rounded,
+        backgroundColor: const Color(0xFFFFFBEB), // Soft warm amber
+        iconColor: const Color(0xFFD97706),
+        textColor: const Color(0xFFB45309),
+        badgeText: 'Reviews',
+        items: [
+          DomainSubItem(
+            title: 'All Ratings & Reviews',
+            subtitle: 'View star ratings and feedback for completed jobs',
+            icon: Icons.rate_review_rounded,
+            iconColor: const Color(0xFFF59E0B),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const AdminRatingsPage(),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
     ];
 
     return PopScope(
@@ -928,6 +964,7 @@ class _admindashboardState extends State<admindashboard> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      _buildNewTicketNotificationBanner(),
                       const SizedBox(height: 12),
                       _buildHeroCreateTicketCTA(),
                       const SizedBox(height: 28),
@@ -1047,16 +1084,74 @@ class _admindashboardState extends State<admindashboard> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      domain.title,
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                        color: domain.textColor,
-                        letterSpacing: -0.3,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            domain.title,
+                            style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                              color: domain.textColor,
+                              letterSpacing: -0.3,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (domain.id == 'tickets')
+                          StreamBuilder<List<Map<String, dynamic>>>(
+                            stream: NotificationService.instance
+                                .getUnreadNewTicketsNotificationStream(
+                                  ThemeService.instance.databaseName,
+                                ),
+                            builder: (context, snapshot) {
+                              final count = (snapshot.data ?? []).length;
+                              if (count == 0) return const SizedBox.shrink();
+                              return Container(
+                                margin: const EdgeInsets.only(left: 8),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFF4757),
+                                  borderRadius: BorderRadius.circular(12),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFFFF4757).withValues(alpha: 0.35),
+                                      blurRadius: 6,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      width: 6,
+                                      height: 6,
+                                      decoration: const BoxDecoration(
+                                        color: Colors.white,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      count == 1 ? 'NEW' : '$count NEW',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                      ],
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -1329,6 +1424,217 @@ class _admindashboardState extends State<admindashboard> {
           ),
         ],
       ),
+    );
+  }
+
+  // ==========================================
+  // LIVE NEW TICKET NOTIFICATION BANNER
+  // ==========================================
+  Widget _buildNewTicketNotificationBanner() {
+    final tenantId = ThemeService.instance.databaseName;
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: NotificationService.instance
+          .getUnreadNewTicketsNotificationStream(tenantId),
+      builder: (context, snapshot) {
+        final unreadTickets = snapshot.data ?? [];
+        if (unreadTickets.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        final count = unreadTickets.length;
+        final latest = unreadTickets.first;
+        final bookingId = latest['bookingId']?.toString() ?? '';
+        final customerName = latest['customerName']?.toString() ?? 'Customer';
+        final docId = latest['id']?.toString() ?? '';
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFFFFF1F2), // Soft rose/red tint
+                Color(0xFFFFFBEB), // Soft amber/warm tint
+              ],
+            ),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: const Color(0xFFF43F5E).withValues(alpha: 0.35),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFF43F5E).withValues(alpha: 0.12),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF43F5E).withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.notifications_active_rounded,
+                      color: Color(0xFFE11D48),
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2.5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFE11D48),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text(
+                                'NEW TICKET RECEIVED',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                            if (count > 1) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFBE123C),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  '+$count',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          count == 1
+                              ? (bookingId.isNotEmpty ? 'Ticket #$bookingId from $customerName' : 'New ticket from $customerName')
+                              : '$count new tickets waiting for assignment',
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF881337),
+                            letterSpacing: -0.2,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          count == 1
+                              ? 'Tap below to review and assign an engineer immediately.'
+                              : (bookingId.isNotEmpty ? 'Latest: Ticket #$bookingId by $customerName' : 'Review and assign tickets to engineers.'),
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            color: Color(0xFF9F1239),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Dismiss button
+                  InkWell(
+                    onTap: () {
+                      if (docId.isNotEmpty) {
+                        NotificationService.instance.markNotificationAsRead(
+                          tenantId,
+                          docId,
+                        );
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(20),
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: Icon(
+                        Icons.close_rounded,
+                        size: 18,
+                        color: const Color(0xFF9F1239).withValues(alpha: 0.6),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    if (docId.isNotEmpty) {
+                      NotificationService.instance.markNotificationAsRead(
+                        tenantId,
+                        docId,
+                      );
+                    }
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => AdminPage_CusDetails(
+                          statusFilter: "",
+                          searchQuery: count == 1 && bookingId.isNotEmpty ? bookingId : null,
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(
+                    Icons.assignment_turned_in_rounded,
+                    size: 16,
+                    color: Colors.white,
+                  ),
+                  label: Text(
+                    count == 1 ? 'View & Assign Ticket' : 'View All Tickets',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFE11D48),
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 

@@ -813,12 +813,10 @@ class _AssignEngineerPageState extends State<AssignEngineerPage> {
     try {
       final assignedTimestamp = DateTime.now();
 
-      await FirestoreService.instance
-          .collection('Admin_ticket_entry')
-          .doc(widget.customer.bookingId)
-          .set({
+      final updateData = {
         'id': widget.customer.customerid,
         'assignedEmployee': engineerName.trim(),
+        'assignedEngineer': engineerName.trim(),
         'customerName': widget.customer.customerName,
         'bookingId': widget.customer.bookingId,
         'deviceType': widget.customer.deviceType,
@@ -827,11 +825,24 @@ class _AssignEngineerPageState extends State<AssignEngineerPage> {
         'message': widget.customer.message,
         'address': widget.customer.address,
         'notificationStatus': 'pending',
+        'adminStatus': 'Assigned',
         'engineerStatus': 'Assigned',
         'timestamp': FieldValue.serverTimestamp(),
         'AssignedTimestamp': assignedTimestamp,
         'mobileNumber': widget.customer.mobileNumber,
-      }, SetOptions(merge: true));
+      };
+
+      await FirestoreService.instance
+          .collection('Admin_ticket_entry')
+          .doc(widget.customer.bookingId)
+          .set(updateData, SetOptions(merge: true));
+
+      try {
+        await FirestoreService.instance
+            .collection('Raised_tickets')
+            .doc(widget.customer.bookingId)
+            .set(updateData, SetOptions(merge: true));
+      } catch (_) {}
 
       await NotificationService.sendNotificationToFirestore(
         audience: 'engineer',

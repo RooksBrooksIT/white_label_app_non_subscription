@@ -12,6 +12,7 @@ class Customer {
   final String jobType; // Add jobType field
   final String amount; // Add amount field
   final String customerid; // Add customerid field
+  final String customerType; // "amc", "normal", "nonamc", etc.
   String deviceName;
   String problem;
   String assignedEngineer;
@@ -38,6 +39,7 @@ class Customer {
     required this.mobileNumber,
     required this.jobType,
     required this.customerid,
+    this.customerType = '',
     required this.amount, // Add amount parameter
     this.deviceName = '',
     this.problem = '',
@@ -65,6 +67,7 @@ class Customer {
     String? assignedEngineer,
     Timestamp? timestamp,
     String? customerid,
+    String? customerType,
     String? customerFileUrl,
     String? fileName,
   }) {
@@ -84,6 +87,7 @@ class Customer {
       assignedEngineer: assignedEngineer ?? this.assignedEngineer,
       timestamp: timestamp ?? this.timestamp,
       customerid: customerid ?? this.customerid,
+      customerType: customerType ?? this.customerType,
       customerFileUrl: customerFileUrl ?? this.customerFileUrl,
       fileName: fileName ?? this.fileName,
     );
@@ -106,6 +110,7 @@ class Customer {
       "Problem": problem,
       "assignedEngineer": assignedEngineer,
       "createdAt": timestamp,
+      "customerType": customerType,
       "customerFileUrl": customerFileUrl,
       "fileName": fileName,
     };
@@ -137,7 +142,8 @@ class Customer {
       assignedEngineer:
           data?['assignedEngineer'] ?? data?['AssignedEngineer'] ?? '',
       timestamp: _parseTimestamp(data?['createdAt'] ?? data?['timestamp']),
-      customerid: data?['id'] ?? '',
+      customerid: data?['id'] ?? data?['customerId'] ?? data?['customerid'] ?? '',
+      customerType: data?['customerType']?.toString() ?? data?['customer_type']?.toString() ?? '',
       customerFileUrl: data?['customerFileUrl'],
       fileName: data?['fileName'],
     );

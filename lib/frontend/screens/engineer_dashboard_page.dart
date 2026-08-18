@@ -4746,56 +4746,68 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
           ...newImageUrls,
         ];
 
-        var query = await FirestoreService.instance
-            .collection('Admin_ticket_entry')
-            .where('bookingId', isEqualTo: widget.booking.bookingId)
-            .get();
+        final String bookingId = widget.booking.bookingId.trim();
+        final String updateDesc = widget.descriptionController.text.trim().isNotEmpty
+            ? widget.descriptionController.text.trim()
+            : 'Status updated to $_currentStatus by engineer';
 
-        for (var doc in query.docs) {
-          Map<String, dynamic> updateData = {
-            'engineerStatus': _currentStatus,
-            'description': widget.descriptionController.text,
-            'amount': double.tryParse(_amountController.text.trim()) ?? 0,
-            'imageUrls': allImageUrls,
-            'lastUpdated': FieldValue.serverTimestamp(),
-            'PaymentType': paymentTypeToSave,
-            'lastUpdatedBy': widget.userName,
-          };
+        Map<String, dynamic> updateData = {
+          'engineerStatus': _currentStatus,
+          'description': updateDesc,
+          'statusDescription': updateDesc,
+          'amount': double.tryParse(_amountController.text.trim()) ?? 0,
+          'imageUrls': allImageUrls,
+          'lastUpdated': FieldValue.serverTimestamp(),
+          'PaymentType': paymentTypeToSave,
+          'lastUpdatedBy': widget.userName,
+        };
 
-          if (_payments.isNotEmpty) {
-            updateData['payments'] = _payments.map((p) {
-              return {
-                ...p,
-                'addedAt': Timestamp.now(),
-              };
-            }).toList();
-          }
-
-          updateData['statusHistory'] = [
-            {
-              'status': _currentStatus,
-              'timestamp': Timestamp.now(),
-              'updatedBy': widget.userName,
-            },
-          ];
-
-          if (_currentStatus.toLowerCase() == 'completed') {
-            updateData['engineerStatus'] = 'Completed';
-            updateData['completedAt'] = FieldValue.serverTimestamp();
-            updateData['completedBy'] = widget.userName;
-          }
-
-          await doc.reference.set(updateData, SetOptions(merge: true));
+        if (_payments.isNotEmpty) {
+          updateData['payments'] = _payments.map((p) {
+            return {
+              ...p,
+              'addedAt': Timestamp.now(),
+            };
+          }).toList();
         }
 
+        updateData['statusHistory'] = [
+          {
+            'status': _currentStatus,
+            'timestamp': Timestamp.now(),
+            'updatedBy': widget.userName,
+          },
+        ];
+
+        if (_currentStatus.toLowerCase() == 'completed') {
+          updateData['engineerStatus'] = 'Completed';
+          updateData['completedAt'] = FieldValue.serverTimestamp();
+          updateData['completedBy'] = widget.userName;
+        }
+
+        // Direct write to Admin_ticket_entry
+        await FirestoreService.instance
+            .collection('Admin_ticket_entry')
+            .doc(bookingId)
+            .set(updateData, SetOptions(merge: true));
+
+        // Direct write to Raised_tickets
+        try {
+          await FirestoreService.instance
+              .collection('Raised_tickets')
+              .doc(bookingId)
+              .set(updateData, SetOptions(merge: true));
+        } catch (_) {}
+
+        // Direct write to Engineer_updates
         await FirestoreService.instance
             .collection('Engineer_updates')
-            .doc(widget.booking.bookingId.trim())
+            .doc(bookingId)
             .set({
-              'bookingId': widget.booking.bookingId,
+              'bookingId': bookingId,
               'PaymentType': paymentTypeToSave,
               'engineerStatus': _currentStatus,
-              'statusDescription': widget.descriptionController.text.trim(),
+              'statusDescription': updateDesc,
               'amount': double.tryParse(_amountController.text.trim()) ?? 0,
               'updatedBy': widget.userName,
               'updatedAt': FieldValue.serverTimestamp(),
@@ -5288,17 +5300,16 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
 
   Widget _buildStatusSection() {
     final allowedStatuses = [
-      'Completed',
       'Assigned',
-      'Order Taken',
-      'Order Received',
-      'Pending for Approval',
-      'Pending for Spares',
+      'In Progress',
       'Under Observation',
+      'Pending for Spares',
+      'Pending for Approval',
+      'Completed',
     ];
     String? dropdownValue = allowedStatuses.contains(_currentStatus)
         ? _currentStatus
-        : null;
+        : (_currentStatus.isNotEmpty ? _currentStatus : null);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -5306,7 +5317,7 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
         Container(
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14),
             border: Border.all(color: const Color(0xFFE2E8F0)),
           ),
           child: DropdownButtonFormField<String>(
@@ -5318,7 +5329,7 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
                 size: 20,
               ),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(14),
                 borderSide: BorderSide.none,
               ),
               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -5344,6 +5355,57 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
                     }
                   },
           ),
+        ),
+        const SizedBox(height: 12),
+        // Quick Selection Status Chips
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: allowedStatuses.map((status) {
+            final isSelected = _currentStatus.toLowerCase() == status.toLowerCase();
+            Color chipColor = const Color(0xFF0284C7);
+            if (status == 'Completed') chipColor = const Color(0xFF10B981);
+            if (status.contains('Pending')) chipColor = const Color(0xFFD97706);
+            if (status.contains('Observation')) chipColor = const Color(0xFF0D9488);
+
+            return InkWell(
+              onTap: (_isReadOnly || widget.booking.isCanceled)
+                  ? null
+                  : () {
+                      setState(() {
+                        _currentStatus = status;
+                      });
+                    },
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: isSelected ? chipColor : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: isSelected ? chipColor : const Color(0xFFE2E8F0),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (isSelected) ...[
+                      const Icon(Icons.check_rounded, size: 14, color: Colors.white),
+                      const SizedBox(width: 4),
+                    ],
+                    Text(
+                      status,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                        color: isSelected ? Colors.white : const Color(0xFF475569),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
         ),
         if (widget.booking.isCanceled) ...[
           const SizedBox(height: 8),
