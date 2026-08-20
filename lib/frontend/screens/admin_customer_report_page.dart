@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:open_file/open_file.dart';
 import 'package:pdf/pdf.dart';
@@ -34,7 +33,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
   late Animation<Offset> _slideAnim;
 
   Color get _brand => ThemeService.instance.primaryColor;
-  Color get _brandLight => ThemeService.instance.primaryColor.withOpacity(0.1);
+  Color get _brandLight => ThemeService.instance.primaryColor.withValues(alpha: 0.1);
   Color get _accent => ThemeService.instance.secondaryColor;
 
   @override
@@ -271,8 +270,8 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
 
   // ─── PDF generation ────────────────────────────────────────────────────────
 
-  PdfColor get _pdfBrand => PdfColor.fromInt(ThemeService.instance.primaryColor.value);
-  PdfColor get _pdfBrandLight => PdfColor.fromInt(ThemeService.instance.primaryColor.withOpacity(0.1).value);
+  PdfColor get _pdfBrand => PdfColor.fromInt(ThemeService.instance.primaryColor.toARGB32());
+  PdfColor get _pdfBrandLight => PdfColor.fromInt(ThemeService.instance.primaryColor.withValues(alpha: 0.1).toARGB32());
 
   Future<pw.Document> _buildPdfDocument(
       List<Map<String, dynamic>> records) async {
@@ -743,15 +742,15 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
       decoration: BoxDecoration(
-        color: _brand.withOpacity(0.08),
+        color: _brand.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(22),
         border: Border.all(
-          color: _brand.withOpacity(0.18),
+          color: _brand.withValues(alpha: 0.18),
           width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
-            color: _brand.withOpacity(0.04),
+            color: _brand.withValues(alpha: 0.04),
             blurRadius: 16,
             offset: const Offset(0, 4),
           ),
@@ -767,7 +766,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
               borderRadius: BorderRadius.circular(14),
               boxShadow: [
                 BoxShadow(
-                  color: _brand.withOpacity(0.12),
+                  color: _brand.withValues(alpha: 0.12),
                   blurRadius: 10,
                   offset: const Offset(0, 3),
                 ),
@@ -799,7 +798,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
-                    color: _brand.withOpacity(0.85),
+                    color: _brand.withValues(alpha: 0.85),
                   ),
                 ),
               ],
@@ -820,7 +819,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
         border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
+            color: Colors.black.withValues(alpha: 0.02),
             blurRadius: 12,
             offset: const Offset(0, 3),
           )
@@ -932,7 +931,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
               style: ElevatedButton.styleFrom(
                 backgroundColor: _brand,
                 foregroundColor: Colors.white,
-                disabledBackgroundColor: _brand.withOpacity(0.4),
+                disabledBackgroundColor: _brand.withValues(alpha: 0.4),
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14)),
@@ -1191,7 +1190,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-              color: _brand.withOpacity(0.06),
+              color: _brand.withValues(alpha: 0.06),
               blurRadius: 16,
               offset: const Offset(0, 4))
         ],
@@ -1203,7 +1202,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
           const SizedBox(height: 16),
           Text('Searching records…',
               style: TextStyle(
-                  color: _brand.withOpacity(0.7),
+                  color: _brand.withValues(alpha: 0.7),
                   fontWeight: FontWeight.w500,
                   fontSize: 14)),
         ],
@@ -1260,7 +1259,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [_brand, _brand.withOpacity(0.8)],
+          colors: [_brand, _brand.withValues(alpha: 0.8)],
           begin: Alignment.centerLeft,
           end: Alignment.centerRight,
         ),
@@ -1319,7 +1318,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
   Widget _divider() => Container(
         width: 1,
         height: 40,
-        color: Colors.white.withOpacity(0.2),
+        color: Colors.white.withValues(alpha: 0.2),
       );
 
   Widget _buildSelectAllBar() {
@@ -1327,12 +1326,12 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
       padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
       decoration: BoxDecoration(
         color: _selectedCount > 0
-            ? _brand.withOpacity(0.06)
+            ? _brand.withValues(alpha: 0.06)
             : Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: _selectedCount > 0
-              ? _brand.withOpacity(0.3)
+              ? _brand.withValues(alpha: 0.3)
               : const Color(0xFFDDE4F0),
         ),
       ),
@@ -1363,7 +1362,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                   style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: _brand.withOpacity(0.7))),
+                      color: _brand.withValues(alpha: 0.7))),
               Checkbox(
                 value: _allSelected,
                 onChanged: (_) => _toggleAllSelection(),
@@ -1398,15 +1397,15 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isSelected && isSelectable
-              ? _brand.withOpacity(0.4)
+              ? _brand.withValues(alpha: 0.4)
               : const Color(0xFFDDE4F0),
           width: isSelected && isSelectable ? 1.5 : 1,
         ),
         boxShadow: [
           BoxShadow(
             color: isSelected && isSelectable
-                ? _brand.withOpacity(0.08)
-                : Colors.black.withOpacity(0.04),
+                ? _brand.withValues(alpha: 0.08)
+                : Colors.black.withValues(alpha: 0.04),
             blurRadius: isSelected ? 12 : 6,
             offset: const Offset(0, 2),
           ),
@@ -1422,7 +1421,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
               decoration: BoxDecoration(
                 color: isSelected && isSelectable
-                    ? _brand.withOpacity(0.04)
+                    ? _brand.withValues(alpha: 0.04)
                     : const Color(0xFFF8FAFD),
                 borderRadius: const BorderRadius.vertical(
                     top: Radius.circular(16)),
@@ -1449,7 +1448,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                      color: _brand.withOpacity(0.1),
+                      color: _brand.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Center(
@@ -1494,10 +1493,10 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                     padding: const EdgeInsets.symmetric(
                         horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
-                      color: statusColor.withOpacity(0.12),
+                      color: statusColor.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                          color: statusColor.withOpacity(0.3), width: 1),
+                          color: statusColor.withValues(alpha: 0.3), width: 1),
                     ),
                     child: Text(
                       status ?? 'N/A',
@@ -1628,7 +1627,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-              color: _brand.withOpacity(0.08),
+              color: _brand.withValues(alpha: 0.08),
               blurRadius: 20,
               offset: const Offset(0, 4))
         ],
@@ -1761,7 +1760,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                             height: 18,
                             child: CircularProgressIndicator(
                                 strokeWidth: 2.5,
-                                color: _brand.withOpacity(0.6)))
+                                color: _brand.withValues(alpha: 0.6)))
                         : const Icon(
                             Icons.download_rounded, size: 20),
                     label: Text(
@@ -1778,7 +1777,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
                           const Color(0xFF8A9BB8),
                       side: BorderSide(
                           color: canExport
-                              ? _brand.withOpacity(0.35)
+                              ? _brand.withValues(alpha: 0.35)
                               : const Color(0xFFDDE4F0),
                           width: 1.5),
                       shape: RoundedRectangleBorder(
@@ -1824,7 +1823,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
         border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.02),
+              color: Colors.black.withValues(alpha: 0.02),
               blurRadius: 12,
               offset: const Offset(0, 3))
         ],
@@ -1835,7 +1834,7 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
             width: 72,
             height: 72,
             decoration: BoxDecoration(
-              color: _brand.withOpacity(0.1),
+              color: _brand.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(Icons.feed_outlined,
@@ -1899,8 +1898,9 @@ class _CustomerReportGeneratorState extends State<CustomerReportGenerator>
 
   Color _getStatusColor(String? status) {
     final n = status?.toLowerCase().trim() ?? '';
-    if (n == 'assigned' || n == 'completed' || n == 'complete')
+    if (n == 'assigned' || n == 'completed' || n == 'complete') {
       return Colors.green;
+    }
     if (n == 'not assigned' || n == 'not assinged') return Colors.red;
     if (n.contains('approval')) return Colors.purple;
     if (n.contains('spare')) return Colors.amber.shade800;

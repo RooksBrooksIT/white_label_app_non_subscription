@@ -104,7 +104,7 @@ class _BrandingCustomizationScreenState
       _appNameController.text = theme.appName;
     }
 
-    if (widget.isEditMode && theme.logoUrl != null) {
+    if (theme.logoUrl != null && theme.logoUrl!.isNotEmpty) {
       _existingLogoUrl = theme.logoUrl;
     }
 
@@ -122,6 +122,67 @@ class _BrandingCustomizationScreenState
       vsync: this,
       duration: const Duration(milliseconds: 400),
     )..forward();
+
+    _fetchBrandingFromFirestore();
+  }
+
+  Future<void> _fetchBrandingFromFirestore() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final tenantId = widget.pendingUserData?['tenantId'] ??
+          prefs.getString('tenantId') ??
+          prefs.getString('databaseName') ??
+          prefs.getString('admin_org_collection') ??
+          (ThemeService.instance.databaseName.isNotEmpty
+              ? ThemeService.instance.databaseName
+              : null);
+
+      if (tenantId != null && tenantId.isNotEmpty) {
+        final doc = await FirestoreService.instance
+            .brandingDoc(tenantId: tenantId, appId: 'data')
+            .get();
+        if (doc.exists && doc.data() != null && mounted) {
+          final data = doc.data()!;
+          setState(() {
+            if (data['primaryColor'] != null) {
+              _primaryColor = Color(data['primaryColor']);
+            }
+            if (data['secondaryColor'] != null) {
+              _secondaryColor = Color(data['secondaryColor']);
+            }
+            if (data['fontFamily'] != null) {
+              _selectedFont = data['fontFamily'];
+            }
+            if (data['appName'] != null &&
+                (data['appName'] as String).isNotEmpty) {
+              _appNameController.text = data['appName'];
+            }
+            if (data['logoUrl'] != null &&
+                (data['logoUrl'] as String).isNotEmpty) {
+              _existingLogoUrl = data['logoUrl'];
+            }
+
+            _selectedThemeIndex = _presetThemes.length;
+            for (int i = 0; i < _presetThemes.length; i++) {
+              if (_presetThemes[i]['primary']?.toARGB32() ==
+                      _primaryColor.toARGB32() &&
+                  _presetThemes[i]['secondary']?.toARGB32() ==
+                      _secondaryColor.toARGB32()) {
+                _selectedThemeIndex = i;
+                break;
+              }
+            }
+          });
+
+          ThemeService.instance.loadFromMap({
+            ...data,
+            'databaseName': tenantId,
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching branding in BrandingCustomizationScreen: $e');
+    }
   }
 
   @override

@@ -450,9 +450,13 @@ class AuthStateService extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(_kIsRegistered, true); // Ensure this is set
       await prefs.setString(_kUserRole, role);
+      await prefs.setString('tenantId', scope);
+      await prefs.setString('databaseName', scope);
 
       if (role == 'admin' || role == 'Owner') {
         await prefs.setBool('admin_isLoggedIn', true);
+        await prefs.setString('admin_email', email);
+        await prefs.setString('admin_org_collection', scope);
         await prefs.setString('last_role', role);
       }
 

@@ -548,7 +548,10 @@ class FirestoreService {
   // Fetch and apply branding configuration for a tenant
   Future<void> syncBranding(String tenantId, {String? appId}) async {
     try {
-      final doc = await brandingDoc(tenantId: tenantId, appId: appId).get();
+      var doc = await brandingDoc(tenantId: tenantId, appId: appId).get();
+      if (!doc.exists && appId != null && appId != 'data') {
+        doc = await brandingDoc(tenantId: tenantId, appId: 'data').get();
+      }
       if (doc.exists && doc.data() != null) {
         ThemeService.instance.loadFromMap({
           ...doc.data()!,

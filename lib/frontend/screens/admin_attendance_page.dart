@@ -31,7 +31,7 @@ class _AdminAttendancePageState extends State<AdminAttendancePage>
 
   // History tab state filters
   String? _historySelectedEngineer;
-  String _historyStatusFilter = 'All';
+  final String _historyStatusFilter = 'All';
 
   @override
   void initState() {

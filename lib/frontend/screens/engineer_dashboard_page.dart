@@ -1758,118 +1758,195 @@ class _EngineerPageState extends State<EngineerPage> {
 
   Widget _buildQuickActionsGrid() {
     final primary = Theme.of(context).primaryColor;
+    final items = [
+      _EngineerQuickAction(
+        icon: Icons.assignment_rounded,
+        label: 'Bookings',
+        subtitle: 'Assigned jobs',
+        color: primary,
+        onTap: () => setState(() => _selectedIndex = 1),
+      ),
+      if (_barcodeEnabled)
+        _EngineerQuickAction(
+          icon: Icons.qr_code_scanner_rounded,
+          label: 'Scan Barcode',
+          subtitle: 'Asset scanner',
+          color: const Color(0xFF10B981),
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (ctx) => BarcodeScannerScreen(
+                userName: widget.userName,
+              ),
+            ),
+          ),
+        ),
+      _EngineerQuickAction(
+        icon: Icons.location_on_rounded,
+        label: 'Live Map',
+        subtitle: 'Live route',
+        color: const Color(0xFFF59E0B),
+        onTap: () => setState(() => _selectedIndex = 2),
+      ),
+      _EngineerQuickAction(
+        icon: Icons.person_rounded,
+        label: 'My Profile',
+        subtitle: 'Stats & details',
+        color: const Color(0xFF8B5CF6),
+        onTap: () => setState(() => _selectedIndex = 3),
+      ),
+    ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Quick Actions',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-            color: Color(0xFF0F172A),
-            letterSpacing: -0.3,
-          ),
-        ),
-        const SizedBox(height: 14),
         Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Expanded(
-              child: _buildActionTile(
-                icon: Icons.assignment_rounded,
-                label: 'Bookings',
-                color: primary,
-                onTap: () => setState(() => _selectedIndex = 1),
+            const Text(
+              'Quick Actions',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF0F172A),
+                letterSpacing: -0.3,
               ),
             ),
-            const SizedBox(width: 10),
-            if (_barcodeEnabled) ...[
-              Expanded(
-                child: _buildActionTile(
-                  icon: Icons.qr_code_scanner_rounded,
-                  label: 'Scan Barcode',
-                  color: const Color(0xFF10B981),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (ctx) => BarcodeScannerScreen(
-                        userName: widget.userName,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-            ],
-            Expanded(
-              child: _buildActionTile(
-                icon: Icons.location_on_rounded,
-                label: 'Live Map',
-                color: const Color(0xFFF59E0B),
-                onTap: () => setState(() => _selectedIndex = 2),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _buildActionTile(
-                icon: Icons.person_rounded,
-                label: 'My Profile',
-                color: const Color(0xFF8B5CF6),
-                onTap: () => setState(() => _selectedIndex = 3),
+            Text(
+              'Tap action to open',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey.shade600,
               ),
             ),
           ],
+        ),
+        const SizedBox(height: 14),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          padding: EdgeInsets.zero,
+          itemCount: items.length,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            mainAxisSpacing: 14,
+            crossAxisSpacing: 14,
+            mainAxisExtent: 165,
+          ),
+          itemBuilder: (context, index) {
+            final item = items[index];
+            return _buildModernEngineerActionCard(item);
+          },
         ),
       ],
     );
   }
 
-  Widget _buildActionTile({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
-          ],
+  Widget _buildModernEngineerActionCard(_EngineerQuickAction item) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: const Color(0xFFF1F5F9),
+          width: 1.5,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: item.color.withValues(alpha: 0.12),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: item.onTap,
+          borderRadius: BorderRadius.circular(24),
+          splashColor: item.color.withValues(alpha: 0.12),
+          highlightColor: item.color.withValues(alpha: 0.05),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // 3D / Gradient Squircle Icon Pod (Concept UI)
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              item.color.withValues(alpha: 0.18),
+                              item.color.withValues(alpha: 0.05),
+                            ],
+                          ),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: item.color.withValues(alpha: 0.22),
+                        width: 1.5,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: item.color.withValues(alpha: 0.18),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: Icon(
+                        item.icon,
+                        color: item.color,
+                        size: 26,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Label
+                  Text(
+                    item.label,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF0F172A),
+                      letterSpacing: -0.2,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+
+                  // Subtitle
+                  Text(
+                    item.subtitle,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF64748B),
+                      height: 1.25,
+                    ),
+                  ),
+                ],
               ),
-              child: Icon(icon, color: color, size: 20),
             ),
-            const SizedBox(height: 8),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF0F172A),
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -5876,4 +5953,20 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
       ],
     );
   }
+}
+
+class _EngineerQuickAction {
+  final IconData icon;
+  final String label;
+  final String subtitle;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _EngineerQuickAction({
+    required this.icon,
+    required this.label,
+    required this.subtitle,
+    required this.color,
+    required this.onTap,
+  });
 }
