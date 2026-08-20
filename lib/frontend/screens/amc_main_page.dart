@@ -2744,7 +2744,7 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
       TourStep(
         id: 'cust_track_service',
         targetKey: _custTrackServiceKey,
-        category: '📍 Live Tracking', 
+        category: '📍 Live Tracking',   
         title: 'Track Active Service',
         description:
             'Track real-time progress on your open repairs. View assigned engineer name, live GPS status, repair notes, and invoice details.',

@@ -16,8 +16,6 @@ import 'package:subscription_rooks_app/frontend/screens/admin_attendance_reports
 import 'package:subscription_rooks_app/frontend/screens/admin_create_amc_customer.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_create_engineer.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_customer_report_page.dart';
-import 'package:subscription_rooks_app/frontend/screens/admin_deliverytickets_screen.dart';
-import 'package:subscription_rooks_app/frontend/screens/admin_device_config_page.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_geo_location_screen.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_view_barcode_details.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_view_engineer_updates.dart';
@@ -39,7 +37,6 @@ import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/frontend/screens/contact_us_screen.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_notifications_page.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_ratings_page.dart';
-import 'package:subscription_rooks_app/frontend/screens/refund_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:subscription_rooks_app/widgets/subscription_welcome_modal.dart';
 import 'package:subscription_rooks_app/services/app_tour_service.dart';
@@ -84,7 +81,6 @@ class _admindashboardState extends State<admindashboard> {
 
   // GlobalKeys for Guided App Tour
   final GlobalKey _headerTourKey = GlobalKey();
-  final GlobalKey _createTicketCtaTourKey = GlobalKey();
   final GlobalKey _ticketMgmtTourKey = GlobalKey();
   final GlobalKey _staffHubTourKey = GlobalKey();
   final GlobalKey _customerHubTourKey = GlobalKey();
@@ -182,6 +178,16 @@ class _admindashboardState extends State<admindashboard> {
   }
 
   void _loadAdminData() async {
+    final prefs = await SharedPreferences.getInstance();
+    final currentTenantId = prefs.getString('tenantId') ??
+        prefs.getString('databaseName') ??
+        prefs.getString('admin_org_collection') ??
+        ThemeService.instance.databaseName;
+
+    if (currentTenantId.isNotEmpty) {
+      await FirestoreService.instance.syncBranding(currentTenantId);
+      if (mounted) setState(() {});
+    }
     final profile = await AdminDashboardBackend.getAdminProfile();
     final code = await AdminDashboardBackend.getReferralCode();
     if (mounted) {
@@ -415,13 +421,13 @@ class _admindashboardState extends State<admindashboard> {
   }
 
   String? _profileImageUrl() {
-    final photoUrl = FirebaseAuth.instance.currentUser?.photoURL;
-    if (photoUrl != null && photoUrl.isNotEmpty) {
-      return photoUrl;
-    }
     final logoUrl = ThemeService.instance.logoUrl;
     if (logoUrl != null && logoUrl.isNotEmpty) {
       return logoUrl;
+    }
+    final photoUrl = FirebaseAuth.instance.currentUser?.photoURL;
+    if (photoUrl != null && photoUrl.isNotEmpty) {
+      return photoUrl;
     }
     return null;
   }
@@ -478,18 +484,6 @@ class _admindashboardState extends State<admindashboard> {
             'Your centralized operations center. Monitor business status, active plan features, unread notifications, and system performance all in one place.',
         icon: Icons.dashboard_rounded,
         accentColor: primaryColor,
-      ),
-      TourStep(
-        id: 'hero_create_ticket',
-        targetKey: _createTicketCtaTourKey,
-        category: '⚡ Quick Action',
-        title: 'Instant Service Request',
-        description:
-            'Raise a new customer service or hardware repair ticket instantly. Enter customer contact, problem symptoms, device brand, and assign an engineer immediately.',
-        icon: Icons.add_task_rounded,
-        accentColor: primaryColor,
-        actionButtonText: 'Create Now',
-        onTargetAction: _navigateToCreateTicket,
       ),
       TourStep(
         id: 'ticket_management',
@@ -610,8 +604,12 @@ class _admindashboardState extends State<admindashboard> {
   Widget build(BuildContext context) {
     primaryColor = ThemeService.instance.primaryColor;
     secondaryColor = ThemeService.instance.secondaryColor;
+    final backgroundColor = Color.alphaBlend(
+      primaryColor.withValues(alpha: 0.08),
+      const Color(0xFFFFF6F6),
+    );
 
-    // All 5 Main Domain Cards formatted as full-width list items!
+    // All 6 Main Domain Cards formatted as a 2-column box button grid (1 2 / 3 4 / 5 6)
     final allDomains = [
       DomainModel(
         id: 'tickets',
@@ -901,32 +899,6 @@ class _admindashboardState extends State<admindashboard> {
           ),
         ],
       ),
-      DomainModel(
-        id: 'ratings',
-        title: 'Customer Ratings',
-        description: 'Customer feedback, star ratings & service reviews',
-        icon: Icons.star_rounded,
-        backgroundColor: const Color(0xFFFFFBEB), // Soft warm amber
-        iconColor: const Color(0xFFD97706),
-        textColor: const Color(0xFFB45309),
-        badgeText: 'Reviews',
-        items: [
-          DomainSubItem(
-            title: 'All Ratings & Reviews',
-            subtitle: 'View star ratings and feedback for completed jobs',
-            icon: Icons.rate_review_rounded,
-            iconColor: const Color(0xFFF59E0B),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const AdminRatingsPage(),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
     ];
 
     return PopScope(
@@ -952,34 +924,32 @@ class _admindashboardState extends State<admindashboard> {
               // Header Area
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 10),
                   child: _buildModernHeader(),
                 ),
               ),
 
-              // Hero Primary Action: CREATE TICKET
+              // Main Domains Card Section (Matching Top Header Card)
+              // Main Domains Section (Modern Squircle Grid Cards)
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildNewTicketNotificationBanner(),
-                      const SizedBox(height: 12),
-                      _buildHeroCreateTicketCTA(),
-                      const SizedBox(height: 28),
 
-                      // Section Title for Domains List
+                      // Section Title
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
                             'Main Domains',
                             style: TextStyle(
-                              fontSize: 20,
+                              fontSize: 18,
                               fontWeight: FontWeight.w800,
                               color: textColor,
-                              letterSpacing: -0.5,
+                              letterSpacing: -0.4,
                             ),
                           ),
                           Text(
@@ -992,28 +962,33 @@ class _admindashboardState extends State<admindashboard> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 14),
+
+                      // 2-COLUMN MODERN SQUIRCLE CARD GRID (1 2 / 3 4 / 5 6)
+                      GridView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        padding: EdgeInsets.zero,
+                        itemCount: allDomains.length,
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          mainAxisSpacing: 14,
+                          crossAxisSpacing: 14,
+                          mainAxisExtent: 175,
+                        ),
+                        itemBuilder: (context, index) {
+                          final domain = allDomains[index];
+                          return _buildModernDomainGridCard(domain);
+                        },
+                      ),
                     ],
                   ),
                 ),
               ),
 
-              // FULL WIDTH LIST OF ALL 5 DOMAINS
-              SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final domain = allDomains[index];
-                      return _buildFullWidthDomainCard(domain);
-                    },
-                    childCount: allDomains.length,
-                  ),
-                ),
-              ),
-
               const SliverToBoxAdapter(
-                child: SizedBox(height: 48),
+                child: SizedBox(height: 20),
               ),
             ],
           ),
@@ -1023,9 +998,9 @@ class _admindashboardState extends State<admindashboard> {
   }
 
   // ==========================================
-  // FULL WIDTH DOMAIN CARD (Used for all 5 domains!)
+  // MODERN SQUIRCLE DOMAIN GRID CARD (Concept UI)
   // ==========================================
-  Widget _buildFullWidthDomainCard(DomainModel domain) {
+  Widget _buildModernDomainGridCard(DomainModel domain) {
     GlobalKey? tourKey;
     if (domain.id == 'tickets') tourKey = _ticketMgmtTourKey;
     if (domain.id == 'staff') tourKey = _staffHubTourKey;
@@ -1033,154 +1008,159 @@ class _admindashboardState extends State<admindashboard> {
     if (domain.id == 'assets') tourKey = _assetsInventoryTourKey;
     if (domain.id == 'financials') tourKey = _financialsTourKey;
 
-    return Padding(
-      key: tourKey,
-      padding: const EdgeInsets.only(bottom: 14),
-      child: InkWell(
-        onTap: () => _openDomainDetailPage(domain),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
         borderRadius: BorderRadius.circular(24),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
-          decoration: BoxDecoration(
-            color: domain.backgroundColor,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: domain.iconColor.withValues(alpha: 0.2),
-              width: 1.5,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: domain.iconColor.withValues(alpha: 0.08),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
-              ),
-            ],
+        border: Border.all(
+          color: const Color(0xFFF1F5F9),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: domain.iconColor.withValues(alpha: 0.12),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
           ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(13),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.9),
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: domain.iconColor.withValues(alpha: 0.15),
-                      blurRadius: 8,
-                    ),
-                  ],
-                ),
-                child: Icon(
-                  domain.icon,
-                  color: domain.iconColor,
-                  size: 26,
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            domain.title,
-                            style: TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.w800,
-                              color: domain.textColor,
-                              letterSpacing: -0.3,
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          key: tourKey,
+          onTap: () => _openDomainDetailPage(domain),
+          borderRadius: BorderRadius.circular(24),
+          splashColor: domain.iconColor.withValues(alpha: 0.12),
+          highlightColor: domain.iconColor.withValues(alpha: 0.05),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+            child: Stack(
+              children: [
+                Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      // 3D / Gradient Squircle Icon Pod (Education App Concept)
+                      Container(
+                        width: 54,
+                        height: 54,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              domain.iconColor.withValues(alpha: 0.18),
+                              domain.iconColor.withValues(alpha: 0.05),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: domain.iconColor.withValues(alpha: 0.22),
+                            width: 1.5,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: domain.iconColor.withValues(alpha: 0.18),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          ],
+                        ),
+                        child: Center(
+                          child: Icon(
+                            domain.icon,
+                            color: domain.iconColor,
+                            size: 26,
                           ),
                         ),
-                        if (domain.id == 'tickets')
-                          StreamBuilder<List<Map<String, dynamic>>>(
-                            stream: NotificationService.instance
-                                .getUnreadNewTicketsNotificationStream(
-                                  ThemeService.instance.databaseName,
-                                ),
-                            builder: (context, snapshot) {
-                              final count = (snapshot.data ?? []).length;
-                              if (count == 0) return const SizedBox.shrink();
-                              return Container(
-                                margin: const EdgeInsets.only(left: 8),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 3,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFFF4757),
-                                  borderRadius: BorderRadius.circular(12),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: const Color(0xFFFF4757).withValues(alpha: 0.35),
-                                      blurRadius: 6,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Container(
-                                      width: 6,
-                                      height: 6,
-                                      decoration: const BoxDecoration(
-                                        color: Colors.white,
-                                        shape: BoxShape.circle,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      count == 1 ? 'NEW' : '$count NEW',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w900,
-                                        letterSpacing: 0.5,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      domain.description,
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        color: domain.textColor.withValues(alpha: 0.85),
-                        fontWeight: FontWeight.w500,
-                        height: 1.3,
                       ),
-                      maxLines: 2,
-                    ),
-                  ],
+                      const SizedBox(height: 12),
+
+                      // Title
+                      Text(
+                        domain.title,
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF0F172A),
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+
+                      // Subtitle / Action count
+                      Text(
+                        domain.badgeText.isNotEmpty
+                            ? domain.badgeText
+                            : '${domain.items.length} actions',
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF64748B),
+                          height: 1.25,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.85),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.arrow_forward_rounded,
-                  size: 18,
-                  color: domain.textColor,
-                ),
-              ),
-            ],
+
+                // Live New Tickets / Updates Top-Right Floating Badge
+                if (domain.id == 'tickets')
+                  StreamBuilder<List<Map<String, dynamic>>>(
+                    stream: NotificationService.instance
+                        .getUnreadNewTicketsNotificationStream(
+                          ThemeService.instance.databaseName,
+                        ),
+                    builder: (context, snapshot) {
+                      final count = (snapshot.data ?? []).length;
+                      if (count == 0) return const SizedBox.shrink();
+                      return Positioned(
+                        top: 0,
+                        right: 0,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFF4757),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.white, width: 1.5),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFFFF4757).withValues(alpha: 0.35),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Text(
+                            count == 1 ? 'NEW' : '$count',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1635,119 +1615,6 @@ class _admindashboardState extends State<admindashboard> {
           ),
         );
       },
-    );
-  }
-
-  // ==========================================
-  // HERO CREATE TICKET CTA
-  // ==========================================
-  Widget _buildHeroCreateTicketCTA() {
-    return Container(
-      key: _createTicketCtaTourKey,
-      width: double.infinity,
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: primaryColor.withValues(alpha: 0.2),
-          width: 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: primaryColor.withValues(alpha: 0.08),
-            blurRadius: 24,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: primaryColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Icon(
-                  Icons.add_task_rounded,
-                  color: primaryColor,
-                  size: 26,
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Create a New Ticket',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: textColor,
-                        letterSpacing: -0.3,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Primary Action • Fast Service Request',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: primaryColor,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Raise a new service request and assign it to the appropriate engineer immediately.',
-            style: TextStyle(
-              fontSize: 13,
-              height: 1.45,
-              color: textLightColor,
-              fontWeight: FontWeight.w400,
-            ),
-          ),
-          const SizedBox(height: 18),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: _navigateToCreateTicket,
-              icon: const Icon(
-                Icons.add_circle_outline_rounded,
-                color: Colors.white,
-                size: 20,
-              ),
-              label: const Text(
-                'Create Ticket',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 15,
-                  letterSpacing: 0.2,
-                ),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primaryColor,
-                elevation: 4,
-                shadowColor: primaryColor.withValues(alpha: 0.4),
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -2423,7 +2290,7 @@ class _admindashboardState extends State<admindashboard> {
                             ),
                             Switch(
                               value: true,
-                              activeColor: const Color(0xFF6C5CE7),
+                              activeThumbColor: const Color(0xFF6C5CE7),
                               onChanged: (val) async {
                                 if (!val) {
                                   final confirm = await showDialog<bool>(
@@ -3404,105 +3271,170 @@ class _DomainDetailPageState extends State<DomainDetailPage> {
               ),
               const SizedBox(height: 14),
 
-              ...domain.items.asMap().entries.map((entry) {
-                final idx = entry.key;
-                final item = entry.value;
-                final key = idx < _itemKeys.length ? _itemKeys[idx] : null;
-                return Padding(
-                  key: key,
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: InkWell(
-                    onTap: () {
-                      item.onTap();
-                    },
-                    borderRadius: BorderRadius.circular(20),
-                    child: Container(
-                      padding: const EdgeInsets.all(18),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: const Color(0xFFE2E8F0),
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.02),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: domain.items.length,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 14,
+                  mainAxisSpacing: 14,
+                  mainAxisExtent: 175,
+                ),
+                itemBuilder: (context, idx) {
+                  final item = domain.items[idx];
+                  final key = idx < _itemKeys.length ? _itemKeys[idx] : null;
+                  return KeyedSubtree(
+                    key: key ?? ValueKey('item_$idx'),
+                    child: _buildModernGridActionCard(item),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModernGridActionCard(DomainSubItem item) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: const Color(0xFFF1F5F9),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: item.iconColor.withValues(alpha: 0.12),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: item.onTap,
+          borderRadius: BorderRadius.circular(24),
+          splashColor: item.iconColor.withValues(alpha: 0.12),
+          highlightColor: item.iconColor.withValues(alpha: 0.05),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+            child: Stack(
+              children: [
+                Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      // 3D/Gradient Icon Pod (Education App Concept)
+                      Container(
+                        width: 54,
+                        height: 54,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              item.iconColor.withValues(alpha: 0.18),
+                              item.iconColor.withValues(alpha: 0.05),
+                            ],
                           ),
-                        ],
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: item.iconColor.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Icon(
-                              item.icon,
-                              color: item.iconColor,
-                              size: 24,
-                            ),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: item.iconColor.withValues(alpha: 0.22),
+                            width: 1.5,
                           ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  item.title,
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                    color: Color(0xFF0F172A),
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  item.subtitle,
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w400,
-                                    color: Color(0xFF64748B),
-                                  ),
-                                ),
-                              ],
+                          boxShadow: [
+                            BoxShadow(
+                              color: item.iconColor.withValues(alpha: 0.18),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
                             ),
-                          ),
-                          if (item.badge != null) ...[
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: item.badgeColor ?? const Color(0xFFFF7675),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                item.badge!,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
                           ],
-                          const Icon(
-                            Icons.chevron_right_rounded,
-                            color: Color(0xFF94A3B8),
+                        ),
+                        child: Center(
+                          child: Icon(
+                            item.icon,
+                            color: item.iconColor,
+                            size: 26,
                           ),
-                        ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Title
+                      Text(
+                        item.title,
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF0F172A),
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+
+                      // Subtitle / Description
+                      Text(
+                        item.subtitle,
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF64748B),
+                          height: 1.25,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Top-Right Floating Badge (if present)
+                if (item.badge != null)
+                  Positioned(
+                    top: 0,
+                    right: 0,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: (item.badgeColor ?? const Color(0xFFEF4444))
+                            .withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: (item.badgeColor ?? const Color(0xFFEF4444))
+                              .withValues(alpha: 0.3),
+                          width: 1,
+                        ),
+                      ),
+                      child: Text(
+                        item.badge!,
+                        style: TextStyle(
+                          color: item.badgeColor ?? const Color(0xFFEF4444),
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w900,
+                        ),
                       ),
                     ),
                   ),
-                );
-              }),
-            ],
+              ],
+            ),
           ),
         ),
       ),

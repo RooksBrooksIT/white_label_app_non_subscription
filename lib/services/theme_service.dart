@@ -103,10 +103,11 @@ class ThemeService extends ChangeNotifier {
     _fontFamily = prefs.getString('fontFamily') ?? 'Roboto';
     _appName = prefs.getString('appName') ?? 'ServNex';
 
-    // Support both 'tenantId' and 'databaseName' keys for backward compatibility and consistency
+    // Support 'tenantId', 'databaseName', and 'admin_org_collection' keys for consistency
     final storedTenantId = prefs.getString('tenantId');
     final storedDatabaseName = prefs.getString('databaseName');
-    _databaseName = storedTenantId ?? storedDatabaseName ?? '';
+    final adminOrgCollection = prefs.getString('admin_org_collection');
+    _databaseName = storedTenantId ?? storedDatabaseName ?? adminOrgCollection ?? '';
 
     _logoUrl = prefs.getString('logoUrl');
     notifyListeners();
@@ -122,6 +123,9 @@ class ThemeService extends ChangeNotifier {
     await prefs.setString('appName', _appName);
     await prefs.setString('databaseName', _databaseName);
     await prefs.setString('tenantId', _databaseName); // Keep synchronized
+    if (_databaseName.isNotEmpty) {
+      await prefs.setString('admin_org_collection', _databaseName);
+    }
     if (_logoUrl != null) {
       await prefs.setString('logoUrl', _logoUrl!);
     } else {

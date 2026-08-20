@@ -14,14 +14,18 @@ class AdminLoginBackend {
   ) async {
     try {
       QuerySnapshot snapshot = await FirestoreService.instance
-          .collection('admin')
+          .collectionGroup('admin')
           .where('email', isEqualTo: email)
           .where('password', isEqualTo: password)
           .get();
 
       if (snapshot.docs.isNotEmpty) {
         final docData = snapshot.docs.first.data() as Map<String, dynamic>;
-        final String? tenantId = docData['tenantId'] as String?;
+        String? tenantId = docData['tenantId'] as String?;
+        if (tenantId == null || tenantId.isEmpty) {
+          // If tenantId field is missing, extract from the path: {tenantId}/data/admin/{docId}
+          tenantId = snapshot.docs.first.reference.parent.parent?.parent.id;
+        }
 
         SharedPreferences prefs = await SharedPreferences.getInstance();
         await prefs.setBool('admin_isLoggedIn', true);
@@ -30,7 +34,7 @@ class AdminLoginBackend {
         await prefs.setString('user_role', 'admin');
         await prefs.setString('last_role', 'admin');
 
-        if (tenantId != null) {
+        if (tenantId != null && tenantId.isNotEmpty) {
           await prefs.setString('admin_org_collection', tenantId);
           await prefs.setString('databaseName', tenantId);
           await prefs.setString('tenantId', tenantId);
@@ -38,11 +42,10 @@ class AdminLoginBackend {
             await prefs.setString('appName', docData['name']);
           }
 
-          // Sync branding configuration immediately
-          // Use 'name' from docData as the appId to match branding storage path
+          // Sync branding configuration immediately for this specific tenant!
           await FirestoreService.instance.syncBranding(
             tenantId,
-            appId: docData['name'],
+            appId: 'data',
           );
         }
 
