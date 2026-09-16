@@ -15,9 +15,6 @@ class PaymentService {
   final _firebaseAuth = FirebaseAuth.instance;
   final _cloudFunctions = FirebaseFunctions.instance;
 
-  // Use appropriate region for your Firebase project
-  final _region = 'us-central1';
-
   PaymentService._internal();
 
   factory PaymentService() {

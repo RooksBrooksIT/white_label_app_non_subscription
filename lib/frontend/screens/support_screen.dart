@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class SupportScreen extends StatefulWidget {
   const SupportScreen({super.key});
@@ -43,7 +44,9 @@ class _SupportScreenState extends State<SupportScreen> {
         ),
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
+        child: ResponsiveWrapper(
+          maxWidth: kMaxFormWidth,
+          child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -124,6 +127,7 @@ class _SupportScreenState extends State<SupportScreen> {
                 ),
               ),
             ],
+          ),
           ),
         ),
       ),

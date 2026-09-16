@@ -12,7 +12,7 @@ class ThemeService extends ChangeNotifier {
   bool _isDarkMode = false;
   String _fontFamily = 'Roboto';
   String _appName = 'ServNex';
-  String _databaseName = 'default_db';
+  String _databaseName = '';
   String? _logoUrl;
 
   Color get primaryColor => _primaryColor;
@@ -38,12 +38,15 @@ class ThemeService extends ChangeNotifier {
       textTheme: GoogleFonts.getTextTheme(_fontFamily, base.textTheme),
       scaffoldBackgroundColor: _backgroundColor,
       canvasColor: _backgroundColor,
+      snackBarTheme: const SnackBarThemeData(
+        behavior: SnackBarBehavior.fixed,
+      ),
       appBarTheme: AppBarTheme(
         backgroundColor: _backgroundColor,
         foregroundColor:
-            _isDarkMode || _backgroundColor.computeLuminance() < 0.5
-            ? Colors.white
-            : Colors.black,
+            _isDarkMode || _backgroundColor.computeLuminance() < 0.5 || _primaryColor.computeLuminance() < 0.5
+                ? Colors.white
+                : Colors.black,
         elevation: 0,
       ),
     );
@@ -68,6 +71,9 @@ class ThemeService extends ChangeNotifier {
       textTheme: GoogleFonts.getTextTheme(fontFamily, base.textTheme),
       scaffoldBackgroundColor: background,
       canvasColor: background,
+      snackBarTheme: const SnackBarThemeData(
+        behavior: SnackBarBehavior.fixed,
+      ),
       appBarTheme: const AppBarTheme(
         backgroundColor: background,
         foregroundColor: Colors.black,
@@ -97,10 +103,11 @@ class ThemeService extends ChangeNotifier {
     _fontFamily = prefs.getString('fontFamily') ?? 'Roboto';
     _appName = prefs.getString('appName') ?? 'ServNex';
 
-    // Support both 'tenantId' and 'databaseName' keys for backward compatibility and consistency
+    // Support 'tenantId', 'databaseName', and 'admin_org_collection' keys for consistency
     final storedTenantId = prefs.getString('tenantId');
     final storedDatabaseName = prefs.getString('databaseName');
-    _databaseName = storedTenantId ?? storedDatabaseName ?? 'default_db';
+    final adminOrgCollection = prefs.getString('admin_org_collection');
+    _databaseName = storedTenantId ?? storedDatabaseName ?? adminOrgCollection ?? '';
 
     _logoUrl = prefs.getString('logoUrl');
     notifyListeners();
@@ -116,6 +123,9 @@ class ThemeService extends ChangeNotifier {
     await prefs.setString('appName', _appName);
     await prefs.setString('databaseName', _databaseName);
     await prefs.setString('tenantId', _databaseName); // Keep synchronized
+    if (_databaseName.isNotEmpty) {
+      await prefs.setString('admin_org_collection', _databaseName);
+    }
     if (_logoUrl != null) {
       await prefs.setString('logoUrl', _logoUrl!);
     } else {
@@ -185,6 +195,7 @@ class ThemeService extends ChangeNotifier {
     _isDarkMode = false;
     _fontFamily = 'Roboto';
     _appName = 'ServNex';
+    _databaseName = '';
     _logoUrl = null;
     notifyListeners();
     saveToLocal();

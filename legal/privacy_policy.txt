@@ -1,0 +1,207 @@
+SERVNEX - PRIVACY POLICY
+================================================================================
+
+Last Updated: June 2, 2026
+
+Rooks & Brooks Technologies Pvt. Ltd. ("Company," "we," "us," or "our") operates
+the ServNex mobile application and related services (the "Service"). This Privacy
+Policy explains how we collect, use, disclose, and protect information when you
+use the Service.
+
+This Policy applies to Administrators, Engineers, Customers, and other users.
+If you use the Service on behalf of an organization, your organization may also
+have its own policies regarding data you enter about their staff and customers.
+
+
+--------------------------------------------------------------------------------
+1. SCOPE AND ROLES
+--------------------------------------------------------------------------------
+
+1.1 Platform Operator: Rooks & Brooks Technologies provides the multi-tenant
+    ServNex platform, subscription billing, authentication, and core infrastructure.
+
+1.2 Organization (Tenant) Administrator: Each subscribing organization controls
+    much of the operational data within its tenant (customers, engineers, tickets,
+    branding). Administrators are responsible for lawful collection and use of
+    data they and their users submit.
+
+1.3 End Users: Engineers and Customers interact with features enabled by their
+    organization's plan (attendance, location, tickets, etc.).
+
+
+--------------------------------------------------------------------------------
+2. INFORMATION WE COLLECT
+--------------------------------------------------------------------------------
+
+We may collect the following categories of information:
+
+2.1 Account and Registration Data
+    - Name, email address, phone/mobile number
+    - Password (stored via secure authentication; we do not store plain-text passwords)
+    - Role (admin, engineer, customer, owner)
+    - Organization/tenant identifier
+    - GST number (if provided)
+    - Terms acceptance timestamp and status
+
+2.2 Subscription and Payment Data
+    - Selected plan name, billing cycle (monthly, 6-month, yearly, trial)
+    - Transaction identifiers, payment status, amount paid
+    - Payment method/mode as returned by the payment gateway
+    - Invoice and receipt metadata
+    - We do NOT store full payment card numbers or CVV on our servers
+
+2.3 Branding and Configuration
+    - Custom app name, logo images, color preferences, font selection
+    - Referral codes generated for customer onboarding
+
+2.4 Operational and Service Data (entered by you or your organization)
+    - Customer profiles, booking/service IDs, addresses
+    - Device and service ticket details, photos, PDF uploads
+    - Engineer assignments, status updates, attendance records
+    - Barcode scan logs and product identifiers
+    - Shift and attendance report data
+    - AMC and service history as configured in your tenant
+
+2.5 Location Data (when enabled by plan and permissions)
+    - GPS/coordinates for engineer location tracking and geo-enabled features
+    - Collected only when the app requests permission and the feature is active
+
+2.6 Device and Technical Data
+    - Device type, operating system, app version
+    - Firebase instance identifiers, push notification tokens (FCM)
+    - IP address and server logs via cloud infrastructure
+
+2.7 Communications
+    - Support emails and messages you send to us
+    - In-app notifications content and delivery metadata
+
+
+--------------------------------------------------------------------------------
+3. HOW WE USE INFORMATION
+--------------------------------------------------------------------------------
+
+We use collected information to:
+
+3.1 Provide, maintain, and improve the Service;
+3.2 Authenticate users and enforce role-based access;
+3.3 Process subscriptions, verify payments, send invoices and receipts;
+3.4 Apply plan limits (customers, engineers, storage, features);
+3.5 Enable white-label branding per organization;
+3.6 Send service-related notifications;
+3.7 Respond to support requests and legal obligations;
+3.8 Detect fraud, abuse, and security incidents.
+
+
+--------------------------------------------------------------------------------
+4. LEGAL BASES (WHERE APPLICABLE)
+--------------------------------------------------------------------------------
+
+Depending on your jurisdiction, we process personal data based on contract
+performance, legitimate interests, consent (e.g., location permissions), and
+legal obligation.
+
+
+--------------------------------------------------------------------------------
+5. HOW WE SHARE INFORMATION
+--------------------------------------------------------------------------------
+
+We do not sell your personal information. We may share information with:
+
+5.1 Service providers: Google Firebase, payment gateways (e.g., ICICI), email,
+    mapping/location SDKs when geo features are used;
+5.2 Authorized users within your organization tenant;
+5.3 Law enforcement or regulators when required by law;
+5.4 Successors in a merger or acquisition with appropriate safeguards.
+
+
+--------------------------------------------------------------------------------
+6. DATA STORAGE AND SECURITY
+--------------------------------------------------------------------------------
+
+Data is stored on cloud infrastructure with tenant-separated paths. We use
+authentication, access controls, and encrypted transport. You are responsible
+for securing devices and managing user access in your organization.
+
+
+--------------------------------------------------------------------------------
+7. DATA RETENTION
+--------------------------------------------------------------------------------
+
+We retain data while your account is active and as needed for legal, billing,
+and security purposes. You may request deletion subject to applicable constraints.
+
+
+--------------------------------------------------------------------------------
+8. YOUR RIGHTS AND CHOICES
+--------------------------------------------------------------------------------
+
+You may request access, correction, deletion, or restriction where applicable law
+allows. Contact support@rookstechnologies.com with subject "Privacy Request."
+You may disable location or notification permissions in device settings.
+
+
+--------------------------------------------------------------------------------
+9. CHILDREN'S PRIVACY
+--------------------------------------------------------------------------------
+
+The Service is not directed to children under 18. Contact us if you believe a
+child has provided personal data.
+
+
+--------------------------------------------------------------------------------
+10. INTERNATIONAL TRANSFERS
+--------------------------------------------------------------------------------
+
+Data may be processed on servers outside your country where our cloud providers
+operate, with protections consistent with applicable law.
+
+
+--------------------------------------------------------------------------------
+11. THIRD-PARTY SERVICES
+--------------------------------------------------------------------------------
+
+Payment hosts, Firebase, and map providers have their own privacy policies.
+Review those policies when using embedded or linked services.
+
+
+--------------------------------------------------------------------------------
+12. ORGANIZATION ADMINISTRATORS
+--------------------------------------------------------------------------------
+
+Administrators are responsible for notices, consents, and lawful use of employee,
+engineer, and customer data entered into their tenant, including location and
+attendance features.
+
+
+--------------------------------------------------------------------------------
+13. LOCAL STORAGE AND PAYMENT SESSIONS
+--------------------------------------------------------------------------------
+
+The app uses local storage for session, branding preferences, and payment
+recovery. Hosted payment pages may use cookies managed by the payment provider.
+
+
+--------------------------------------------------------------------------------
+14. CHANGES TO THIS POLICY
+--------------------------------------------------------------------------------
+
+We may update this Policy. The Last Updated date will change. Material updates
+may be communicated in the app or by email.
+
+
+--------------------------------------------------------------------------------
+15. CONTACT AND GRIEVANCE
+--------------------------------------------------------------------------------
+
+Rooks & Brooks Technologies Pvt. Ltd.
+ServNex Platform
+
+Email:    support@rookstechnologies.com
+Phone:    +91 7358677670
+Website:  www.rookstechnologies.com
+
+
+================================================================================
+END OF PRIVACY POLICY
+
+Note: Have this document reviewed by qualified legal counsel before publication.

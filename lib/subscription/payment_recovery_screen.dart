@@ -10,7 +10,6 @@ import 'package:subscription_rooks_app/services/invoice_email_service.dart';
 import 'transaction_completed_screen.dart';
 import 'payment_failed_screen.dart';
 import '../frontend/screens/role_selection_screen.dart';
-import '../frontend/screens/admin_dashboard.dart';
 
 class PaymentRecoveryScreen extends StatefulWidget {
   final Map<String, dynamic> pendingPayment;
@@ -41,7 +40,6 @@ class _PaymentRecoveryScreenState extends State<PaymentRecoveryScreen> {
 
     bool isSuccess = false;
     bool isPending = false;
-    Map<String, dynamic>? finalVerifyResult;
     String errorMessage = 'Payment failed or was cancelled.';
 
     try {
@@ -61,7 +59,6 @@ class _PaymentRecoveryScreenState extends State<PaymentRecoveryScreen> {
           if (status == 'SUCCESS') {
             isSuccess = true;
             isPending = false;
-            finalVerifyResult = verifyResult;
             break;
           } else if (status == 'FAILED') {
             isSuccess = false;
@@ -107,6 +104,53 @@ class _PaymentRecoveryScreenState extends State<PaymentRecoveryScreen> {
           if (result['success']) {
             uid = result['uid'];
           } else {
+            if (result['message'].toString().contains('invalid-credential') || 
+                result['message'].toString().contains('wrong-password') ||
+                result['message'].toString().contains('incorrect, malformed or has expired')) {
+                
+                final email = pendingUserData['email'] ?? 'unknown';
+                
+                try {
+                  await FirebaseFirestore.instance.collection('payments').doc(txnId).update({
+                    'status': 'SUCCESS_ORPHANED',
+                    'email': email,
+                    'error': 'User provided wrong password for existing account',
+                    'updatedAt': FieldValue.serverTimestamp(),
+                  });
+
+                  await FirestoreService.instance.logPaymentTransaction(
+                    txnId: txnId,
+                    uidOrMobile: email,
+                    userId: 'ORPHANED',
+                    planName: widget.pendingPayment['planName'] ?? 'Subscription',
+                    amount: widget.pendingPayment['price'] ?? 0,
+                    status: 'SUCCESS_ORPHANED',
+                    isYearly: widget.pendingPayment['isYearly'] ?? false,
+                    isSixMonths: widget.pendingPayment['isSixMonths'] ?? false,
+                    registrationCompleted: false,
+                    firestoreSynced: false,
+                    failureReason: 'Wrong password for existing account',
+                  );
+                } catch (e) {
+                  debugPrint('Failed to log orphaned payment: $e');
+                }
+
+                await PaymentRecoveryService.instance.clearPendingPayment();
+
+                if (!mounted) return;
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(
+                    builder: (context) => PaymentFailedScreen(
+                      errorMessage: 'Your payment was successful, but the email provided is already registered with a different password. Please reset your password and contact support with Transaction ID: $txnId to claim your subscription.',
+                      paymentMethod: widget.pendingPayment['paymentMethod'] ?? 'Unknown',
+                      amount: widget.pendingPayment['price'] ?? 0,
+                      transactionId: txnId,
+                    ),
+                  ),
+                  (route) => false,
+                );
+                return;
+            }
             throw Exception(result['message'] ?? 'Failed to finalize account.');
           }
         } else if (uid != null) {
@@ -153,10 +197,12 @@ class _PaymentRecoveryScreenState extends State<PaymentRecoveryScreen> {
                 'updatedAt': FieldValue.serverTimestamp(),
               });
 
-          await FirestoreService.instance.logPaymentTransaction(
+          final logDocId = await FirestoreService.instance.logPaymentTransaction(
             txnId: txnId,
             uidOrMobile: uid,
+            userId: uid,
             planName: widget.pendingPayment['planName'] ?? 'Subscription',
+            newPlan: widget.pendingPayment['planName'] ?? 'Subscription',
             amount: widget.pendingPayment['price'] ?? 0,
             status: 'SUCCESS',
             isYearly: widget.pendingPayment['isYearly'] ?? false,
@@ -168,6 +214,7 @@ class _PaymentRecoveryScreenState extends State<PaymentRecoveryScreen> {
           // Automatically send the invoice in the background
           InvoiceEmailService.instance.processAndSendInvoice(
             txnId: txnId,
+            logDocId: logDocId,
             customerName: pendingUserData?['name'] ?? 'Customer',
             customerEmail: pendingUserData?['email'] ?? 'support@servnex.com',
             planName: widget.pendingPayment['planName'] ?? 'Subscription',
@@ -222,7 +269,9 @@ class _PaymentRecoveryScreenState extends State<PaymentRecoveryScreen> {
       await FirestoreService.instance.logPaymentTransaction(
         txnId: txnId,
         uidOrMobile: uid ?? pendingUserData?['email'] ?? 'unknown',
+        userId: uid,
         planName: widget.pendingPayment['planName'] ?? 'Subscription',
+        newPlan: widget.pendingPayment['planName'] ?? 'Subscription',
         amount: widget.pendingPayment['price'] ?? 0,
         status: isPending ? 'PENDING' : 'FAILED',
         isYearly: widget.pendingPayment['isYearly'] ?? false,

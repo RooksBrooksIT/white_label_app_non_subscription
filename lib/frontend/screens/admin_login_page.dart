@@ -5,6 +5,7 @@ import 'package:subscription_rooks_app/backend/screens/admin_login_page.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:subscription_rooks_app/frontend/screens/forgot_password_page.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class AdminLogin extends StatefulWidget {
   const AdminLogin({super.key});
@@ -54,9 +55,10 @@ class _AdminLoginState extends State<AdminLogin> {
 
     if (result['success']) {
       if (!mounted) return;
-      Navigator.pushReplacement(
+      Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (context) => const admindashboard()),
+        (route) => false,
       );
     } else {
       _showSnackBar(result['message']);
@@ -77,13 +79,15 @@ class _AdminLoginState extends State<AdminLogin> {
       body: Container(
         color: Theme.of(context).scaffoldBackgroundColor,
         child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox(height: 20),
-                Card(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: kMaxFormWidth),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(height: 20),
+                  Card(
                   elevation: 12,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(25),
@@ -260,6 +264,7 @@ class _AdminLoginState extends State<AdminLogin> {
                   ),
                 ),
               ],
+              ),
             ),
           ),
         ),

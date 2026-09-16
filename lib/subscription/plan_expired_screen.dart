@@ -66,13 +66,12 @@ class _PlanExpiredScreenState extends State<PlanExpiredScreen>
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final primaryColor = ThemeService.instance.primaryColor;
     final isAdmin = widget.role == 'admin' || widget.role == 'Owner';
 
     return PopScope(
       canPop: false, // Block hardware back button
-      onPopInvoked: (didPop) {
+      onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
         // Optional: show a toast or message that they must renew to continue
       },

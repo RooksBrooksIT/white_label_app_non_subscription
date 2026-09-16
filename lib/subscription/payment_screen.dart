@@ -5,8 +5,10 @@ import 'package:subscription_rooks_app/services/auth_state_service.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/services/payment_recovery_service.dart';
 import 'package:subscription_rooks_app/services/invoice_email_service.dart';
+import 'package:subscription_rooks_app/services/subscription_queue_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'icici_payment_webview_screen.dart';
+import 'queued_upgrade_confirmation_screen.dart';
 
 import 'dart:async';
 
@@ -32,6 +34,18 @@ class PaymentScreen extends StatefulWidget {
   /// User data for a new user who hasn't registered yet.
   final Map<String, dynamic>? pendingUserData;
 
+  // ── Queue upgrade support ──────────────────────────────────────────────────
+
+  /// True when an existing active plan is present (shows queue checkbox).
+  final bool hasActiveSubscription;
+
+  /// Name of the currently active plan (used in queue confirmation UI).
+  final String? currentActivePlanName;
+
+  /// Expiry date of the active plan — becomes the scheduled activation date
+  /// for the queued plan.
+  final DateTime? activePlanExpiryDate;
+
   const PaymentScreen({
     super.key,
     required this.planName,
@@ -47,6 +61,9 @@ class PaymentScreen extends StatefulWidget {
     this.barcode,
     this.reportExport,
     this.pendingUserData,
+    this.hasActiveSubscription = false,
+    this.currentActivePlanName,
+    this.activePlanExpiryDate,
   });
 
   @override
@@ -55,10 +72,15 @@ class PaymentScreen extends StatefulWidget {
 
 class _PaymentScreenState extends State<PaymentScreen>
     with WidgetsBindingObserver {
+  bool _isVerifying = false;
   static const Color brandBlue = Color(0xFF1A237E);
   final String selectedPaymentMethod = 'Card'; // Hardcoded for hosted flow
 
   String? _activeTxnId;
+
+  /// Whether the user wants to queue the upgrade rather than activate immediately.
+  /// Only relevant when [widget.hasActiveSubscription] is true.
+  bool _queueUpgrade = false;
 
   @override
   void initState() {
@@ -81,8 +103,64 @@ class _PaymentScreenState extends State<PaymentScreen>
     }
   }
 
+  /// Returns true if the given Firestore/API payment data represents a successful payment.
+  /// Checks: status=SUCCESS, txnStatus=SUC, responseCode=000, txnResponseCode=0000.
+  /// activationStatus=PENDING is NOT treated as a failure.
+  bool _isPaymentSuccess(Map<String, dynamic> data) {
+    final status = (data['status'] as String? ?? '').toUpperCase();
+    final txnStatus = (data['txnStatus'] as String? ?? '').toUpperCase();
+    final responseCode = (data['responseCode'] as String? ?? '');
+    final txnResponseCode = (data['txnResponseCode'] as String? ?? '');
+
+    debugPrint(
+      '[PaymentValidation] status=$status | txnStatus=$txnStatus | '
+      'responseCode=$responseCode | txnResponseCode=$txnResponseCode'
+    );
+
+    // Primary indicator
+    if (status == 'SUCCESS') return true;
+    // Secondary indicators from ICICI gateway
+    if (txnStatus == 'SUC') return true;
+    if (responseCode == '000' && txnResponseCode == '0000') return true;
+    return false;
+  }
+
+  /// Returns true if the payment is definitively failed/cancelled.
+  bool _isPaymentFailed(Map<String, dynamic> data) {
+    final status = (data['status'] as String? ?? '').toUpperCase();
+    return status == 'FAILED' || status == 'CANCELLED';
+  }
+
+  String _resolvePaymentMethodFromResult(
+    Map<String, dynamic>? result, {
+    String fallback = 'CARD',
+  }) {
+    if (result == null) return fallback;
+    
+    // 1. Check inside iciciResponse object if available
+    final iciciResponse = result['iciciResponse'];
+    if (iciciResponse is Map<String, dynamic>) {
+      final iciciMode = iciciResponse['paymentMode'] ?? iciciResponse['paymentMethod'];
+      if (iciciMode != null && iciciMode.toString().trim().isNotEmpty) {
+        return iciciMode.toString().trim().toUpperCase();
+      }
+    }
+
+    // 2. Fallback to root-level fields
+    final rawValue =
+        result['paymentMethod'] ??
+        result['paymentMode'] ??
+        result['payMode'] ??
+        result['txnPaymentMode'] ??
+        result['mode'];
+    final method = rawValue?.toString().trim();
+    if (method == null || method.isEmpty) return fallback;
+    return method.toUpperCase();
+  }
+
   Future<void> _verifyPaymentOnReturn(String txnId) async {
     if (!mounted) return;
+    setState(() { _isVerifying = true; });
 
     // Show a non-dismissible verifying dialog
     showDialog(
@@ -105,108 +183,163 @@ class _PaymentScreenState extends State<PaymentScreen>
     Map<String, dynamic>? finalVerifyResult;
     String errorMessage = 'Payment failed or was cancelled.';
 
-    final bool isHosted = selectedPaymentMethod != 'UPI';
-
-    if (!isHosted) {
-      // Wait 2 seconds before the first check to give the webhook a head start
-      await Future.delayed(const Duration(seconds: 2));
-    }
+    const verificationWindow = Duration(seconds: 5);
+    const pollInterval = Duration(seconds: 1);
+    final deadline = DateTime.now().add(verificationWindow);
 
     try {
       int attempts = 0;
-      const maxAttempts = 10; // Increased for ~80s total polling (10 * 8s)
-
-      while (attempts < maxAttempts) {
+      while (DateTime.now().isBefore(deadline)) {
         attempts++;
         if (!mounted) return;
 
-        if (!isHosted) {
-          // 1. Check Firestore first (fastest if webhook arrived)
+        // ── STEP 1: Always check Firestore first (fastest path, works for both UPI & Hosted) ──
+        try {
           final doc = await FirebaseFirestore.instance
               .collection('payments')
               .doc(txnId)
-              .get();
+              .get(const GetOptions(source: Source.server)); // force fresh read from server
+
           if (doc.exists) {
-            final status = doc.data()?['status'];
+            final firestoreData = doc.data()!;
             debugPrint(
-              'Firestore Status for $txnId (Attempt $attempts): $status',
+              '[PaymentVerify] Firestore doc (Attempt $attempts): $firestoreData',
             );
 
-            if (status == 'SUCCESS') {
+            if (_isPaymentSuccess(firestoreData)) {
+              debugPrint('[PaymentVerify] ✅ Firestore confirms SUCCESS for $txnId');
               isSuccess = true;
               isPending = false;
-              finalVerifyResult = doc.data();
+              finalVerifyResult = firestoreData;
               break;
-            } else if (status == 'FAILED') {
+            } else if (_isPaymentFailed(firestoreData)) {
+              debugPrint('[PaymentVerify] ❌ Firestore confirms FAILED/CANCELLED for $txnId');
               isSuccess = false;
               isPending = false;
-              errorMessage = doc.data()?['error'] ?? 'Payment failed.';
+              finalVerifyResult = firestoreData;
+              errorMessage = firestoreData['error'] ??
+                  (firestoreData['status'] == 'CANCELLED'
+                      ? 'Payment was cancelled by the user.'
+                      : 'Payment failed.');
               break;
-            } else if (status == 'PENDING') {
+            } else {
+              // PENDING or any other transient status — keep polling
+              debugPrint(
+                '[PaymentVerify] Firestore status still transient: ${firestoreData['status']} | activationStatus: ${firestoreData['activationStatus']}',
+              );
               isPending = true;
             }
+          } else {
+            debugPrint('[PaymentVerify] Firestore doc not yet created for $txnId (Attempt $attempts)');
           }
+        } catch (firestoreError) {
+          debugPrint('[PaymentVerify] Firestore read error: $firestoreError');
         }
 
-        // 2. Fallback to API check if Firestore is still PENDING or missing (or if Hosted payment)
+        // ── STEP 2: Fallback to API check if Firestore has no conclusive result ──
         try {
           final verifyResult = await IciciService.instance.verifyPaymentStatus(
             txnId: txnId,
           );
           debugPrint(
-            'API Status for $txnId (Attempt $attempts): ${verifyResult['status']} | Error: ${verifyResult['error']}',
+            '[PaymentVerify] API response (Attempt $attempts): $verifyResult',
           );
 
           if (verifyResult['success'] == true) {
-            final status = verifyResult['status'];
-            if (status == 'SUCCESS') {
+            // Check all gateway success fields in the API response
+            if (_isPaymentSuccess(verifyResult)) {
+              debugPrint('[PaymentVerify] ✅ API confirms SUCCESS for $txnId');
               isSuccess = true;
               isPending = false;
               finalVerifyResult = verifyResult;
               break;
-            } else if (status == 'FAILED') {
+            } else if (_isPaymentFailed(verifyResult)) {
+              debugPrint('[PaymentVerify] ❌ API confirms FAILED/CANCELLED for $txnId');
               isSuccess = false;
               isPending = false;
-              errorMessage = verifyResult['error'] ?? 'Payment failed.';
+              finalVerifyResult = verifyResult;
+              errorMessage = verifyResult['error'] ??
+                  (verifyResult['status'] == 'CANCELLED'
+                      ? 'Payment was cancelled by the user.'
+                      : 'Payment failed.');
               break;
             } else {
               isPending = true;
             }
           } else {
-            // If API check itself returns success: false, it might be P0039 if not handled by backend
             final error = verifyResult['error']?.toString() ?? '';
             if (error.contains('P0039') ||
                 error.contains('Transaction Not available') ||
                 error.toLowerCase().contains('pending')) {
-              debugPrint(
-                'Transaction sync delay detected (P0039). Continuing to poll...',
-              );
+              debugPrint('[PaymentVerify] Transaction sync delay (P0039). Continuing to poll...');
+              isPending = true;
+            } else {
+              debugPrint('[PaymentVerify] API returned success=false: $error');
+              // Don't break — webhook may still arrive; keep polling
               isPending = true;
             }
           }
-        } catch (e) {
-          debugPrint('API Verification error during polling: $e');
+        } catch (apiError) {
+          debugPrint('[PaymentVerify] API Verification error: $apiError');
         }
 
         // If still PENDING, wait and retry
-        if (attempts < maxAttempts) {
-          await Future.delayed(
-            Duration(seconds: isHosted ? 4 : 8),
-          ); // Shorter delay for hosted flow
+        if (DateTime.now().isBefore(deadline)) {
+          await Future.delayed(pollInterval);
         }
       }
     } catch (e) {
-      debugPrint('Verification error: $e');
+      debugPrint('[PaymentVerify] Outer verification error: $e');
       isSuccess = false;
       errorMessage = 'An error occurred during verification.';
     }
 
+    debugPrint(
+      '[PaymentVerify] Final result → isSuccess=$isSuccess | isPending=$isPending | error=$errorMessage',
+    );
+
     if (!mounted) return;
     Navigator.pop(context); // Close verifying dialog
+    setState(() { _isVerifying = false; });
+    final resolvedPaymentMethod = _resolvePaymentMethodFromResult(
+      finalVerifyResult,
+      fallback: selectedPaymentMethod.toUpperCase(),
+    );
 
     if (isSuccess) {
+      // Show Finalizing Dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const PopScope(
+          canPop: false,
+          child: AlertDialog(
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Finalizing transaction... Please wait.'),
+              ],
+            ),
+          ),
+        ),
+      );
+
       // Payment is genuinely successful
       String? uid = AuthStateService.instance.currentUser?.uid;
+      
+      int actualAmount = widget.price;
+      if (finalVerifyResult != null && finalVerifyResult['amount'] != null) {
+        dynamic amt = finalVerifyResult['amount'];
+        if (amt is int) {
+          actualAmount = amt;
+        } else if (amt is double) {
+          actualAmount = amt.toInt();
+        } else if (amt is String) {
+          actualAmount = double.tryParse(amt)?.toInt() ?? widget.price;
+        }
+      }
 
       try {
         // If we have pending user data, register/create the user now
@@ -216,6 +349,56 @@ class _PaymentScreenState extends State<PaymentScreen>
           if (result['success']) {
             uid = result['uid'];
           } else {
+            if (result['message'].toString().contains('invalid-credential') || 
+                result['message'].toString().contains('wrong-password') ||
+                result['message'].toString().contains('incorrect, malformed or has expired')) {
+                
+                final email = widget.pendingUserData?['email'] ?? 'unknown';
+                
+                try {
+                  await FirebaseFirestore.instance.collection('payments').doc(txnId).update({
+                    'status': 'SUCCESS_ORPHANED',
+                    'email': email,
+                    'error': 'User provided wrong password for existing account',
+                    'updatedAt': FieldValue.serverTimestamp(),
+                  });
+
+                  await FirestoreService.instance.logPaymentTransaction(
+                    txnId: txnId,
+                    uidOrMobile: email,
+                    userId: 'ORPHANED',
+                    planName: widget.planName,
+                    amount: actualAmount,
+                    status: 'SUCCESS_ORPHANED',
+                    isYearly: widget.isYearly,
+                    isSixMonths: widget.isSixMonths,
+                    registrationCompleted: false,
+                    firestoreSynced: false,
+                    failureReason: 'Wrong password for existing account',
+                    customerEmail: email,
+                  );
+                } catch (e) {
+                  debugPrint('Failed to log orphaned payment: $e');
+                }
+
+                await PaymentRecoveryService.instance.clearPendingPayment();
+
+                if (!mounted) return;
+                Navigator.pop(context); // Pop Finalizing dialog
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => PaymentFailedScreen(
+                      errorMessage: 'Your payment was successful, but the email provided is already registered with a different password. Please reset your password and contact support with Transaction ID: $txnId to claim your subscription.',
+                      paymentMethod: resolvedPaymentMethod,
+                      amount: widget.price,
+                      transactionId: txnId,
+                    ),
+                  ),
+                );
+                return;
+            }
+
             throw Exception(
               result['message'] ?? 'Failed to create and finalize account.',
             );
@@ -230,35 +413,55 @@ class _PaymentScreenState extends State<PaymentScreen>
               widget.pendingUserData?['tenantId'] ??
               ThemeService.instance.databaseName;
 
-          // 2. Set user as active
-          await FirestoreService.instance.setUserActiveStatus(
-            uid: uid,
-            tenantId: tenantId,
-            active: true,
-          );
+          // 2. Set user as active (only for immediate upgrades)
+          if (!_queueUpgrade) {
+            await FirestoreService.instance.setUserActiveStatus(
+              uid: uid,
+              tenantId: tenantId,
+              active: true,
+            );
 
-          // 3. Save subscription details
-          await FirestoreService.instance.upsertSubscription(
-            uid: uid,
-            tenantId: tenantId,
-            appId: 'data',
-            planName: widget.planName,
-            isYearly: widget.isYearly,
-            isSixMonths: widget.isSixMonths,
-            price: widget.price,
-            originalPrice: widget.originalPrice,
-            paymentMethod: selectedPaymentMethod,
-            status: 'active',
-            gstNumber: widget.pendingUserData?['gstNumber'],
-            limits: widget.limits,
-            geoLocation: widget.geoLocation,
-            attendance: widget.attendance,
-            barcode: widget.barcode,
-            reportExport: widget.reportExport,
-          );
+            // 3. Save subscription details (immediate activation)
+            await FirestoreService.instance.upsertSubscription(
+              uid: uid,
+              tenantId: tenantId,
+              appId: 'data',
+              planName: widget.planName,
+              isYearly: widget.isYearly,
+              isSixMonths: widget.isSixMonths,
+              price: actualAmount,
+              originalPrice: widget.originalPrice,
+              paymentMethod: resolvedPaymentMethod,
+              status: 'active',
+              gstNumber: widget.pendingUserData?['gstNumber'],
+              limits: widget.limits,
+              geoLocation: widget.geoLocation,
+              attendance: widget.attendance,
+              barcode: widget.barcode,
+              reportExport: widget.reportExport,
+            );
+          } else {
+            // 3b. Queue the plan — do NOT touch the active subscription.
+            await SubscriptionQueueService.instance.saveQueuedPlan(
+              tenantId: tenantId,
+              uid: uid,
+              planName: widget.planName,
+              isYearly: widget.isYearly,
+              isSixMonths: widget.isSixMonths,
+              price: actualAmount,
+              originalPrice: widget.originalPrice,
+              paymentMethod: resolvedPaymentMethod,
+              transactionId: txnId,
+              scheduledActivationDate: widget.activePlanExpiryDate,
+              limits: widget.limits,
+              geoLocation: widget.geoLocation,
+              attendance: widget.attendance,
+              barcode: widget.barcode,
+              reportExport: widget.reportExport,
+            );
+          }
 
           // 4. Update the payment document status in global payments collection
-          // only after payment verification and Firestore data synchronization are completed.
           await FirebaseFirestore.instance
               .collection('payments')
               .doc(txnId)
@@ -266,27 +469,37 @@ class _PaymentScreenState extends State<PaymentScreen>
                 'uid': uid,
                 'userId': uid,
                 'status': 'SUCCESS',
+                'paymentMethod': resolvedPaymentMethod,
+                'paymentMode': resolvedPaymentMethod,
                 'updatedAt': FieldValue.serverTimestamp(),
               });
 
-          // 5. Store the payment transaction details in the payment_logs collection
-          await FirestoreService.instance.logPaymentTransaction(
+          // 5. Log payment transaction (always creates a NEW unique doc)
+          final logDocId = await FirestoreService.instance.logPaymentTransaction(
             txnId: txnId,
             uidOrMobile: uid,
+            userId: uid,
             planName: widget.planName,
-            amount: widget.price,
+            newPlan: widget.planName,
+            previousPlan: widget.currentActivePlanName,
+            amount: actualAmount,
             status: 'SUCCESS',
             isYearly: widget.isYearly,
             isSixMonths: widget.isSixMonths,
+            queueStatus: _queueUpgrade ? 'Queued' : 'Immediate',
             registrationCompleted: true,
             firestoreSynced: true,
             tenantId: tenantId,
             customerName: widget.pendingUserData?['name'] ?? 'Customer',
-            customerEmail: widget.pendingUserData?['email'] ?? 'support@servnex.com',
-            customerMobile: widget.pendingUserData?['customerMobile'] ?? widget.pendingUserData?['phone'],
+            customerEmail:
+                widget.pendingUserData?['email'] ?? 'support@servnex.com',
+            customerMobile:
+                widget.pendingUserData?['customerMobile'] ??
+                widget.pendingUserData?['phone'],
             gatewayResponse: finalVerifyResult ?? {
-              'paymentMode': selectedPaymentMethod,
-              'amount': widget.price,
+              'paymentMode': resolvedPaymentMethod,
+              'paymentMethod': resolvedPaymentMethod,
+              'amount': actualAmount,
               'status': 'SUCCESS',
               'transactionId': txnId,
             },
@@ -295,12 +508,14 @@ class _PaymentScreenState extends State<PaymentScreen>
           // Automatically send the invoice in the background
           InvoiceEmailService.instance.processAndSendInvoice(
             txnId: txnId,
+            logDocId: logDocId,
             customerName: widget.pendingUserData?['name'] ?? 'Customer',
-            customerEmail: widget.pendingUserData?['email'] ?? 'support@servnex.com',
+            customerEmail:
+                widget.pendingUserData?['email'] ?? 'support@servnex.com',
             planName: widget.planName,
             isYearly: widget.isYearly,
             isSixMonths: widget.isSixMonths,
-            amountPaid: widget.price,
+            amountPaid: actualAmount,
             gstNumber: widget.pendingUserData?['gstNumber'],
           );
         }
@@ -308,12 +523,17 @@ class _PaymentScreenState extends State<PaymentScreen>
         // Only clear pending payment after complete success of Firestore writes
         await PaymentRecoveryService.instance.clearPendingPayment();
 
-        // 6. Finally navigate to success screen
-        _navigateToSuccess(txnId);
+        // 6. Navigate to the appropriate success screen
+        if (_queueUpgrade) {
+          _navigateToQueuedConfirmation(txnId, actualAmount);
+        } else {
+          _navigateToSuccess(txnId, resolvedPaymentMethod, actualAmount);
+        }
       } catch (e) {
         debugPrint('Critical Error after successful payment during Firestore sync: $e');
         
         if (!mounted) return;
+        Navigator.pop(context); // Pop Finalizing dialog
         
         // Show Synchronization Incomplete Alert dialog
         showDialog(
@@ -362,7 +582,9 @@ class _PaymentScreenState extends State<PaymentScreen>
     else {
       // isPending or FAILED/CANCELLED
       final uid = AuthStateService.instance.currentUser?.uid;
-      final tenantId = ThemeService.instance.databaseName;
+      final tenantId =
+          widget.pendingUserData?['tenantId'] ??
+          ThemeService.instance.databaseName;
       
       final String displayError = isPending 
           ? 'Your payment is currently pending or being processed by the bank. Once confirmed, your subscription will activate automatically. You can check your status in a few minutes.' 
@@ -399,7 +621,7 @@ class _PaymentScreenState extends State<PaymentScreen>
             isSixMonths: widget.isSixMonths,
             price: widget.price,
             originalPrice: widget.originalPrice,
-            paymentMethod: selectedPaymentMethod,
+            paymentMethod: resolvedPaymentMethod,
             status: isPending ? 'pending' : 'failed',
             gstNumber: widget.pendingUserData?['gstNumber'],
             limits: widget.limits,
@@ -419,7 +641,7 @@ class _PaymentScreenState extends State<PaymentScreen>
         MaterialPageRoute(
           builder: (context) => PaymentFailedScreen(
             errorMessage: displayError,
-            paymentMethod: selectedPaymentMethod,
+            paymentMethod: resolvedPaymentMethod,
             amount: widget.price,
             transactionId: txnId,
           ),
@@ -544,58 +766,69 @@ class _PaymentScreenState extends State<PaymentScreen>
           surface: Colors.white,
         ),
       ),
-      child: Scaffold(
-        backgroundColor: const Color(0xFFF8F9FA),
-        appBar: AppBar(
-          title: const Text(
-            'Payment',
-            style: TextStyle(fontWeight: FontWeight.bold),
+      child: PopScope(
+        canPop: !_isVerifying,
+        onPopInvokedWithResult: (didPop, result) {
+          if (!didPop && _isVerifying) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Please wait. Payment verification is in progress. You can go back once the verification process is complete.',
+                ),
+              ),
+            );
+          }
+        },
+        child: Scaffold(
+          backgroundColor: const Color(0xFFF8F9FA),
+          appBar: AppBar(
+            title: const Text(
+              'Payment',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            backgroundColor: Colors.white,
+            foregroundColor: Colors.black,
+            elevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+              onPressed: () {
+                if (_isVerifying) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Please wait. Payment verification is in progress. You can go back once the verification process is complete.',
+                      ),
+                    ),
+                  );
+                } else {
+                  Navigator.pop(context);
+                }
+              },
+            ),
           ),
-          backgroundColor: Colors.white,
-          foregroundColor: Colors.black,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new, size: 20),
-            onPressed: () => Navigator.pop(context),
-          ),
-        ),
-        body: SafeArea(
-          child: SingleChildScrollView(
-            padding: screenPadding,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Summary Section (Moved to top for better flow)
-                _buildSubscriptionSummary(formattedDate),
-
-                const SizedBox(height: 100),
-
-                // Responsive Layout for Payment Actions
-                if (isDesktop)
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+          body: SafeArea(
+            child: SingleChildScrollView(
+              padding: screenPadding,
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 500),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const Expanded(
-                        flex: 2,
-                        child: SizedBox(),
-                      ), // Placeholder for balance
-                      const SizedBox(width: 32),
-                      Expanded(flex: 1, child: _buildRightSideSidebar()),
-                    ],
-                  )
-                else
-                  Column(
-                    children: [
-                      const SizedBox(height: 16),
+                      // Summary Section
+                      _buildSubscriptionSummary(formattedDate),
+
+                      const SizedBox(height: 40),
                       _buildSecurityBadges(),
                       const SizedBox(height: 40),
                       _buildActionButtons(),
                       const SizedBox(height: 24),
                       _buildTermsText(),
+                      const SizedBox(height: 40),
                     ],
                   ),
-                const SizedBox(height: 40),
-              ],
+                ),
+              ),
             ),
           ),
         ),
@@ -603,31 +836,20 @@ class _PaymentScreenState extends State<PaymentScreen>
     );
   }
 
-  Widget _buildRightSideSidebar() {
-    return Column(
-      children: [
-        _buildSecurityBadges(),
-        const SizedBox(height: 40),
-        _buildActionButtons(),
-        const SizedBox(height: 24),
-        _buildTermsText(),
-      ],
-    );
-  }
 
   Widget _buildSubscriptionSummary(String formattedDate) {
     return Container(
-      width: isDesktop ? 400 : double.infinity,
+      width: double.infinity,
       padding: EdgeInsets.all(containerPadding),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(borderRadius + 4),
-        border: Border.all(color: Color(0xFFE2E8F0), width: 1),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 12,
-            offset: Offset(0, 4),
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -882,10 +1104,59 @@ class _PaymentScreenState extends State<PaymentScreen>
     final buttonWidth = isDesktop ? 400.0 : double.infinity;
 
     return Column(
-      crossAxisAlignment: isDesktop
-          ? CrossAxisAlignment.start
-          : CrossAxisAlignment.stretch,
+      crossAxisAlignment:
+          isDesktop ? CrossAxisAlignment.start : CrossAxisAlignment.stretch,
       children: [
+        // ── Queue Upgrade Checkbox (shown only when user has an active plan) ──
+        if (widget.hasActiveSubscription && !widget.isFirstTimeRegistration)
+          Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            decoration: BoxDecoration(
+              color: _queueUpgrade
+                  ? const Color(0xFFF0F0FF)
+                  : Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: _queueUpgrade
+                    ? const Color(0xFF6C5CE7)
+                    : Colors.grey.shade300,
+                width: _queueUpgrade ? 1.5 : 1,
+              ),
+            ),
+            child: CheckboxListTile(
+              value: _queueUpgrade,
+              onChanged: (val) => setState(() => _queueUpgrade = val ?? false),
+              title: const Text(
+                'Queue Upgrade Until Current Plan Expires',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+              subtitle: Text(
+                _queueUpgrade
+                    ? 'Your ${widget.currentActivePlanName ?? 'current'} plan stays active. '
+                      '${widget.planName} will activate automatically on expiry.'
+                    : '${widget.planName} plan will activate immediately after payment.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: _queueUpgrade
+                      ? const Color(0xFF4A3F99)
+                      : Colors.grey.shade600,
+                  height: 1.3,
+                ),
+              ),
+              activeColor: const Color(0xFF6C5CE7),
+              controlAffinity: ListTileControlAffinity.leading,
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+
         SizedBox(
           width: buttonWidth,
           height: buttonHeight,
@@ -900,7 +1171,7 @@ class _PaymentScreenState extends State<PaymentScreen>
               ),
             ),
             child: Text(
-              'Pay Now',
+              _queueUpgrade ? 'Pay & Queue Upgrade' : 'Pay Now',
               style: TextStyle(
                 fontSize: buttonFontSize,
                 fontWeight: FontWeight.bold,
@@ -986,7 +1257,9 @@ class _PaymentScreenState extends State<PaymentScreen>
     );
 
     try {
-      final tenantId = ThemeService.instance.databaseName;
+      final tenantId =
+          widget.pendingUserData?['tenantId'] ??
+          ThemeService.instance.databaseName;
       final appId = ThemeService.instance.appName;
 
       // Use pending email if user is not logged in yet
@@ -1000,10 +1273,10 @@ class _PaymentScreenState extends State<PaymentScreen>
       final effectiveUid =
           uid ?? 'PENDING_${DateTime.now().millisecondsSinceEpoch}';
 
-      // Fetch customer data for pre-filling
+      // Fetch customer data for pre-filling — use the actual entered mobile number.
       Map<String, String> customerData = {
         'name': 'Customer',
-        'phone': '919999999999',
+        'phone': '',
       };
       if (uid != null) {
         customerData = await IciciService.instance.fetchCustomerData(
@@ -1011,10 +1284,16 @@ class _PaymentScreenState extends State<PaymentScreen>
           tenantId,
         );
       } else if (widget.pendingUserData != null) {
+        // Use the exact mobile number entered by the user during registration.
+        final rawPhone = widget.pendingUserData!['phone'] as String? ??
+            widget.pendingUserData!['mobile'] as String? ??
+            widget.pendingUserData!['customerMobile'] as String? ??
+            '';
         customerData = {
-          'name': widget.pendingUserData!['name'] ?? 'Customer',
-          'phone': '919999999999', // Default if not in pending data
+          'name': widget.pendingUserData!['name'] as String? ?? 'Customer',
+          'phone': rawPhone,
         };
+        debugPrint('[PaymentScreen] Using pendingUserData phone: $rawPhone');
       }
 
       // 1. Initiate Sale via backend
@@ -1119,7 +1398,7 @@ class _PaymentScreenState extends State<PaymentScreen>
     }
   }
 
-  void _navigateToSuccess(String txnId) {
+  void _navigateToSuccess(String txnId, String resolvedPaymentMethod, int actualAmount) {
     if (!mounted) return;
 
     // Ensure all dialogs are closed before navigating to the final screen
@@ -1128,9 +1407,9 @@ class _PaymentScreenState extends State<PaymentScreen>
         builder: (context) => TransactionCompletedScreen(
           transactionId: txnId,
           planName: widget.planName,
-          amountPaid: widget.price,
+          amountPaid: actualAmount,
           isYearly: widget.isYearly,
-          paymentMethod: selectedPaymentMethod,
+          paymentMethod: resolvedPaymentMethod,
           timestamp: DateTime.now(),
           isFirstTimeRegistration: widget.isFirstTimeRegistration,
           isSixMonths: widget.isSixMonths,
@@ -1142,7 +1421,27 @@ class _PaymentScreenState extends State<PaymentScreen>
           reportExport: widget.reportExport,
         ),
       ),
-      (route) => route.isFirst, // Go back to dashboard/first route
+      (route) => route.isFirst,
+    );
+  }
+
+  /// Navigate to the queued plan confirmation screen.
+  void _navigateToQueuedConfirmation(String txnId, int actualAmount) {
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (context) => QueuedUpgradeConfirmationScreen(
+          newPlanName: widget.planName,
+          currentPlanName:
+              widget.currentActivePlanName ?? 'Current Plan',
+          amountPaid: actualAmount,
+          transactionId: txnId,
+          scheduledActivationDate: widget.activePlanExpiryDate,
+          isYearly: widget.isYearly,
+          isSixMonths: widget.isSixMonths,
+        ),
+      ),
+      (route) => route.isFirst,
     );
   }
 

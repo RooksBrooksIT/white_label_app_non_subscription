@@ -373,7 +373,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
     final adminDetailsStream = _buildAdminDetailsStream();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFF),
+      backgroundColor: const Color(0xFFF8FAFC),
       body: RefreshIndicator(
         color: Theme.of(context).primaryColor,
         onRefresh: _onRefresh,
@@ -381,96 +381,44 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             SliverAppBar(
-              expandedHeight: isMobile ? 130 : 160,
-              floating: false,
+              backgroundColor: Colors.white,
+              elevation: 0.5,
               pinned: true,
-              elevation: 0,
-              backgroundColor: Theme.of(context).primaryColor,
-              foregroundColor: Colors.white,
-              automaticallyImplyLeading: false,
-              flexibleSpace: FlexibleSpaceBar(
-                background: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Theme.of(context).primaryColor,
-                        Theme.of(context).primaryColor.withValues(alpha: 0.85),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                  ),
-                  child: SafeArea(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.2),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: IconButton(
-                                  icon: const Icon(
-                                    Icons.arrow_back_ios_new_rounded,
-                                    size: 18,
-                                  ),
-                                  onPressed: () => Navigator.of(context).pop(),
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.15),
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                child: const Icon(
-                                  Icons.assignment_ind_rounded,
-                                  size: 26,
-                                ),
-                              ),
-                              const SizedBox(width: 14),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      'Engineer Reports',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: isMobile ? 22 : 28,
-                                        fontWeight: FontWeight.w700,
-                                        letterSpacing: -0.5,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Monitor performance & manage reports',
-                                      style: TextStyle(
-                                        color: Colors.white.withValues(
-                                          alpha: 0.8,
-                                        ),
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
+              centerTitle: true,
+              leading: Padding(
+                padding: const EdgeInsets.all(8),
+                child: CircleAvatar(
+                  backgroundColor: const Color(0xFFF1F5F9),
+                  child: IconButton(
+                    icon: const Icon(Icons.arrow_back_rounded,
+                        color: Color(0xFF0F172A), size: 18),
+                    onPressed: () => Navigator.of(context).pop(),
                   ),
                 ),
               ),
+              title: const Text(
+                'Engineer Reports',
+                style: TextStyle(
+                  color: Color(0xFF0F172A),
+                  fontWeight: FontWeight.w800,
+                  fontSize: 18,
+                  letterSpacing: -0.4,
+                ),
+              ),
+              actions: [
+                Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: CircleAvatar(
+                    backgroundColor: const Color(0xFFF1F5F9),
+                    child: IconButton(
+                      icon: Icon(Icons.refresh_rounded,
+                          color: Theme.of(context).primaryColor, size: 20),
+                      onPressed: _onRefresh,
+                      tooltip: 'Refresh Reports',
+                    ),
+                  ),
+                ),
+              ],
             ),
             SliverPadding(
               padding: EdgeInsets.fromLTRB(
@@ -679,32 +627,40 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 24,
-            offset: const Offset(0, 8),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
       child: TextField(
         controller: _searchController,
+        style: const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: Color(0xFF0F172A),
+        ),
         decoration: InputDecoration(
           hintText:
               'Search by engineer name, ID, mobile, email, or booking ID...',
-          hintStyle: TextStyle(
-            color: Colors.grey.shade400,
-            fontSize: isMobile ? 13 : 14,
+          hintStyle: const TextStyle(
+            color: Color(0xFF94A3B8),
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
           ),
           prefixIcon: Icon(
             Icons.search_rounded,
             color: Theme.of(context).primaryColor,
-            size: 22,
+            size: 20,
           ),
           suffixIcon: searchQuery.isNotEmpty
               ? IconButton(
-                  icon: const Icon(Icons.clear_rounded),
+                  icon: const Icon(Icons.close_rounded,
+                      size: 18, color: Color(0xFF94A3B8)),
                   onPressed: () {
                     _searchController.clear();
                     setState(() {
@@ -714,10 +670,15 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                   },
                 )
               : null,
-          border: InputBorder.none,
-          contentPadding: EdgeInsets.symmetric(
-            horizontal: 20,
-            vertical: isMobile ? 16 : 18,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide.none,
+          ),
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 14,
           ),
         ),
       ),
@@ -738,15 +699,16 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
 
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(isMobile ? 20 : 24),
+      padding: EdgeInsets.all(isMobile ? 18 : 22),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 24,
-            offset: const Offset(0, 8),
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -1298,17 +1260,10 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
       width: double.infinity,
       padding: EdgeInsets.all(isMobile ? 18 : 22),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Theme.of(context).primaryColor.withValues(alpha: 0.06),
-            Colors.white,
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(24),
+        color: Theme.of(context).primaryColor.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
+          color: Theme.of(context).primaryColor.withValues(alpha: 0.2),
         ),
       ),
       child: Row(
@@ -1316,13 +1271,13 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(16),
+              color: Theme.of(context).primaryColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(
               Icons.summarize_rounded,
               color: Theme.of(context).primaryColor,
-              size: 26,
+              size: 24,
             ),
           ),
           const SizedBox(width: 16),
@@ -1333,15 +1288,16 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                 Text(
                   '$totalReports report${totalReports == 1 ? '' : 's'} found',
                   style: TextStyle(
-                    fontSize: isMobile ? 18 : 20,
+                    fontSize: isMobile ? 17 : 19,
                     fontWeight: FontWeight.w800,
-                    color: Colors.black87,
+                    color: const Color(0xFF0F172A),
+                    letterSpacing: -0.2,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 3),
                 Text(
                   'Showing ${(_currentPage * _pageSize).clamp(0, totalReports)} of $totalReports',
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                  style: const TextStyle(color: Color(0xFF64748B), fontSize: 12, fontWeight: FontWeight.w500),
                 ),
               ],
             ),
@@ -1361,16 +1317,17 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
         Icon(
           Icons.receipt_long_rounded,
           color: Theme.of(context).primaryColor,
-          size: 26,
+          size: 24,
         ),
         const SizedBox(width: 12),
         Expanded(
           child: Text(
             'Ticket Reports',
             style: TextStyle(
-              color: Colors.black87,
-              fontSize: isMobile ? 20 : 22,
+              color: const Color(0xFF0F172A),
+              fontSize: isMobile ? 18 : 20,
               fontWeight: FontWeight.w800,
+              letterSpacing: -0.3,
             ),
           ),
         ),
@@ -1550,16 +1507,16 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
     final isDownloadLoading = _downloadingPdfId == doc.id;
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.grey.shade100),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 20,
-            offset: const Offset(0, 6),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -2263,7 +2220,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
           ).add(const Duration(days: 1)),
         );
         return FirestoreService.instance
-            .collection('Admin_details')
+            .collection('Admin_ticket_entry')
             .where('timestamp', isGreaterThanOrEqualTo: startOfDay)
             .where('timestamp', isLessThan: endOfDay)
             .snapshots();
@@ -2279,13 +2236,13 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
           ).add(const Duration(days: 1)),
         );
         return FirestoreService.instance
-            .collection('Admin_details')
+            .collection('Admin_ticket_entry')
             .where('timestamp', isGreaterThanOrEqualTo: startOfDay)
             .where('timestamp', isLessThan: endOfDay)
             .snapshots();
       }
     }
-    return FirestoreService.instance.collection('Admin_details').snapshots();
+    return FirestoreService.instance.collection('Admin_ticket_entry').snapshots();
   }
 
   bool _matchesDateFilter(Timestamp? timestamp) {

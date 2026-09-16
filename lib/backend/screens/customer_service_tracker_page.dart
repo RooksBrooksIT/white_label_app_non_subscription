@@ -21,7 +21,7 @@ class CustomerServiceTrackerBackend {
     String mobileNumber,
   ) {
     return FirestoreService.instance
-        .collection('Admin_details')
+        .collection('Admin_ticket_entry')
         .where('customerStatus', isEqualTo: 'Ticket Created')
         .where('customerName', isEqualTo: customerName)
         .where('mobileNumber', isEqualTo: mobileNumber)
@@ -30,7 +30,7 @@ class CustomerServiceTrackerBackend {
 
   static Future<void> cancelTicket(String documentId, String reason) async {
     await FirestoreService.instance
-        .collection('Admin_details')
+        .collection('Admin_ticket_entry')
         .doc(documentId)
         .update({
           'adminStatus': 'Canceled',
@@ -41,7 +41,7 @@ class CustomerServiceTrackerBackend {
 
   static Future<void> submitFeedback(String documentId, String feedback) async {
     await FirestoreService.instance
-        .collection('Admin_details')
+        .collection('Admin_ticket_entry')
         .doc(documentId)
         .update({'feedback': feedback});
   }

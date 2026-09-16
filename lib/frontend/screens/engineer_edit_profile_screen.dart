@@ -30,7 +30,6 @@ class _EngineerEditProfileScreenState
   bool _isSaving = false;
   String? _docId;
   String? _tenantId;
-  Map<String, dynamic> _originalData = {};
 
   @override
   void initState() {
@@ -70,7 +69,6 @@ class _EngineerEditProfileScreenState
       final doc = query.docs.first;
       final data = doc.data();
       _docId = doc.id;
-      _originalData = data;
 
       _nameController.text = data['Username'] ?? '';
       _emailController.text = data['Email'] ?? '';

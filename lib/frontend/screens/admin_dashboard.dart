@@ -8,14 +8,14 @@ import 'package:image_picker/image_picker.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_Engineer_reports.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_assign_tickets.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_barcode_scanner.dart';
+import 'package:subscription_rooks_app/services/subscription_queue_service.dart';
+import 'package:intl/intl.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_brandandmodel_page.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_attendance_page.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_attendance_reports.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_create_amc_customer.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_create_engineer.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_customer_report_page.dart';
-import 'package:subscription_rooks_app/frontend/screens/admin_deliverytickets_screen.dart';
-import 'package:subscription_rooks_app/frontend/screens/admin_device_config_page.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_geo_location_screen.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_view_barcode_details.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_view_engineer_updates.dart';
@@ -36,9 +36,11 @@ import 'package:subscription_rooks_app/frontend/screens/about_us_screen.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/frontend/screens/contact_us_screen.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_notifications_page.dart';
-import 'package:subscription_rooks_app/frontend/screens/refund_page.dart';
-import 'package:subscription_rooks_app/subscription/subscription_welcome_modal.dart';
+import 'package:subscription_rooks_app/frontend/screens/admin_ratings_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:subscription_rooks_app/widgets/subscription_welcome_modal.dart';
+import 'package:subscription_rooks_app/services/app_tour_service.dart';
+import 'package:subscription_rooks_app/widgets/interactive_tour/tour_step_model.dart';
 
 class admindashboard extends StatefulWidget {
   const admindashboard({super.key});
@@ -67,16 +69,23 @@ class _admindashboardState extends State<admindashboard> {
   bool _hasBarcodeFeature = true;
   bool _hasGeoLocationFeature = true;
   StreamSubscription<QuerySnapshot>? _adminNotificationSubscription;
+  bool _welcomeModalShowing = false;
 
   // Dynamic Color Palette from ThemeService
   late Color primaryColor;
   late Color secondaryColor;
-  late Color backgroundColor;
-  final Color accentColor = const Color(0xFF00D2FF);
-  final Color textColor = const Color(0xFF2D3436);
-  final Color textLightColor = const Color(0xFF636E72);
-  final Color errorColor = const Color(0xFFD63031);
-  final Color cardColor = Colors.white;
+  final Color backgroundColor = const Color(0xFFF8FAFC);
+  final Color textColor = const Color(0xFF0F172A);
+  final Color textLightColor = const Color(0xFF64748B);
+  final Color errorColor = const Color(0xFFEF4444);
+
+  // GlobalKeys for Guided App Tour
+  final GlobalKey _headerTourKey = GlobalKey();
+  final GlobalKey _ticketMgmtTourKey = GlobalKey();
+  final GlobalKey _staffHubTourKey = GlobalKey();
+  final GlobalKey _customerHubTourKey = GlobalKey();
+  final GlobalKey _assetsInventoryTourKey = GlobalKey();
+  final GlobalKey _financialsTourKey = GlobalKey();
 
   @override
   void initState() {
@@ -84,8 +93,13 @@ class _admindashboardState extends State<admindashboard> {
     _initStreams();
     _loadAdminData();
     NotificationService.instance.initialize();
-    // Listen to ThemeService changes so colors/appName update reactively
     ThemeService.instance.addListener(_onThemeChanged);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future.delayed(const Duration(milliseconds: 900), () {
+        if (mounted) _checkAndStartFirstTimeTour();
+      });
+    });
   }
 
   void _onThemeChanged() {
@@ -118,26 +132,44 @@ class _admindashboardState extends State<admindashboard> {
     });
   }
 
-  void _initAdminNotificationListener() {
+  void _initAdminNotificationListener() async {
     final tenantId = ThemeService.instance.databaseName;
+    final prefs = await SharedPreferences.getInstance();
 
     _adminNotificationSubscription = FirestoreService.instance
         .collection('notifications', tenantId: tenantId)
         .where('audience', isEqualTo: 'admin')
         .where('seen', isEqualTo: false)
         .snapshots()
-        .listen((snapshot) {
+        .listen((snapshot) async {
+          final List<String> shownNotificationIds =
+              prefs.getStringList('shown_admin_notification_ids') ?? [];
+          final Set<String> shownSet = Set<String>.from(shownNotificationIds);
+
           for (var change in snapshot.docChanges) {
             if (change.type == DocumentChangeType.added) {
+              final docId = change.doc.id;
               final data = change.doc.data();
+
               if (data != null) {
+                // Skip if notification has already been shown on this device
+                if (shownSet.contains(docId)) {
+                  continue;
+                }
+
                 final title = data['title'] ?? 'New Notification';
                 final body = data['body'] ?? '';
 
-                // Show local notification for foreground updates
                 NotificationService.instance.showNotification(
                   title: title,
                   body: body,
+                );
+
+                // Store in SharedPreferences so reopening the app won't trigger local push again
+                shownSet.add(docId);
+                await prefs.setStringList(
+                  'shown_admin_notification_ids',
+                  shownSet.toList(),
                 );
               }
             }
@@ -146,6 +178,16 @@ class _admindashboardState extends State<admindashboard> {
   }
 
   void _loadAdminData() async {
+    final prefs = await SharedPreferences.getInstance();
+    final currentTenantId = prefs.getString('tenantId') ??
+        prefs.getString('databaseName') ??
+        prefs.getString('admin_org_collection') ??
+        ThemeService.instance.databaseName;
+
+    if (currentTenantId.isNotEmpty) {
+      await FirestoreService.instance.syncBranding(currentTenantId);
+      if (mounted) setState(() {});
+    }
     final profile = await AdminDashboardBackend.getAdminProfile();
     final code = await AdminDashboardBackend.getReferralCode();
     if (mounted) {
@@ -158,11 +200,10 @@ class _admindashboardState extends State<admindashboard> {
       if (user != null) {
         NotificationService.instance.registerToken(
           role: 'admin',
-          userId: user.uid, // Use UID instead of name
+          userId: user.uid,
           email: adminEmail,
         );
 
-        // Check for active subscription
         final tenantId = ThemeService.instance.databaseName;
         final appId = ThemeService.instance.appName;
         final isSubscribed = await FirestoreService.instance.isTenantActive(
@@ -182,7 +223,6 @@ class _admindashboardState extends State<admindashboard> {
           return;
         }
 
-        // Fetch Subscription Info dynamically
         try {
           final tenantId = ThemeService.instance.databaseName;
           final appId = ThemeService.instance.appName;
@@ -243,10 +283,8 @@ class _admindashboardState extends State<admindashboard> {
                       billingCycle = null;
                     }
                   });
-
-                  // Check if we need to show welcome modal after state update
                   if (data != null) {
-                    Future.delayed(Duration.zero, _checkAndShowWelcomeModal);
+                    _checkAndShowWelcomeModal(data);
                   }
                 }
               });
@@ -254,6 +292,87 @@ class _admindashboardState extends State<admindashboard> {
           debugPrint('Error loading subscription info: $e');
         }
       }
+    }
+  }
+
+  void _checkAndShowWelcomeModal(Map<String, dynamic> data) async {
+    if (_welcomeModalShowing) return;
+
+    final planName = data['planName'] as String?;
+    final status = data['status'] as String? ?? '';
+    final startedAt = data['startedAt'] as String? ?? '';
+    final isYearly = data['isYearly'] as bool? ?? false;
+    final isSixMonths = data['isSixMonths'] as bool? ?? false;
+
+    if (planName == null || status != 'active') return;
+
+    String calculatedCycle;
+    if (planName.toLowerCase().contains('trial')) {
+      calculatedCycle = '7 Days';
+    } else if (isYearly) {
+      calculatedCycle = 'Yearly';
+    } else if (isSixMonths) {
+      calculatedCycle = '6 Months';
+    } else {
+      calculatedCycle = 'Monthly';
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final bool welcomeViewed = prefs.getBool('subscriptionWelcomeViewed') ?? false;
+    final String? lastPlanName = prefs.getString('lastWelcomePlanName');
+    final String? lastStartedAt = prefs.getString('lastWelcomeStartedAt');
+    final String? lastStatus = prefs.getString('lastWelcomeStatus');
+
+    final bool shouldShow = !welcomeViewed ||
+        lastPlanName != planName ||
+        lastStartedAt != startedAt ||
+        (lastStatus != 'active' && status == 'active');
+
+    if (shouldShow && mounted) {
+      _welcomeModalShowing = true;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) {
+          return SubscriptionWelcomeModal(
+            planName: planName,
+            billingCycle: calculatedCycle,
+            status: status,
+            onContinue: () async {
+              Navigator.pop(ctx);
+              final p = await SharedPreferences.getInstance();
+              await p.setBool('subscriptionWelcomeViewed', true);
+              await p.setString('lastWelcomePlanName', planName);
+              await p.setString('lastWelcomeStartedAt', startedAt);
+              await p.setString('lastWelcomeStatus', status);
+            },
+            onViewDetails: () async {
+              Navigator.pop(ctx);
+              final p = await SharedPreferences.getInstance();
+              await p.setBool('subscriptionWelcomeViewed', true);
+              await p.setString('lastWelcomePlanName', planName);
+              await p.setString('lastWelcomeStartedAt', startedAt);
+              await p.setString('lastWelcomeStatus', status);
+
+              if (mounted) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => SubscriptionPlansScreen(
+                      currentPlanName: planName,
+                      hideTrial: planName.toLowerCase().contains('trial') != true,
+                      remainingDays: remainingDays,
+                      billingCycle: calculatedCycle,
+                    ),
+                  ),
+                );
+              }
+            },
+          );
+        },
+      ).then((_) {
+        _welcomeModalShowing = false;
+      });
     }
   }
 
@@ -407,1083 +526,1260 @@ class _admindashboardState extends State<admindashboard> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    // Refresh colors from ThemeService
-    primaryColor = ThemeService.instance.primaryColor;
-    secondaryColor = ThemeService.instance.secondaryColor;
-    backgroundColor = Colors.white; // Ensure clean white background
-
-    return WillPopScope(
-      onWillPop: () async {
-        final now = DateTime.now();
-        if (_lastBackPressed == null ||
-            now.difference(_lastBackPressed!) > const Duration(seconds: 2)) {
-          _lastBackPressed = now;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Press back again to exit'),
-              duration: Duration(seconds: 2),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-          return false;
-        }
-        SystemNavigator.pop(); // Exit the app
-        return true; // This line will not be reached if SystemNavigator.pop() is called
-      },
-      child: Scaffold(
-        key: _scaffoldKey,
-        backgroundColor: backgroundColor,
-        endDrawer: _buildDrawer(),
-        body: CustomScrollView(
-          physics: const BouncingScrollPhysics(),
-          slivers: [
-            _buildAppBar(),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 24),
-                    _buildMetricsSection(),
-                    const SizedBox(height: 32),
-                    _buildQuickActions(),
-                    const SizedBox(height: 32),
-                    _buildManagementSection('Ticket Management', [
-                      _buildMenuCard(
-                        title: 'Service Tickets',
-                        subtitle: 'Manage support requests',
-                        icon: Icons.confirmation_number_rounded,
-                        color: const Color(0xFF0984E3),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  AdminPage_CusDetails(statusFilter: ""),
-                            ),
-                          );
-                        },
-                      ),
-                      _buildMenuCard(
-                        title: 'Call Logs',
-                        subtitle: 'Track interactions',
-                        icon: Icons.phone_callback_rounded,
-                        color: const Color(0xFF00B894),
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                AdminDeliveryTickets(statusFilter: ""),
-                          ),
-                        ),
-                      ),
-                      _buildMenuCard(
-                        title: 'Engineer Updates',
-                        subtitle: 'Real-time activities',
-                        icon: Icons.engineering_rounded,
-                        color: const Color(0xFFE17055),
-                        badge: engineerUpdateCount > 0
-                            ? engineerUpdateCount.toString()
-                            : null,
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => EngineerUpdates(),
-                            ),
-                          );
-                        },
-                      ),
-                    ]),
-                    const SizedBox(height: 24),
-                    _buildManagementSection('Staff Hub', [
-                      _buildMenuCard(
-                        title: 'Engineers',
-                        subtitle: 'Team management',
-                        icon: Icons.people_alt_rounded,
-                        color: const Color(0xFF6C5CE7),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => EngineerManagementPage(),
-                            ),
-                          );
-                        },
-                      ),
-                      if (_hasAttendanceFeature)
-                        _buildMenuCard(
-                          title: 'Attendance',
-                          subtitle: 'Check-in history',
-                          icon: Icons.how_to_reg_rounded,
-                          color: const Color(0xFFF0932B),
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    const AdminAttendancePage(),
-                              ),
-                            );
-                          },
-                        ),
-                      if (_hasAttendanceFeature)
-                        _buildMenuCard(
-                          title: 'Attendance Reports',
-                          subtitle: 'Analytics and logs',
-                          icon: Icons.analytics_rounded,
-                          color: const Color(0xFF3949AB),
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    const AdminAttendanceReportsPage(),
-                              ),
-                            );
-                          },
-                        ),
-                    ]),
-                    const SizedBox(height: 24),
-                    _buildManagementSection('Customer Hub', [
-                      _buildMenuCard(
-                        title: 'Create AMC',
-                        subtitle: 'New service contract',
-                        icon: Icons.assignment_ind_rounded,
-                        color: const Color(0xFF2E7D32),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const AMCCreatePage(),
-                            ),
-                          );
-                        },
-                      ),
-                      _buildMenuCard(
-                        title: 'Service Reports',
-                        subtitle: 'Generate customer reports',
-                        icon: Icons.assessment_rounded,
-                        color: const Color(0xFF7D2E76),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => CustomerReportGenerator(),
-                            ),
-                          );
-                        },
-                      ),
-                    ]),
-                    const SizedBox(height: 24),
-                    _buildManagementSection('Device & Assets', [
-                      _buildMenuCard(
-                        title: 'Brand & Model',
-                        subtitle: 'Catalog management',
-                        icon: Icons.branding_watermark_rounded,
-                        color: const Color(0xFFD63031),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => BrandModelPage(),
-                            ),
-                          );
-                        },
-                      ),
-                      _buildMenuCard(
-                        title: 'Configuration',
-                        subtitle: 'Device parameters',
-                        icon: Icons.settings_input_component_rounded,
-                        color: const Color(0xFF2D3436),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  AdminDeviceConfigurationPage(),
-                            ),
-                          );
-                        },
-                      ),
-                    ]),
-                    const SizedBox(height: 24),
-                    _buildManagementSection('Inventory Control', [
-                      if (_hasBarcodeFeature)
-                        _buildMenuCard(
-                          title: 'Barcode Scanner',
-                          subtitle: 'Scanner and verification',
-                          icon: Icons.qr_code_scanner_rounded,
-                          color: const Color(0xFF1E3799),
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => AdminBarcodeScanner(),
-                              ),
-                            );
-                          },
-                        ),
-                      if (_hasBarcodeFeature)
-                        _buildMenuCard(
-                          title: 'Barcode Identity',
-                          subtitle: 'Asset verification',
-                          icon: Icons.fact_check_rounded,
-                          color: const Color(0xFF38ADA9),
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    BarcodeIdentifierScreen(scannedBarcode: ""),
-                              ),
-                            );
-                          },
-                        ),
-                      if (_hasBarcodeFeature)
-                        _buildMenuCard(
-                          title: 'Barcode Details',
-                          subtitle: 'Comprehensive asset info',
-                          icon: Icons.inventory_2_rounded,
-                          color: const Color(0xFF483785),
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    const AdminViewBarcodeDetails(),
-                              ),
-                            );
-                          },
-                        ),
-                      if (_hasGeoLocationFeature)
-                        _buildMenuCard(
-                          title: 'Engineer Location',
-                          subtitle: 'Comprehensive asset info',
-                          icon: Icons.location_pin,
-                          color: const Color(0xFF483785),
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    const AdminGeoLocationScreen(
-                                      engineerId: '',
-                                      engineerName: '',
-                                    ),
-                              ),
-                            );
-                          },
-                        ),
-                      //   onTap: () => Navigator.push(
-                      //     context,
-                      //     MaterialPageRoute(
-                      //       builder: (context) => const Engineershiftscreen(),
-                      //     ),
-                      //   ),
-                      // ),
-                    ]),
-                    const SizedBox(height: 24),
-                    _buildManagementSection('Financials', [
-                      _buildMenuCard(
-                        title: 'Transactions',
-                        subtitle: 'Payments & Refunds',
-                        icon: Icons.receipt_long_rounded,
-                        color: const Color(0xFF00B894),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  const AdminTransactionsScreen(),
-                            ),
-                          );
-                        },
-                      ),
-                    ]),
-                    const SizedBox(height: 48),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  double _appBarExpandedHeight(BuildContext context) {
-    final size = MediaQuery.sizeOf(context);
-    if (size.width > size.height) {
-      return 150;
+  Color _getPlanColor(String planName) {
+    final name = planName.toLowerCase();
+    if (name.contains('silver')) return Colors.grey.shade300;
+    if (name.contains('gold')) return const Color(0xFFFFD700);
+    if (name.contains('platinum')) {
+      return const Color(0xFFE5E4E2);
     }
-    if (size.height < 640) {
-      return 180;
-    }
-    return 200;
+    if (name.contains('trial')) return Colors.lightBlueAccent;
+    return Colors.white;
   }
 
-  /// 1.0 = fully expanded, 0.0 = fully collapsed.
-  double _appBarExpandRatio(BuildContext context) {
-    final settings = context
-        .dependOnInheritedWidgetOfExactType<FlexibleSpaceBarSettings>();
-    if (settings == null || settings.maxExtent <= settings.minExtent) {
-      return 1;
-    }
-    return ((settings.currentExtent - settings.minExtent) /
-            (settings.maxExtent - settings.minExtent))
-        .clamp(0.0, 1.0);
-  }
-
-  double _expandedHeaderOpacity(double expandRatio) {
-    if (expandRatio >= 0.35) return 1;
-    if (expandRatio <= 0.15) return 0;
-    return (expandRatio - 0.15) / 0.2;
-  }
-
-  double _collapsedTitleOpacity(double expandRatio) {
-    if (expandRatio >= 0.35) return 0;
-    if (expandRatio <= 0.1) return 1;
-    return (0.35 - expandRatio) / 0.25;
+  String _getGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Good morning 👋';
+    if (hour < 17) return 'Good afternoon 👋';
+    return 'Good evening 👋';
   }
 
   String? _profileImageUrl() {
-    final photoUrl = FirebaseAuth.instance.currentUser?.photoURL;
-    if (photoUrl != null && photoUrl.isNotEmpty) {
-      return photoUrl;
-    }
     final logoUrl = ThemeService.instance.logoUrl;
     if (logoUrl != null && logoUrl.isNotEmpty) {
       return logoUrl;
     }
+    final photoUrl = FirebaseAuth.instance.currentUser?.photoURL;
+    if (photoUrl != null && photoUrl.isNotEmpty) {
+      return photoUrl;
+    }
     return null;
   }
 
-  Widget _profileImagePlaceholder({
-    required double size,
-    required IconData icon,
-  }) {
-    return Icon(icon, color: Colors.white, size: size * 0.55);
-  }
-
-  Widget _buildNetworkAvatar({
-    required double radius,
-    required String? imageUrl,
-    required IconData fallbackIcon,
-    Color borderColor = Colors.white,
-    double borderWidth = 2,
-    Color? backgroundColor,
-  }) {
-    final diameter = radius * 2;
-    return Container(
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(
-          color: borderColor.withValues(alpha: 0.55),
-          width: borderWidth,
-        ),
-      ),
-      child: CircleAvatar(
-        radius: radius,
-        backgroundColor: backgroundColor ?? Colors.white.withValues(alpha: 0.2),
-        child: ClipOval(
-          child: imageUrl != null && imageUrl.isNotEmpty
-              ? Image.network(
-                  imageUrl,
-                  width: diameter,
-                  height: diameter,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => _profileImagePlaceholder(
-                    size: diameter,
-                    icon: fallbackIcon,
-                  ),
-                  loadingBuilder: (context, child, progress) {
-                    if (progress == null) return child;
-                    return SizedBox(
-                      width: diameter,
-                      height: diameter,
-                      child: Center(
-                        child: SizedBox(
-                          width: radius * 0.6,
-                          height: radius * 0.6,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white.withValues(alpha: 0.8),
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                )
-              : _profileImagePlaceholder(size: diameter, icon: fallbackIcon),
+  void _navigateToCreateTicket() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CreateTickets(
+          statusFilter: '',
+          customerId: '',
+          customerName: '',
+          mobileNumber: '',
+          categoryName: '',
+          loggedInName: '',
+          name: '',
         ),
       ),
     );
   }
 
-  Widget _buildAppBarBrandMark({required double radius}) {
-    return ListenableBuilder(
-      listenable: ThemeService.instance,
-      builder: (context, _) {
-        return Container(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.12),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: _buildNetworkAvatar(
-            radius: radius,
-            imageUrl: ThemeService.instance.logoUrl,
-            fallbackIcon: Icons.business_rounded,
-            borderColor: Colors.white,
-            backgroundColor: Colors.white,
-          ),
+  void _openDomainDetailPage(DomainModel domain) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => DomainDetailPage(domain: domain),
+      ),
+    );
+  }
+
+  Future<void> _checkAndStartFirstTimeTour({bool force = false}) async {
+    if (!mounted) return;
+    final completed = await AppTourService.instance.hasCompletedTour();
+    if (!completed || force) {
+      final steps = _buildAppTourSteps();
+      if (mounted && steps.isNotEmpty) {
+        AppTourService.instance.startTour(
+          context: context,
+          steps: steps,
+          force: force,
         );
-      },
-    );
+      }
+    }
   }
 
-  List<Widget> _buildAppBarActions() {
+  List<TourStep> _buildAppTourSteps() {
     return [
-      StreamBuilder<int>(
-        stream: NotificationService.instance
-            .getUnreadAdminNotificationsCountStream(
-              ThemeService.instance.databaseName,
-            ),
-        builder: (context, snapshot) {
-          final unreadCount = snapshot.data ?? 0;
-          return Stack(
-            clipBehavior: Clip.none,
-            children: [
-              IconButton(
-                icon: const Icon(
-                  Icons.notifications_rounded,
-                  color: Colors.white,
-                  size: 26,
-                ),
-                onPressed: () {
+      TourStep(
+        id: 'header_overview',
+        targetKey: _headerTourKey,
+        category: '✨ Welcome Tour',
+        title: 'Welcome to ServNex Admin',
+        description:
+            'Your centralized operations center. Monitor business status, active plan features, unread notifications, and system performance all in one place.',
+        icon: Icons.dashboard_rounded,
+        accentColor: primaryColor,
+      ),
+      TourStep(
+        id: 'ticket_management',
+        targetKey: _ticketMgmtTourKey,
+        category: '🎫 Core Workflow',
+        title: 'Ticket Management Hub',
+        description:
+            'The core lifecycle engine. Track, assign, inspect real-time technician photo updates, and complete tickets with full accountability.',
+        icon: Icons.confirmation_number_rounded,
+        accentColor: const Color(0xFF0284C7),
+        workflowSteps: const [
+          '1. Create',
+          '2. All Tickets',
+          '3. Assign Engineer',
+          '4. Live Updates',
+          '5. Complete',
+        ],
+        currentWorkflowIndex: 0,
+        actionButtonText: 'Explore',
+        onTargetAction: () {
+          AppTourService.instance.dismissTour();
+          final ticketDomain = DomainModel(
+            id: 'tickets',
+            title: 'Ticket Management',
+            description: 'Track, assign, and manage all customer service tickets',
+            icon: Icons.confirmation_number_rounded,
+            backgroundColor: const Color(0xFFE0F2FE),
+            iconColor: const Color(0xFF0284C7),
+            textColor: const Color(0xFF0369A1),
+            badgeText: engineerUpdateCount > 0 ? '$engineerUpdateCount updates' : '4 actions',
+            items: [
+              DomainSubItem(
+                title: 'Create Ticket',
+                subtitle: 'Raise a new service request',
+                icon: Icons.add_task_rounded,
+                iconColor: primaryColor,
+                onTap: _navigateToCreateTicket,
+              ),
+              DomainSubItem(
+                title: 'All Tickets',
+                subtitle: 'View and manage all customer support tickets',
+                icon: Icons.assignment_rounded,
+                iconColor: const Color(0xFF0984E3),
+                onTap: () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => const AdminNotificationsPage(),
+                      builder: (context) => AdminPage_CusDetails(statusFilter: ""),
                     ),
                   );
                 },
               ),
-              if (unreadCount > 0)
-                Positioned(
-                  right: 8,
-                  top: 8,
-                  child: Container(
-                    padding: const EdgeInsets.all(2),
-                    decoration: BoxDecoration(
-                      color: Colors.red,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.white, width: 1.5),
+              DomainSubItem(
+                title: 'Engineer Updates',
+                subtitle: 'Real-time updates from field engineers',
+                icon: Icons.history_rounded,
+                iconColor: const Color(0xFFE17055),
+                badge: engineerUpdateCount > 0 ? '$engineerUpdateCount Updates' : null,
+                badgeColor: const Color(0xFFFF7675),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => EngineerUpdates(),
                     ),
-                    constraints: const BoxConstraints(
-                      minWidth: 16,
-                      minHeight: 16,
-                    ),
-                    child: Text(
-                      unreadCount > 9 ? '9+' : unreadCount.toString(),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ),
+                  );
+                },
+              ),
             ],
           );
+          _openDomainDetailPage(ticketDomain);
         },
       ),
-      IconButton(
-        icon: const Icon(Icons.menu_rounded, color: Colors.white, size: 26),
-        onPressed: () => _scaffoldKey.currentState?.openEndDrawer(),
+      TourStep(
+        id: 'staff_hub',
+        targetKey: _staffHubTourKey,
+        category: '👥 Staff & Fleet',
+        title: 'Staff & Field Engineer Hub',
+        description:
+            'Manage engineer profiles, track real-time field locations on live GPS maps, record biometric/GPS attendance, schedule shifts, and view engineer performance reports.',
+        icon: Icons.people_alt_rounded,
+        accentColor: const Color(0xFF9333EA),
       ),
-      const SizedBox(width: 4),
+      TourStep(
+        id: 'customer_hub',
+        targetKey: _customerHubTourKey,
+        category: '🏢 Customer Operations',
+        title: 'Customer Hub & AMC',
+        description:
+            'Maintain complete customer profiles, create Annual Maintenance Contracts (AMC) with automated expiry tracking, and generate customer service reports.',
+        icon: Icons.assignment_ind_rounded,
+        accentColor: const Color(0xFF16A34A),
+      ),
+      TourStep(
+        id: 'assets_inventory',
+        targetKey: _assetsInventoryTourKey,
+        category: '📦 Inventory & Hardware',
+        title: 'Device Catalog & Barcodes',
+        description:
+            'Configure device categories, brand master lists, scan device barcodes via camera, verify serial numbers, and inspect device repair logs.',
+        icon: Icons.inventory_2_rounded,
+        accentColor: const Color(0xFF0D9488),
+      ),
+      TourStep(
+        id: 'financials_analytics',
+        targetKey: _financialsTourKey,
+        category: '💳 Financials & Receipts',
+        title: 'Financials & Analytics',
+        description:
+            'Track customer payment receipts, review transaction history, export reports, and manage customer refunds with bank reconciliation.',
+        icon: Icons.receipt_long_rounded,
+        accentColor: const Color(0xFFE65100),
+      ),
     ];
   }
 
-  Widget _buildAppBarGradientBackground() {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [primaryColor, secondaryColor],
-            ),
-          ),
-        ),
-        Positioned(
-          right: -50,
-          top: -50,
-          child: CircleAvatar(
-            radius: 100,
-            backgroundColor: Colors.white.withValues(alpha: 0.05),
-          ),
-        ),
-        Positioned(
-          left: -30,
-          bottom: -40,
-          child: CircleAvatar(
-            radius: 70,
-            backgroundColor: Colors.white.withValues(alpha: 0.04),
-          ),
-        ),
-      ],
+  @override
+  Widget build(BuildContext context) {
+    primaryColor = ThemeService.instance.primaryColor;
+    secondaryColor = ThemeService.instance.secondaryColor;
+    final backgroundColor = Color.alphaBlend(
+      primaryColor.withValues(alpha: 0.08),
+      const Color(0xFFFFF6F6),
     );
-  }
 
-  Widget _buildExpandedProfileHeader() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          ListenableBuilder(
-            listenable: ThemeService.instance,
-            builder: (context, _) {
-              return _buildNetworkAvatar(
-                radius: 32,
-                imageUrl: _profileImageUrl(),
-                fallbackIcon: Icons.person_rounded,
+    // All 6 Main Domain Cards formatted as a 2-column box button grid (1 2 / 3 4 / 5 6)
+    final allDomains = [
+      DomainModel(
+        id: 'tickets',
+        title: 'Ticket Management',
+        description: 'Track, assign, and manage all customer service tickets',
+        icon: Icons.confirmation_number_rounded,
+        backgroundColor: const Color(0xFFE0F2FE), // Soft sky blue
+        iconColor: const Color(0xFF0284C7),
+        textColor: const Color(0xFF0369A1),
+        badgeText: engineerUpdateCount > 0 ? '$engineerUpdateCount updates' : '4 actions',
+        items: [
+          DomainSubItem(
+            title: 'Create Ticket',
+            subtitle: 'Raise a new service request',
+            icon: Icons.add_task_rounded,
+            iconColor: primaryColor,
+            onTap: _navigateToCreateTicket,
+          ),
+          DomainSubItem(
+            title: 'All Tickets',
+            subtitle: 'View and manage all customer support tickets',
+            icon: Icons.assignment_rounded,
+            iconColor: const Color(0xFF0984E3),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => AdminPage_CusDetails(statusFilter: ""),
+                ),
               );
             },
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ListenableBuilder(
-                  listenable: ThemeService.instance,
-                  builder: (context, _) {
-                    return Text(
-                      ThemeService.instance.appName,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.85),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    );
-                  },
+          DomainSubItem(
+            title: 'Engineer Updates',
+            subtitle: 'Real-time updates from field engineers',
+            icon: Icons.history_rounded,
+            iconColor: const Color(0xFFE17055),
+            badge: engineerUpdateCount > 0 ? '$engineerUpdateCount Updates' : null,
+            badgeColor: const Color(0xFFFF7675),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => EngineerUpdates(),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  adminName,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.5,
-                    height: 1.1,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+              );
+            },
+          ),
+        ],
+      ),
+      DomainModel(
+        id: 'staff',
+        title: 'Staff Hub',
+        description: 'Manage engineers, field attendance & live locations',
+        icon: Icons.people_alt_rounded,
+        backgroundColor: const Color(0xFFF3E8FF), // Soft lavender
+        iconColor: const Color(0xFF9333EA),
+        textColor: const Color(0xFF7E22CE),
+        badgeText: '$activeEngineers/$totalEngineers active',
+        items: [
+          DomainSubItem(
+            title: 'Engineers',
+            subtitle: 'Manage engineer team accounts & status',
+            icon: Icons.badge_rounded,
+            iconColor: const Color(0xFF6C5CE7),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => EngineerManagementPage(),
                 ),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
+              );
+            },
+          ),
+          if (_hasAttendanceFeature)
+            DomainSubItem(
+              title: 'Attendance',
+              subtitle: 'Check-in history and daily attendance status',
+              icon: Icons.how_to_reg_rounded,
+              iconColor: const Color(0xFFF0932B),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AdminAttendancePage(),
                   ),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.3),
+                );
+              },
+            ),
+          if (_hasAttendanceFeature)
+            DomainSubItem(
+              title: 'Attendance Reports',
+              subtitle: 'Detailed monthly/weekly attendance logs & analytics',
+              icon: Icons.analytics_rounded,
+              iconColor: const Color(0xFF3949AB),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AdminAttendanceReportsPage(),
+                  ),
+                );
+              },
+            ),
+          if (_hasGeoLocationFeature)
+            DomainSubItem(
+              title: 'Engineer Location',
+              subtitle: 'Live engineer location tracking on map',
+              icon: Icons.location_pin,
+              iconColor: const Color(0xFFD63031),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AdminGeoLocationScreen(
+                      engineerId: '',
+                      engineerName: '',
                     ),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
+                );
+              },
+            ),
+        ],
+      ),
+      DomainModel(
+        id: 'customer',
+        title: 'Customer Hub',
+        description: 'Manage AMC contracts and customer service reports',
+        icon: Icons.assignment_ind_rounded,
+        backgroundColor: const Color(0xFFDCFCE7), // Soft mint green
+        iconColor: const Color(0xFF16A34A),
+        textColor: const Color(0xFF15803D),
+        badgeText: '$totalCustomers customers',
+        items: [
+          DomainSubItem(
+            title: 'Create AMC Customer',
+            subtitle: 'Register new maintenance contract',
+            icon: Icons.person_add_alt_1_rounded,
+            iconColor: const Color(0xFF2E7D32),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const AMCCreatePage(),
+                ),
+              );
+            },
+          ),
+          DomainSubItem(
+            title: 'Customer Reports',
+            subtitle: 'Generate customer activity and service reports',
+            icon: Icons.assessment_rounded,
+            iconColor: const Color(0xFF7D2E76),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => CustomerReportGenerator(),
+                ),
+              );
+            },
+          ),
+          DomainSubItem(
+            title: 'Customer Ratings',
+            subtitle: 'Review star ratings & customer feedback for completed jobs',
+            icon: Icons.star_rounded,
+            iconColor: const Color(0xFFF59E0B),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const AdminRatingsPage(),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+      DomainModel(
+        id: 'assets',
+        title: 'Assets & Inventory',
+        description: 'Device catalog, barcode verification & parameters',
+        icon: Icons.inventory_2_rounded,
+        backgroundColor: const Color(0xFFCCFBF1), // Soft teal
+        iconColor: const Color(0xFF0D9488),
+        textColor: const Color(0xFF0F766E),
+        badgeText: '5 modules',
+        items: [
+          DomainSubItem(
+            title: 'Device Configuration',
+            subtitle: 'Manage equipment catalog items',
+            icon: Icons.branding_watermark_rounded,
+            iconColor: const Color(0xFFD63031),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => BrandModelPage(),
+                ),
+              );
+            },
+          ),
+          if (_hasBarcodeFeature)
+            DomainSubItem(
+              title: 'Barcode Scanner',
+              subtitle: 'Scan barcodes for fast asset verification',
+              icon: Icons.qr_code_scanner_rounded,
+              iconColor: const Color(0xFF1E3799),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => AdminBarcodeScanner(),
+                  ),
+                );
+              },
+            ),
+          if (_hasBarcodeFeature)
+            DomainSubItem(
+              title: 'Barcode Identity',
+              subtitle: 'Verify asset barcode details',
+              icon: Icons.fact_check_rounded,
+              iconColor: const Color(0xFF38ADA9),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => BarcodeIdentifierScreen(scannedBarcode: ""),
+                  ),
+                );
+              },
+            ),
+          if (_hasBarcodeFeature)
+            DomainSubItem(
+              title: 'Barcode Details',
+              subtitle: 'Comprehensive inventory details',
+              icon: Icons.find_in_page_rounded,
+              iconColor: const Color(0xFF483785),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AdminViewBarcodeDetails(),
+                  ),
+                );
+              },
+            ),
+        ],
+      ),
+      DomainModel(
+        id: 'financials',
+        title: 'Financials & Analytics',
+        description: 'Transactions, payment receipts & work analytics',
+        icon: Icons.receipt_long_rounded,
+        backgroundColor: const Color(0xFFFFF3E0), // Soft warm peach
+        iconColor: const Color(0xFFE65100),
+        textColor: const Color(0xFFBF360C),
+        badgeText: '2 modules',
+        items: [
+          DomainSubItem(
+            title: 'Transactions',
+            subtitle: 'Payment receipts & refund logs',
+            icon: Icons.account_balance_wallet_rounded,
+            iconColor: const Color(0xFF00B894),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const AdminTransactionsScreen(),
+                ),
+              );
+            },
+          ),
+          DomainSubItem(
+            title: 'Engineer Reports',
+            subtitle: 'Performance analytics and work summary',
+            icon: Icons.bar_chart_rounded,
+            iconColor: secondaryColor,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => AdminEngineerReports(),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    ];
+
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (_scaffoldKey.currentState?.isDrawerOpen ?? false) {
+          _scaffoldKey.currentState?.closeDrawer();
+          return;
+        }
+        // Minimize app to home screen like Instagram without logging out
+        SystemNavigator.pop();
+      },
+      child: Scaffold(
+        key: _scaffoldKey,
+        backgroundColor: backgroundColor,
+        drawerScrimColor: Colors.black.withValues(alpha: 0.5),
+        drawer: _buildModernLeftDrawer(),
+        body: SafeArea(
+          child: CustomScrollView(
+            physics: const BouncingScrollPhysics(),
+            slivers: [
+              // Header Area
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 10),
+                  child: _buildModernHeader(),
+                ),
+              ),
+
+              // Main Domains Card Section (Matching Top Header Card)
+              // Main Domains Section (Modern Squircle Grid Cards)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(
-                        currentPlanName == null ||
-                                subscriptionStatus == 'expired' ||
-                                (remainingDays != null && remainingDays! < 0)
-                            ? Icons.info_outline_rounded
-                            : Icons.workspace_premium_rounded,
-                        color: _appBarSubscriptionColor,
-                        size: 14,
-                      ),
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          _appBarSubscriptionText,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
+                      _buildNewTicketNotificationBanner(),
+
+                      // Section Title
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Main Domains',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: textColor,
+                              letterSpacing: -0.4,
+                            ),
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                          Text(
+                            'Tap domain to open details',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: textLightColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+
+                      // 2-COLUMN MODERN SQUIRCLE CARD GRID (1 2 / 3 4 / 5 6)
+                      GridView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        padding: EdgeInsets.zero,
+                        itemCount: allDomains.length,
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          mainAxisSpacing: 14,
+                          crossAxisSpacing: 14,
+                          mainAxisExtent: 175,
+                        ),
+                        itemBuilder: (context, index) {
+                          final domain = allDomains[index];
+                          return _buildModernDomainGridCard(domain);
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SliverToBoxAdapter(
+                child: SizedBox(height: 20),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ==========================================
+  // MODERN SQUIRCLE DOMAIN GRID CARD (Concept UI)
+  // ==========================================
+  Widget _buildModernDomainGridCard(DomainModel domain) {
+    GlobalKey? tourKey;
+    if (domain.id == 'tickets') tourKey = _ticketMgmtTourKey;
+    if (domain.id == 'staff') tourKey = _staffHubTourKey;
+    if (domain.id == 'customer') tourKey = _customerHubTourKey;
+    if (domain.id == 'assets') tourKey = _assetsInventoryTourKey;
+    if (domain.id == 'financials') tourKey = _financialsTourKey;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: const Color(0xFFF1F5F9),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: domain.iconColor.withValues(alpha: 0.12),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          key: tourKey,
+          onTap: () => _openDomainDetailPage(domain),
+          borderRadius: BorderRadius.circular(24),
+          splashColor: domain.iconColor.withValues(alpha: 0.12),
+          highlightColor: domain.iconColor.withValues(alpha: 0.05),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+            child: Stack(
+              children: [
+                Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      // 3D / Gradient Squircle Icon Pod (Education App Concept)
+                      Container(
+                        width: 54,
+                        height: 54,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              domain.iconColor.withValues(alpha: 0.18),
+                              domain.iconColor.withValues(alpha: 0.05),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: domain.iconColor.withValues(alpha: 0.22),
+                            width: 1.5,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: domain.iconColor.withValues(alpha: 0.18),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Center(
+                          child: Icon(
+                            domain.icon,
+                            color: domain.iconColor,
+                            size: 26,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Title
+                      Text(
+                        domain.title,
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF0F172A),
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+
+                      // Subtitle / Action count
+                      Text(
+                        domain.badgeText.isNotEmpty
+                            ? domain.badgeText
+                            : '${domain.items.length} actions',
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF64748B),
+                          height: 1.25,
                         ),
                       ),
                     ],
                   ),
                 ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildCollapsedAppBarTitle() {
-    return ListenableBuilder(
-      listenable: ThemeService.instance,
-      builder: (context, _) {
-        final appName = ThemeService.instance.appName;
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildAppBarBrandMark(radius: 14),
-            const SizedBox(width: 10),
-            Flexible(
-              child: Text(
-                appName,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -0.3,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildAppBar() {
-    final expandedHeight = _appBarExpandedHeight(context);
-    final actionWidth = MediaQuery.sizeOf(context).width < 360 ? 108.0 : 120.0;
-    final topInset = MediaQuery.paddingOf(context).top;
-
-    return SliverAppBar(
-      expandedHeight: expandedHeight,
-      floating: false,
-      pinned: true,
-      snap: false,
-      stretch: false,
-      elevation: 0,
-      scrolledUnderElevation: 0,
-      surfaceTintColor: Colors.transparent,
-      backgroundColor: primaryColor,
-      automaticallyImplyLeading: false,
-      actions: _buildAppBarActions(),
-      flexibleSpace: LayoutBuilder(
-        builder: (context, constraints) {
-          final expandRatio = _appBarExpandRatio(context);
-          final expandedOpacity = _expandedHeaderOpacity(expandRatio);
-          final collapsedOpacity = _collapsedTitleOpacity(expandRatio);
-
-          return ClipRect(
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                _buildAppBarGradientBackground(),
-                if (expandedOpacity > 0.01)
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 8,
-                    child: Opacity(
-                      opacity: expandedOpacity,
-                      child: IgnorePointer(
-                        ignoring: expandedOpacity < 0.5,
-                        child: _buildExpandedProfileHeader(),
-                      ),
-                    ),
-                  ),
-                if (collapsedOpacity > 0.01)
-                  Positioned(
-                    left: 0,
-                    right: actionWidth,
-                    top: topInset,
-                    height: kToolbarHeight,
-                    child: Opacity(
-                      opacity: collapsedOpacity,
-                      child: IgnorePointer(
-                        ignoring: collapsedOpacity < 0.5,
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Padding(
-                            padding: const EdgeInsets.only(left: 16),
-                            child: _buildCollapsedAppBarTitle(),
+                // Live New Tickets / Updates Top-Right Floating Badge
+                if (domain.id == 'tickets')
+                  StreamBuilder<List<Map<String, dynamic>>>(
+                    stream: NotificationService.instance
+                        .getUnreadNewTicketsNotificationStream(
+                          ThemeService.instance.databaseName,
+                        ),
+                    builder: (context, snapshot) {
+                      final count = (snapshot.data ?? []).length;
+                      if (count == 0) return const SizedBox.shrink();
+                      return Positioned(
+                        top: 0,
+                        right: 0,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFF4757),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.white, width: 1.5),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFFFF4757).withValues(alpha: 0.35),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Text(
+                            count == 1 ? 'NEW' : '$count',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.3,
+                            ),
                           ),
                         ),
-                      ),
-                    ),
+                      );
+                    },
                   ),
               ],
             ),
-          );
-        },
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildMetricsSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Overview',
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.w800,
-            color: textColor,
-            letterSpacing: -0.5,
-          ),
-        ),
-        const SizedBox(height: 16),
-        SizedBox(
-          height: 110,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            children: [
-              _buildMetricCard(
-                'Total Customers',
-                totalCustomers.toString(),
-                Icons.people_rounded,
-                accentColor,
-              ),
-              _buildMetricCard(
-                'Active Engineers',
-                '$activeEngineers/$totalEngineers',
-                Icons.engineering_rounded,
-                const Color(0xFF00D2FF),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildMetricCard(
-    String label,
-    String value,
-    IconData icon,
-    Color color,
-  ) {
+  // ==========================================
+  // HEADER SECTION
+  // ==========================================
+  Widget _buildModernHeader() {
     return Container(
-      width: 160,
-      margin: const EdgeInsets.only(right: 16),
-      padding: const EdgeInsets.all(16),
+      key: _headerTourKey,
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.withValues(alpha: 0.1)),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            primaryColor,
+            secondaryColor,
+          ],
+        ),
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: primaryColor.withValues(alpha: 0.25),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Icon(icon, color: color, size: 24),
-              Text(
-                value,
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  color: textColor,
-                ),
-              ),
-            ],
-          ),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: textLightColor,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQuickActions() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Quick Actions',
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.w800,
-            color: textColor,
-            letterSpacing: -0.5,
-          ),
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: _buildActionButton(
-                'Create Ticket',
-                Icons.add_task_rounded,
-                primaryColor,
-                () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => CreateTickets(
-                      statusFilter: '',
-                      customerId: '',
-                      customerName: '',
-                      mobileNumber: '',
-                      categoryName: '',
-                      loggedInName: '',
-                      name: '',
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _buildActionButton(
-                'Reports',
-                Icons.analytics_rounded,
-                secondaryColor,
-                () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => AdminEngineerReports(),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildActionButton(
-    String label,
-    IconData icon,
-    Color color,
-    VoidCallback onTap,
-  ) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: color.withValues(alpha: 0.3),
-              blurRadius: 12,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: Colors.white, size: 20),
-            const SizedBox(width: 12),
-            Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-                fontSize: 14,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildManagementSection(String title, List<Widget> cards) {
-    if (cards.isEmpty) return const SizedBox.shrink();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-            color: textColor,
-            letterSpacing: -0.5,
-          ),
-        ),
-        const SizedBox(height: 16),
-        ...cards,
-      ],
-    );
-  }
-
-  Widget _buildMenuCard({
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required Color color,
-    required VoidCallback onTap,
-    String? badge,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.02),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(16),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.8),
+                    width: 2.5,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.15),
+                      blurRadius: 8,
+                    ),
+                  ],
                 ),
-                child: Icon(icon, color: color, size: 24),
+                child: CircleAvatar(
+                  radius: 24,
+                  backgroundColor: Colors.white.withValues(alpha: 0.2),
+                  child: ClipOval(
+                    child: _profileImageUrl() != null
+                        ? Image.network(
+                            _profileImageUrl()!,
+                            width: 48,
+                            height: 48,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) => const Icon(
+                              Icons.person_rounded,
+                              color: Colors.white,
+                              size: 26,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.person_rounded,
+                            color: Colors.white,
+                            size: 26,
+                          ),
+                  ),
+                ),
               ),
-              const SizedBox(width: 16),
+
+              const SizedBox(width: 14),
+
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      title,
+                      _getGreeting(),
                       style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: textColor,
+                        color: Colors.white.withValues(alpha: 0.85),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
+                    const SizedBox(height: 2),
                     Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: textLightColor,
+                      adminName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.5,
+                        height: 1.1,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
-              if (badge != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
+
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  StreamBuilder<int>(
+                    stream: NotificationService.instance
+                        .getUnreadAdminNotificationsCountStream(
+                          ThemeService.instance.databaseName,
+                        ),
+                    builder: (context, snapshot) {
+                      final unreadCount = snapshot.data ?? 0;
+                      return Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.18),
+                              shape: BoxShape.circle,
+                            ),
+                            child: IconButton(
+                              icon: const Icon(
+                                Icons.notifications_none_rounded,
+                                color: Colors.white,
+                                size: 22,
+                              ),
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const AdminNotificationsPage(),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                          if (unreadCount > 0)
+                            Positioned(
+                              right: 2,
+                              top: 2,
+                              child: Container(
+                                padding: const EdgeInsets.all(3),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFF4757),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 1.5,
+                                  ),
+                                ),
+                                constraints: const BoxConstraints(
+                                  minWidth: 18,
+                                  minHeight: 18,
+                                ),
+                                child: Text(
+                                  unreadCount > 9 ? '9+' : unreadCount.toString(),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            ),
+                        ],
+                      );
+                    },
                   ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFF7675),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    badge,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
+
+                  const SizedBox(width: 8),
+
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.18),
+                      shape: BoxShape.circle,
+                    ),
+                    child: IconButton(
+                      icon: const Icon(
+                        Icons.menu_rounded,
+                        color: Colors.white,
+                        size: 22,
+                      ),
+                      onPressed: () => _scaffoldKey.currentState?.openDrawer(),
                     ),
                   ),
-                ),
-              const SizedBox(width: 8),
-              Icon(
-                Icons.chevron_right_rounded,
-                color: textLightColor.withValues(alpha: 0.5),
+                ],
               ),
             ],
           ),
-        ),
+
+          const SizedBox(height: 16),
+
+          InkWell(
+            onTap: _showManageSubscriptionSheet,
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.25),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    currentPlanName == null ||
+                            subscriptionStatus == 'expired' ||
+                            (remainingDays != null && remainingDays! < 0)
+                        ? Icons.info_outline_rounded
+                        : Icons.workspace_premium_rounded,
+                    color: _appBarSubscriptionColor,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    _appBarSubscriptionText,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    color: Colors.white.withValues(alpha: 0.7),
+                    size: 16,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildDrawer() {
-    return Drawer(
-      backgroundColor: backgroundColor,
-      child: Column(
-        children: [
-          _buildDrawerHeader(),
-          Expanded(
-            child: ListView(
-              padding: EdgeInsets.zero,
-              children: [
-                _buildDrawerItem(
-                  icon: Icons.qr_code_rounded,
-                  title: 'Referral Code',
-                  subtitle: referralCode.isEmpty
-                      ? 'Not Available'
-                      : referralCode,
-                  subtitleStyle: TextStyle(
-                    fontSize: referralCode.isEmpty ? 14 : 18,
-                    fontWeight: referralCode.isEmpty
-                        ? FontWeight.w500
-                        : FontWeight.w900,
-                    color: referralCode.isEmpty ? textLightColor : primaryColor,
-                    letterSpacing: referralCode.isEmpty ? 0 : 1.2,
+  // ==========================================
+  // LIVE NEW TICKET NOTIFICATION BANNER
+  // ==========================================
+  Widget _buildNewTicketNotificationBanner() {
+    final tenantId = ThemeService.instance.databaseName;
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: NotificationService.instance
+          .getUnreadNewTicketsNotificationStream(tenantId),
+      builder: (context, snapshot) {
+        final unreadTickets = snapshot.data ?? [];
+        if (unreadTickets.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        final count = unreadTickets.length;
+        final latest = unreadTickets.first;
+        final bookingId = latest['bookingId']?.toString() ?? '';
+        final customerName = latest['customerName']?.toString() ?? 'Customer';
+        final docId = latest['id']?.toString() ?? '';
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFFFFF1F2), // Soft rose/red tint
+                Color(0xFFFFFBEB), // Soft amber/warm tint
+              ],
+            ),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: const Color(0xFFF43F5E).withValues(alpha: 0.35),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFF43F5E).withValues(alpha: 0.12),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF43F5E).withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.notifications_active_rounded,
+                      color: Color(0xFFE11D48),
+                      size: 22,
+                    ),
                   ),
-                  onTap: () {
-                    if (referralCode.isNotEmpty) {
-                      Clipboard.setData(ClipboardData(text: referralCode));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Referral code copied to clipboard'),
-                          behavior: SnackBarBehavior.floating,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2.5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFE11D48),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text(
+                                'NEW TICKET RECEIVED',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                            if (count > 1) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFBE123C),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  '+$count',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
+                        const SizedBox(height: 6),
+                        Text(
+                          count == 1
+                              ? (bookingId.isNotEmpty ? 'Ticket #$bookingId from $customerName' : 'New ticket from $customerName')
+                              : '$count new tickets waiting for assignment',
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF881337),
+                            letterSpacing: -0.2,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          count == 1
+                              ? 'Tap below to review and assign an engineer immediately.'
+                              : (bookingId.isNotEmpty ? 'Latest: Ticket #$bookingId by $customerName' : 'Review and assign tickets to engineers.'),
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            color: Color(0xFF9F1239),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Dismiss button
+                  InkWell(
+                    onTap: () {
+                      if (docId.isNotEmpty) {
+                        NotificationService.instance.markNotificationAsRead(
+                          tenantId,
+                          docId,
+                        );
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(20),
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: Icon(
+                        Icons.close_rounded,
+                        size: 18,
+                        color: const Color(0xFF9F1239).withValues(alpha: 0.6),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    if (docId.isNotEmpty) {
+                      NotificationService.instance.markNotificationAsRead(
+                        tenantId,
+                        docId,
                       );
                     }
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => AdminPage_CusDetails(
+                          statusFilter: "",
+                          searchQuery: count == 1 && bookingId.isNotEmpty ? bookingId : null,
+                        ),
+                      ),
+                    );
                   },
-                  trailing: referralCode.isNotEmpty
-                      ? const Icon(Icons.copy_rounded, size: 20)
-                      : null,
+                  icon: const Icon(
+                    Icons.assignment_turned_in_rounded,
+                    size: 16,
+                    color: Colors.white,
+                  ),
+                  label: Text(
+                    count == 1 ? 'View & Assign Ticket' : 'View All Tickets',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFE11D48),
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
                 ),
-                _buildDrawerItem(
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // ==========================================
+  // DRAWER & DIALOGS
+  // ==========================================
+  // ==========================================
+  // REDESIGNED MODERN LEFT NAVIGATION DRAWER
+  // ==========================================
+  Widget _buildModernLeftDrawer() {
+    return Drawer(
+      width: MediaQuery.of(context).size.width * 0.85,
+      backgroundColor: const Color(0xFFF8FAFC),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.horizontal(
+          right: Radius.circular(32),
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          _buildModernDrawerHeader(),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              children: [
+                // SECTION 1: PRIMARY ACTION
+                _buildDrawerSectionHeader('PRIMARY ACTION'),
+                const SizedBox(height: 8),
+                _buildDrawerHeroCreateTicketCard(),
+                const SizedBox(height: 20),
+
+                // SECTION 2: ACCOUNT & UTILITIES
+                _buildDrawerSectionHeader('ACCOUNT'),
+                const SizedBox(height: 8),
+                _buildDrawerReferralCard(),
+                _buildDrawerTile(
                   icon: Icons.person_outline_rounded,
                   title: 'Profile',
                   subtitle: 'Manage your profile',
+                  iconColor: primaryColor,
                   onTap: () {
                     Navigator.pop(context);
                     Navigator.push(
@@ -1495,62 +1791,48 @@ class _admindashboardState extends State<admindashboard> {
                     );
                   },
                 ),
-                _buildDrawerItem(
+                _buildDrawerTile(
                   icon: Icons.qr_code_2_rounded,
                   title: 'QR Code Upload',
                   subtitle: 'Upload payment QR code',
+                  iconColor: const Color(0xFF0984E3),
                   onTap: () {
                     Navigator.pop(context);
                     _showQRUploadDialog();
                   },
                 ),
-                const Divider(indent: 20, endIndent: 20),
-                _buildDrawerItem(
+                _buildDrawerTile(
                   icon: Icons.workspace_premium_rounded,
                   title: 'Manage Subscription',
                   subtitle: _appBarSubscriptionText,
-                  subtitleStyle:
-                      remainingDays != null && currentPlanName != null
-                      ? TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w900,
-                          color:
-                              (subscriptionStatus == 'expired' ||
-                                  remainingDays! <= 3)
-                              ? errorColor
-                              : primaryColor,
-                        )
-                      : TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: errorColor,
-                        ),
+                  iconColor: const Color(0xFF6C5CE7),
                   onTap: () {
                     Navigator.pop(context);
-                    _navigateToChangePlan();
+                    _showManageSubscriptionSheet();
                   },
                 ),
-                const Divider(indent: 20, endIndent: 20),
+                const SizedBox(height: 20),
 
-                _buildDrawerItem(
-                  icon: Icons.undo_rounded,
-                  title: 'Refund Management',
-                  subtitle: 'Manage ICICI refunds',
+                // SECTION 4: SUPPORT
+                _buildDrawerSectionHeader('SUPPORT & HELP'),
+                const SizedBox(height: 8),
+                _buildDrawerTile(
+                  icon: Icons.explore_rounded,
+                  title: 'App Tour & User Guide',
+                  subtitle: 'Interactive application workflow tour',
+                  iconColor: const Color(0xFF6C5CE7),
                   onTap: () {
                     Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const RefundPage(),
-                      ),
-                    );
+                    Future.delayed(const Duration(milliseconds: 350), () {
+                      _checkAndStartFirstTimeTour(force: true);
+                    });
                   },
                 ),
-                const Divider(indent: 20, endIndent: 20),
-                _buildDrawerItem(
+                _buildDrawerTile(
                   icon: Icons.contact_mail_rounded,
                   title: 'Contact Us',
                   subtitle: 'View company contact details',
+                  iconColor: const Color(0xFF00B894),
                   onTap: () {
                     Navigator.pop(context);
                     Navigator.push(
@@ -1561,11 +1843,11 @@ class _admindashboardState extends State<admindashboard> {
                     );
                   },
                 ),
-                const Divider(indent: 20, endIndent: 20),
-                _buildDrawerItem(
+                _buildDrawerTile(
                   icon: Icons.info_rounded,
                   title: 'About Us',
                   subtitle: 'Learn more about ServNex',
+                  iconColor: const Color(0xFFE17055),
                   onTap: () {
                     Navigator.pop(context);
                     Navigator.push(
@@ -1576,29 +1858,31 @@ class _admindashboardState extends State<admindashboard> {
                     );
                   },
                 ),
-                const Divider(indent: 20, endIndent: 20),
-
-                _buildDrawerItem(
+                const SizedBox(height: 12),
+                _buildDrawerTile(
                   icon: Icons.logout_rounded,
                   title: 'Logout',
                   subtitle: 'Sign out of your account',
-                  color: errorColor,
+                  iconColor: errorColor,
+                  textColor: errorColor,
                   onTap: () {
                     Navigator.pop(context);
                     _showLogoutConfirmationDialog(context);
                   },
                 ),
+                const SizedBox(height: 24),
+                Center(
+                  child: Text(
+                    'Version 1.0.0',
+                    style: TextStyle(
+                      color: textLightColor.withValues(alpha: 0.5),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
               ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Text(
-              'Version 1.0.0',
-              style: TextStyle(
-                color: textLightColor.withValues(alpha: 0.5),
-                fontSize: 12,
-              ),
             ),
           ),
         ],
@@ -1606,88 +1890,145 @@ class _admindashboardState extends State<admindashboard> {
     );
   }
 
-  Widget _buildDrawerHeader() {
+  Widget _buildModernDrawerHeader() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(24, 64, 24, 24),
+      padding: const EdgeInsets.fromLTRB(24, 60, 24, 24),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [primaryColor, secondaryColor],
+          colors: [
+            primaryColor,
+            secondaryColor,
+          ],
         ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ListenableBuilder(
-            listenable: ThemeService.instance,
-            builder: (context, _) {
-              return CircleAvatar(
-                radius: 35,
-                backgroundColor: Colors.white.withValues(alpha: 0.2),
-                backgroundImage: ThemeService.instance.logoUrl != null
-                    ? NetworkImage(ThemeService.instance.logoUrl!)
-                    : null,
-                child: ThemeService.instance.logoUrl == null
-                    ? const Icon(
-                        Icons.person_rounded,
-                        color: Colors.white,
-                        size: 40,
-                      )
-                    : null,
-              );
-            },
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.9),
+                    width: 3,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.2),
+                      blurRadius: 10,
+                    ),
+                  ],
+                ),
+                child: CircleAvatar(
+                  radius: 30,
+                  backgroundColor: Colors.white.withValues(alpha: 0.2),
+                  child: ClipOval(
+                    child: _profileImageUrl() != null
+                        ? Image.network(
+                            _profileImageUrl()!,
+                            width: 60,
+                            height: 60,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) => const Icon(
+                              Icons.person_rounded,
+                              color: Colors.white,
+                              size: 32,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.person_rounded,
+                            color: Colors.white,
+                            size: 32,
+                          ),
+                  ),
+                ),
+              ),
+              IconButton(
+                onPressed: () => Navigator.pop(context),
+                icon: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.close_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 16),
           Text(
             adminName,
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 20,
+              fontSize: 22,
               fontWeight: FontWeight.w800,
+              letterSpacing: -0.5,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
+          const SizedBox(height: 2),
           Text(
             adminEmail,
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.8),
-              fontSize: 14,
+              color: Colors.white.withValues(alpha: 0.85),
+              fontSize: 13,
+              fontWeight: FontWeight.w400,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: _appBarSubscriptionColor.withValues(alpha: 0.8),
-                width: 1.5,
+          const SizedBox(height: 14),
+          InkWell(
+            onTap: () {
+              Navigator.pop(context);
+              _showManageSubscriptionSheet();
+            },
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.3),
+                ),
               ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  currentPlanName == null ||
-                          subscriptionStatus == 'expired' ||
-                          (remainingDays != null && remainingDays! < 0)
-                      ? Icons.info_outline_rounded
-                      : Icons.workspace_premium_rounded,
-                  color: _appBarSubscriptionColor,
-                  size: 16,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  _appBarSubscriptionText,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.workspace_premium_rounded,
+                    color: _appBarSubscriptionColor,
+                    size: 15,
                   ),
-                ),
-              ],
+                  const SizedBox(width: 6),
+                  Text(
+                    _appBarSubscriptionText,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    color: Colors.white.withValues(alpha: 0.7),
+                    size: 16,
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -1695,60 +2036,492 @@ class _admindashboardState extends State<admindashboard> {
     );
   }
 
-  Color _getPlanColor(String planName) {
-    final name = planName.toLowerCase();
-    if (name.contains('silver')) return Colors.grey.shade300;
-    if (name.contains('gold')) return const Color(0xFFFFD700); // Gold
-    if (name.contains('platinum')) {
-      return const Color(0xFFE5E4E2); // Platinum color
-    }
-    if (name.contains('trial')) return Colors.lightBlueAccent;
-    return Colors.white;
-  }
-
-  Widget _buildDrawerItem({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-    Widget? trailing,
-    Color? color,
-    TextStyle? subtitleStyle,
-  }) {
-    return ListTile(
-      leading: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: (color ?? primaryColor).withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Icon(icon, color: color ?? primaryColor, size: 22),
-      ),
-      title: Text(
+  Widget _buildDrawerSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      child: Text(
         title,
-        style: TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.w700,
-          color: color ?? textColor,
+        style: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          color: Color(0xFF94A3B8),
+          letterSpacing: 1.2,
         ),
       ),
-      subtitle: Text(
-        subtitle,
-        style:
-            subtitleStyle ??
-            TextStyle(
-              fontSize: 12,
-              color: textLightColor,
-              fontWeight: FontWeight.w500,
-            ),
-      ),
-      trailing: trailing,
-      onTap: onTap,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
     );
   }
 
-  /// Navigates to the SubscriptionPlansScreen with the plan name pre-highlighted.
+  Widget _buildDrawerHeroCreateTicketCard() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            primaryColor,
+            secondaryColor,
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: primaryColor.withValues(alpha: 0.3),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            Navigator.pop(context);
+            _navigateToCreateTicket();
+          },
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.add_rounded,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      Text(
+                        'Create New Ticket',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'Raise a service request immediately',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  color: Colors.white,
+                  size: 16,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+
+
+  Widget _buildDrawerReferralCard() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: ListTile(
+          onTap: () {
+            if (referralCode.isNotEmpty) {
+              Clipboard.setData(ClipboardData(text: referralCode));
+              _showFrontAnimatedToast('Referral code copied to clipboard');
+            }
+          },
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          leading: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: primaryColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(Icons.qr_code_rounded, color: primaryColor, size: 20),
+          ),
+          title: const Text(
+            'Referral Code',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF0F172A),
+            ),
+          ),
+          subtitle: Text(
+            referralCode.isEmpty ? 'Not Available' : referralCode,
+            style: TextStyle(
+              fontSize: referralCode.isEmpty ? 11 : 15,
+              fontWeight: referralCode.isEmpty ? FontWeight.w500 : FontWeight.w900,
+              color: referralCode.isEmpty ? textLightColor : primaryColor,
+              letterSpacing: referralCode.isEmpty ? 0 : 1.2,
+            ),
+          ),
+          trailing: referralCode.isNotEmpty
+              ? Icon(Icons.copy_rounded, size: 18, color: primaryColor)
+              : null,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDrawerTile({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color iconColor,
+    required VoidCallback onTap,
+    Color? textColor,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: ListTile(
+          onTap: onTap,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          leading: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: iconColor, size: 20),
+          ),
+          title: Text(
+            title,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: textColor ?? const Color(0xFF0F172A),
+            ),
+          ),
+          subtitle: Text(
+            subtitle,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showFrontAnimatedToast(String message, {IconData icon = Icons.check_circle_rounded}) {
+    final overlay = Overlay.of(context);
+    late OverlayEntry overlayEntry;
+
+    overlayEntry = OverlayEntry(
+      builder: (context) {
+        return _FrontToastWidget(
+          message: message,
+          icon: icon,
+          onDismissed: () {
+            overlayEntry.remove();
+          },
+        );
+      },
+    );
+
+    overlay.insert(overlayEntry);
+  }
+
+  void _showManageSubscriptionSheet() {
+    final tenantId = ThemeService.instance.databaseName;
+    final user = AuthStateService.instance.currentUser;
+    if (user == null) return;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Manage Subscription',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: textColor,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Current Active Plan',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          currentPlanName ?? 'No Active Plan',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: primaryColor,
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _appBarSubscriptionColor.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            subscriptionStatus?.toUpperCase() ?? 'UNKNOWN',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: _appBarSubscriptionColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Expires in: ${remainingDays ?? 0} days',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: textLightColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              StreamBuilder<Map<String, dynamic>?>(
+                stream: SubscriptionQueueService.instance.streamQueuedPlan(
+                  tenantId: tenantId,
+                  uid: user.uid,
+                ),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  final queuedData = snapshot.data;
+                  if (queuedData == null) {
+                    return const SizedBox.shrink();
+                  }
+
+                  final queuedPlanName = queuedData['planName'] ?? 'Unknown Plan';
+                  final scheduledDate = queuedData['scheduledActivationDate'];
+                  String formattedDate = 'On current plan expiry';
+                  if (scheduledDate is Timestamp) {
+                    formattedDate = DateFormat('dd MMM yyyy')
+                        .format(scheduledDate.toDate().toLocal());
+                  }
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF0F0FF),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFF6C5CE7)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Queued Upgrade',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF6C5CE7),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          queuedPlanName,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Scheduled for: $formattedDate',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Colors.black54,
+                          ),
+                        ),
+                        const Divider(height: 24),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Expanded(
+                              child: Text(
+                                'Activate after current plan expires',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            Switch(
+                              value: true,
+                              activeThumbColor: const Color(0xFF6C5CE7),
+                              onChanged: (val) async {
+                                if (!val) {
+                                  final confirm = await showDialog<bool>(
+                                    context: context,
+                                    builder: (ctx) => AlertDialog(
+                                      title: const Text('Activate Immediately?'),
+                                      content: const Text(
+                                        'Turning this off will immediately activate the queued plan, replacing your current plan. This cannot be undone. Are you sure?',
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(ctx, false),
+                                          child: const Text('Cancel'),
+                                        ),
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(ctx, true),
+                                          child: const Text('Activate Now'),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+
+                                  if (confirm == true) {
+                                    if (!context.mounted) return;
+                                    Navigator.pop(context);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Activating plan...')),
+                                    );
+                                    await SubscriptionQueueService.instance
+                                        .activateQueuedPlan(tenantId: tenantId, uid: user.uid);
+                                    if (!context.mounted) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Plan activated successfully!')),
+                                    );
+                                  }
+                                }
+                              },
+                            ),
+                          ],
+                        ),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: () async {
+                              final confirm = await showDialog<bool>(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  title: const Text('Cancel Queued Plan?'),
+                                  content: const Text(
+                                    'Are you sure you want to cancel this queued plan? This will remove it from your account. If you need a refund, please use the Support/Refund page.',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(ctx, false),
+                                      child: const Text('Keep Plan'),
+                                    ),
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(ctx, true),
+                                      style: TextButton.styleFrom(foregroundColor: Colors.red),
+                                      child: const Text('Cancel Plan'),
+                                    ),
+                                  ],
+                                ),
+                              );
+
+                              if (confirm == true) {
+                                await SubscriptionQueueService.instance
+                                    .clearQueuedPlan(tenantId: tenantId, uid: user.uid);
+                              }
+                            },
+                            child: const Text('Cancel Queued Plan', style: TextStyle(color: Colors.red)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _navigateToChangePlan();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryColor,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  'Upgrade / Change Plan',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   void _navigateToChangePlan() {
     Navigator.push(
       context,
@@ -1771,227 +2544,307 @@ class _admindashboardState extends State<admindashboard> {
         return StatefulBuilder(
           builder: (ctx, setDialogState) {
             return Dialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Header
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: primaryColor.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Icon(
-                            Icons.qr_code_2_rounded,
-                            color: primaryColor,
-                            size: 28,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'QR Code Upload',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w800,
-                                  color: textColor,
-                                ),
-                              ),
-                              Text(
-                                'Upload a payment QR code for engineers',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: textLightColor,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+              child: Container(
+                width: double.infinity,
+                constraints: const BoxConstraints(maxWidth: 420),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(28),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.15),
+                      blurRadius: 30,
+                      offset: const Offset(0, 10),
                     ),
-                    const SizedBox(height: 20),
-                    // Current QR preview
-                    FutureBuilder<String?>(
-                      future: StorageService.instance.getQRCodeUrl(),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return Container(
-                            height: 180,
+                  ],
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Modal Top Header with Close Button
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
-                              color: Colors.grey.shade100,
-                              borderRadius: BorderRadius.circular(12),
+                              color: primaryColor.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(14),
                             ),
-                            child: Center(
-                              child: CircularProgressIndicator(
-                                color: primaryColor,
-                              ),
+                            child: Icon(
+                              Icons.qr_code_2_rounded,
+                              color: primaryColor,
+                              size: 26,
                             ),
-                          );
-                        }
-                        if (snapshot.hasData && snapshot.data != null) {
-                          return Column(
-                            children: [
-                              Text(
-                                'Current QR Code',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: textLightColor,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
-                                child: Image.network(
-                                  snapshot.data!,
-                                  height: 180,
-                                  width: 180,
-                                  fit: BoxFit.contain,
-                                  errorBuilder: (_, _, _) => Icon(
-                                    Icons.broken_image_outlined,
-                                    size: 60,
-                                    color: textLightColor,
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: const [
+                                Text(
+                                  'Payment QR Code',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF0F172A),
+                                    letterSpacing: -0.3,
                                   ),
                                 ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Tap below to replace',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: textLightColor,
-                                  fontStyle: FontStyle.italic,
-                                ),
-                              ),
-                            ],
-                          );
-                        }
-                        return Container(
-                          height: 120,
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: Colors.grey.shade300,
-                              style: BorderStyle.solid,
-                            ),
-                          ),
-                          child: Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.upload_file_outlined,
-                                  size: 40,
-                                  color: textLightColor,
-                                ),
-                                const SizedBox(height: 8),
+                                SizedBox(height: 2),
                                 Text(
-                                  'No QR code uploaded yet',
+                                  'Upload payment QR code for field engineers',
                                   style: TextStyle(
-                                    color: textLightColor,
-                                    fontSize: 13,
+                                    fontSize: 12,
+                                    color: Color(0xFF64748B),
+                                    fontWeight: FontWeight.w500,
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 20),
-                    // Upload button
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _isUploadingQR
-                            ? null
-                            : () async {
-                                final picker = ImagePicker();
-                                final picked = await picker.pickImage(
-                                  source: ImageSource.gallery,
-                                  imageQuality: 90,
-                                );
-                                if (picked == null) return;
+                          IconButton(
+                            onPressed: _isUploadingQR ? null : () => Navigator.pop(dialogContext),
+                            icon: const Icon(Icons.close_rounded, color: Color(0xFF94A3B8), size: 22),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
 
-                                setDialogState(() {});
-                                setState(() => _isUploadingQR = true);
-
-                                final file = File(picked.path);
-                                final url = await StorageService.instance
-                                    .uploadQRCode(file: file);
-
-                                setState(() => _isUploadingQR = false);
-
-                                if (context.mounted) {
-                                  Navigator.pop(dialogContext);
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        url != null
-                                            ? 'QR code uploaded successfully!'
-                                            : 'Upload failed. Please try again.',
-                                      ),
-                                      backgroundColor: url != null
-                                          ? Colors.green
-                                          : errorColor,
-                                      behavior: SnackBarBehavior.floating,
-                                    ),
-                                  );
-                                }
-                              },
-                        icon: _isUploadingQR
-                            ? SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Icon(
-                                Icons.upload_rounded,
-                                color: Colors.white,
+                      // QR Code Content Preview Container
+                      FutureBuilder<String?>(
+                        future: StorageService.instance.getQRCodeUrl(),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return Container(
+                              height: 190,
+                              width: double.infinity,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: const Color(0xFFE2E8F0)),
                               ),
-                        label: Text(
-                          _isUploadingQR ? 'Uploading...' : 'Upload QR Code',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
+                              child: Center(
+                                child: CircularProgressIndicator(
+                                  color: primaryColor,
+                                ),
+                              ),
+                            );
+                          }
+
+                          if (snapshot.hasData && snapshot.data != null) {
+                            return Column(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF8FAFC),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                                  ),
+                                  child: Column(
+                                    children: [
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF22C55E).withValues(alpha: 0.15),
+                                              borderRadius: BorderRadius.circular(20),
+                                            ),
+                                            child: const Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(Icons.check_circle_rounded, color: Color(0xFF22C55E), size: 14),
+                                                SizedBox(width: 6),
+                                                Text(
+                                                  'Active Payment QR',
+                                                  style: TextStyle(
+                                                    color: Color(0xFF15803D),
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Container(
+                                        padding: const EdgeInsets.all(10),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius: BorderRadius.circular(16),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.black.withValues(alpha: 0.05),
+                                              blurRadius: 10,
+                                              offset: const Offset(0, 4),
+                                            ),
+                                          ],
+                                        ),
+                                        child: ClipRRect(
+                                          borderRadius: BorderRadius.circular(12),
+                                          child: Image.network(
+                                            snapshot.data!,
+                                            height: 150,
+                                            width: 150,
+                                            fit: BoxFit.contain,
+                                            errorBuilder: (_, _, _) => const Icon(
+                                              Icons.broken_image_outlined,
+                                              size: 60,
+                                              color: Color(0xFF94A3B8),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            );
+                          }
+
+                          return Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: const Color(0xFFCBD5E1), width: 1.5),
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: primaryColor.withValues(alpha: 0.1),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    Icons.cloud_upload_outlined,
+                                    size: 32,
+                                    color: primaryColor,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                const Text(
+                                  'No QR Code Uploaded Yet',
+                                  style: TextStyle(
+                                    color: Color(0xFF0F172A),
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                const Text(
+                                  'PNG or JPG formats up to 5MB',
+                                  style: TextStyle(
+                                    color: Color(0xFF94A3B8),
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Action Button (Upload / Replace)
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _isUploadingQR
+                              ? null
+                              : () async {
+                                  final picker = ImagePicker();
+                                  final picked = await picker.pickImage(
+                                    source: ImageSource.gallery,
+                                    imageQuality: 90,
+                                  );
+                                  if (picked == null) return;
+
+                                  setDialogState(() {});
+                                  setState(() => _isUploadingQR = true);
+
+                                  final file = File(picked.path);
+                                  final url = await StorageService.instance.uploadQRCode(file: file);
+
+                                  setState(() => _isUploadingQR = false);
+
+                                  if (context.mounted) {
+                                    Navigator.pop(dialogContext);
+                                    if (url != null) {
+                                      _showFrontAnimatedToast('QR code uploaded successfully!');
+                                    } else {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: const Text('Upload failed. Please try again.'),
+                                          backgroundColor: errorColor,
+                                          behavior: SnackBarBehavior.floating,
+                                        ),
+                                      );
+                                    }
+                                  }
+                                },
+                          icon: _isUploadingQR
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.cloud_upload_rounded,
+                                  color: Colors.white,
+                                  size: 18,
+                                ),
+                          label: Text(
+                            _isUploadingQR ? 'Uploading...' : 'Upload QR Code',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 15,
+                            ),
                           ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: primaryColor,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primaryColor,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            elevation: 2,
+                            shadowColor: primaryColor.withValues(alpha: 0.3),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 10),
-                    TextButton(
-                      onPressed: () => Navigator.pop(dialogContext),
-                      child: Text(
-                        'Cancel',
-                        style: TextStyle(
-                          color: textLightColor,
-                          fontWeight: FontWeight.w600,
+                      const SizedBox(height: 10),
+
+                      // Cancel Text Button
+                      TextButton(
+                        onPressed: _isUploadingQR ? null : () => Navigator.pop(dialogContext),
+                        child: const Text(
+                          'Cancel',
+                          style: TextStyle(
+                            color: Color(0xFF64748B),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             );
@@ -2077,6 +2930,850 @@ class _admindashboardState extends State<admindashboard> {
                 ],
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ==========================================
+// DOMAIN MODELS & DEDICATED DETAIL PAGE
+// ==========================================
+
+class DomainModel {
+  final String id;
+  final String title;
+  final String description;
+  final IconData icon;
+  final Color backgroundColor;
+  final Color iconColor;
+  final Color textColor;
+  final String badgeText;
+  final List<DomainSubItem> items;
+
+  DomainModel({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.icon,
+    required this.backgroundColor,
+    required this.iconColor,
+    required this.textColor,
+    required this.badgeText,
+    required this.items,
+  });
+}
+
+class DomainSubItem {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Color iconColor;
+  final VoidCallback onTap;
+  final String? badge;
+  final Color? badgeColor;
+
+  DomainSubItem({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.iconColor,
+    required this.onTap,
+    this.badge,
+    this.badgeColor,
+  });
+}
+
+class DomainDetailPage extends StatefulWidget {
+  final DomainModel domain;
+  final bool initialShowGuide;
+
+  const DomainDetailPage({
+    super.key,
+    required this.domain,
+    this.initialShowGuide = false,
+  });
+
+  @override
+  State<DomainDetailPage> createState() => _DomainDetailPageState();
+}
+
+class _DomainDetailPageState extends State<DomainDetailPage> {
+  bool _showLifecycleGuide = false;
+  final GlobalKey _domainHeaderKey = GlobalKey();
+  late List<GlobalKey> _itemKeys;
+
+  @override
+  void initState() {
+    super.initState();
+    _itemKeys = List.generate(widget.domain.items.length, (_) => GlobalKey());
+    _checkGuidePreference();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future.delayed(const Duration(milliseconds: 650), () {
+        if (mounted) _checkAndStartDomainTour();
+      });
+    });
+  }
+
+  Future<void> _checkGuidePreference() async {
+    if (widget.domain.id != 'tickets') return;
+    if (widget.initialShowGuide) {
+      if (mounted) setState(() => _showLifecycleGuide = true);
+      return;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    final hasSeen = prefs.getBool('hasSeenTicketLifecycleGuide') ?? false;
+    if (mounted) {
+      setState(() {
+        _showLifecycleGuide = !hasSeen;
+      });
+    }
+  }
+
+  Future<void> _dismissGuide() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('hasSeenTicketLifecycleGuide', true);
+    if (mounted) {
+      setState(() {
+        _showLifecycleGuide = false;
+      });
+    }
+  }
+
+  Future<void> _checkAndStartDomainTour({bool force = false}) async {
+    if (!mounted) return;
+    final prefs = await SharedPreferences.getInstance();
+    final tourKey = 'hasCompletedDomainTour_${widget.domain.id}';
+    final completed = prefs.getBool(tourKey) ?? false;
+    if (!completed || force) {
+      final steps = _buildDomainTourSteps();
+      if (mounted && steps.isNotEmpty) {
+        AppTourService.instance.startTour(
+          context: context,
+          steps: steps,
+          force: force,
+          onComplete: () async {
+            final p = await SharedPreferences.getInstance();
+            await p.setBool(tourKey, true);
+          },
+        );
+      }
+    }
+  }
+
+  List<TourStep> _buildDomainTourSteps() {
+    final List<TourStep> steps = [];
+    final domain = widget.domain;
+
+    // Step 1: Domain overview
+    steps.add(
+      TourStep(
+        id: '${domain.id}_header',
+        targetKey: _domainHeaderKey,
+        category: '✨ ${domain.title}',
+        title: domain.title,
+        description: domain.description,
+        icon: domain.icon,
+        accentColor: domain.iconColor,
+      ),
+    );
+
+    // Step 2..N: Domain Action items
+    for (int i = 0; i < domain.items.length; i++) {
+      final item = domain.items[i];
+      final key = i < _itemKeys.length ? _itemKeys[i] : GlobalKey();
+      steps.add(
+        TourStep(
+          id: '${domain.id}_item_$i',
+          targetKey: key,
+          category: '⚡ ${domain.title}',
+          title: item.title,
+          description: _getDetailedDescription(domain.id, item.title, item.subtitle),
+          icon: item.icon,
+          accentColor: item.iconColor,
+          actionButtonText: 'Open Action',
+          onTargetAction: () {
+            AppTourService.instance.dismissTour();
+            item.onTap();
+          },
+        ),
+      );
+    }
+
+    return steps;
+  }
+
+  String _getDetailedDescription(String domainId, String title, String fallbackSubtitle) {
+    switch (title) {
+      case 'Create Ticket':
+        return 'Capture customer issue details, symptom descriptions, and equipment category to raise a service request.';
+      case 'All Tickets':
+        return 'View and manage all active, pending, in-progress, and resolved support tickets across the company.';
+      case 'Engineer Updates':
+        return 'Review live check-in logs, repair progress notes, and photo proofs submitted by technicians in the field.';
+      case 'Engineers':
+        return 'Manage engineer profiles, create new technician accounts, assign service roles, and monitor working status.';
+      case 'Attendance':
+        return 'Track daily check-in and check-out logs for all field engineers with GPS location verification and timestamps.';
+      case 'Attendance Reports':
+        return 'Generate weekly and monthly attendance summaries, work hours, and technician duty reports.';
+      case 'Engineer Location':
+        return 'View real-time GPS locations and active routes of all field technicians on an interactive live map.';
+      case 'Create AMC Customer':
+        return 'Register new customers under Annual Maintenance Contracts (AMC) with service intervals and expiry alerts.';
+      case 'Customer Reports':
+        return 'Generate comprehensive customer service histories, AMC contract performance, and visit analytics.';
+      case 'Device Configuration':
+        return 'Manage hardware brands, device models, equipment catalogs, and category configurations.';
+      case 'Barcode Scanner':
+        return 'Quickly scan device barcodes using the camera to retrieve hardware specs, warranty, and repair logs.';
+      case 'Barcode Identity':
+        return 'Verify asset barcode tags, validate hardware serial numbers, and inspect registered device details.';
+      case 'Barcode Details':
+        return 'Comprehensive inventory details and device catalog logs associated with hardware barcodes.';
+      case 'Transactions':
+        return 'Monitor customer payments, service invoices, receipt records, and financial transaction feeds.';
+      case 'Refund Management':
+        return 'Manage customer refund requests, process approvals, and record bank payment reconciliations.';
+      default:
+        return fallbackSubtitle;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final domain = widget.domain;
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: CircleAvatar(
+            backgroundColor: Colors.white,
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF0F172A)),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ),
+        ),
+        title: Text(
+          domain.title,
+          style: const TextStyle(
+            color: Color(0xFF0F172A),
+            fontWeight: FontWeight.w800,
+            fontSize: 18,
+          ),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(
+              Icons.explore_rounded,
+              color: Color(0xFF6C5CE7),
+            ),
+            tooltip: 'Page Tour & Guide',
+            onPressed: () => _checkAndStartDomainTour(force: true),
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                key: _domainHeaderKey,
+                width: double.infinity,
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: domain.backgroundColor,
+                  borderRadius: BorderRadius.circular(28),
+                  border: Border.all(
+                    color: domain.iconColor.withValues(alpha: 0.2),
+                    width: 1.5,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: domain.iconColor.withValues(alpha: 0.1),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: domain.iconColor.withValues(alpha: 0.15),
+                            blurRadius: 10,
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        domain.icon,
+                        color: domain.iconColor,
+                        size: 32,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            domain.title,
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w900,
+                              color: domain.textColor,
+                              letterSpacing: -0.4,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            domain.description,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: domain.textColor.withValues(alpha: 0.8),
+                              fontWeight: FontWeight.w500,
+                              height: 1.3,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              if (domain.id == 'tickets' && _showLifecycleGuide) ...[
+                const SizedBox(height: 20),
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(
+                      color: const Color(0xFF0284C7).withValues(alpha: 0.25),
+                      width: 1.5,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF0284C7).withValues(alpha: 0.08),
+                        blurRadius: 18,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE0F2FE),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              Icons.alt_route_rounded,
+                              color: Color(0xFF0284C7),
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Complete Ticket Lifecycle',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF0F172A),
+                                  ),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  'How customer requests flow through ServNex',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Color(0xFF64748B),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(
+                              Icons.close_rounded,
+                              size: 20,
+                              color: Color(0xFF94A3B8),
+                            ),
+                            onPressed: _dismissGuide,
+                            tooltip: 'Dismiss guide',
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      _buildWorkflowStepRow(
+                        stepNum: '1',
+                        title: 'Create Ticket',
+                        description:
+                            'Capture customer contact, problem symptoms & hardware category.',
+                        color: const Color(0xFF0284C7),
+                      ),
+                      _buildWorkflowStepRow(
+                        stepNum: '2',
+                        title: 'Overview & Assign',
+                        description:
+                            'Track real-time queue & assign Lead Engineer / Helper.',
+                        color: const Color(0xFF0984E3),
+                      ),
+                      _buildWorkflowStepRow(
+                        stepNum: '3',
+                        title: 'Engineer Updates',
+                        description:
+                            'Technician attends onsite, adds notes & submits live photo proof.',
+                        color: const Color(0xFFE17055),
+                      ),
+                      _buildWorkflowStepRow(
+                        stepNum: '4',
+                        title: 'Completion & Invoicing',
+                        description:
+                            'Mark solved, record payment receipts & generate PDF invoice.',
+                        color: const Color(0xFF059669),
+                        isLast: true,
+                      ),
+                      const SizedBox(height: 14),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _dismissGuide,
+                          icon: const Icon(Icons.check_rounded, size: 16),
+                          label: const Text(
+                            'Got It, Hide Guide',
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF0284C7),
+                            side: const BorderSide(color: Color(0xFFBAE6FD)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 28),
+
+              Text(
+                domain.id == 'tickets'
+                    ? 'Ticket Management Actions'
+                    : 'Available Actions & Details',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF0F172A),
+                  letterSpacing: -0.3,
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: domain.items.length,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 14,
+                  mainAxisSpacing: 14,
+                  mainAxisExtent: 175,
+                ),
+                itemBuilder: (context, idx) {
+                  final item = domain.items[idx];
+                  final key = idx < _itemKeys.length ? _itemKeys[idx] : null;
+                  return KeyedSubtree(
+                    key: key ?? ValueKey('item_$idx'),
+                    child: _buildModernGridActionCard(item),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModernGridActionCard(DomainSubItem item) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: const Color(0xFFF1F5F9),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: item.iconColor.withValues(alpha: 0.12),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: item.onTap,
+          borderRadius: BorderRadius.circular(24),
+          splashColor: item.iconColor.withValues(alpha: 0.12),
+          highlightColor: item.iconColor.withValues(alpha: 0.05),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+            child: Stack(
+              children: [
+                Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      // 3D/Gradient Icon Pod (Education App Concept)
+                      Container(
+                        width: 54,
+                        height: 54,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              item.iconColor.withValues(alpha: 0.18),
+                              item.iconColor.withValues(alpha: 0.05),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: item.iconColor.withValues(alpha: 0.22),
+                            width: 1.5,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: item.iconColor.withValues(alpha: 0.18),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Center(
+                          child: Icon(
+                            item.icon,
+                            color: item.iconColor,
+                            size: 26,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Title
+                      Text(
+                        item.title,
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF0F172A),
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+
+                      // Subtitle / Description
+                      Text(
+                        item.subtitle,
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF64748B),
+                          height: 1.25,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Top-Right Floating Badge (if present)
+                if (item.badge != null)
+                  Positioned(
+                    top: 0,
+                    right: 0,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: (item.badgeColor ?? const Color(0xFFEF4444))
+                            .withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: (item.badgeColor ?? const Color(0xFFEF4444))
+                              .withValues(alpha: 0.3),
+                          width: 1,
+                        ),
+                      ),
+                      child: Text(
+                        item.badge!,
+                        style: TextStyle(
+                          color: item.badgeColor ?? const Color(0xFFEF4444),
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWorkflowStepRow({
+    required String stepNum,
+    required String title,
+    required String description,
+    required Color color,
+    bool isLast = false,
+  }) {
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Column(
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: color,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: color.withValues(alpha: 0.3),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Center(
+                  child: Text(
+                    stepNum,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ),
+              if (!isLast)
+                Expanded(
+                  child: Container(
+                    width: 2,
+                    margin: const EdgeInsets.symmetric(vertical: 4),
+                    color: color.withValues(alpha: 0.25),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(bottom: isLast ? 0 : 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    description,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF64748B),
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FrontToastWidget extends StatefulWidget {
+  final String message;
+  final IconData icon;
+  final VoidCallback onDismissed;
+
+  const _FrontToastWidget({
+    required this.message,
+    required this.icon,
+    required this.onDismissed,
+  });
+
+  @override
+  State<_FrontToastWidget> createState() => _FrontToastWidgetState();
+}
+
+class _FrontToastWidgetState extends State<_FrontToastWidget>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<Offset> _offsetAnimation;
+  late Animation<double> _fadeAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 350),
+      reverseDuration: const Duration(milliseconds: 250),
+      vsync: this,
+    );
+
+    _offsetAnimation = Tween<Offset>(
+      begin: const Offset(0, -0.8),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutBack,
+    ));
+
+    _fadeAnimation = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeIn,
+    );
+
+    _controller.forward();
+
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) {
+        _controller.reverse().then((_) {
+          widget.onDismissed();
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      top: MediaQuery.of(context).padding.top + 16,
+      left: 20,
+      right: 20,
+      child: SlideTransition(
+        position: _offsetAnimation,
+        child: FadeTransition(
+          opacity: _fadeAnimation,
+          child: Material(
+            color: Colors.transparent,
+            elevation: 12,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F172A),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.15),
+                  width: 1,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.35),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF22C55E).withValues(alpha: 0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      widget.icon,
+                      color: const Color(0xFF22C55E),
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      widget.message,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),

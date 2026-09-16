@@ -24,17 +24,3 @@ console.log("Key:", process.env.ICICI_MERCHANT_KEY ? "EXISTS (len " + process.en
 
 const iciciService = require('./src/icici_service');
 
-async function run() {
-    console.log("Starting hosted payment hash test...");
-    const result = await iciciService.initiateSale({
-        txnId: "RB" + Date.now().toString().slice(-8),
-        amount: "1.00",
-        email: "alenroro321@gmail.com",
-        customerName: "Alen",
-        customerMobile: "919345532939",
-        paymentMode: "CARD"
-    });
-    console.log("FINAL RESULT:", JSON.stringify(result, null, 2));
-}
-
-run();

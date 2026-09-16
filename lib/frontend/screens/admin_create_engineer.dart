@@ -165,40 +165,94 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
           children: [_buildEngineerForm(), _buildEngineersList()],
         ),
         bottomNavigationBar: Container(
-          decoration: BoxDecoration(
+          decoration: const BoxDecoration(
             color: Colors.white,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.08),
-                blurRadius: 20,
-                offset: const Offset(0, -5),
+            border: Border(
+              top: BorderSide(
+                color: Color(0xFFE2E8F0),
+                width: 1,
               ),
-            ],
+            ),
           ),
           child: SafeArea(
-            child: TabBar(
-              controller: _tabController,
-              indicator: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                color: primaryColor.withValues(alpha: 0.1),
-              ),
-              indicatorSize: TabBarIndicatorSize.tab,
-              dividerColor: Colors.transparent,
-              labelColor: primaryColor,
-              unselectedLabelColor: textLightColor,
-              labelStyle: const TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 14,
-                letterSpacing: 0.5,
-              ),
-              unselectedLabelStyle: const TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-              ),
-              tabs: const [
-                Tab(icon: Icon(Icons.person_add_rounded), text: 'ADD'),
-                Tab(icon: Icon(Icons.dashboard_rounded), text: 'DIRECTORY'),
-              ],
+            child: AnimatedBuilder(
+              animation: _tabController,
+              builder: (context, _) {
+                final selectedIndex = _tabController.index;
+
+                return SizedBox(
+                  height: 60,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: InkWell(
+                          onTap: () => _tabController.animateTo(0),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.person_add_rounded,
+                                size: 22,
+                                color: selectedIndex == 0
+                                    ? primaryColor
+                                    : const Color(0xFF94A3B8),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Add Engineer',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: selectedIndex == 0
+                                      ? FontWeight.w800
+                                      : FontWeight.w500,
+                                  color: selectedIndex == 0
+                                      ? primaryColor
+                                      : const Color(0xFF64748B),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Container(
+                        width: 1,
+                        height: 28,
+                        color: const Color(0xFFE2E8F0),
+                      ),
+                      Expanded(
+                        child: InkWell(
+                          onTap: () => _tabController.animateTo(1),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.people_alt_rounded,
+                                size: 22,
+                                color: selectedIndex == 1
+                                    ? primaryColor
+                                    : const Color(0xFF94A3B8),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Directory',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: selectedIndex == 1
+                                      ? FontWeight.w800
+                                      : FontWeight.w500,
+                                  color: selectedIndex == 1
+                                      ? primaryColor
+                                      : const Color(0xFF64748B),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
           ),
         ),
@@ -578,73 +632,144 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
   Widget _buildEngineersList() {
     return Column(
       children: [
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: const BorderRadius.only(
-              bottomLeft: Radius.circular(24),
-              bottomRight: Radius.circular(24),
+        // Top Domain Hero Banner Card
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+            decoration: BoxDecoration(
+              color: primaryColor.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: primaryColor.withValues(alpha: 0.18),
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: primaryColor.withValues(alpha: 0.04),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 10,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Engineer Directory',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  color: textColor,
-                  letterSpacing: -0.5,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '${_filteredEngineers.length} engineers found',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: primaryColor,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.grey.shade200, width: 1.5),
-                ),
-                child: TextField(
-                  controller: _searchController,
-                  onChanged: _filterEngineers,
-                  decoration: InputDecoration(
-                    hintText: 'Search by name or specialization...',
-                    hintStyle: TextStyle(color: textLightColor.withValues(alpha: 0.6)),
-                    prefixIcon: Icon(Icons.search_rounded, color: primaryColor),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20),
-                      borderSide: BorderSide.none,
-                    ),
-                    filled: true,
-                    fillColor: Colors.white,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 16,
-                    ),
+            child: Row(
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: primaryColor.withValues(alpha: 0.12),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    Icons.people_alt_rounded,
+                    color: primaryColor,
+                    size: 24,
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Engineer Directory',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF0F172A),
+                              letterSpacing: -0.4,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: primaryColor.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              '${_filteredEngineers.length} Active',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: primaryColor,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'View, edit, and manage your service engineers',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: primaryColor.withValues(alpha: 0.85),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
+
+        // Search Bar Container
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.02),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: TextField(
+              controller: _searchController,
+              onChanged: _filterEngineers,
+              style: const TextStyle(fontSize: 14, color: Color(0xFF0F172A)),
+              decoration: InputDecoration(
+                hintText: 'Search by name or specialization...',
+                hintStyle: TextStyle(
+                  color: const Color(0xFF94A3B8),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+                prefixIcon: Icon(Icons.search_rounded, color: primaryColor, size: 22),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(20),
+                  borderSide: BorderSide.none,
+                ),
+                filled: true,
+                fillColor: Colors.white,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+              ),
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 4),
+
         Expanded(
           child: _filteredEngineers.isEmpty
               ? Center(
@@ -665,8 +790,8 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
                         ),
                         child: Icon(
                           Icons.person_search_rounded,
-                          size: 48,
-                          color: textLightColor.withValues(alpha: 0.5),
+                          size: 44,
+                          color: const Color(0xFF94A3B8),
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -674,39 +799,43 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
                         _searchController.text.isEmpty
                             ? 'No engineers found'
                             : 'No results for "${_searchController.text}"',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                          color: textLightColor,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF0F172A),
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Try adjusting your search',
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Try adjusting your search criteria',
                         style: TextStyle(
-                          fontSize: 14,
-                          color: textLightColor.withValues(alpha: 0.7),
+                          fontSize: 13,
+                          color: Color(0xFF64748B),
                         ),
                       ),
                     ],
                   ),
                 )
               : ListView.builder(
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
                   physics: const BouncingScrollPhysics(),
                   itemCount: _filteredEngineers.length,
                   itemBuilder: (context, index) {
                     final engineer = _filteredEngineers[index];
                     return Container(
-                      margin: const EdgeInsets.only(bottom: 16),
+                      margin: const EdgeInsets.only(bottom: 12),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: const Color(0xFFE2E8F0),
+                          width: 1,
+                        ),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.04),
-                            blurRadius: 10,
-                            offset: const Offset(0, 2),
+                            color: Colors.black.withValues(alpha: 0.03),
+                            blurRadius: 14,
+                            offset: const Offset(0, 4),
                           ),
                         ],
                       ),
@@ -714,85 +843,98 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
                         color: Colors.transparent,
                         child: InkWell(
                           borderRadius: BorderRadius.circular(20),
-                          onTap: () {
-                            _loadForEdit(engineer);
-                          },
+                          onTap: () => _loadForEdit(engineer),
                           child: Padding(
                             padding: const EdgeInsets.all(16),
                             child: Row(
                               children: [
                                 Container(
+                                  width: 48,
+                                  height: 48,
                                   decoration: BoxDecoration(
                                     gradient: LinearGradient(
                                       colors: [
                                         primaryColor,
-                                        primaryColor.withValues(alpha: 0.7),
+                                        primaryColor.withValues(alpha: 0.8),
                                       ],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
                                     ),
-                                    shape: BoxShape.circle,
+                                    borderRadius: BorderRadius.circular(16),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: primaryColor.withValues(alpha: 0.25),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 3),
+                                      ),
+                                    ],
                                   ),
-                                  child: CircleAvatar(
-                                    radius: 28,
-                                    backgroundColor: Colors.transparent,
+                                  child: Center(
                                     child: Text(
                                       (engineer['Username'] ?? 'U')
                                           .substring(0, 1)
                                           .toUpperCase(),
                                       style: const TextStyle(
-                                        fontSize: 22,
-                                        fontWeight: FontWeight.bold,
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.w800,
                                         color: Colors.white,
                                       ),
                                     ),
                                   ),
                                 ),
-                                const SizedBox(width: 16),
+                                const SizedBox(width: 14),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text(
-                                        engineer['Username'] ?? 'No Name',
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                          color: textColor,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 4,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: primaryColor.withValues(alpha: 0.1),
-                                          borderRadius: BorderRadius.circular(6),
-                                        ),
-                                        child: Text(
-                                          engineer['Specialization'] ?? 'No Specialization',
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w600,
-                                            color: primaryColor,
+                                      Row(
+                                        children: [
+                                          Text(
+                                            engineer['Username'] ?? 'No Name',
+                                            style: const TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w800,
+                                              color: Color(0xFF0F172A),
+                                              letterSpacing: -0.3,
+                                            ),
                                           ),
-                                        ),
+                                          const SizedBox(width: 8),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 7,
+                                              vertical: 2.5,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: primaryColor.withValues(alpha: 0.1),
+                                              borderRadius: BorderRadius.circular(6),
+                                            ),
+                                            child: Text(
+                                              engineer['Specialization'] ?? 'Service Engineer',
+                                              style: TextStyle(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w800,
+                                                color: primaryColor,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
                                       ),
-                                      const SizedBox(height: 4),
+                                      const SizedBox(height: 6),
                                       Row(
                                         children: [
                                           Icon(
                                             Icons.email_outlined,
-                                            size: 12,
-                                            color: textLightColor,
+                                            size: 13,
+                                            color: const Color(0xFF64748B),
                                           ),
-                                          const SizedBox(width: 4),
+                                          const SizedBox(width: 6),
                                           Expanded(
                                             child: Text(
                                               engineer['Email'] ?? 'No Email',
-                                              style: TextStyle(
+                                              style: const TextStyle(
                                                 fontSize: 12,
-                                                color: textLightColor,
+                                                color: Color(0xFF64748B),
+                                                fontWeight: FontWeight.w500,
                                               ),
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
@@ -800,20 +942,21 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
                                           ),
                                         ],
                                       ),
-                                      const SizedBox(height: 2),
+                                      const SizedBox(height: 3),
                                       Row(
                                         children: [
                                           Icon(
-                                            Icons.phone_android,
-                                            size: 12,
-                                            color: textLightColor,
+                                            Icons.phone_android_rounded,
+                                            size: 13,
+                                            color: const Color(0xFF64748B),
                                           ),
-                                          const SizedBox(width: 4),
+                                          const SizedBox(width: 6),
                                           Text(
                                             engineer['Phone'] ?? 'No Phone',
-                                            style: TextStyle(
+                                            style: const TextStyle(
                                               fontSize: 12,
-                                              color: textLightColor,
+                                              color: Color(0xFF64748B),
+                                              fontWeight: FontWeight.w500,
                                             ),
                                           ),
                                         ],
@@ -823,34 +966,37 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
                                 ),
                                 Row(
                                   children: [
-                                    Container(
-                                      decoration: BoxDecoration(
-                                        color: primaryColor.withValues(alpha: 0.1),
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: IconButton(
-                                        icon: Icon(
-                                          Icons.edit_outlined,
-                                          color: primaryColor,
-                                          size: 20,
+                                    InkWell(
+                                      onTap: () => _loadForEdit(engineer),
+                                      borderRadius: BorderRadius.circular(10),
+                                      child: Container(
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: primaryColor.withValues(alpha: 0.08),
+                                          borderRadius: BorderRadius.circular(10),
                                         ),
-                                        onPressed: () => _loadForEdit(engineer),
+                                        child: Icon(
+                                          Icons.edit_rounded,
+                                          color: primaryColor,
+                                          size: 18,
+                                        ),
                                       ),
                                     ),
-                                    const SizedBox(width: 8),
-                                    Container(
-                                      decoration: BoxDecoration(
-                                        color: errorColor.withValues(alpha: 0.1),
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: IconButton(
-                                        icon: Icon(
+                                    const SizedBox(width: 6),
+                                    InkWell(
+                                      onTap: () => _deleteEngineer(engineer['id']),
+                                      borderRadius: BorderRadius.circular(10),
+                                      child: Container(
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: errorColor.withValues(alpha: 0.08),
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                        child: Icon(
                                           Icons.delete_outline_rounded,
                                           color: errorColor,
-                                          size: 20,
+                                          size: 18,
                                         ),
-                                        onPressed: () =>
-                                            _deleteEngineer(engineer['id']),
                                       ),
                                     ),
                                   ],
