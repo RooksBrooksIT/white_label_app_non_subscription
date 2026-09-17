@@ -1,0 +1,472 @@
+================================================================================
+FIREBASE CLOUD FUNCTIONS v2 -> v1 MIGRATION ANALYSIS REPORT
+Project: white_label_app_non_subscription (white-label-app-33300)
+================================================================================
+
+TABLE OF CONTENTS
+--------------------------------------------------------------------------------
+1.  Executive Summary
+2.  Project Structure
+3.  Function Inventory
+4.  Detailed Function Analysis
+5.  Trigger and API Analysis
+6.  Dependencies and Runtime
+7.  v2 -> v1 Compatibility Analysis
+8.  External Integrations
+9.  Firestore and Database Behavior
+10. Scheduled Functions
+11. Security and Reliability Review
+12. Function-by-Function Migration Matrix
+13. Configuration and Dependency Checklist
+14. Testing and Validation Requirements
+15. Migration Risks and Considerations
+16. Information Required Before Conversion
+17. Final Findings
+
+
+================================================================================
+1. EXECUTIVE SUMMARY
+================================================================================
+This report provides a complete, code-level technical analysis of the Firebase
+Functions backend for the "white_label_app_non_subscription" project.
+
+The backend is currently written using Cloud Functions for Firebase v2 (Cloud
+Functions Gen 2 / Cloud Run based) running on Node.js 22 with CommonJS modules
+located across functions/index.js, functions/src/createPaymentSession.js,
+functions/src/iciciPaymentFunctions.js, functions/src/icici_service.js, and
+functions/src/icici_hash.js.
+
+Core Business Capabilities:
+1. ICICI Payment Gateway Integrations (Live Unified Payment Gateway supporting
+   Cards, NetBanking, and UPI dynamic QR code generation, webhook callback
+   processing, status verification, automated reconciliation, and admin refunds).
+2. Multi-Tenant FCM Push and In-App Notifications (Ticket creation alerts,
+   engineer assignment notifications, ticket status updates, and expiry notices).
+3. Transactional Email Engine with Automated Exponential Backoff Retries
+   (SMTP delivery via Hostinger using nodemailer backed by a Firestore mail queue).
+4. Subscription Lifecycle & Expiry Notification Engines (Automated daily cron
+   schedulers evaluating multi-tenant subscriptions across collection groups with
+   3-day, 2-day, and 1-day warnings, plus monthly status reports).
+5. Real-time Payment Activity Auditing & Invoice PDF Generation (Dynamic vector
+   PDF invoice rendering using pdfkit and automated email dispatch).
+6. Authentication & Password Recovery Utilities (Direct HTTP endpoints handling
+   OTP generation, storage, email dispatch, and Firebase Auth password resets).
+
+Source Code Inventory Summary:
+- Active Exported Functions in functions/index.js: 17 functions
+- Additional Internal / Unexported Functions in functions/src/: 2 functions
+- Reference / Template Functions in functions/INDEX_JS_REFERENCE.js: 9 functions
+- Total Active/Internal Functions Analyzed in Source: 19 functions
+
+All active functions are fully convertible to Firebase Functions v1 (Cloud
+Functions Gen 1). Special attention must be paid to Google Cloud Serverless
+VPC Access Connectors (icici-connector with egress ALL_TRAFFIC) used to route
+outbound traffic through a static whitelisted NAT IP for ICICI Bank API
+compliance.
+
+
+================================================================================
+2. PROJECT STRUCTURE
+================================================================================
+Workspace File Hierarchy:
+white_label_app_non_subscription/
+|-- .firebaserc                     (Project ID: white-label-app-33300)
+|-- firebase.json                   (Functions source dir: "functions")
+|-- firestore.indexes.json          (Collection group indexes: daily, subscription)
+|-- functions/
+|   |-- .env                        (SMTP, ICICI credentials, GCP config)
+|   |-- .env.yaml                   (ICICI YAML config & Return URL)
+|   |-- env                         (Backup env file)
+|   |-- package.json                (Dependencies, engines: Node 22, scripts)
+|   |-- package-lock.json           (Lockfile)
+|   |-- index.js                    (Primary entry-point, 1,674 lines)
+|   |-- INDEX_JS_REFERENCE.js       (Reference template file, 458 lines)
+|   |-- test_imports.js             (Local import test script)
+|   |-- run_hash_test.js            (Local ICICI hash validation script)
+|   |-- assets/
+|   |   `-- logo.png                (Brand logo for PDF invoices)
+|   `-- src/
+|       |-- createPaymentSession.js (Payment initiation endpoint, 162 lines)
+|       |-- iciciPaymentFunctions.js(Callback webhooks, status checks, 612 lines)
+|       |-- icici_service.js        (ICICI Bank API HTTP client, 344 lines)
+|       `-- icici_hash.js           (ICICI HMAC-SHA256 & SHA512 hashing, 62 lines)
+`-- lib/                            (Flutter Client Application)
+    |-- frontend/screens/           (UI: admin_dashboard, forgot_password, reset_password)
+    `-- services/
+        |-- icici_service.dart      (Dio HTTP client calling Cloud Functions endpoints)
+        `-- payment_service.dart    (Client service referencing Callable functions)
+
+
+================================================================================
+3. FUNCTION INVENTORY
+================================================================================
+The following table details every function identified in the source codebase:
+
+No. | Function Name                  | File & Line                    | Version | Trigger   | Region      | Memory  | Timeout | Access Level  | Exported in index.js?
+----+--------------------------------+--------------------------------+---------+-----------+-------------+---------+---------+---------------+----------------------
+ 1  | testNotify                     | index.js:129                   | v2      | onRequest | us-central1 | 256MiB  | 60s     | Public        | Yes
+ 2  | handleTicketCreation           | index.js:153                   | v2      | onCreate  | us-central1 | 256MiB  | 60s     | Internal      | Yes
+ 3  | handleTicketStatusUpdate       | index.js:232                   | v2      | onUpdate  | us-central1 | 256MiB  | 60s     | Internal      | Yes
+ 4  | processMailDocument            | index.js:371                   | v2      | onWrite   | us-central1 | 256MiB  | 60s     | Internal      | Yes
+ 5  | scheduledEmailRetry            | index.js:440                   | v2      | onSchedule| us-central1 | 256MiB  | 60s     | Internal      | Yes
+ 6  | processPaymentSuccess          | index.js:464                   | v2      | onWrite   | us-central1 | 256MiB  | 60s     | Internal      | Yes
+ 7  | logPaymentActivity             | index.js:897                   | v2      | onWrite   | us-central1 | 256MiB  | 60s     | Internal      | Yes
+ 8  | scheduledSubscriptionReminders | index.js:954                   | v2      | onSchedule| us-central1 | 256MiB  | 60s     | Internal      | Yes
+ 9  | testExpiryReminders            | index.js:1143                  | v2      | onRequest | us-central1 | 256MiB  | 60s     | Public        | Yes
+10  | sendOTP                        | index.js:1191                  | v2      | onRequest | us-central1 | 256MiB  | 60s     | Public        | Yes
+11  | verifyOTPAndResetPassword      | index.js:1260                  | v2      | onRequest | us-central1 | 256MiB  | 60s     | Public        | Yes
+12  | checkSubscriptionExpiryReminders index.js:1330                  | v2      | onSchedule| us-central1 | 256MiB  | 60s     | Internal      | Yes
+13  | testExpiryReminder             | index.js:1520                  | v2      | onRequest | us-central1 | 256MiB  | 60s     | Public        | Yes
+14  | reconcileStuckPayments         | index.js:1591                  | v2      | onSchedule| us-central1 | 256MiB  | 60s     | Internal      | Yes
+15  | processRefund                  | iciciPaymentFunctions.js:468   | v2      | onRequest | us-central1 | 256MiB  | 60s     | Public        | Yes
+16  | adminProcessRefund             | iciciPaymentFunctions.js:497   | v2      | onCall    | us-central1 | 256MiB  | 60s     | Authenticated | Yes
+17  | paymentCallback                | iciciPaymentFunctions.js:83    | v2      | onRequest | us-central1 | 256MiB  | 60s     | Public        | Yes
+18  | verifyPayment                  | iciciPaymentFunctions.js:279   | v2      | onRequest | us-central1 | 256MiB  | 60s     | Public        | Yes
+19  | createPaymentSession           | createPaymentSession.js:20     | v2      | onRequest | us-central1 | 256MiB  | 60s     | Public        | Yes
+20  | reconcilePayments (Internal)   | iciciPaymentFunctions.js:356   | v2      | onSchedule| us-central1 | 256MiB  | 60s     | Internal      | No (Trapped)
+21  | activateSubscription (Internal)| iciciPaymentFunctions.js:397   | v2      | onUpdate  | us-central1 | 256MiB  | 60s     | Internal      | No (Trapped)
+
+
+================================================================================
+4. DETAILED FUNCTION ANALYSIS
+================================================================================
+
+4.1 Payment & Transaction Functions:
+
+A. createPaymentSession (functions/src/createPaymentSession.js:20)
+- Trigger: onRequest (v2/https)
+- Flow: HTTP POST -> Validate parameters -> Generate unique 20-char txnId ->
+  Create /payments/{txnId} doc (status: PENDING) -> Call ICICI initiateSale or
+  generateUpiQr via VPC Connector -> Update /payments/{txnId} with redirectUrl /
+  upiQR -> Return JSON response.
+- VPC: icici-connector (egress: ALL_TRAFFIC).
+- DB Operations: Write to /payments/{txnId}.
+
+B. paymentCallback (functions/src/iciciPaymentFunctions.js:83)
+- Trigger: onRequest (v2/https)
+- Flow: Bank Webhook (POST) / Browser Redirect (GET) -> If GET: Update status &
+  render HTML closing page -> If POST: Run Firestore transaction on
+  /payments/{txnId} -> Verify idempotency -> Verify amount integrity -> Call
+  ICICI statusCheck API directly -> Map status -> Update /payments/{txnId} ->
+  If SUCCESS: Mirror to /{tenantId}/{appId}/payment_transactions/{txnId}.
+- DB Operations: Read/Write /payments/{txnId}, Write to payment_transactions.
+
+C. verifyPayment (functions/src/iciciPaymentFunctions.js:279)
+- Trigger: onRequest (v2/https)
+- Flow: HTTP POST with txnId -> Query ICICI Bank statusCheck API via VPC ->
+  Update /payments/{txnId} -> If SUCCESS: Mirror to payment_transactions ->
+  Return status JSON.
+- DB Operations: Read/Update /payments/{txnId}, Write to payment_transactions.
+
+D. processPaymentSuccess (functions/index.js:464)
+- Trigger: onDocumentWritten("{tenantId}/{appId}/payment_transactions/{txnId}")
+- Flow: Trigger on status=="SUCCESS" -> Fetch user email from tenant users doc
+  (or Auth) -> Calculate 18% GST -> Calculate expiry -> Generate PDF receipt
+  using pdfkit -> Add email document to /mail collection -> Update transaction
+  doc with invoiceNo -> Update /{tenantId}/{tenantId}/subscription/{uid}.
+- DB Operations: Read users, Write /mail, Update payment_transactions, Write
+  subscription.
+
+E. logPaymentActivity (functions/index.js:897)
+- Trigger: onDocumentWritten("payments/{txnId}")
+- Flow: Listen to payments collection -> Skip if PENDING -> If SUCCESS or FAILED:
+  Mirror audit document into /{tenantId}/{appId}/payment_logs/{txnId}.
+- DB Operations: Write /{tenantId}/{appId}/payment_logs/{txnId}.
+
+F. adminProcessRefund & processRefund (functions/src/iciciPaymentFunctions.js)
+- adminProcessRefund Trigger: onCall (v2/https)
+- processRefund Trigger: onRequest (v2/https)
+- Flow: Authenticate admin -> Validate refundable balance -> Execute ICICI
+  refund API via VPC -> Update /payments/{orderId} status to REFUNDED or
+  PARTIAL_REFUND -> Write audit records to /refunds and /refund_logs.
+
+
+4.2 Notification & Ticketing Functions:
+
+A. handleTicketCreation (functions/index.js:153)
+- Trigger: onDocumentCreated("{tenantId}/{appId}/Admin_details/{bookingId}")
+- Flow: Read ticket -> Query admin tokens at
+  /{tenantId}/{appId}/notifications_tokens/admin/tokens -> Send FCM high-priority
+  push -> Add in-app notification doc to /{tenantId}/{appId}/notifications.
+
+B. handleTicketStatusUpdate (functions/index.js:232)
+- Trigger: onDocumentUpdated("{tenantId}/{appId}/Admin_details/{bookingId}")
+- Flow: If assignedEmployee changed: Send push to Engineer & Customer -> If
+  ticket status changed: Send push to Customer -> If engineerStatus changed:
+  Notify Admins -> Add in-app notification doc to notifications collection.
+
+C. testNotify (functions/index.js:129)
+- Trigger: onRequest (v2/https)
+- Flow: Fetch token for specific role/user -> Send test FCM message.
+
+
+4.3 Email Queue & Schedulers:
+
+A. processMailDocument (functions/index.js:371)
+- Trigger: onDocumentWritten("mail/{docId}")
+- Flow: Check status.state=="PENDING" -> Configure Nodemailer SMTP transporter
+  (Hostinger) -> Send email with base64 PDF attachments -> On success: Set state
+  to "SENT" -> On failure: Calculate exponential backoff (2^attempts * 60s)
+  and set state to "RETRY" or "ERROR".
+
+B. scheduledEmailRetry (functions/index.js:440)
+- Trigger: onSchedule("*/30 * * * *") (Every 30 minutes)
+- Flow: Query mail where status.state=="RETRY" and nextRetryAt <= now -> Reset
+  status.state to "PENDING" (re-triggering processMailDocument).
+
+C. checkSubscriptionExpiryReminders (functions/index.js:1330)
+- Trigger: onSchedule("0 9 * * *", timeZone: "Asia/Kolkata") (Daily at 09:00 AM IST)
+- Flow: Query collectionGroup("subscription").where("status", "==", "active") ->
+  For 3, 2, or 1 days remaining: Queue email in /mail, dispatch FCM alert to
+  Admin, create in-app notification, and mark reminderSent flag -> For 6-month
+  or yearly plans: Dispatch monthly check-in reminder on monthly anniversary.
+
+D. scheduledSubscriptionReminders (functions/index.js:954)
+- Trigger: onSchedule("0 3 * * *") (Daily at 03:00 UTC)
+- Flow: Scans collectionGroup("subscription") for 2-day and 1-day reminders;
+  queues reminder emails.
+
+E. reconcileStuckPayments (functions/index.js:1591)
+- Trigger: onSchedule("0 * * * *", timeZone: "Asia/Kolkata") (Hourly)
+- Flow: Query payments where status=="PENDING" created >= 30m ago -> Query
+  ICICI statusCheck API -> Update status to SUCCESS or FAILED.
+
+F. sendOTP & verifyOTPAndResetPassword (functions/index.js:1191 & 1260)
+- Trigger: onRequest (v2/https)
+- Flow:
+  - sendOTP: Generates 6-digit OTP, saves in /otps/{email} (10m expiry), sends
+    email via Nodemailer.
+  - verifyOTPAndResetPassword: Validates OTP against /otps/{email}, updates
+    password in Firebase Auth and legacy admin doc, deletes OTP record.
+
+
+================================================================================
+5. TRIGGER AND API ANALYSIS
+================================================================================
+Current v2 Imports in Codebase:
+1. const { onRequest, onCall, HttpsError } = require("firebase-functions/v2/https");
+2. const { onDocumentCreated, onDocumentUpdated, onDocumentWritten } = require("firebase-functions/v2/firestore");
+3. const { onSchedule } = require("firebase-functions/v2/scheduler");
+
+Target v1 APIs:
+1. const functions = require("firebase-functions");
+2. functions.https.onRequest(...)
+3. functions.https.onCall((data, context) => ...)
+4. functions.firestore.document(path).onCreate((snap, context) => ...)
+5. functions.firestore.document(path).onUpdate((change, context) => ...)
+6. functions.firestore.document(path).onWrite((change, context) => ...)
+7. functions.pubsub.schedule(cron).timeZone(tz).onRun((context) => ...)
+
+
+================================================================================
+6. DEPENDENCIES AND RUNTIME
+================================================================================
+Runtime & Dependencies (from functions/package.json):
+- Node.js Engine: "node": "22"
+- Module Type: CommonJS (require / module.exports)
+- firebase-functions: ^7.2.5 (Fully backwards-compatible with v1)
+- firebase-admin: ^13.9.0
+- axios: ^1.16.0
+- dotenv: ^16.4.5
+- nodemailer: 6.10.1
+- pdfkit: 0.15.0
+- uuid: ^14.0.0
+- google-auth-library: ^11.0.2
+
+Environment Configuration:
+- Managed via functions/.env and loaded via require("dotenv").config().
+- Variables: SMTP (Host, Port, User, Pass), Company Info (Name, Email, GSTIN),
+  ICICI Live Credentials (MID, Key, Aggregator, Terminal, URLs), GCP Project ID.
+- No Google Secret Manager or Firebase Parameterized Config is in use.
+
+
+================================================================================
+7. v2 -> v1 COMPATIBILITY ANALYSIS
+================================================================================
+Key Code Differences:
+1. Handler Signatures:
+   - v2 Firestore: (event) where data is event.data and params is event.params.
+   - v1 Firestore: (snap, context) or (change, context) where data is snap.data()
+     or change.before/after.data(), and params is context.params.
+   - v2 Callable: (request) where payload is request.data and auth is request.auth.
+   - v1 Callable: (data, context) where payload is data and auth is context.auth.
+   - v2 Scheduler: onSchedule(options, (event) => ...)
+   - v1 Scheduler: functions.pubsub.schedule(cron).timeZone(tz).onRun((context) => ...)
+
+2. Options Configuration:
+   - v2: Passed as first argument object { region, vpcConnector, memory: "256MiB", timeoutSeconds: 60 }
+   - v1: Chained via functions.runWith({ vpcConnector, memory: "256MB", timeoutSeconds: 60 }).region("us-central1")
+   - Memory format: "256MiB" (v2) -> "256MB" (v1).
+   - "invoker: public" is omitted in v1 (Cloud Functions Gen 1 is public by default).
+
+
+================================================================================
+8. EXTERNAL INTEGRATIONS
+================================================================================
+1. ICICI Bank Live Gateway:
+   - Egress requirement: Outbound traffic MUST route via Serverless VPC Access
+     Connector "icici-connector" with egress "ALL_TRAFFIC" for IP whitelisting.
+   - Webhook URL: https://us-central1-white-label-app-33300.cloudfunctions.net/paymentCallback
+   - Note: In v1, Gen 1 function URLs in us-central1 are IDENTICAL. No bank webhook
+     reconfiguration is necessary.
+
+2. Hostinger SMTP Server:
+   - Connects to smtp.hostinger.com:465 (SSL/TLS).
+
+3. Flutter Client Integrations:
+   - lib/services/icici_service.dart calls createPaymentSession, verifyPayment,
+     and processRefund via HTTP POST (Dio).
+   - lib/frontend/screens/forgot_password_page.dart calls /sendOTP.
+   - lib/frontend/screens/reset_password_page.dart calls /verifyOTPAndResetPassword.
+   - lib/services/payment_service.dart calls Callable functions.
+
+
+================================================================================
+9. FIRESTORE AND DATABASE BEHAVIOR
+================================================================================
+Accessed Paths:
+- /payments/{txnId}
+- /{tenantId}/{appId}/payment_transactions/{txnId}
+- /{tenantId}/{appId}/Admin_details/{bookingId}
+- /mail/{docId}
+- /{tenantId}/{tenantId}/subscription/{uid}
+- collectionGroup("subscription")
+- /{tenantId}/{appId}/notifications
+- /{tenantId}/{appId}/notifications_tokens/{role}/tokens/{userId}
+- /otps/{email}
+- /refunds/{refundId} & /refund_logs/{refundId}
+
+Recursion Prevention:
+- paymentCallback checks if (status === "SUCCESS") inside transaction before write.
+- processPaymentSuccess checks if (oldData.status === "SUCCESS") before executing.
+- processMailDocument only fires when status.state === "PENDING" and transitions to "SENT".
+
+
+================================================================================
+10. SCHEDULED FUNCTIONS
+================================================================================
+1. scheduledEmailRetry (Every 30m): Retries failed emails.
+   -> v1: functions.pubsub.schedule("*/30 * * * *").onRun(...)
+2. scheduledSubscriptionReminders (03:00 UTC daily): Legacy subscription reminder.
+   -> v1: functions.pubsub.schedule("0 3 * * *").timeZone("UTC").onRun(...)
+3. checkSubscriptionExpiryReminders (09:00 AM IST daily): Comprehensive 3/2/1-day
+   and monthly subscription check-in.
+   -> v1: functions.runWith({ memory: "256MB" }).pubsub.schedule("0 9 * * *").timeZone("Asia/Kolkata").onRun(...)
+4. reconcileStuckPayments (Hourly): Verifies status of stuck PENDING payments.
+   -> v1: functions.runWith({ memory: "256MB" }).pubsub.schedule("0 * * * *").timeZone("Asia/Kolkata").retryConfig({ retryCount: 1 }).onRun(...)
+
+
+================================================================================
+11. SECURITY AND RELIABILITY REVIEW
+================================================================================
+Confirmed Source Observations:
+1. Trapped Functions Bug in iciciPaymentFunctions.js:
+   reconcilePayments and activateSubscription are defined inside verifyPayment's
+   callback body. They are not initialized on cold start and are never exported
+   in index.js.
+2. Dual Expiry Schedulers:
+   Both scheduledSubscriptionReminders and checkSubscriptionExpiryReminders are
+   active. checkSubscriptionExpiryReminders is the newer version.
+3. VPC Connector Dependency:
+   VPC connector settings must be preserved in v1 via runWith({ vpcConnector: "icici-connector", vpcConnectorEgressSettings: "ALL_TRAFFIC" }).
+
+
+================================================================================
+12. FUNCTION-BY-FUNCTION MIGRATION MATRIX
+================================================================================
+Function Name                  | Current Trigger | v1 Equivalent Trigger              | Handler Changes      | Risk Level | Classification
+-------------------------------+-----------------+------------------------------------+----------------------+------------+-----------------------------------
+testNotify                     | onRequest (v2)  | functions.https.onRequest          | None (req, res)      | Low        | Directly convertible
+handleTicketCreation           | onCreate (v2)   | functions.firestore.onCreate       | snap, context        | Low        | Convertible with minor code changes
+handleTicketStatusUpdate       | onUpdate (v2)   | functions.firestore.onUpdate       | change, context      | Low        | Convertible with minor code changes
+processMailDocument            | onWrite (v2)    | functions.firestore.onWrite        | change, context      | Low        | Convertible with minor code changes
+scheduledEmailRetry            | onSchedule (v2) | functions.pubsub.schedule.onRun    | context              | Low        | Directly convertible
+processPaymentSuccess          | onWrite (v2)    | functions.firestore.onWrite        | change, context      | Medium     | Convertible with minor code changes
+logPaymentActivity             | onWrite (v2)    | functions.firestore.onWrite        | change, context      | Low        | Convertible with minor code changes
+scheduledSubscriptionReminders | onSchedule (v2) | functions.pubsub.schedule.onRun    | context              | Low        | Directly convertible
+testExpiryReminders            | onRequest (v2)  | functions.https.onRequest          | None (req, res)      | Low        | Directly convertible
+sendOTP                        | onRequest (v2)  | functions.https.onRequest          | None (req, res)      | Low        | Directly convertible
+verifyOTPAndResetPassword      | onRequest (v2)  | functions.https.onRequest          | None (req, res)      | Low        | Directly convertible
+checkSubscriptionExpiryReminders| onSchedule (v2)| functions.pubsub.schedule.onRun    | context              | Low        | Convertible with minor code changes
+testExpiryReminder             | onRequest (v2)  | functions.https.onRequest          | None (req, res)      | Low        | Directly convertible
+reconcileStuckPayments         | onSchedule (v2) | functions.pubsub.schedule.onRun    | context              | Medium     | Convertible with minor code changes
+processRefund                  | onRequest (v2)  | functions.https.onRequest          | None (req, res)      | Medium     | Convertible with minor code changes
+adminProcessRefund             | onCall (v2)     | functions.https.onCall             | (data, context)      | High       | Convertible with minor code changes
+paymentCallback                | onRequest (v2)  | functions.https.onRequest + runWith| None (req, res)      | High       | Convertible with minor code changes
+verifyPayment                  | onRequest (v2)  | functions.https.onRequest + runWith| None (req, res)      | High       | Convertible with minor code changes
+createPaymentSession           | onRequest (v2)  | functions.https.onRequest + runWith| None (req, res)      | High       | Convertible with minor code changes
+reconcilePayments              | onSchedule (v2) | functions.pubsub.schedule.onRun    | Move to module scope | Medium     | Requires architecture review
+activateSubscription           | onUpdate (v2)   | functions.firestore.onUpdate       | Move to module scope | Medium     | Requires architecture review
+
+
+================================================================================
+13. CONFIGURATION AND DEPENDENCY CHECKLIST
+================================================================================
+Source Code:
+[ ] Change root imports to const functions = require("firebase-functions");
+[ ] Wrap HTTP endpoints in functions.region("us-central1").runWith({...}).https.onRequest(...)
+[ ] Convert callable adminProcessRefund to (data, context) with context.auth
+[ ] Convert onCreate to (snap, context) and access context.params
+[ ] Convert onUpdate and onWrite to (change, context) and access context.params
+[ ] Convert onSchedule to functions.pubsub.schedule().timeZone().onRun()
+[ ] Extract trapped functions from iciciPaymentFunctions.js
+[ ] Change memory options from "256MiB" to "256MB"
+[ ] Remove invoker: "public"
+
+Dependencies & Environment:
+[ ] Verify package.json retains Node 22 engine
+[ ] Retain firebase-functions ^7.2.5 and firebase-admin ^13.9.0
+[ ] Confirm dotenv is loaded at top of index.js
+
+Infrastructure:
+[ ] Confirm Cloud Pub/Sub API and Cloud Scheduler API are enabled
+[ ] Ensure Serverless VPC Access Connector icici-connector remains active
+
+
+================================================================================
+14. TESTING AND VALIDATION REQUIREMENTS
+================================================================================
+1. HTTP Endpoints:
+   - Test createPaymentSession for UPI QR and Card/NetBanking modes.
+   - Test verifyPayment status polling.
+   - Test sendOTP and verifyOTPAndResetPassword.
+2. Webhooks & Callbacks:
+   - Simulate ICICI POST callback; verify transaction and tenant mirroring.
+   - Test GET browser redirect page rendering.
+3. Event Triggers:
+   - Test processPaymentSuccess with mock SUCCESS transaction (verify PDF invoice
+     generation and email queuing).
+   - Test processMailDocument SMTP delivery.
+   - Test ticket creation and status update push notifications.
+4. Schedulers:
+   - Manually trigger Pub/Sub topics for schedulers in GCP Console.
+
+
+================================================================================
+15. MIGRATION RISKS AND CONSIDERATIONS
+================================================================================
+1. VPC Egress: Omitting runWith({ vpcConnector: "icici-connector", vpcConnectorEgressSettings: "ALL_TRAFFIC" })
+   will route traffic through dynamic GCP IPs and cause ICICI Bank API rejections.
+2. Parameter Mapping: In v2 params are on event.params; in v1 they are on context.params.
+3. Data Snapshots: In v2 onCreate is event.data.data(); in v1 it is snap.data().
+
+
+================================================================================
+16. INFORMATION REQUIRED BEFORE CONVERSION
+================================================================================
+1. Deprecate legacy scheduledSubscriptionReminders in favor of checkSubscriptionExpiryReminders?
+2. Extract or remove internal reconcilePayments and activateSubscription functions?
+3. Attach vpcConnector to reconcileStuckPayments scheduler for status check calls?
+
+
+================================================================================
+17. FINAL FINDINGS
+================================================================================
+1. All 17 active Cloud Functions in this project are 100% convertible to v1.
+2. All HTTP endpoints will retain their exact URLs with no breaking external impact.
+3. No project source files, configuration files, or dependencies were altered during
+   this analysis.
+
+================================================================================
+END OF REPORT
+================================================================================

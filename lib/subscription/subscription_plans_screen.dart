@@ -68,12 +68,12 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
       'name': 'Silver',
       'badge': 'Starter',
       'tagline': 'Essential tools for small teams & freelancers',
-      'monthlyPrice': 99,
-      'monthlyOriginalPrice': 149,
-      'sixMonthPrice': 594, // 99 * 6
-      'sixMonthOriginalPrice': 894,
-      'yearlyPrice': 999, // ~83/mo (save 16%)
-      'yearlyOriginalPrice': 1788,
+      'monthlyPrice': 1,
+      'monthlyOriginalPrice': 99,
+      'sixMonthPrice': 1, // Testing price
+      'sixMonthOriginalPrice': 594,
+      'yearlyPrice': 1, // Testing price
+      'yearlyOriginalPrice': 999,
       'isEnterprise': false,
       'isPopular': false,
       'limits': {
@@ -1998,11 +1998,13 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
     if (isYearly) {
       totalPrice = (plan['yearlyPrice'] as num?)?.toInt() ?? 0;
       totalOriginal = (plan['yearlyOriginalPrice'] as num?)?.toInt();
-      displayPerMonth = monthlyPrice == 99
-          ? 83
-          : (monthlyPrice == 199
-              ? 165
-              : (monthlyPrice == 299 ? 249 : monthlyPrice));
+      displayPerMonth = monthlyPrice == 1
+          ? 1
+          : (monthlyPrice == 99
+              ? 83
+              : (monthlyPrice == 199
+                  ? 165
+                  : (monthlyPrice == 299 ? 249 : monthlyPrice)));
       billingCycleText =
           'Billed ₹$totalPrice annually (${totalOriginal != null && totalOriginal > totalPrice ? 'Save ₹${totalOriginal - totalPrice}' : ''})';
     } else if (isSixMonths) {

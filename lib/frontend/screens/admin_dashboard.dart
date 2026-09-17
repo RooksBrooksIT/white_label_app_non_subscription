@@ -163,6 +163,7 @@ class _admindashboardState extends State<admindashboard> {
                 NotificationService.instance.showNotification(
                   title: title,
                   body: body,
+                  data: data.map((k, v) => MapEntry(k, v?.toString() ?? '')),
                 );
 
                 // Store in SharedPreferences so reopening the app won't trigger local push again
@@ -400,130 +401,6 @@ class _admindashboardState extends State<admindashboard> {
       return errorColor;
     }
     return _getPlanColor(currentPlanName!);
-  }
-
-  PlanDetails _getPlanDetails(String planName, String cycle) {
-    final plans = [
-      {
-        'name': 'Silver',
-        'title': '🎉 Welcome to Silver Plan',
-        'message': 'Perfect for small teams and basic operations.',
-        'features': [
-          'Up to 20 Customers',
-          'Up to 5 Engineers',
-          '1GB Storage',
-          'Web Support',
-          'Basic Dashboard',
-          'Standard Email Support',
-        ],
-        'limits': {'maxCustomers': 20, 'maxEngineers': 5, 'maxStorageGB': 1},
-        'color': const Color(0xFFC0C0C0),
-      },
-      {
-        'name': 'Gold',
-        'title': '🎉 Welcome to Gold Plan',
-        'message':
-            'Ideal for growing businesses requiring advanced tracking and reporting.',
-        'features': [
-          'Up to 50 Customers',
-          'Up to 10 Engineers',
-          '5GB Storage',
-          'Geo Location Enabled',
-          'Report Export Available',
-          'Priority Support',
-        ],
-        'limits': {'maxCustomers': 50, 'maxEngineers': 10, 'maxStorageGB': 5},
-        'color': const Color(0xFFFFD700),
-      },
-      {
-        'name': 'Platinum',
-        'title': '🎉 Welcome to Platinum Plan',
-        'message': 'You now have access to all premium platform features.',
-        'features': [
-          'Unlimited Customers',
-          'Unlimited Engineers',
-          'Unlimited Photos & PDFs',
-          'Geo Location Enabled',
-          'Attendance System',
-          'Barcode System',
-          'Report Export',
-          '100GB Storage',
-          'Premium Priority Support',
-        ],
-        'limits': {'maxCustomers': -1, 'maxEngineers': -1, 'maxStorageGB': 100},
-        'color': const Color(0xFFE5E4E2),
-      },
-    ];
-
-    final isTrial = planName.toLowerCase().contains('trial');
-    if (isTrial) {
-      return PlanDetails(
-        name: '7-Day Free Trial',
-        title: '🎉 Welcome to Your 7-Day Free Trial',
-        message: 'Explore all premium features free for 7 days.',
-        features: [
-          'Access to all Gold Features',
-          'Geo Location Enabled',
-          'Attendance Enabled',
-          'Barcode Enabled',
-          'Report Export Available',
-          '50 Customers',
-          '10 Engineers',
-          '5GB Storage',
-        ],
-        limits: {'maxCustomers': 50, 'maxEngineers': 10, 'maxStorageGB': 5},
-        color: const Color(0xFF2196F3),
-        billingCycle: '7 Days',
-        isTrial: true,
-      );
-    }
-
-    final foundPlan = plans.firstWhere(
-      (p) => p['name'].toString().toLowerCase() == planName.toLowerCase(),
-      orElse: () => plans[1],
-    );
-
-    return PlanDetails(
-      name: foundPlan['name'] as String,
-      title: foundPlan['title'] as String,
-      message: foundPlan['message'] as String,
-      features: (foundPlan['features'] as List).cast<String>(),
-      limits: foundPlan['limits'] as Map<String, dynamic>,
-      color: foundPlan['color'] as Color,
-      billingCycle: cycle,
-      isTrial: false,
-    );
-  }
-
-  Future<void> _checkAndShowWelcomeModal() async {
-    if (currentPlanName == null || billingCycle == null) return;
-
-    final tenantId = ThemeService.instance.databaseName;
-    final prefs = await SharedPreferences.getInstance();
-    final lastViewedPlan = prefs.getString('last_viewed_plan_$tenantId');
-    final lastViewedTimestamp = prefs.getString(
-      'last_viewed_plan_timestamp_$tenantId',
-    );
-
-    bool shouldShow = false;
-    if (lastViewedPlan != currentPlanName) {
-      shouldShow = true;
-    }
-
-    if (shouldShow && mounted) {
-      final planDetails = _getPlanDetails(currentPlanName!, billingCycle!);
-      if (!mounted) return;
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => SubscriptionWelcomeModal(
-          plan: planDetails,
-          onClose: () {
-            Navigator.of(context).pop();
-          },
-        ),
-      );
-    }
   }
 
   Color _getPlanColor(String planName) {

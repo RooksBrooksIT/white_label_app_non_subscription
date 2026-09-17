@@ -103,6 +103,7 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
                 NotificationService.instance.showNotification(
                   title: title,
                   body: body,
+                  data: data.map((k, v) => MapEntry(k, v?.toString() ?? '')),
                 );
 
                 // Mark notification as seen so it doesn't trigger again

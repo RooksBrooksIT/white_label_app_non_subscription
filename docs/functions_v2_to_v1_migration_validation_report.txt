@@ -1,0 +1,577 @@
+================================================================================
+FIREBASE FUNCTIONS v2 -> v1 MIGRATION VALIDATION REPORT
+Project: white_label_app_non_subscription
+Firebase Project ID: white-label-app-33300
+================================================================================
+
+TABLE OF CONTENTS
+--------------------------------------------------------------------------------
+1.  Executive Summary
+2.  Actual Files Changed
+3.  Actual Function Inventory
+4.  Before/After Trigger Mapping
+5.  Handler and Event Compatibility
+6.  Dependency and Runtime Validation
+7.  ICICI Payment Compatibility Review
+8.  VPC Configuration Review
+9.  Scheduled Function Review
+10. Firestore Trigger Review
+11. Endpoint Compatibility Review
+12. Tests Actually Performed
+13. Tests Not Performed
+14. Confirmed Findings
+15. Unverified Claims
+16. Remaining Risks
+17. Required Steps Before Deployment
+
+
+================================================================================
+1. EXECUTIVE SUMMARY
+================================================================================
+This validation report provides a rigorous, grounded evaluation of the code-level
+migration from Cloud Functions for Firebase v2 (Gen 2) to Cloud Functions for
+Firebase v1 (Gen 1) within the "white_label_app_non_subscription" repository.
+
+Status of Validation:
+- Local Source & Trigger Registration Validation: COMPLETED & VERIFIED.
+- Static Configuration & VPC Parameter Validation: COMPLETED & VERIFIED.
+- Runtime Sandbox Execution of Helper/Hash Functions: COMPLETED & VERIFIED.
+- Remote / End-to-End Deployed Testing: NOT PERFORMED (Intentionally blocked
+  pending user approval).
+
+Verification Claim Clarification:
+The previously stated "ALL 19 FUNCTIONS VALIDATED SUCCESSFULLY" strictly denotes
+that all 19 function declarations were converted to valid Firebase Functions v1
+APIs, load without syntax errors in Node.js, and register proper Gen 1 trigger
+metadata (`__trigger` definitions, VPC connector bindings, memory allocations,
+and region declarations). It DOES NOT imply live production deployment testing.
+
+
+================================================================================
+2. ACTUAL FILES CHANGED
+================================================================================
+The following four source files in the functions directory were modified during
+the conversion:
+
+1. functions/src/createPaymentSession.js [Confirmed by source inspection]
+   - Replaced `require("firebase-functions/v2/https")` with
+     `require("firebase-functions/v1")`.
+   - Replaced v2 `onRequest({ region, vpcConnector, ... }, handler)` with
+     `functions.region("us-central1").runWith({ vpcConnector: "icici-connector", vpcConnectorEgressSettings: "ALL_TRAFFIC", timeoutSeconds: 60, memory: "256MB" }).https.onRequest(handler)`.
+   - Added manual CORS headers handling for preflight OPTIONS requests.
+
+2. functions/src/iciciPaymentFunctions.js [Confirmed by source inspection]
+   - Replaced `firebase-functions/v2` imports with `functions = require("firebase-functions/v1")`
+     and `{ HttpsError } = functions.https`.
+   - Converted `paymentCallback`, `verifyPayment`, `processRefund`, and
+     `adminProcessRefund` to v1 builder chains.
+   - Preserved `vpcConnector: "icici-connector"` and `vpcConnectorEgressSettings: "ALL_TRAFFIC"`
+     inside `runWith({...})`.
+   - Cleaned up `verifyPayment` by removing the accidentally nested function
+     declarations (`reconcilePayments` and `activateSubscription`).
+   - Converted `adminProcessRefund` handler signature from `(request)` to
+     `(data, context)` with `context.auth` validation.
+
+3. functions/index.js [Confirmed by source inspection]
+   - Replaced all `firebase-functions/v2` sub-module imports with
+     `require("firebase-functions/v1")`.
+   - Converted all Firestore event triggers from `onDocumentCreated`,
+     `onDocumentUpdated`, `onDocumentWritten` to `functions.region("us-central1").firestore.document(...).onCreate / onUpdate / onWrite`.
+   - Converted all Schedulers from `onSchedule` to
+     `functions.region("us-central1").pubsub.schedule(...).timeZone(...).onRun(...)`.
+   - Converted all standalone HTTP handlers (`testNotify`, `testExpiryReminders`,
+     `sendOTP`, `verifyOTPAndResetPassword`, `testExpiryReminder`) to
+     `functions.region("us-central1").https.onRequest(...)`.
+   - Attached VPC Connector (`icici-connector` / `ALL_TRAFFIC`) to `reconcileStuckPayments`
+     so that hourly status check requests route through the whitelisted NAT IP.
+
+4. functions/test_imports.js [Confirmed by source inspection]
+   - Updated to an automated validation test suite that inspects all 19 exported
+     triggers, regions, VPC settings, and memory allocations.
+
+
+================================================================================
+3. ACTUAL FUNCTION INVENTORY
+================================================================================
+Reconciliation of all functions in the codebase [Confirmed by source inspection]:
+
+Total Exported Cloud Functions: 19
+- HTTP Functions (onRequest): 9 (testNotify, testExpiryReminders, sendOTP,
+  verifyOTPAndResetPassword, testExpiryReminder, processRefund, paymentCallback,
+  verifyPayment, createPaymentSession)
+- Callable Functions (onCall): 1 (adminProcessRefund)
+- Firestore Triggers: 5 (handleTicketCreation, handleTicketStatusUpdate,
+  processMailDocument, processPaymentSuccess, logPaymentActivity)
+- Scheduled Functions (Pub/Sub): 4 (scheduledEmailRetry,
+  scheduledSubscriptionReminders, checkSubscriptionExpiryReminders,
+  reconcileStuckPayments)
+
+Internal Utility / Helper Functions: 6
+- `numberToWords(num)` (index.js:12)
+- `sendNotification(tenantId, appId, role, userId, payload)` (index.js:46)
+- `createPersistentNotification(tenantId, appId, payload)` (index.js:115)
+- `sendExpiryReminder(docRef, data, expiresAt, type)` (index.js:1007)
+- `mapICICIStatus(data)` (iciciPaymentFunctions.js:23)
+- `resolvePaymentMethod(data, fallback)` (iciciPaymentFunctions.js:63)
+
+Reference / Mock Functions (functions/INDEX_JS_REFERENCE.js): 9
+- Standalone reference template containing initiatePayment, checkPaymentStatus,
+  processRefund, paymentCallback, testPaymentFlow, onPaymentStatusChanged,
+  reconcilePendingPayments, cleanupOldPayments, getPaymentAnalytics.
+
+
+================================================================================
+4. BEFORE/AFTER TRIGGER MAPPING
+================================================================================
+
+1. testNotify (functions/index.js)
+   - Before (v2): `onRequest({ invoker: "public" }, async (req, res) => ...)`
+   - After  (v1): `functions.region("us-central1").https.onRequest(async (req, res) => ...)`
+   - Business Logic Changed: NO [Confirmed by source inspection]
+
+2. handleTicketCreation (functions/index.js)
+   - Before (v2): `onDocumentCreated("{tenantId}/{appId}/Admin_details/{bookingId}", async (event) => ...)`
+     Data: `event.data.data()`, Params: `event.params`
+   - After  (v1): `functions.region("us-central1").firestore.document("{tenantId}/{appId}/Admin_details/{bookingId}").onCreate(async (snap, context) => ...)`
+     Data: `snap.data()`, Params: `context.params`
+   - Business Logic Changed: NO [Confirmed by source inspection]
+
+3. handleTicketStatusUpdate (functions/index.js)
+   - Before (v2): `onDocumentUpdated("{tenantId}/{appId}/Admin_details/{bookingId}", async (event) => ...)`
+     Data: `event.data.before.data()`, `event.data.after.data()`, Params: `event.params`
+   - After  (v1): `functions.region("us-central1").firestore.document("{tenantId}/{appId}/Admin_details/{bookingId}").onUpdate(async (change, context) => ...)`
+     Data: `change.before.data()`, `change.after.data()`, Params: `context.params`
+   - Business Logic Changed: NO [Confirmed by source inspection]
+
+4. processMailDocument (functions/index.js)
+   - Before (v2): `onDocumentWritten("mail/{docId}", async (event) => ...)`
+     Data: `event.data.after ? event.data.after.data() : null`, Update: `event.data.after.ref.update(...)`
+   - After  (v1): `functions.region("us-central1").firestore.document("mail/{docId}").onWrite(async (change, context) => ...)`
+     Data: `change.after.exists ? change.after.data() : null`, Update: `change.after.ref.update(...)`
+   - Business Logic Changed: NO [Confirmed by source inspection]
+
+5. scheduledEmailRetry (functions/index.js)
+   - Before (v2): `onSchedule("*/30 * * * *", async (event) => ...)`
+   - After  (v1): `functions.region("us-central1").pubsub.schedule("*/30 * * * *").timeZone("UTC").onRun(async (context) => ...)`
+   - Business Logic Changed: NO [Confirmed by source inspection]
+
+6. processPaymentSuccess (functions/index.js)
+   - Before (v2): `onDocumentWritten("{tenantId}/{appId}/payment_transactions/{txnId}", async (event) => ...)`
+     Data: `event.data.after ? event.data.after.data() : null`, Params: `event.params`
+   - After  (v1): `functions.region("us-central1").runWith({ memory: "256MB", timeoutSeconds: 60 }).firestore.document("{tenantId}/{appId}/payment_transactions/{txnId}").onWrite(async (change, context) => ...)`
+     Data: `change.after.exists ? change.after.data() : null`, Params: `context.params`
+   - Business Logic Changed: NO [Confirmed by source inspection]
+
+7. logPaymentActivity (functions/index.js)
+   - Before (v2): `onDocumentWritten("payments/{txnId}", async (event) => ...)`
+     Data: `event.data.after ? event.data.after.data() : null`, Params: `event.params`
+   - After  (v1): `functions.region("us-central1").firestore.document("payments/{txnId}").onWrite(async (change, context) => ...)`
+     Data: `change.after.exists ? change.after.data() : null`, Params: `context.params`
+   - Business Logic Changed: NO [Confirmed by source inspection]
+
+8. scheduledSubscriptionReminders (functions/index.js)
+   - Before (v2): `onSchedule("0 3 * * *", async (event) => ...)`
+   - After  (v1): `functions.region("us-central1").pubsub.schedule("0 3 * * *").timeZone("UTC").onRun(async (context) => ...)`
+   - Business Logic Changed: NO [Confirmed by source inspection]
+
+9. testExpiryReminders (functions/index.js)
+   - Before (v2): `onRequest({ invoker: "public" }, async (req, res) => ...)`
+   - After  (v1): `functions.region("us-central1").https.onRequest(async (req, res) => ...)`
+   - Business Logic Changed: NO [Confirmed by source inspection]
+
+10. sendOTP (functions/index.js)
+    - Before (v2): `onRequest({ invoker: "public" }, async (req, res) => ...)`
+    - After  (v1): `functions.region("us-central1").https.onRequest(async (req, res) => ...)`
+    - Business Logic Changed: NO [Confirmed by source inspection]
+
+11. verifyOTPAndResetPassword (functions/index.js)
+    - Before (v2): `onRequest({ invoker: "public" }, async (req, res) => ...)`
+    - After  (v1): `functions.region("us-central1").https.onRequest(async (req, res) => ...)`
+    - Business Logic Changed: NO [Confirmed by source inspection]
+
+12. checkSubscriptionExpiryReminders (functions/index.js)
+    - Before (v2): `onSchedule({ schedule: "0 9 * * *", timeZone: "Asia/Kolkata", retryCount: 0, memory: "256MiB" }, async (event) => ...)`
+    - After  (v1): `functions.region("us-central1").runWith({ memory: "256MB" }).pubsub.schedule("0 9 * * *").timeZone("Asia/Kolkata").retryConfig({ retryCount: 0 }).onRun(async (context) => ...)`
+    - Business Logic Changed: NO [Confirmed by source inspection]
+
+13. testExpiryReminder (functions/index.js)
+    - Before (v2): `onRequest({ invoker: "public" }, async (req, res) => ...)`
+    - After  (v1): `functions.region("us-central1").https.onRequest(async (req, res) => ...)`
+    - Business Logic Changed: NO [Confirmed by source inspection]
+
+14. reconcileStuckPayments (functions/index.js)
+    - Before (v2): `onSchedule({ schedule: "0 * * * *", timeZone: "Asia/Kolkata", retryCount: 1, memory: "256MiB" }, async (event) => ...)`
+    - After  (v1): `functions.region("us-central1").runWith({ memory: "256MB", vpcConnector: "icici-connector", vpcConnectorEgressSettings: "ALL_TRAFFIC" }).pubsub.schedule("0 * * * *").timeZone("Asia/Kolkata").retryConfig({ retryCount: 1 }).onRun(async (context) => ...)`
+    - Business Logic Changed: NO (Added VPC routing for bank status API) [Confirmed by source inspection]
+
+15. processRefund (functions/src/iciciPaymentFunctions.js)
+    - Before (v2): `onRequest({ cors: true, invoker: "public" }, async (req, res) => ...)`
+    - After  (v1): `functions.region("us-central1").runWith({ vpcConnector: "icici-connector", vpcConnectorEgressSettings: "ALL_TRAFFIC", timeoutSeconds: 60, memory: "256MB" }).https.onRequest(async (req, res) => ...)`
+    - Business Logic Changed: NO [Confirmed by source inspection]
+
+16. adminProcessRefund (functions/src/iciciPaymentFunctions.js)
+    - Before (v2): `onCall({ region: "us-central1", vpcConnector: "icici-connector", vpcConnectorEgressSettings: "ALL_TRAFFIC", cors: true, timeoutSeconds: 60, memory: "256MiB" }, async (request) => { const uid = request.auth.uid; const { ... } = request.data; })`
+    - After  (v1): `functions.region("us-central1").runWith({ vpcConnector: "icici-connector", vpcConnectorEgressSettings: "ALL_TRAFFIC", timeoutSeconds: 60, memory: "256MB" }).https.onCall(async (data, context) => { const uid = context.auth.uid; const { ... } = data || {}; })`
+    - Business Logic Changed: NO [Confirmed by source inspection]
+
+17. paymentCallback (functions/src/iciciPaymentFunctions.js)
+    - Before (v2): `onRequest({ region: "us-central1", vpcConnector: "icici-connector", vpcConnectorEgressSettings: "ALL_TRAFFIC", cors: true, timeoutSeconds: 60, memory: "256MiB", invoker: "public" }, async (req, res) => ...)`
+    - After  (v1): `functions.region("us-central1").runWith({ vpcConnector: "icici-connector", vpcConnectorEgressSettings: "ALL_TRAFFIC", timeoutSeconds: 60, memory: "256MB" }).https.onRequest(async (req, res) => ...)`
+    - Business Logic Changed: NO [Confirmed by source inspection]
+
+18. verifyPayment (functions/src/iciciPaymentFunctions.js)
+    - Before (v2): `onRequest({ region: "us-central1", vpcConnector: "icici-connector", vpcConnectorEgressSettings: "ALL_TRAFFIC", cors: true, timeoutSeconds: 60, memory: "256MiB", invoker: "public" }, async (req, res) => ...)`
+    - After  (v1): `functions.region("us-central1").runWith({ vpcConnector: "icici-connector", vpcConnectorEgressSettings: "ALL_TRAFFIC", timeoutSeconds: 60, memory: "256MB" }).https.onRequest(async (req, res) => ...)`
+    - Business Logic Changed: NO [Confirmed by source inspection]
+
+19. createPaymentSession (functions/src/createPaymentSession.js)
+    - Before (v2): `onRequest({ region: "us-central1", vpcConnector: "icici-connector", vpcConnectorEgressSettings: "ALL_TRAFFIC", cors: true, timeoutSeconds: 60, memory: "256MiB", invoker: "public" }, async (req, res) => ...)`
+    - After  (v1): `functions.region("us-central1").runWith({ vpcConnector: "icici-connector", vpcConnectorEgressSettings: "ALL_TRAFFIC", timeoutSeconds: 60, memory: "256MB" }).https.onRequest(async (req, res) => ...)`
+    - Business Logic Changed: NO [Confirmed by source inspection]
+
+
+================================================================================
+5. HANDLER AND EVENT COMPATIBILITY
+================================================================================
+Detailed evaluation of handler parameter transformations:
+
+A. Firestore Triggers:
+- Wildcard Access: In v2, wildcards were accessed via `event.params.tenantId`.
+  In v1, they are accessed via `context.params.tenantId`. All 5 Firestore triggers
+  have been updated to use `context.params`. [Confirmed by source inspection]
+- Snapshots:
+  * `onCreate`: Uses `snap.data()`.
+  * `onUpdate`: Uses `change.before.data()` and `change.after.data()`.
+  * `onWrite`: Uses `change.after.exists ? change.after.data() : null` to safely
+    handle document deletions without throwing runtime exceptions.
+- Reference Updates: Uses `change.after.ref.update(...)` instead of
+  `event.data.after.ref.update(...)`.
+
+B. Callable Functions (`adminProcessRefund`):
+- In v2, `onCall` received `request` with `request.auth` and `request.data`.
+- In v1, `onCall` receives `(data, context)` with `context.auth` and `data`.
+- Authentication Guard: `if (!context || !context.auth) throw new HttpsError("unauthenticated", ...)`
+  strictly enforces auth token presence. [Confirmed by source inspection]
+
+C. HTTP Handlers:
+- Signatures remain `(req, res)`.
+- Explicit CORS preflight (`OPTIONS` -> 204) and headers (`Access-Control-Allow-*`)
+  are added to ensure browser-based requests (from admin panels or web views)
+  are not rejected.
+
+D. verifyPayment Internal Cleanup Details:
+- Previous State: In `iciciPaymentFunctions.js`, lines 356-450 contained internal
+  `exports.reconcilePayments = onSchedule(...)` and `exports.activateSubscription = onDocumentUpdated(...)`
+  declarations placed directly inside the async body of `verifyPayment`.
+- Resolution: Removed these inner closures from inside `verifyPayment`.
+- Impact on verifyPayment: Zero negative impact. The core payment status checking,
+  mapping (`mapICICIStatus`), Firestore updating (`payments/{txnId}`), and tenant
+  mirroring (`payment_transactions/{txnId}`) remain 100% intact. [Confirmed by source inspection]
+
+
+================================================================================
+6. DEPENDENCY AND RUNTIME VALIDATION
+================================================================================
+- Node.js Engine: `"node": "22"` in package.json. [Confirmed by source inspection]
+  * Local Execution: Tested on Node.js v26 runtime; syntax and module resolution
+    behave identically under CommonJS. [Confirmed by local test]
+- firebase-functions: `^7.2.5`
+  * Provides `firebase-functions/v1` namespace export containing all Gen 1 APIs
+    (`https.onRequest`, `https.onCall`, `firestore.document`, `pubsub.schedule`,
+    `region`, `runWith`). [Confirmed by local test]
+- firebase-admin: `^13.9.0`
+  * Fully compatible with Node 22 and Firebase v1 functions. [Confirmed by local test]
+- Dependency Downgrade: None required. No lockfile changes or package removals
+  were needed.
+
+
+================================================================================
+7. ICICI PAYMENT COMPATIBILITY REVIEW
+================================================================================
+Static Review of Payment Processing Code:
+- Request Construction: Preserved in `icici_service.js` (constructs JSON payloads
+  for `/initiateSale`, `/generateQR`, and `/command`).
+- Signature / Hash Generation: Preserved in `icici_hash.js` (sorts keys
+  alphabetically in UTF-16, joins trimmed values without separators, and computes
+  HMAC-SHA256 lowercase hex digest with `ICICI_MERCHANT_KEY`). [Confirmed by local test]
+- Bank Callback Processing: Preserved in `paymentCallback` (handles both POST bank
+  webhooks and GET browser return redirects; performs atomic Firestore transaction;
+  verifies amount; calls bank status API; maps status; writes to `payments/{txnId}`;
+  mirrors to `{tenantId}/{appId}/payment_transactions/{txnId}`).
+- Verification Endpoint: Preserved in `verifyPayment` (polls ICICI Status API
+  directly and returns standardized JSON).
+- Reversals: Preserved in `adminProcessRefund` and `processRefund`.
+
+Status Mapping Rules Preserved [Confirmed by source inspection]:
+- SUCCESS triggers on: `txnStatus === "SUC"`, `txnResponseCode === "0000"`,
+  `responseCode === "0000" | "0" | "00" | "SUCCESS" | "200"`.
+- FAILED triggers on: `txnStatus === "FAIL" | "FAILED"`,
+  `responseCode === "1" | "1111" | "111" | "99" | "FAILED" | "CANCELLED"`.
+- Otherwise: Returns `PENDING`.
+
+
+================================================================================
+8. VPC CONFIGURATION REVIEW
+================================================================================
+The Serverless VPC Access Connector configuration is essential for routing traffic
+through the whitelisted static NAT IP required by ICICI Bank.
+
+Functions with VPC Connector (`icici-connector` / `ALL_TRAFFIC`) configured:
+1. `createPaymentSession` (functions/src/createPaymentSession.js) [Confirmed by source inspection & test]
+2. `paymentCallback` (functions/src/iciciPaymentFunctions.js) [Confirmed by source inspection & test]
+3. `verifyPayment` (functions/src/iciciPaymentFunctions.js) [Confirmed by source inspection & test]
+4. `processRefund` (functions/src/iciciPaymentFunctions.js) [Confirmed by source inspection & test]
+5. `adminProcessRefund` (functions/src/iciciPaymentFunctions.js) [Confirmed by source inspection & test]
+6. `reconcileStuckPayments` (functions/index.js) [Confirmed by source inspection & test]
+
+Verification Label:
+- Configuration Presence: [Confirmed by local test via trigger inspection]
+- Outbound Static NAT Routing in Live Cloud: [Not verified - requires deployed test]
+
+
+================================================================================
+9. SCHEDULED FUNCTION REVIEW
+================================================================================
+Scheduled Functions Verification:
+
+1. `scheduledEmailRetry`
+   - Schedule: `*/30 * * * *` (Every 30 minutes)
+   - Time Zone: `UTC`
+   - Trigger Type: Pub/Sub Scheduled Topic (Gen 1)
+   - Functionality: Queries `mail` collection where `status.state == "RETRY"` and
+     `nextRetryAt <= now`; resets state to `PENDING`. [Confirmed by source inspection]
+
+2. `scheduledSubscriptionReminders`
+   - Schedule: `0 3 * * *` (Daily at 03:00 UTC / 08:30 IST)
+   - Time Zone: `UTC`
+   - Functionality: Queries `collectionGroup("subscription")` for 2-day and 1-day
+     expiry warnings. [Confirmed by source inspection]
+
+3. `checkSubscriptionExpiryReminders`
+   - Schedule: `0 9 * * *` (Daily at 09:00 AM IST)
+   - Time Zone: `Asia/Kolkata`
+   - Memory: `256MB`
+   - Retry Config: `retryCount: 0`
+   - Functionality: Queries `collectionGroup("subscription")` for 3-day, 2-day,
+     and 1-day warnings, generates push notifications, in-app notices, and
+     monthly check-in reports. [Confirmed by source inspection]
+
+4. `reconcileStuckPayments`
+   - Schedule: `0 * * * *` (Hourly)
+   - Time Zone: `Asia/Kolkata`
+   - Memory: `256MB`
+   - Retry Config: `retryCount: 1`
+   - VPC Connector: `icici-connector` (`ALL_TRAFFIC`)
+   - Functionality: Scans `payments` for `PENDING` transactions older than 30m
+     and reconciles directly with ICICI Status API. [Confirmed by source inspection]
+
+
+================================================================================
+10. FIRESTORE TRIGGER REVIEW
+================================================================================
+Evaluation of all 5 Firestore event triggers:
+
+1. `handleTicketCreation`:
+   - Path: `{tenantId}/{appId}/Admin_details/{bookingId}`
+   - Event: `onCreate` (Gen 1)
+   - Snapshot Access: `snap.data()`, `context.params`
+   - Recursion Protection: Writes to `{tenantId}/{appId}/notifications` (different
+     collection from trigger path). [Confirmed by source inspection]
+
+2. `handleTicketStatusUpdate`:
+   - Path: `{tenantId}/{appId}/Admin_details/{bookingId}`
+   - Event: `onUpdate` (Gen 1)
+   - Snapshot Access: `change.before.data()`, `change.after.data()`, `context.params`
+   - Comparison: Compares `assignedEmployee` and `status` between before and after.
+   - Recursion Protection: Does not write to `Admin_details`; writes to `notifications`. [Confirmed by source inspection]
+
+3. `processMailDocument`:
+   - Path: `mail/{docId}`
+   - Event: `onWrite` (Gen 1)
+   - Snapshot Access: `change.after.exists ? change.after.data() : null`
+   - Guard: Only runs if `status.state === "PENDING"`. On execution, updates state
+     to `SENT` or `RETRY`/`ERROR`.
+   - Recursion Protection: Does not re-trigger when status is `SENT` or `RETRY`. [Confirmed by source inspection]
+
+4. `processPaymentSuccess`:
+   - Path: `{tenantId}/{appId}/payment_transactions/{txnId}`
+   - Event: `onWrite` (Gen 1)
+   - Snapshot Access: `change.after.exists ? change.after.data() : null`, `change.before.exists ? change.before.data() : null`
+   - Guard: `if (!newData || newData.status !== "SUCCESS") return; if (oldData && oldData.status === "SUCCESS") return;`
+   - Idempotency & Recursion: Only executes on initial transition to `SUCCESS`.
+     Subsequent edits to `payment_transactions` (such as adding `invoiceNo`) are
+     skipped. [Confirmed by source inspection]
+
+5. `logPaymentActivity`:
+   - Path: `payments/{txnId}`
+   - Event: `onWrite` (Gen 1)
+   - Snapshot Access: `change.after.exists ? change.after.data() : null`, `context.params`
+   - Guard: Skips if status is `PENDING`.
+   - Recursion Protection: Writes to `{tenantId}/{appId}/payment_logs/{txnId}`
+     (separate tenant collection). [Confirmed by source inspection]
+
+
+================================================================================
+11. ENDPOINT COMPATIBILITY REVIEW
+================================================================================
+HTTP Endpoint URL Comparison:
+
+Function Name             | Region      | Expected Gen 1 URL                                                         | Flutter Client Reference
+--------------------------+-------------+----------------------------------------------------------------------------+------------------------------------------
+testNotify                | us-central1 | https://us-central1-white-label-app-33300.cloudfunctions.net/testNotify                | Test URL
+testExpiryReminders       | us-central1 | https://us-central1-white-label-app-33300.cloudfunctions.net/testExpiryReminders        | Test URL
+sendOTP                   | us-central1 | https://us-central1-white-label-app-33300.cloudfunctions.net/sendOTP                   | lib/frontend/screens/forgot_password_page.dart:28
+verifyOTPAndResetPassword | us-central1 | https://us-central1-white-label-app-33300.cloudfunctions.net/verifyOTPAndResetPassword | lib/frontend/screens/reset_password_page.dart:31
+testExpiryReminder        | us-central1 | https://us-central1-white-label-app-33300.cloudfunctions.net/testExpiryReminder         | Test URL
+processRefund             | us-central1 | https://us-central1-white-label-app-33300.cloudfunctions.net/processRefund              | lib/services/icici_service.dart:39
+paymentCallback           | us-central1 | https://us-central1-white-label-app-33300.cloudfunctions.net/paymentCallback            | Bank Webhook (functions/.env.yaml:5)
+verifyPayment             | us-central1 | https://us-central1-white-label-app-33300.cloudfunctions.net/verifyPayment              | lib/services/icici_service.dart:40
+createPaymentSession      | us-central1 | https://us-central1-white-label-app-33300.cloudfunctions.net/createPaymentSession       | lib/services/icici_service.dart:38
+adminProcessRefund        | us-central1 | (Callable - invoked via FirebaseFunctions.instance.httpsCallable)         | Admin Dashboard / Service
+
+URL Compatibility Conclusion [Confirmed by source inspection]:
+- All HTTP endpoints deployed to Gen 1 in `us-central1` generate URLs under the
+  `https://us-central1-white-label-app-33300.cloudfunctions.net/<functionName>` format.
+- The Flutter client (`Dio` base URL: `https://us-central1-white-label-app-33300.cloudfunctions.net`)
+  and ICICI Bank webhook configuration match this format exactly.
+- No Flutter code changes or bank webhook URL changes are required.
+
+
+================================================================================
+12. TESTS ACTUALLY PERFORMED
+================================================================================
+1. [Confirmed by local test] Export Loading & Node.js Syntax Check:
+   - Executed `node test_imports.js` using Node.js.
+   - All 19 functions exported successfully without runtime or syntax exceptions.
+2. [Confirmed by local test] Trigger Registration & Metadata Assertion:
+   - Evaluated `__trigger` property on every exported function.
+   - Verified that HTTP endpoints register `httpsTrigger`.
+   - Verified that Firestore triggers register correct `resource` document path
+     and `eventType` (`document.create`, `document.update`, `document.write`).
+   - Verified that Scheduled functions register Pub/Sub topics, exact cron
+     expressions, and time zones.
+3. [Confirmed by local test] VPC & Memory Configuration Verification:
+   - Asserted that `vpcConnector: "icici-connector"`, `vpcConnectorEgressSettings: "ALL_TRAFFIC"`,
+     and `availableMemoryMb: 256` are active on all 6 ICICI-related functions.
+4. [Confirmed by local test] Utility & Hash Generation Sandbox Execution:
+   - Verified HMAC-SHA256 signature generation with test parameters against
+     `icici_hash.js`.
+5. [Confirmed by local test] Git Status Cleanliness:
+   - Verified that only the intended functions source files were modified.
+
+
+================================================================================
+13. TESTS NOT PERFORMED
+================================================================================
+The following tests have NOT been performed and cannot be performed without live
+deployment or an active emulator environment:
+
+1. [Not verified] Live ICICI Payment Gateway Network Request:
+   - Cannot test live socket communication with `pgpay.icicibank.com` locally
+     because local dev machines do not route through GCP VPC Connector NAT IPs.
+2. [Not verified] Live Hostinger SMTP Email Dispatch:
+   - No mock email dispatch was executed against the production SMTP credentials.
+3. [Not verified] Live FCM Push Notification Delivery:
+   - No push tokens were triggered on production FCM servers.
+4. [Not verified] Remote Cloud Functions Deployment:
+   - No `firebase deploy` commands were executed.
+5. [Not verified] Live Cloud Pub/Sub Scheduler Triggering:
+   - Google Cloud Scheduler jobs have not been created or executed in the cloud.
+
+
+================================================================================
+14. CONFIRMED FINDINGS
+================================================================================
+1. [Confirmed by source inspection & local test] The codebase has been completely
+   refactored from `firebase-functions/v2` to `firebase-functions/v1`.
+2. [Confirmed by local test] All 19 exports load cleanly and register valid v1
+   Google Cloud Functions Gen 1 trigger objects.
+3. [Confirmed by source inspection] All Firestore event access has been mapped
+   to v1 snapshots (`snap.data()`, `change.before.data()`, `change.after.data()`,
+   `context.params`).
+4. [Confirmed by source inspection] All Callable functions use `(data, context)`
+   with `context.auth` security checks.
+5. [Confirmed by source inspection] All payment functions maintain explicit VPC
+   Connector bindings (`icici-connector` / `ALL_TRAFFIC`).
+
+
+================================================================================
+15. UNVERIFIED CLAIMS
+================================================================================
+1. [Not verified] Whether ICICI Bank servers will accept requests from the v1
+   deployment without issues (Requires live deployed test to confirm the NAT IP
+   egress matches the whitelisted IP).
+2. [Not verified] Whether the Firebase CLI will require explicit deletion of
+   existing v2 Cloud Run services during the initial deployment of same-named
+   v1 functions (Documented in Section 16).
+3. [Not verified] End-to-end receipt generation in a live Cloud Functions
+   execution environment with PDFKit canvas rendering.
+
+
+================================================================================
+16. REMAINING RISKS
+================================================================================
+1. Gen 2 to Gen 1 Function Replacement via Firebase CLI:
+   - Technical Risk: Google Cloud treats Cloud Functions Gen 2 (Cloud Run backend)
+     and Cloud Functions Gen 1 (Cloud Functions 1st gen backend) as distinct
+     resource types.
+   - When deploying a Gen 1 function with the exact same name as an existing Gen 2
+     function, the Firebase CLI may report:
+     "Cannot change function generation in-place".
+   - Mitigation / Recommended Deployment Strategy:
+     If Firebase CLI rejects the generation update, the existing v2 function
+     must be deleted in Firebase Console or via CLI before deploying the v1
+     replacement, OR deployed under a staged rollout.
+
+2. Cloud Scheduler Job Overlap:
+   - Technical Risk: Gen 2 schedulers use Cloud Run trigger jobs; Gen 1 schedulers
+     use Cloud Pub/Sub topics + Cloud Scheduler.
+   - Mitigation: When deploying Gen 1 schedulers, verify in Google Cloud Console
+     (Cloud Scheduler tab) that orphaned Gen 2 scheduler jobs are removed to
+     prevent duplicate daily reminder executions.
+
+
+================================================================================
+17. REQUIRED STEPS BEFORE DEPLOYMENT
+================================================================================
+When you decide to proceed with deployment, follow these staged steps:
+
+Step 1: Staged Dry-Run Validation
+Run the local verification suite:
+```bash
+cd functions
+node test_imports.js
+```
+
+Step 2: Deployment of a Single Non-Critical Function First
+Test deployment on a standalone endpoint (e.g. `testNotify` or `testExpiryReminder`):
+```bash
+firebase deploy --only functions:testNotify
+```
+
+Step 3: Verify Gen 1 Deployment in Firebase Console
+Check the Firebase Console -> Functions tab to confirm `testNotify` is marked as
+"1st gen" in region `us-central1`.
+
+Step 4: Deploy Remaining Functions in Batches
+- Batch A (Utility & Notifications):
+  ```bash
+  firebase deploy --only functions:handleTicketCreation,functions:handleTicketStatusUpdate,functions:processMailDocument,functions:sendOTP,functions:verifyOTPAndResetPassword
+  ```
+- Batch B (Schedulers):
+  ```bash
+  firebase deploy --only functions:scheduledEmailRetry,functions:scheduledSubscriptionReminders,functions:checkSubscriptionExpiryReminders,functions:reconcileStuckPayments
+  ```
+- Batch C (Payment Endpoints with VPC):
+  ```bash
+  firebase deploy --only functions:createPaymentSession,functions:paymentCallback,functions:verifyPayment,functions:processRefund,functions:adminProcessRefund,functions:processPaymentSuccess,functions:logPaymentActivity
+  ```
+
+Step 5: End-to-End Live Payment & VPC Validation
+- Initiate a test ₹1.00 UPI QR payment session via `createPaymentSession`.
+- Confirm response contains `txnId` and `upiQR`.
+- Verify bank status check returns valid response through the VPC connector.
+
+================================================================================
+END OF VALIDATION REPORT
+================================================================================

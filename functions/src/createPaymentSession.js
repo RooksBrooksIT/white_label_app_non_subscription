@@ -5,7 +5,7 @@
 
 "use strict";
 
-const { onRequest } = require("firebase-functions/v2/https");
+const functions = require("firebase-functions/v1");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
 const iciciService = require("./icici_service");
@@ -17,17 +17,23 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 
-exports.createPaymentSession = onRequest(
-    {
-        region: "us-central1",
+exports.createPaymentSession = functions
+    .region("us-central1")
+    .runWith({
         vpcConnector: "icici-connector",
         vpcConnectorEgressSettings: "ALL_TRAFFIC",
-        cors: true,
         timeoutSeconds: 60,
-        memory: "256MiB",
-        invoker: "public",
-    },
-    async (req, res) => {
+        memory: "256MB",
+    })
+    .https.onRequest(async (req, res) => {
+        // Enable CORS
+        res.set("Access-Control-Allow-Origin", "*");
+        res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+        res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+        if (req.method === "OPTIONS") {
+            return res.status(204).send("");
+        }
+
         const TAG = "[CREATE-SESSION]";
         
         try {

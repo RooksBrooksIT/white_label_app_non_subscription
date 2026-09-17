@@ -1,8 +1,11 @@
-const { onDocumentUpdated, onDocumentCreated, onDocumentWritten } = require("firebase-functions/v2/firestore");
-const { onSchedule } = require("firebase-functions/v2/scheduler");
-const { onRequest } = require("firebase-functions/v2/https");
+const functions = require("firebase-functions/v1");
 const admin = require("firebase-admin");
 require("dotenv").config();
+
+if (!process.env.GCLOUD_PROJECT && process.env.GCP_PROJECT_ID) {
+    process.env.GCLOUD_PROJECT = process.env.GCP_PROJECT_ID;
+}
+
 const BRAND_BLUE = "#1A237E";
 const BRAND_BLUE_LIGHT = "#EBF5FF";
 
@@ -78,9 +81,11 @@ async function sendNotification(tenantId, appId, role, userId, payload) {
             android: {
                 priority: "high",
                 notification: {
-                    channelId: "high_importance_channel",
+                    channelId: (payload.data && (payload.data.type === "subscription_expiry" || payload.data.type === "plan_expired" || payload.data.type === "invoice")) ? "subscription_channel" : "high_importance_channel",
+                    icon: "ic_stat_notification",
                     priority: "high",
                     defaultSound: true,
+                    clickAction: "FLUTTER_NOTIFICATION_CLICK",
                 },
             },
             apns: {
@@ -126,7 +131,7 @@ async function createPersistentNotification(tenantId, appId, payload) {
 
 // 1. HTTP Test Function: Send notification to any user
 // Usage: https://<region>-<project>.cloudfunctions.net/testNotify?tenantId=white-label-app-33300&appId=data&role=engineer&userId=JohnDoe
-exports.testNotify = onRequest({ invoker: "public" }, async (req, res) => {
+const testNotify = functions.region("us-central1").https.onRequest(async (req, res) => {
     const { tenantId, appId, role, userId } = req.query;
     if (!tenantId || !appId || !role || !userId) {
         return res.status(400).send("Missing query params: tenantId, appId, role, userId");
@@ -150,9 +155,12 @@ exports.testNotify = onRequest({ invoker: "public" }, async (req, res) => {
 
 
 // 3. Notify Admin when a new ticket is raised
-exports.handleTicketCreation = onDocumentCreated("{tenantId}/{appId}/Admin_details/{bookingId}", async (event) => {
-    const ticketData = event.data.data();
-    const { tenantId, appId, bookingId } = event.params;
+const handleTicketCreation = functions
+    .region("us-central1")
+    .firestore.document("{tenantId}/{appId}/Admin_details/{bookingId}")
+    .onCreate(async (snap, context) => {
+        const ticketData = snap.data();
+        const { tenantId, appId, bookingId } = context.params;
     console.log(`[DEBUG] New ticket raised in ${tenantId}/${appId}: ${bookingId}`);
 
     try {
@@ -192,8 +200,10 @@ exports.handleTicketCreation = onDocumentCreated("{tenantId}/{appId}/Admin_detai
                     priority: "high",
                     notification: {
                         channelId: "high_importance_channel",
+                        icon: "ic_stat_notification",
                         priority: "high",
                         defaultSound: true,
+                        clickAction: "FLUTTER_NOTIFICATION_CLICK",
                     },
                 },
                 apns: {
@@ -229,10 +239,13 @@ exports.handleTicketCreation = onDocumentCreated("{tenantId}/{appId}/Admin_detai
 });
 
 // 4. Notify Customer when ticket status is updated
-exports.handleTicketStatusUpdate = onDocumentUpdated("{tenantId}/{appId}/Admin_details/{bookingId}", async (event) => {
-    const newData = event.data.after.data();
-    const oldData = event.data.before.data();
-    const { tenantId, appId, bookingId } = event.params;
+const handleTicketStatusUpdate = functions
+    .region("us-central1")
+    .firestore.document("{tenantId}/{appId}/Admin_details/{bookingId}")
+    .onUpdate(async (change, context) => {
+        const newData = change.after.data();
+        const oldData = change.before.data();
+        const { tenantId, appId, bookingId } = context.params;
 
     // ── Engineer Assignment Notification ────────────────────────────────
     const isNewAssignment = newData.assignedEmployee &&
@@ -368,76 +381,83 @@ exports.handleTicketStatusUpdate = onDocumentUpdated("{tenantId}/{appId}/Admin_d
 });
 
 // 4. Send Email via Nodemailer when a document is created or updated in the "mail" collection
-exports.processMailDocument = onDocumentWritten("mail/{docId}", async (event) => {
-    const data = event.data.after ? event.data.after.data() : null;
-    
-    // Skip if document was deleted or missing required fields
-    if (!data || !data.to) return;
+const processMailDocument = functions
+    .region("us-central1")
+    .firestore.document("mail/{docId}")
+    .onWrite(async (change, context) => {
+        const data = change.after.exists ? change.after.data() : null;
+        
+        // Skip if document was deleted or missing required fields
+        if (!data || !data.to) return null;
 
-    // Only process if status is pending. 
-    // RETRY status is handled by the scheduledEmailRetry function which resets it to PENDING.
-    const status = data.status || { state: "PENDING" };
-    if (status.state !== "PENDING") return;
+        // Only process if status is pending. 
+        // RETRY status is handled by the scheduledEmailRetry function which resets it to PENDING.
+        const status = data.status || { state: "PENDING" };
+        if (status.state !== "PENDING") return null;
 
-    const nodemailer = require("nodemailer");
-    const transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST || "smtp.hostinger.com",
-        port: parseInt(process.env.SMTP_PORT || "465"),
-        secure: true,
-        auth: {
-            user: process.env.SMTP_USER || "support@rookstechnologies.com",
-            pass: process.env.SMTP_PASS || "Rooks!123",
-        },
+        const nodemailer = require("nodemailer");
+        const transporter = nodemailer.createTransport({
+            host: process.env.SMTP_HOST || "smtp.hostinger.com",
+            port: parseInt(process.env.SMTP_PORT || "465"),
+            secure: true,
+            auth: {
+                user: process.env.SMTP_USER || "support@rookstechnologies.com",
+                pass: process.env.SMTP_PASS || "Rooks!123",
+            },
+        });
+
+        const mailOptions = {
+            from: `"${process.env.COMPANY_NAME || "Rooks And Brooks"}" <${process.env.SMTP_USER || "support@rookstechnologies.com"}>`,
+            to: data.to,
+            subject: data.message.subject,
+            html: data.message.html,
+            attachments: (data.message.attachments || []).map((att) => ({
+                filename: att.filename,
+                content: att.content,
+                encoding: "base64",
+                contentType: att.contentType,
+            })),
+        };
+
+        try {
+            console.log(`[EMAIL] Attempting to send to ${data.to} | Subject: "${data.message.subject}"`);
+            await transporter.sendMail(mailOptions);
+            console.log(`[EMAIL] Successfully sent to ${data.to}`);
+
+            return change.after.ref.update({
+                status: { 
+                    state: "SENT", 
+                    sentAt: admin.firestore.FieldValue.serverTimestamp(),
+                    attempts: (status.attempts || 0) + 1
+                },
+            });
+        } catch (error) {
+            const attempts = (status.attempts || 0) + 1;
+            const maxAttempts = 3;
+            const canRetry = attempts < maxAttempts;
+
+            console.error(`[EMAIL ERROR] Attempt ${attempts}/${maxAttempts} failed for ${data.to}:`, error.message);
+
+            return change.after.ref.update({
+                status: {
+                    state: canRetry ? "RETRY" : "ERROR",
+                    error: error.message,
+                    failedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    attempts: attempts,
+                    nextRetryAt: canRetry ? admin.firestore.Timestamp.fromDate(new Date(Date.now() + (Math.pow(2, attempts) * 60000))) : null // Exponential backoff
+                },
+            });
+        }
     });
-
-    const mailOptions = {
-        from: `"${process.env.COMPANY_NAME || "Rooks And Brooks"}" <${process.env.SMTP_USER || "support@rookstechnologies.com"}>`,
-        to: data.to,
-        subject: data.message.subject,
-        html: data.message.html,
-        attachments: (data.message.attachments || []).map((att) => ({
-            filename: att.filename,
-            content: att.content,
-            encoding: "base64",
-            contentType: att.contentType,
-        })),
-    };
-
-    try {
-        console.log(`[EMAIL] Attempting to send to ${data.to} | Subject: "${data.message.subject}"`);
-        await transporter.sendMail(mailOptions);
-        console.log(`[EMAIL] Successfully sent to ${data.to}`);
-
-        return event.data.after.ref.update({
-            status: { 
-                state: "SENT", 
-                sentAt: admin.firestore.FieldValue.serverTimestamp(),
-                attempts: (status.attempts || 0) + 1
-            },
-        });
-    } catch (error) {
-        const attempts = (status.attempts || 0) + 1;
-        const maxAttempts = 3;
-        const canRetry = attempts < maxAttempts;
-
-        console.error(`[EMAIL ERROR] Attempt ${attempts}/${maxAttempts} failed for ${data.to}:`, error.message);
-
-        return event.data.after.ref.update({
-            status: {
-                state: canRetry ? "RETRY" : "ERROR",
-                error: error.message,
-                failedAt: admin.firestore.FieldValue.serverTimestamp(),
-                attempts: attempts,
-                nextRetryAt: canRetry ? admin.firestore.Timestamp.fromDate(new Date(Date.now() + (Math.pow(2, attempts) * 60000))) : null // Exponential backoff
-            },
-        });
-    }
-});
 
 // 4.5. Scheduled Email Retry
 //     Schedule: Every 30 minutes
 //     Action: Resets documents in 'RETRY' state back to 'PENDING' if their nextRetryAt has passed.
-exports.scheduledEmailRetry = onSchedule("*/30 * * * *", async (event) => {
+const scheduledEmailRetry = functions
+    .region("us-central1")
+    .pubsub.schedule("*/30 * * * *")
+    .timeZone("UTC")
+    .onRun(async (context) => {
     const db = admin.firestore();
     const now = admin.firestore.Timestamp.now();
 
@@ -461,12 +481,14 @@ exports.scheduledEmailRetry = onSchedule("*/30 * * * *", async (event) => {
 // 5. Generate Professional PDF Receipt & Send Email on Payment Success
 //    Trigger: {tenantId}/{appId}/payment_transactions/{txnId} → status = SUCCESS
 // ─────────────────────────────────────────────────────────────────────────────
-exports.processPaymentSuccess = onDocumentWritten(
-    "{tenantId}/{appId}/payment_transactions/{txnId}",
-    async (event) => {
-        const newData = event.data.after ? event.data.after.data() : null;
-        const oldData = event.data.before ? event.data.before.data() : null;
-        const { tenantId, appId, txnId } = event.params;
+const processPaymentSuccess = functions
+    .region("us-central1")
+    .runWith({ memory: "256MB", timeoutSeconds: 60 })
+    .firestore.document("{tenantId}/{appId}/payment_transactions/{txnId}")
+    .onWrite(async (change, context) => {
+        const newData = change.after.exists ? change.after.data() : null;
+        const oldData = change.before.exists ? change.before.data() : null;
+        const { tenantId, appId, txnId } = context.params;
 
         if (!newData || newData.status !== "SUCCESS") return;
 
@@ -827,7 +849,7 @@ exports.processPaymentSuccess = onDocumentWritten(
             console.log(`[RECEIPT] ✅ Email queued for ${recipientEmail} | invoice=${invoiceNo}`);
 
             // ── 7. Update transaction doc with invoice details ──────────────
-            await event.data.after.ref.update({
+            await change.after.ref.update({
                 invoiceNo: invoiceNo,
                 receiptSentAt: admin.firestore.FieldValue.serverTimestamp(),
                 receiptEmail: recipientEmail,
@@ -894,9 +916,12 @@ exports.processPaymentSuccess = onDocumentWritten(
 //     Trigger: payments/{txnId} (Any write/update)
 //     Action: Mirrored to {tenantId}/{appId}/payment_logs/{txnId} for auditing.
 // ─────────────────────────────────────────────────────────────────────────────
-exports.logPaymentActivity = onDocumentWritten("payments/{txnId}", async (event) => {
-    const newData = event.data.after ? event.data.after.data() : null;
-    const { txnId } = event.params;
+const logPaymentActivity = functions
+    .region("us-central1")
+    .firestore.document("payments/{txnId}")
+    .onWrite(async (change, context) => {
+        const newData = change.after.exists ? change.after.data() : null;
+        const { txnId } = context.params;
 
     if (!newData || !newData.tenantId || !newData.appId) {
         console.warn(`[LOG] Skipping log for ${txnId}: Missing tenantId or appId`);
@@ -951,7 +976,11 @@ exports.logPaymentActivity = onDocumentWritten("payments/{txnId}", async (event)
 //     Schedule: Daily at 09:00 AM IST (03:30 AM UTC)
 //     Action: Scans all active subscriptions and sends emails 2 days and 1 day before expiry.
 // ─────────────────────────────────────────────────────────────────────────────
-exports.scheduledSubscriptionReminders = onSchedule("0 3 * * *", async (event) => {
+const scheduledSubscriptionReminders = functions
+    .region("us-central1")
+    .pubsub.schedule("0 3 * * *")
+    .timeZone("UTC")
+    .onRun(async (context) => {
     console.log("[REMINDER] Starting daily subscription expiry check...");
     const now = new Date();
     const db = admin.firestore();
@@ -1140,7 +1169,9 @@ async function sendExpiryReminder(docRef, data, expiresAt, type) {
 // ─────────────────────────────────────────────────────────────────────────────
 // 11. HTTP Test Function: Manually trigger expiry checks
 // ─────────────────────────────────────────────────────────────────────────────
-exports.testExpiryReminders = onRequest({ invoker: "public" }, async (req, res) => {
+const testExpiryReminders = functions
+    .region("us-central1")
+    .https.onRequest(async (req, res) => {
     console.log("[HTTP TEST] Manually triggering expiry reminders...");
     const now = new Date();
     const db = admin.firestore();
@@ -1188,7 +1219,9 @@ exports.testExpiryReminders = onRequest({ invoker: "public" }, async (req, res) 
 });
 
 // 7. Send OTP for Forgot Password
-exports.sendOTP = onRequest({ invoker: "public" }, async (req, res) => {
+const sendOTP = functions
+    .region("us-central1")
+    .https.onRequest(async (req, res) => {
     // Handle CORS
     res.set('Access-Control-Allow-Origin', '*');
     if (req.method === 'OPTIONS') {
@@ -1257,7 +1290,9 @@ exports.sendOTP = onRequest({ invoker: "public" }, async (req, res) => {
 });
 
 // 8. Verify OTP and Reset Password
-exports.verifyOTPAndResetPassword = onRequest({ invoker: "public" }, async (req, res) => {
+const verifyOTPAndResetPassword = functions
+    .region("us-central1")
+    .https.onRequest(async (req, res) => {
     // Handle CORS
     res.set('Access-Control-Allow-Origin', '*');
     if (req.method === 'OPTIONS') {
@@ -1327,12 +1362,13 @@ exports.verifyOTPAndResetPassword = onRequest({ invoker: "public" }, async (req,
  * ─────────────────────────────────────────────────────────────────────────────
  * Checks for active subscriptions expiring in 3 days and sends a reminder.
  */
-exports.checkSubscriptionExpiryReminders = onSchedule({
-    schedule:   "0 9 * * *",
-    timeZone:   "Asia/Kolkata",
-    retryCount: 0,
-    memory:     "256MiB",
-}, async (event) => {
+const checkSubscriptionExpiryReminders = functions
+    .region("us-central1")
+    .runWith({ memory: "256MB" })
+    .pubsub.schedule("0 9 * * *")
+    .timeZone("Asia/Kolkata")
+    .retryConfig({ retryCount: 0 })
+    .onRun(async (context) => {
 
     console.log("[SCHEDULER] Running daily subscription reminders check at 09:00 AM IST...");
 
@@ -1517,7 +1553,9 @@ exports.checkSubscriptionExpiryReminders = onSchedule({
 // ─────────────────────────────────────────────────────────────────────────────
 // 6. Temporary HTTP Trigger for Testing Subscription Expiry (Manual)
 // ─────────────────────────────────────────────────────────────────────────────
-exports.testExpiryReminder = onRequest({ invoker: "public" }, async (req, res) => {
+const testExpiryReminder = functions
+    .region("us-central1")
+    .https.onRequest(async (req, res) => {
     console.log("[TEST] Manually triggering subscription reminders check...");
 
     const now = new Date();
@@ -1588,12 +1626,17 @@ exports.testExpiryReminder = onRequest({ invoker: "public" }, async (req, res) =
  * Automatically recovers PENDING payments that were never completed by 
  * verifying their status with ICICI Bank after 30 minutes.
  */
-exports.reconcileStuckPayments = onSchedule({
-    schedule:   "0 * * * *", // Every hour
-    timeZone:   "Asia/Kolkata",
-    retryCount: 1,
-    memory:     "256MiB",
-}, async (event) => {
+const reconcileStuckPayments = functions
+    .region("us-central1")
+    .runWith({
+        memory: "256MB",
+        vpcConnector: "icici-connector",
+        vpcConnectorEgressSettings: "ALL_TRAFFIC",
+    })
+    .pubsub.schedule("0 * * * *")
+    .timeZone("Asia/Kolkata")
+    .retryConfig({ retryCount: 1 })
+    .onRun(async (context) => {
     console.log("[RECONCILE] Running hourly payment reconciliation...");
 
     const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
@@ -1658,16 +1701,38 @@ exports.reconcileStuckPayments = onSchedule({
 // ===== ICICI PAYMENT GATEWAY FUNCTIONS =====
 const iciciFunctions = require("./src/iciciPaymentFunctions");
 
-// processRefund  → called by Flutter admin panel for refunds
-// paymentCallback → webhook called by ICICI after payment
-// verifyPayment   → called by Flutter app to poll status
-exports.processRefund    = iciciFunctions.processRefund;
-exports.adminProcessRefund = iciciFunctions.adminProcessRefund;
-exports.paymentCallback  = iciciFunctions.paymentCallback;
-exports.verifyPayment    = iciciFunctions.verifyPayment;
-
 // ===== CARD, NET BANKING & UPI PAYMENT SESSION =====
 // Primary payment initiation endpoint — handles CARD, NETBANKING, UPI
 const { createPaymentSession } = require("./src/createPaymentSession");
+
+// ===== EXPORTS (ALL 19 FUNCTIONS) =====
+exports.testNotify = testNotify;
+
+// Firestore Triggers
+exports.handleTicketCreation = handleTicketCreation;
+exports.handleTicketStatusUpdate = handleTicketStatusUpdate;
+exports.processMailDocument = processMailDocument;
+exports.processPaymentSuccess = processPaymentSuccess;
+exports.logPaymentActivity = logPaymentActivity;
+
+// Schedulers & Expiry Reminders
+exports.scheduledEmailRetry = scheduledEmailRetry;
+exports.scheduledSubscriptionReminders = scheduledSubscriptionReminders;
+exports.testExpiryReminders = testExpiryReminders;
+exports.checkSubscriptionExpiryReminders = checkSubscriptionExpiryReminders;
+exports.testExpiryReminder = testExpiryReminder;
+exports.reconcileStuckPayments = reconcileStuckPayments;
+
+// OTP & Account
+exports.sendOTP = sendOTP;
+exports.verifyOTPAndResetPassword = verifyOTPAndResetPassword;
+
+// ICICI Payment Gateway
+exports.processRefund = iciciFunctions.processRefund;
+exports.adminProcessRefund = iciciFunctions.adminProcessRefund;
+exports.paymentCallback = iciciFunctions.paymentCallback;
+exports.verifyPayment = iciciFunctions.verifyPayment;
 exports.createPaymentSession = createPaymentSession;
+
+
 

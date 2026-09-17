@@ -72,14 +72,28 @@ class AuthStateService extends ChangeNotifier {
     required String email,
     required String password,
     required String role,
+    String? phone,
     Map<String, dynamic>? additionalData,
     bool deferAuth = false,
   }) async {
     try {
+      final resolvedPhone = phone?.trim() ??
+          (additionalData?['phone'] as String?)?.trim() ??
+          (additionalData?['customerMobile'] as String?)?.trim() ??
+          '';
+
+      final Map<String, dynamic> mergedAdditionalData = {
+        if (resolvedPhone.isNotEmpty) ...{
+          'phone': resolvedPhone,
+          'customerMobile': resolvedPhone,
+        },
+        ...?additionalData,
+      };
+
       if (deferAuth) {
         final auth = FirebaseAuth.instance;
 
-        // 1. Validate credentials by actually creating or signing in the Auth account
+        // 1. Validate credentials by creating or signing in the Auth account
         if (auth.currentUser == null || auth.currentUser!.email != email) {
           try {
             await auth.createUserWithEmailAndPassword(
@@ -109,19 +123,74 @@ class AuthStateService extends ChangeNotifier {
           }
         }
 
-        // Just store the data in memory for now, but include the uid
+        final uid = auth.currentUser!.uid;
+
+        // Determine tenant ID
+        String targetScope = '';
+        if (mergedAdditionalData.containsKey('tenantId') &&
+            (mergedAdditionalData['tenantId'] as String).isNotEmpty) {
+          targetScope = mergedAdditionalData['tenantId'];
+        } else {
+          targetScope = FirestoreService.generateTenantId(name);
+          mergedAdditionalData['tenantId'] = targetScope;
+        }
+
+        // Store data in memory
         _pendingRegistrationData = {
-          'uid': auth.currentUser!.uid,
+          'uid': uid,
           'name': name,
           'email': email,
           'password': password,
+          'phone': resolvedPhone,
           'role': role,
-          'additionalData': additionalData,
-          if (additionalData != null && additionalData.containsKey('tenantId'))
-            'tenantId': additionalData['tenantId'],
+          'tenantId': targetScope,
+          'additionalData': mergedAdditionalData,
         };
-        debugPrint('Account auth validated and registration deferred for $email');
-        return {'success': true, 'message': 'Account details saved locally.'};
+
+        // 2. Immediately write the initial user record to Firestore (with active: false until paid)
+        final initialUserData = {
+          'uid': uid,
+          'name': name,
+          'email': email,
+          if (resolvedPhone.isNotEmpty) ...{
+            'phone': resolvedPhone,
+            'customerMobile': resolvedPhone,
+          },
+          'role': role,
+          'registeredAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+          'isApproved': role == 'admin' ? true : false,
+          'active': false,
+          'tenantId': targetScope,
+          ...mergedAdditionalData,
+        };
+
+        await FirestoreService.instance
+            .collection('users', tenantId: targetScope)
+            .doc(uid)
+            .set(initialUserData, SetOptions(merge: true));
+
+        // Register in Global Directory
+        await FirestoreService.instance.saveUserDirectory(
+          uid: uid,
+          tenantId: targetScope,
+          appName: 'data',
+          role: role,
+          email: email,
+          name: name,
+          phone: resolvedPhone,
+        );
+
+        // Persist pending tenant to SharedPreferences as safety fallback
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('pending_tenantId', targetScope);
+        await prefs.setString('pending_email', email);
+        if (resolvedPhone.isNotEmpty) {
+          await prefs.setString('pending_phone', resolvedPhone);
+        }
+
+        debugPrint('Account auth validated & initial record created in Firestore for $email ($targetScope)');
+        return {'success': true, 'message': 'Account details saved.'};
       }
 
       final auth = FirebaseAuth.instance;
@@ -137,7 +206,6 @@ class AuthStateService extends ChangeNotifier {
           );
         } on FirebaseAuthException catch (e) {
           if (e.code == 'email-already-in-use') {
-            // Attempt to sign in if the account was already created in a previous attempt
             try {
               await auth.signInWithEmailAndPassword(
                 email: email,
@@ -165,10 +233,11 @@ class AuthStateService extends ChangeNotifier {
         'name': name,
         'email': email,
         'password': password,
+        'phone': resolvedPhone,
         'role': role,
-        'additionalData': additionalData,
-        if (additionalData != null && additionalData.containsKey('tenantId'))
-          'tenantId': additionalData['tenantId'],
+        'additionalData': mergedAdditionalData,
+        if (mergedAdditionalData.containsKey('tenantId'))
+          'tenantId': mergedAdditionalData['tenantId'],
       };
 
       return await finalizeRegistration();
@@ -186,8 +255,11 @@ class AuthStateService extends ChangeNotifier {
 
   /// Creates the actual Firebase Auth account and then the Firestore records.
   /// Used after successful payment for new users.
-  Future<Map<String, dynamic>> createAndFinalizeAccount() async {
-    if (_pendingRegistrationData == null) {
+  Future<Map<String, dynamic>> createAndFinalizeAccount({
+    Map<String, dynamic>? fallbackData,
+  }) async {
+    final data = _pendingRegistrationData ?? fallbackData;
+    if (data == null) {
       return {
         'success': false,
         'message': 'No pending registration data found.',
@@ -195,8 +267,8 @@ class AuthStateService extends ChangeNotifier {
     }
 
     try {
-      final email = _pendingRegistrationData!['email'];
-      final password = _pendingRegistrationData!['password'];
+      final email = data['email'];
+      final password = data['password'];
 
       final auth = FirebaseAuth.instance;
 
@@ -220,37 +292,76 @@ class AuthStateService extends ChangeNotifier {
       }
 
       final uid = auth.currentUser!.uid;
-      _pendingRegistrationData!['uid'] = uid;
+      data['uid'] = uid;
+      _pendingRegistrationData = data;
 
-      // 2. Now call the standard finalization to create Firestore records
-      return await finalizeRegistration();
+      // 2. Call standard finalization to create Firestore records
+      return await finalizeRegistration(fallbackData: data);
     } catch (e) {
       debugPrint('Error creating and finalizing account: $e');
       return {'success': false, 'message': e.toString()};
     }
   }
 
-  Future<Map<String, dynamic>> finalizeRegistration() async {
-    if (_pendingRegistrationData == null) {
+  Future<Map<String, dynamic>> finalizeRegistration({
+    Map<String, dynamic>? fallbackData,
+  }) async {
+    final data = _pendingRegistrationData ?? fallbackData;
+    if (data == null) {
+      // Fallback from active Firebase Auth user if available
+      final currentAuthUser = auth.currentUser;
+      if (currentAuthUser != null) {
+        final prefs = await SharedPreferences.getInstance();
+        final tenantId = prefs.getString('pending_tenantId') ??
+            prefs.getString('admin_org_collection') ??
+            ThemeService.instance.databaseName;
+        if (tenantId.isNotEmpty) {
+          final email = currentAuthUser.email ?? prefs.getString('pending_email') ?? '';
+          final phone = prefs.getString('pending_phone') ?? '';
+          await FirestoreService.instance
+              .collection('users', tenantId: tenantId)
+              .doc(currentAuthUser.uid)
+              .set({
+                'uid': currentAuthUser.uid,
+                'email': email,
+                if (phone.isNotEmpty) ...{
+                  'phone': phone,
+                  'customerMobile': phone,
+                },
+                'tenantId': tenantId,
+                'updatedAt': FieldValue.serverTimestamp(),
+              }, SetOptions(merge: true));
+
+          return {'success': true, 'uid': currentAuthUser.uid};
+        }
+      }
       return {'success': false, 'message': 'No registration data found.'};
     }
 
     try {
-      final uid = _pendingRegistrationData!['uid'];
-      final name = _pendingRegistrationData!['name'];
-      final email = _pendingRegistrationData!['email'];
-      final password = _pendingRegistrationData!['password'];
-      final role = _pendingRegistrationData!['role'];
-      final additionalData = _pendingRegistrationData!['additionalData'];
+      final uid = data['uid'] ?? auth.currentUser?.uid;
+      if (uid == null) {
+        return {'success': false, 'message': 'User authentication ID missing.'};
+      }
+
+      final name = data['name'] ?? 'User';
+      final email = data['email'] ?? auth.currentUser?.email ?? '';
+      final role = data['role'] ?? 'admin';
+      final additionalData = data['additionalData'] as Map<String, dynamic>? ?? {};
+      final phone = (data['phone'] as String?)?.trim() ??
+          (additionalData['phone'] as String?)?.trim() ??
+          (additionalData['customerMobile'] as String?)?.trim() ??
+          '';
 
       // Determine proper scope (User/Company DB)
       String targetScope = '';
-      if (_pendingRegistrationData != null &&
-          _pendingRegistrationData!.containsKey('tenantId') &&
-          (_pendingRegistrationData!['tenantId'] as String).isNotEmpty) {
-        targetScope = _pendingRegistrationData!['tenantId'];
-      } else if (additionalData != null &&
-          additionalData.containsKey('linkedAppName')) {
+      if (data.containsKey('tenantId') &&
+          (data['tenantId'] as String).isNotEmpty) {
+        targetScope = data['tenantId'];
+      } else if (additionalData.containsKey('tenantId') &&
+          (additionalData['tenantId'] as String).isNotEmpty) {
+        targetScope = additionalData['tenantId'];
+      } else if (additionalData.containsKey('linkedAppName')) {
         targetScope = additionalData['linkedAppName'];
       } else {
         targetScope = FirestoreService.generateTenantId(name);
@@ -261,19 +372,24 @@ class AuthStateService extends ChangeNotifier {
         'uid': uid,
         'name': name,
         'email': email,
+        if (phone.isNotEmpty) ...{
+          'phone': phone,
+          'customerMobile': phone,
+        },
         'role': role,
         'registeredAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
         'isApproved': role == 'admin' ? true : false,
-        'active': false, // User starts inactive until subscription is completed
+        'active': true, // User is finalized after successful setup
         'tenantId': targetScope,
-        ...?(additionalData as Map<String, dynamic>?),
+        ...additionalData,
       };
 
-      // Store in the specific Company's 'users' collection
+      // Store in the specific Company's 'users' collection with merge
       await FirestoreService.instance
           .collection('users', tenantId: targetScope)
           .doc(uid)
-          .set(userData);
+          .set(userData, SetOptions(merge: true));
 
       // 2b. Register in Global Directory for Login Lookup
       await FirestoreService.instance.saveUserDirectory(
@@ -281,6 +397,9 @@ class AuthStateService extends ChangeNotifier {
         tenantId: targetScope,
         appName: 'data',
         role: role,
+        email: email,
+        name: name,
+        phone: phone,
       );
 
       // 3. Mark as registered locally
@@ -290,19 +409,6 @@ class AuthStateService extends ChangeNotifier {
       _isRegistered = true;
 
       if (role == 'admin' || role == 'Owner') {
-        // Also register in the 'admin' collection for backward compatibility
-        await FirestoreService.instance
-            .collection('admin', tenantId: targetScope)
-            .doc(name)
-            .set({
-              'email': email,
-              'password': password,
-              'name': name,
-              'tenantId': targetScope,
-              'uid': uid,
-              'createdAt': FieldValue.serverTimestamp(),
-            });
-
         await prefs.setBool('admin_isLoggedIn', true);
         await prefs.setString('admin_email', email);
         await prefs.setString('admin_org_collection', targetScope);

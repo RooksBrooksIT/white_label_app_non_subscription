@@ -1270,17 +1270,7 @@ class _EngineerPageState extends State<EngineerPage> {
   }
 
   void _showNotificationDialog(Map<String, dynamic> data) async {
-    NotificationService.instance.showNotification(
-      title: data['type'] == 'new_assignment'
-          ? 'New Assignment'
-          : 'Notification',
-      body: data['type'] == 'new_assignment'
-          ? 'You have been assigned a new task (ID: ${data['bookingId']})'
-          : data['body'] ?? 'You have a new notification',
-      data: data.map((key, value) => MapEntry(key, value.toString())),
-    );
-
-    // Show dialog
+    // Show in-app dialog
     showDialog(
       context: context,
       builder: (context) => Dialog(

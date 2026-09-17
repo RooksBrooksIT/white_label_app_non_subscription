@@ -1,4 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+  import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 
@@ -178,20 +178,32 @@ class FirestoreService {
     required String tenantId,
     required String role,
     String? appName,
+    String? email,
+    String? name,
+    String? phone,
   }) async {
-    // 1. Local tenant mapping (for tenant-specific user management)
-    await collection('users', tenantId: tenantId).doc(uid).set({
+    final Map<String, dynamic> data = {
       'tenantId': tenantId,
       'role': role,
       'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+      if (email != null && email.isNotEmpty) 'email': email,
+      if (name != null && name.isNotEmpty) 'name': name,
+      if (phone != null && phone.isNotEmpty) ...{
+        'phone': phone,
+        'customerMobile': phone,
+      },
+    };
+
+    // 1. Local tenant mapping (for tenant-specific user management)
+    await collection('users', tenantId: tenantId).doc(uid).set(
+      data,
+      SetOptions(merge: true),
+    );
 
     // 2. Global lookup (for routing during login)
     await _db.collection('global_user_directory').doc(uid).set({
-      'tenantId': tenantId,
-      'appName': appName,
-      'role': role,
-      'updatedAt': FieldValue.serverTimestamp(),
+      ...data,
+      'appName': appName ?? 'data',
     }, SetOptions(merge: true));
   }
 
@@ -477,7 +489,10 @@ class FirestoreService {
     await collection(
       'users',
       tenantId: tenantId,
-    ).doc(uid).update({'active': active});
+    ).doc(uid).set({
+      'active': active,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
   }
 
   // Stream subscription for a specific user within a tenant

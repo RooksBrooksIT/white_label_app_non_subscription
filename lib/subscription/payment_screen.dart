@@ -345,7 +345,7 @@ class _PaymentScreenState extends State<PaymentScreen>
         // If we have pending user data, register/create the user now
         if (widget.pendingUserData != null && uid == null) {
           final result = await AuthStateService.instance
-              .createAndFinalizeAccount();
+              .createAndFinalizeAccount(fallbackData: widget.pendingUserData);
           if (result['success']) {
             uid = result['uid'];
           } else {
@@ -404,8 +404,10 @@ class _PaymentScreenState extends State<PaymentScreen>
             );
           }
         } else if (uid != null) {
-          // Existing user upgrading - just finalize any pending Firestore logic if needed
-          await AuthStateService.instance.finalizeRegistration();
+          // Existing user or deferred auth user - finalize Firestore records with fallback
+          await AuthStateService.instance.finalizeRegistration(
+            fallbackData: widget.pendingUserData,
+          );
         }
 
         if (uid != null) {
@@ -1109,50 +1111,53 @@ class _PaymentScreenState extends State<PaymentScreen>
       children: [
         // ── Queue Upgrade Checkbox (shown only when user has an active plan) ──
         if (widget.hasActiveSubscription && !widget.isFirstTimeRegistration)
-          Container(
-            margin: const EdgeInsets.only(bottom: 16),
-            decoration: BoxDecoration(
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: Material(
               color: _queueUpgrade
                   ? const Color(0xFFF0F0FF)
                   : Colors.white,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: _queueUpgrade
-                    ? const Color(0xFF6C5CE7)
-                    : Colors.grey.shade300,
-                width: _queueUpgrade ? 1.5 : 1,
-              ),
-            ),
-            child: CheckboxListTile(
-              value: _queueUpgrade,
-              onChanged: (val) => setState(() => _queueUpgrade = val ?? false),
-              title: const Text(
-                'Queue Upgrade Until Current Plan Expires',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                ),
-              ),
-              subtitle: Text(
-                _queueUpgrade
-                    ? 'Your ${widget.currentActivePlanName ?? 'current'} plan stays active. '
-                      '${widget.planName} will activate automatically on expiry.'
-                    : '${widget.planName} plan will activate immediately after payment.',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: _queueUpgrade
-                      ? const Color(0xFF4A3F99)
-                      : Colors.grey.shade600,
-                  height: 1.3,
-                ),
-              ),
-              activeColor: const Color(0xFF6C5CE7),
-              controlAffinity: ListTileControlAffinity.leading,
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
+                side: BorderSide(
+                  color: _queueUpgrade
+                      ? const Color(0xFF6C5CE7)
+                      : Colors.grey.shade300,
+                  width: _queueUpgrade ? 1.5 : 1,
+                ),
+              ),
+              child: CheckboxListTile(
+                value: _queueUpgrade,
+                onChanged: (val) => setState(() => _queueUpgrade = val ?? false),
+                title: const Text(
+                  'Queue Upgrade Until Current Plan Expires',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+                subtitle: Text(
+                  _queueUpgrade
+                      ? 'Your ${widget.currentActivePlanName ?? 'current'} plan stays active. '
+                        '${widget.planName} will activate automatically on expiry.'
+                      : '${widget.planName} plan will activate immediately after payment.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: _queueUpgrade
+                        ? const Color(0xFF4A3F99)
+                        : Colors.grey.shade600,
+                    height: 1.3,
+                  ),
+                ),
+                activeColor: const Color(0xFF6C5CE7),
+                controlAffinity: ListTileControlAffinity.leading,
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
           ),
@@ -1419,6 +1424,7 @@ class _PaymentScreenState extends State<PaymentScreen>
           attendance: widget.attendance,
           barcode: widget.barcode,
           reportExport: widget.reportExport,
+          pendingUserData: widget.pendingUserData,
         ),
       ),
       (route) => route.isFirst,

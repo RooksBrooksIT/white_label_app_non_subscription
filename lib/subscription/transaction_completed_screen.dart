@@ -24,6 +24,7 @@ class TransactionCompletedScreen extends StatefulWidget {
   final bool? attendance;
   final bool? barcode;
   final bool? reportExport;
+  final Map<String, dynamic>? pendingUserData;
 
   const TransactionCompletedScreen({
     super.key,
@@ -41,6 +42,7 @@ class TransactionCompletedScreen extends StatefulWidget {
     this.attendance,
     this.barcode,
     this.reportExport,
+    this.pendingUserData,
   });
 
   @override
@@ -359,6 +361,7 @@ class _TransactionCompletedScreenState
                                         attendance: widget.attendance,
                                         barcode: widget.barcode,
                                         reportExport: widget.reportExport,
+                                        pendingUserData: widget.pendingUserData,
                                       ),
                                 ),
                                 (route) => false,

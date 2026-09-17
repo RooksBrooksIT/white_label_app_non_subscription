@@ -5,10 +5,9 @@
 
 "use strict";
 
-const { onRequest, onCall, HttpsError } = require("firebase-functions/v2/https");
-const { onDocumentCreated, onDocumentUpdated } = require("firebase-functions/v2/firestore");
+const functions = require("firebase-functions/v1");
+const { HttpsError } = functions.https;
 const admin = require("firebase-admin");
-const { onSchedule } = require("firebase-functions/v2");
 const iciciService = require("./icici_service");
 
 if (!admin.apps.length) {
@@ -80,17 +79,23 @@ function resolvePaymentMethod(data, fallback) {
  *  2. GET redirect when user's browser is redirected back after payment.
  * Both are handled here. The GET path simply acknowledges with an HTML page.
  */
-exports.paymentCallback = onRequest(
-    {
-        region: "us-central1",
+exports.paymentCallback = functions
+    .region("us-central1")
+    .runWith({
         vpcConnector: "icici-connector",
         vpcConnectorEgressSettings: "ALL_TRAFFIC",
-        cors: true,
         timeoutSeconds: 60,
-        memory: "256MiB",
-        invoker: "public"
-    },
-    async (req, res) => {
+        memory: "256MB",
+    })
+    .https.onRequest(async (req, res) => {
+        // Enable CORS
+        res.set("Access-Control-Allow-Origin", "*");
+        res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+        res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+        if (req.method === "OPTIONS") {
+            return res.status(204).send("");
+        }
+
         const TAG = "[CALLBACK]";
 
         // ── Handle GET (Browser redirect from ICICI after payment) ────────────
@@ -276,18 +281,24 @@ h2{color:#1A237E;} p{color:#555;}
  * API: verifyPayment
  * Client-side polling endpoint with whitelisted static IP egress
  */
-exports.verifyPayment = onRequest(
-    {
-        region: "us-central1",
+exports.verifyPayment = functions
+    .region("us-central1")
+    .runWith({
         vpcConnector: "icici-connector",
         vpcConnectorEgressSettings: "ALL_TRAFFIC",
-        cors: true,
         timeoutSeconds: 60,
-        memory: "256MiB",
-        invoker: "public"
-    },
-    async (req, res) => {
-        const { txnId } = req.body;
+        memory: "256MB",
+    })
+    .https.onRequest(async (req, res) => {
+        // Enable CORS
+        res.set("Access-Control-Allow-Origin", "*");
+        res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+        res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+        if (req.method === "OPTIONS") {
+            return res.status(204).send("");
+        }
+
+        const { txnId } = req.body || {};
         if (!txnId) return res.status(400).json({ success: false, error: "Missing txnId" });
 
         try {
@@ -330,10 +341,9 @@ exports.verifyPayment = onRequest(
                     };
 
                     await paymentRef.update(updateData);
-                        // If payment succeeded, set activationStatus to PENDING for activation process
-                        if (status === "SUCCESS") {
-                          await paymentRef.update({ activationStatus: "PENDING" });
-                        }
+                    if (status === "SUCCESS") {
+                        await paymentRef.update({ activationStatus: "PENDING" });
+                    }
 
                     // Mirror to Tenant Sub-collection if SUCCESS
                     if (status === "SUCCESS" && paymentData.tenantId && paymentData.appId) {
@@ -352,102 +362,6 @@ exports.verifyPayment = onRequest(
                 }
             }
 
-// Daily reconciliation for payments where activation failed
-exports.reconcilePayments = onSchedule(
-    {
-        schedule: "0 2 * * *", // 2 AM UTC daily
-        region: "us-central1",
-        retryCount: 3
-    },
-    async () => {
-        const paymentsRef = db.collection("payments");
-        const snapshot = await paymentsRef.where("status", "==", "SUCCESS").where("activationStatus", "==", "FAILED").get();
-        if (snapshot.empty) {
-            console.log("[RECONCILE] No failed activations found.");
-            return;
-        }
-        console.log(`[RECONCILE] Found ${snapshot.size} payments needing activation.`);
-        const batch = db.batch();
-        snapshot.docs.forEach((doc) => {
-            const data = doc.data();
-            const uid = data.uid || data.userId;
-            if (!uid) return;
-            const subRef = db.collection("subscriptions").doc(uid);
-            const startDate = admin.firestore.Timestamp.now();
-            const planName = data.planName || "Subscription";
-            const durationDays = data.isYearly ? 365 : data.isSixMonths ? 182 : 30;
-            const expiryDate = admin.firestore.Timestamp.fromDate(new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000));
-            batch.set(subRef, {
-                planName: planName,
-                startDate: startDate,
-                expiryDate: expiryDate,
-                paymentOrderId: doc.id,
-                isActive: true,
-                createdAt: admin.firestore.FieldValue.serverTimestamp()
-            }, { merge: true });
-            // Update activationStatus to SUCCESS to avoid repeat
-            batch.update(doc.ref, { activationStatus: "SUCCESS" });
-        });
-        await batch.commit();
-        console.log("[RECONCILE] Reconciliation completed.");
-    }
-);
-
-// Activate subscription when payment status becomes SUCCESS
-exports.activateSubscription = onDocumentUpdated(
-    {
-        document: "payments/{orderId}",
-        region: "us-central1",
-        invoker: "public"
-    },
-    async (event) => {
-        const after = event.data?.after?.data();
-        const before = event.data?.before?.data();
-        if (!after || !before) return;
-        // Proceed only if status changed to SUCCESS
-        if (before.status === after.status) return;
-        if (after.status !== "SUCCESS") return;
-        const orderId = event.params.orderId;
-        const uid = after.uid || after.userId;
-        if (!uid) {
-            console.warn(`[ACTIVATE] No uid for order ${orderId}`);
-            return;
-        }
-        const subscriptionRef = db.collection("subscriptions").doc(uid);
-        try {
-            await db.runTransaction(async (tx) => {
-                const subDoc = await tx.get(subscriptionRef);
-                if (subDoc.exists) {
-                    console.log(`[ACTIVATE] Subscription already exists for user ${uid}`);
-                    // Update activation status in payment doc
-                    tx.update(db.collection("payments").doc(orderId), { activationStatus: "SUCCESS" });
-                    return;
-                }
-                const startDate = admin.firestore.Timestamp.now();
-                const planName = after.planName || "Subscription";
-                const durationDays = after.isYearly ? 365 : after.isSixMonths ? 182 : 30; // default monthly
-                const expiryDate = admin.firestore.Timestamp.fromDate(new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000));
-                const subData = {
-                    planName: planName,
-                    startDate: startDate,
-                    expiryDate: expiryDate,
-                    paymentOrderId: orderId,
-                    isActive: true,
-                    createdAt: admin.firestore.FieldValue.serverTimestamp()
-                };
-                tx.set(subscriptionRef, subData);
-                // Mark activation status
-                tx.update(db.collection("payments").doc(orderId), { activationStatus: "SUCCESS" });
-            });
-            console.log(`[ACTIVATE] Subscription created for user ${uid} from order ${orderId}`);
-        } catch (e) {
-            console.error(`[ACTIVATE] Error processing order ${orderId}: ${e.message}`);
-            // Mark activation failure
-            await db.collection("payments").doc(orderId).update({ activationStatus: "FAILED" });
-        }
-    }
-);
-
             return res.status(200).json({ 
                 success: true, 
                 status: status, 
@@ -465,10 +379,24 @@ exports.activateSubscription = onDocumentUpdated(
  * API: processRefund
  * Initiates a reversal for a successful transaction
  */
-exports.processRefund = onRequest(
-    { cors: true, invoker: "public" },
-    async (req, res) => {
-        const { orderId, refundAmount } = req.body;
+exports.processRefund = functions
+    .region("us-central1")
+    .runWith({
+        vpcConnector: "icici-connector",
+        vpcConnectorEgressSettings: "ALL_TRAFFIC",
+        timeoutSeconds: 60,
+        memory: "256MB",
+    })
+    .https.onRequest(async (req, res) => {
+        // Enable CORS
+        res.set("Access-Control-Allow-Origin", "*");
+        res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+        res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+        if (req.method === "OPTIONS") {
+            return res.status(204).send("");
+        }
+
+        const { orderId, refundAmount } = req.body || {};
         if (!orderId || !refundAmount) {
             return res.status(400).json({ success: false, error: "Missing required fields" });
         }
@@ -494,23 +422,22 @@ exports.processRefund = onRequest(
  * API: adminProcessRefund
  * Secure HTTPS Callable for Admins to initiate refunds
  */
-exports.adminProcessRefund = onCall(
-    {
-        region: "us-central1",
+exports.adminProcessRefund = functions
+    .region("us-central1")
+    .runWith({
         vpcConnector: "icici-connector",
         vpcConnectorEgressSettings: "ALL_TRAFFIC",
-        cors: true,
         timeoutSeconds: 60,
-        memory: "256MiB"
-    },
-    async (request) => {
+        memory: "256MB",
+    })
+    .https.onCall(async (data, context) => {
         // 1. Authenticate user
-        if (!request.auth) {
+        if (!context || !context.auth) {
             throw new HttpsError("unauthenticated", "User must be logged in to process refunds.");
         }
 
-        const uid = request.auth.uid;
-        const { orderId, refundAmount, refundReason, adminName } = request.data;
+        const uid = context.auth.uid;
+        const { orderId, refundAmount, refundReason, adminName } = data || {};
 
         if (!orderId || !refundAmount || !refundReason) {
             throw new HttpsError("invalid-argument", "Missing required fields: orderId, refundAmount, or refundReason.");

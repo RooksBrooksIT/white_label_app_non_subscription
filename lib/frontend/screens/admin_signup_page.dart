@@ -8,7 +8,7 @@ class AdminSignup extends StatefulWidget {
   const AdminSignup({super.key});
 
   @override
-  _AdminSignupState createState() => _AdminSignupState();
+  State<AdminSignup> createState() => _AdminSignupState();
 }
 
 class _AdminSignupState extends State<AdminSignup> {
@@ -53,6 +53,7 @@ class _AdminSignupState extends State<AdminSignup> {
       email: email,
       password: password,
       role: 'admin',
+      additionalData: {'tenantId': tenantId},
       deferAuth: true,
     );
 

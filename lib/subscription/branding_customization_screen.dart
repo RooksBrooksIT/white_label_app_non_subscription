@@ -327,30 +327,40 @@ class _BrandingCustomizationScreenState
 
       String? uid = AuthStateService.instance.currentUser?.uid;
 
-      if (widget.pendingUserData != null && uid == null) {
-        final name = widget.pendingUserData!['name'] as String;
-        final email = widget.pendingUserData!['email'] as String;
-        final password = widget.pendingUserData!['password'] as String;
-        final role = widget.pendingUserData!['role'] as String;
+      if (widget.pendingUserData != null) {
+        if (uid == null) {
+          final name = widget.pendingUserData!['name'] as String? ?? 'Admin';
+          final email = widget.pendingUserData!['email'] as String? ?? '';
+          final password = widget.pendingUserData!['password'] as String? ?? '';
+          final role = widget.pendingUserData!['role'] as String? ?? 'admin';
+          final phone = (widget.pendingUserData!['phone'] as String?) ??
+              (widget.pendingUserData!['customerMobile'] as String?);
 
-        final additionalData =
-            Map<String, dynamic>.from(widget.pendingUserData!)
-              ..remove('name')
-              ..remove('email')
-              ..remove('password')
-              ..remove('role');
+          final additionalData =
+              Map<String, dynamic>.from(widget.pendingUserData!)
+                ..remove('name')
+                ..remove('email')
+                ..remove('password')
+                ..remove('role');
 
-        final result = await AuthStateService.instance.registerUser(
-          name: name,
-          email: email,
-          password: password,
-          role: role,
-          additionalData: additionalData.isNotEmpty ? additionalData : null,
-        );
-        if (result['success']) {
-          uid = result['uid'];
+          final result = await AuthStateService.instance.registerUser(
+            name: name,
+            email: email,
+            password: password,
+            phone: phone,
+            role: role,
+            additionalData: additionalData.isNotEmpty ? additionalData : null,
+          );
+          if (result['success']) {
+            uid = result['uid'];
+          } else {
+            throw Exception(result['message'] ?? 'Failed to create account');
+          }
         } else {
-          throw Exception(result['message'] ?? 'Failed to create account');
+          // User already authenticated - ensure Firestore user profile is fully finalized with email and phone
+          await AuthStateService.instance.finalizeRegistration(
+            fallbackData: widget.pendingUserData,
+          );
         }
       }
 
