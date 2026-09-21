@@ -68,12 +68,12 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
       'name': 'Silver',
       'badge': 'Starter',
       'tagline': 'Essential tools for small teams & freelancers',
-      'monthlyPrice': 1,
-      'monthlyOriginalPrice': 99,
-      'sixMonthPrice': 1, // Testing price
-      'sixMonthOriginalPrice': 594,
-      'yearlyPrice': 1, // Testing price
-      'yearlyOriginalPrice': 999,
+      'monthlyPrice': 99,
+      'monthlyOriginalPrice': 149,
+      'sixMonthPrice': 594, // 99 * 6
+      'sixMonthOriginalPrice': 894,
+      'yearlyPrice': 990, // ~83/mo (save 17%)
+      'yearlyOriginalPrice': 1788,
       'isEnterprise': false,
       'isPopular': false,
       'limits': {
@@ -242,8 +242,10 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
   @override
   void initState() {
     super.initState();
-    _pageController =
-        PageController(initialPage: _selectedPlanIndex, viewportFraction: 0.88);
+    _pageController = PageController(
+      initialPage: _selectedPlanIndex,
+      viewportFraction: 0.88,
+    );
 
     if (widget.currentPlanName != null) {
       _fetchedPlanName = widget.currentPlanName;
@@ -406,8 +408,9 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
               nextBilling = DateTime(year, month, day);
             }
 
-            _fetchedRemainingDays =
-                nextBilling.difference(DateTime.now()).inDays;
+            _fetchedRemainingDays = nextBilling
+                .difference(DateTime.now())
+                .inDays;
             if (_fetchedRemainingDays! < 0) _fetchedRemainingDays = 0;
           }
 
@@ -447,10 +450,10 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
     final selectedCycle = _billingDuration == BillingDuration.yearly
         ? 'Yearly'
         : (_billingDuration == BillingDuration.sixMonths
-            ? '6 Months'
-            : (_billingDuration == BillingDuration.freeTrial
-                ? '7 Days'
-                : 'Monthly'));
+              ? '6 Months'
+              : (_billingDuration == BillingDuration.freeTrial
+                    ? '7 Days'
+                    : 'Monthly'));
     return selectedCycle == _fetchedBillingCycle;
   }
 
@@ -761,7 +764,10 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
             ),
             child: Text(
               buttonText,
-              style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
+              style: const TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ],
@@ -927,8 +933,9 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
                               ),
                               child: Center(
                                 child: ConstrainedBox(
-                                  constraints:
-                                      const BoxConstraints(maxWidth: 460),
+                                  constraints: const BoxConstraints(
+                                    maxWidth: 460,
+                                  ),
                                   child: _buildFreeTrialFullCard(),
                                 ),
                               ),
@@ -1221,8 +1228,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
             if (activeLimits.isNotEmpty) ...[
               const SizedBox(height: 8),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.7),
                   borderRadius: BorderRadius.circular(8),
@@ -1272,7 +1278,8 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
 
   // ── DURATION TOGGLE (Bigger, High-Visibility Horizontal Scrollable Pills) ────
   Widget _buildDurationToggle() {
-    final showTrial = !widget.hideTrial &&
+    final showTrial =
+        !widget.hideTrial &&
         (_fetchedPlanName == null ||
             !_fetchedPlanName!.toLowerCase().contains('trial'));
 
@@ -1337,12 +1344,12 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Text(
               _billingDuration == BillingDuration.freeTrial
-                ? '🎁 7-Day Free Trial selected — Full feature access, no card needed'
-                : (_billingDuration == BillingDuration.yearly
-                    ? '⚡ Annual billing selected — Best savings with full feature access'
-                    : (_billingDuration == BillingDuration.sixMonths
-                        ? '💡 Semi-annual billing selected — Flexible 6-month commitment'
-                        : '📅 Monthly billing selected — Cancel or switch anytime')),
+                  ? '🎁 7-Day Free Trial selected — Full feature access, no card needed'
+                  : (_billingDuration == BillingDuration.yearly
+                        ? '⚡ Annual billing selected — Best savings with full feature access'
+                        : (_billingDuration == BillingDuration.sixMonths
+                              ? '💡 Semi-annual billing selected — Flexible 6-month commitment'
+                              : '📅 Monthly billing selected — Cancel or switch anytime')),
               textAlign: TextAlign.center,
               style: const TextStyle(
                 fontSize: 11,
@@ -1383,10 +1390,8 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
           decoration: BoxDecoration(
             color: isSelected
                 ? (isTrial
-                    ? const Color(0xFF2563EB)
-                    : (isYearly
-                        ? const Color(0xFF0F172A)
-                        : Colors.white))
+                      ? const Color(0xFF2563EB)
+                      : (isYearly ? const Color(0xFF0F172A) : Colors.white))
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(26),
             boxShadow: isSelected
@@ -1408,8 +1413,8 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
                 size: 15,
                 color: isSelected
                     ? (isYearly || isTrial
-                        ? Colors.white
-                        : const Color(0xFF0F172A))
+                          ? Colors.white
+                          : const Color(0xFF0F172A))
                     : const Color(0xFF64748B),
               ),
               const SizedBox(width: 5),
@@ -1420,8 +1425,8 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
                   fontWeight: isSelected ? FontWeight.w900 : FontWeight.w700,
                   color: isSelected
                       ? (isYearly || isTrial
-                          ? Colors.white
-                          : const Color(0xFF0F172A))
+                            ? Colors.white
+                            : const Color(0xFF0F172A))
                       : const Color(0xFF475569),
                   letterSpacing: -0.2,
                 ),
@@ -1429,27 +1434,28 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
               if (badge != null) ...[
                 const SizedBox(width: 5),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 5.5, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 5.5,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: isSelected
                         ? (isTrial
-                            ? Colors.white.withValues(alpha: 0.28)
-                            : (duration == BillingDuration.sixMonths
-                                ? const Color(0xFFF59E0B)
-                                : const Color(0xFF10B981)))
+                              ? Colors.white.withValues(alpha: 0.28)
+                              : (duration == BillingDuration.sixMonths
+                                    ? const Color(0xFFF59E0B)
+                                    : const Color(0xFF10B981)))
                         : (isTrial
-                            ? const Color(0xFF3B82F6)
-                            : (duration == BillingDuration.sixMonths
-                                ? const Color(0xFFD97706)
-                                : const Color(0xFF059669))),
+                              ? const Color(0xFF3B82F6)
+                              : (duration == BillingDuration.sixMonths
+                                    ? const Color(0xFFD97706)
+                                    : const Color(0xFF059669))),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
                     badge,
                     style: TextStyle(
-                      color: isSelected &&
-                              duration == BillingDuration.sixMonths
+                      color: isSelected && duration == BillingDuration.sixMonths
                           ? Colors.black
                           : Colors.white,
                       fontSize: 8.5,
@@ -1516,8 +1522,10 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
               ),
 
               Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 16,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1665,8 +1673,9 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
                           backgroundColor: const Color(0xFF2563EB),
                           foregroundColor: Colors.white,
                           elevation: 2,
-                          shadowColor:
-                              const Color(0xFF2563EB).withValues(alpha: 0.3),
+                          shadowColor: const Color(
+                            0xFF2563EB,
+                          ).withValues(alpha: 0.3),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),
                           ),
@@ -1786,25 +1795,26 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
                     decoration: BoxDecoration(
                       color: isSelected
                           ? (isPopular
-                              ? const Color(0xFF0F172A)
-                              : const Color(0xFF1E293B))
+                                ? const Color(0xFF0F172A)
+                                : const Color(0xFF1E293B))
                           : Colors.white,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
                         color: isSelected
                             ? (isPopular
-                                ? const Color(0xFFF59E0B)
-                                : const Color(0xFF0F172A))
+                                  ? const Color(0xFFF59E0B)
+                                  : const Color(0xFF0F172A))
                             : const Color(0xFFE2E8F0),
                         width: isSelected ? 1.8 : 1,
                       ),
                       boxShadow: isSelected
                           ? [
                               BoxShadow(
-                                color: (isPopular
-                                        ? const Color(0xFFF59E0B)
-                                        : Colors.black)
-                                    .withValues(alpha: 0.16),
+                                color:
+                                    (isPopular
+                                            ? const Color(0xFFF59E0B)
+                                            : Colors.black)
+                                        .withValues(alpha: 0.16),
                                 blurRadius: 8,
                                 offset: const Offset(0, 3),
                               ),
@@ -1865,8 +1875,8 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
                                 fontWeight: FontWeight.w700,
                                 color: isSelected
                                     ? (isPopular
-                                        ? const Color(0xFFFBBF24)
-                                        : const Color(0xFF93C5FD))
+                                          ? const Color(0xFFFBBF24)
+                                          : const Color(0xFF93C5FD))
                                     : const Color(0xFF64748B),
                               ),
                             ),
@@ -2001,10 +2011,10 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
       displayPerMonth = monthlyPrice == 1
           ? 1
           : (monthlyPrice == 99
-              ? 83
-              : (monthlyPrice == 199
-                  ? 165
-                  : (monthlyPrice == 299 ? 249 : monthlyPrice)));
+                ? 83
+                : (monthlyPrice == 199
+                      ? 165
+                      : (monthlyPrice == 299 ? 249 : monthlyPrice)));
       billingCycleText =
           'Billed ₹$totalPrice annually (${totalOriginal != null && totalOriginal > totalPrice ? 'Save ₹${totalOriginal - totalPrice}' : ''})';
     } else if (isSixMonths) {
@@ -2040,10 +2050,10 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
           color: isPopular
               ? const Color(0xFFF59E0B)
               : (isEnterprise
-                  ? const Color(0xFF0284C7)
-                  : (isCurrent
-                      ? const Color(0xFF22C55E)
-                      : const Color(0xFFE2E8F0))),
+                    ? const Color(0xFF0284C7)
+                    : (isCurrent
+                          ? const Color(0xFF22C55E)
+                          : const Color(0xFFE2E8F0))),
           width: isPopular ? 2.2 : (isCurrent ? 2 : 1),
         ),
         boxShadow: [
@@ -2051,8 +2061,8 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
             color: isPopular
                 ? const Color(0xFFF59E0B).withValues(alpha: 0.15)
                 : (isEnterprise
-                    ? Colors.black.withValues(alpha: 0.22)
-                    : Colors.black.withValues(alpha: 0.05)),
+                      ? Colors.black.withValues(alpha: 0.22)
+                      : Colors.black.withValues(alpha: 0.05)),
             blurRadius: isPopular ? 18 : 12,
             offset: const Offset(0, 6),
           ),
@@ -2108,8 +2118,10 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
                 ),
 
               Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 14,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -2137,15 +2149,15 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
                             color: isEnterprise
                                 ? const Color(0xFF1E293B)
                                 : (isPopular
-                                    ? const Color(0xFFFEF3C7)
-                                    : const Color(0xFFF1F5F9)),
+                                      ? const Color(0xFFFEF3C7)
+                                      : const Color(0xFFF1F5F9)),
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
                               color: isEnterprise
                                   ? const Color(0xFF334155)
                                   : (isPopular
-                                      ? const Color(0xFFFCD34D)
-                                      : const Color(0xFFE2E8F0)),
+                                        ? const Color(0xFFFCD34D)
+                                        : const Color(0xFFE2E8F0)),
                             ),
                           ),
                           child: Text(
@@ -2156,8 +2168,8 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
                               color: isEnterprise
                                   ? const Color(0xFF38BDF8)
                                   : (isPopular
-                                      ? const Color(0xFFB45309)
-                                      : const Color(0xFF475569)),
+                                        ? const Color(0xFFB45309)
+                                        : const Color(0xFF475569)),
                             ),
                           ),
                         ),
@@ -2324,13 +2336,13 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
                         style: ElevatedButton.styleFrom(
                           backgroundColor: isCurrent
                               ? (isEnterprise
-                                  ? const Color(0xFF334155)
-                                  : const Color(0xFFE2E8F0))
+                                    ? const Color(0xFF334155)
+                                    : const Color(0xFFE2E8F0))
                               : (isEnterprise
-                                  ? const Color(0xFF0284C7)
-                                  : (isPopular
-                                      ? const Color(0xFFD97706)
-                                      : const Color(0xFF0F172A))),
+                                    ? const Color(0xFF0284C7)
+                                    : (isPopular
+                                          ? const Color(0xFFD97706)
+                                          : const Color(0xFF0F172A))),
                           foregroundColor: isCurrent
                               ? const Color(0xFF94A3B8)
                               : Colors.white,
@@ -2356,8 +2368,8 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
                               isCurrent
                                   ? 'Current Active Plan'
                                   : (isEnterprise
-                                      ? 'Contact Us'
-                                      : 'Subscribe to ${plan['name']}'),
+                                        ? 'Contact Us'
+                                        : 'Subscribe to ${plan['name']}'),
                               style: const TextStyle(
                                 fontSize: 13.5,
                                 fontWeight: FontWeight.w800,
@@ -2464,11 +2476,12 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
                               padding: const EdgeInsets.all(2),
                               decoration: BoxDecoration(
                                 color: isEnterprise
-                                    ? const Color(0xFF0284C7)
-                                        .withValues(alpha: 0.2)
+                                    ? const Color(
+                                        0xFF0284C7,
+                                      ).withValues(alpha: 0.2)
                                     : (isPopular
-                                        ? const Color(0xFFFEF3C7)
-                                        : const Color(0xFFF1F5F9)),
+                                          ? const Color(0xFFFEF3C7)
+                                          : const Color(0xFFF1F5F9)),
                                 shape: BoxShape.circle,
                               ),
                               child: Icon(
@@ -2477,8 +2490,8 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
                                 color: isEnterprise
                                     ? const Color(0xFF38BDF8)
                                     : (isPopular
-                                        ? const Color(0xFFD97706)
-                                        : const Color(0xFF16A34A)),
+                                          ? const Color(0xFFD97706)
+                                          : const Color(0xFF16A34A)),
                               ),
                             ),
                             const SizedBox(width: 8),
@@ -2520,8 +2533,9 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
         Icon(
           icon,
           size: 16,
-          color:
-              isEnterprise ? const Color(0xFF38BDF8) : const Color(0xFF0F172A),
+          color: isEnterprise
+              ? const Color(0xFF38BDF8)
+              : const Color(0xFF0F172A),
         ),
         const SizedBox(height: 2),
         Text(
@@ -2636,7 +2650,9 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
                       Text(
                         'Contact',
                         style: TextStyle(
-                            fontSize: 11.5, fontWeight: FontWeight.w800),
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                       Icon(Icons.arrow_forward_ios_rounded, size: 10),
                     ],

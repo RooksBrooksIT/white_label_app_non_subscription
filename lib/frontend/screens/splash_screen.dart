@@ -88,17 +88,17 @@ class _SplashScreenState extends State<SplashScreen>
     Widget target = const RoleSelectionScreen();
 
     try {
-      // Execute initial screen determination, background checks, and minimum 2.0s delay in parallel
+      // Execute initial screen determination, background checks, and minimum 1.5s delay in parallel
       final results = await Future.wait([
-        // Task 1: Determine initial screen with a 2.5s safety timeout
-        AuthStateService.instance.getInitialScreen().timeout(
-          const Duration(milliseconds: 2500),
-          onTimeout: () => const RoleSelectionScreen(),
-        ),
+        // Task 1: Determine initial screen directly from persistent session
+        AuthStateService.instance.getInitialScreen().catchError((e) {
+          debugPrint('SplashScreen getInitialScreen error: $e');
+          return const RoleSelectionScreen();
+        }),
         // Task 2: Background checks (permissions & update check)
         _performBackgroundChecks(),
-        // Task 3: Minimum visual display duration (2000ms) for a perfect 2-3s splash
-        Future.delayed(const Duration(milliseconds: 2000)),
+        // Task 3: Minimum visual display duration (1500ms) for a smooth splash entrance
+        Future.delayed(const Duration(milliseconds: 1500)),
       ]);
 
       target = results[0] as Widget;

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:subscription_rooks_app/services/auth_state_service.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
@@ -49,19 +50,21 @@ class _GlobalRegistrationScreenState extends State<GlobalRegistrationScreen> {
     setState(() => _isLoading = true);
 
     final name = _nameController.text.trim();
-    final tenantId = FirestoreService.generateTenantId(name);
+    final cleanEmail = _emailController.text.replaceAll(RegExp(r'\s+'), '').trim().toLowerCase();
+    final password = _passwordController.text.trim();
+    final tenantId = await FirestoreService.getUniqueTenantId(name);
     final pendingUserData = {
       'name': name,
-      'email': _emailController.text.trim(),
-      'password': _passwordController.text.trim(),
+      'email': cleanEmail,
+      'password': password,
       'role': _selectedRole,
       'tenantId': tenantId,
     };
 
     final result = await AuthStateService.instance.registerUser(
       name: name,
-      email: _emailController.text.trim(),
-      password: _passwordController.text.trim(),
+      email: cleanEmail,
+      password: password,
       role: _selectedRole,
       additionalData: {'tenantId': tenantId},
       deferAuth: _selectedRole == 'admin',
@@ -199,9 +202,15 @@ class _GlobalRegistrationScreenState extends State<GlobalRegistrationScreen> {
                   controller: _emailController,
                   icon: Icons.email_outlined,
                   keyboardType: TextInputType.emailAddress,
-                  validator: (v) => v!.isEmpty || !v.contains('@')
-                      ? 'Enter a valid email'
-                      : null,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                  ],
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) return 'Enter your email';
+                    if (v.contains(' ')) return 'Email cannot contain spaces';
+                    if (!v.contains('@')) return 'Enter a valid email';
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 20),
                 _buildTextField(
@@ -276,6 +285,7 @@ class _GlobalRegistrationScreenState extends State<GlobalRegistrationScreen> {
     bool obscureText = false,
     Widget? suffixIcon,
     TextInputType? keyboardType,
+    List<TextInputFormatter>? inputFormatters,
     String? Function(String?)? validator,
   }) {
     return Column(
@@ -294,6 +304,7 @@ class _GlobalRegistrationScreenState extends State<GlobalRegistrationScreen> {
           controller: controller,
           obscureText: obscureText,
           keyboardType: keyboardType,
+          inputFormatters: inputFormatters,
           validator: validator,
           decoration: InputDecoration(
             prefixIcon: Icon(icon, color: Colors.black87),

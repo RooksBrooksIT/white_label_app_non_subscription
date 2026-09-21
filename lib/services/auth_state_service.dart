@@ -6,15 +6,8 @@ import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_dashboard.dart';
 import 'package:subscription_rooks_app/frontend/screens/engineer_dashboard_page.dart';
-import 'package:subscription_rooks_app/subscription/subscription_plans_screen.dart';
 import 'package:subscription_rooks_app/frontend/screens/amc_main_page.dart';
 import 'package:subscription_rooks_app/frontend/screens/role_selection_screen.dart';
-import 'package:subscription_rooks_app/backend/screens/admin_login_page.dart';
-import 'package:subscription_rooks_app/backend/screens/engineer_login_page.dart';
-import 'package:subscription_rooks_app/backend/screens/amc_customerlogin_page.dart';
-import 'package:subscription_rooks_app/subscription/access_restricted_screen.dart';
-import 'package:subscription_rooks_app/subscription/plan_expired_screen.dart';
-import 'package:subscription_rooks_app/subscription/branding_customization_screen.dart';
 import 'package:subscription_rooks_app/services/subscription_expiry_service.dart';
 import 'package:subscription_rooks_app/services/payment_recovery_service.dart';
 import 'package:subscription_rooks_app/subscription/payment_recovery_screen.dart';
@@ -26,6 +19,88 @@ class AuthStateService extends ChangeNotifier {
   static const String _kIsRegistered = 'app_is_registered';
   static const String _kUserRole = 'user_role';
   static const String _kBrandingCompleted = 'branding_completed';
+
+  // Standardized session keys for SharedPreferences-based login persistence
+  static const String kIsLoggedIn = 'is_logged_in';
+  static const String kUserRole = 'user_role';
+  static const String kAdminIsLoggedIn = 'admin_isLoggedIn';
+  static const String kAdminEmail = 'admin_email';
+  static const String kAdminOrgCollection = 'admin_org_collection';
+  static const String kEngineerName = 'engineerName';
+  static const String kEngineerEmail = 'engineerEmail';
+  static const String kCustomerEmail = 'email';
+  static const String kTenantId = 'tenantId';
+  static const String kDatabaseName = 'databaseName';
+  static const String kAppName = 'appName';
+
+  /// Save session for Admin / Business Owner role
+  Future<void> saveAdminSession({
+    required String email,
+    required String tenantId,
+    String? appName,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(kIsLoggedIn, true);
+    await prefs.setString(kUserRole, 'admin');
+    await prefs.setString('last_role', 'admin');
+    await prefs.setBool(kAdminIsLoggedIn, true);
+    await prefs.setString(kAdminEmail, email);
+    await prefs.setBool(_kIsRegistered, true);
+    await prefs.setBool(_kBrandingCompleted, true);
+    if (tenantId.isNotEmpty) {
+      await prefs.setString(kAdminOrgCollection, tenantId);
+      await prefs.setString(kTenantId, tenantId);
+      await prefs.setString(kDatabaseName, tenantId);
+      await prefs.setBool('${_kBrandingCompleted}_$tenantId', true);
+    }
+    if (appName != null && appName.isNotEmpty) {
+      await prefs.setString(kAppName, appName);
+    }
+    _isRegistered = true;
+    notifyListeners();
+  }
+
+  /// Save session for Service Engineer role
+  Future<void> saveEngineerSession({
+    required String username,
+    required String tenantId,
+    String? email,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(kIsLoggedIn, true);
+    await prefs.setString(kUserRole, 'engineer');
+    await prefs.setString('last_role', 'engineer');
+    await prefs.setString(kEngineerName, username);
+    if (email != null && email.isNotEmpty) {
+      await prefs.setString(kEngineerEmail, email);
+    }
+    if (tenantId.isNotEmpty) {
+      await prefs.setString(kTenantId, tenantId);
+      await prefs.setString(kDatabaseName, tenantId);
+    }
+    await prefs.setBool(_kIsRegistered, true);
+    _isRegistered = true;
+    notifyListeners();
+  }
+
+  /// Save session for Customer role
+  Future<void> saveCustomerSession({
+    required String email,
+    required String tenantId,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(kIsLoggedIn, true);
+    await prefs.setString(kUserRole, 'customer');
+    await prefs.setString('last_role', 'customer');
+    await prefs.setString(kCustomerEmail, email);
+    if (tenantId.isNotEmpty) {
+      await prefs.setString(kTenantId, tenantId);
+      await prefs.setString(kDatabaseName, tenantId);
+    }
+    await prefs.setBool(_kIsRegistered, true);
+    _isRegistered = true;
+    notifyListeners();
+  }
 
   FirebaseAuth? _auth;
   FirebaseAuth get auth {
@@ -77,6 +152,7 @@ class AuthStateService extends ChangeNotifier {
     bool deferAuth = false,
   }) async {
     try {
+      final cleanEmail = email.replaceAll(RegExp(r'\s+'), '').trim().toLowerCase();
       final resolvedPhone = phone?.trim() ??
           (additionalData?['phone'] as String?)?.trim() ??
           (additionalData?['customerMobile'] as String?)?.trim() ??
@@ -94,17 +170,17 @@ class AuthStateService extends ChangeNotifier {
         final auth = FirebaseAuth.instance;
 
         // 1. Validate credentials by creating or signing in the Auth account
-        if (auth.currentUser == null || auth.currentUser!.email != email) {
+        if (auth.currentUser == null || auth.currentUser!.email != cleanEmail) {
           try {
             await auth.createUserWithEmailAndPassword(
-              email: email,
+              email: cleanEmail,
               password: password,
             );
           } on FirebaseAuthException catch (e) {
             if (e.code == 'email-already-in-use') {
               try {
                 await auth.signInWithEmailAndPassword(
-                  email: email,
+                  email: cleanEmail,
                   password: password,
                 );
                 debugPrint('User already exists, signed in to validate credentials');
@@ -131,7 +207,7 @@ class AuthStateService extends ChangeNotifier {
             (mergedAdditionalData['tenantId'] as String).isNotEmpty) {
           targetScope = mergedAdditionalData['tenantId'];
         } else {
-          targetScope = FirestoreService.generateTenantId(name);
+          targetScope = await FirestoreService.getUniqueTenantId(name);
           mergedAdditionalData['tenantId'] = targetScope;
         }
 
@@ -139,7 +215,7 @@ class AuthStateService extends ChangeNotifier {
         _pendingRegistrationData = {
           'uid': uid,
           'name': name,
-          'email': email,
+          'email': cleanEmail,
           'password': password,
           'phone': resolvedPhone,
           'role': role,
@@ -151,7 +227,7 @@ class AuthStateService extends ChangeNotifier {
         final initialUserData = {
           'uid': uid,
           'name': name,
-          'email': email,
+          'email': cleanEmail,
           if (resolvedPhone.isNotEmpty) ...{
             'phone': resolvedPhone,
             'customerMobile': resolvedPhone,
@@ -176,7 +252,7 @@ class AuthStateService extends ChangeNotifier {
           tenantId: targetScope,
           appName: 'data',
           role: role,
-          email: email,
+          email: cleanEmail,
           name: name,
           phone: resolvedPhone,
         );
@@ -184,31 +260,31 @@ class AuthStateService extends ChangeNotifier {
         // Persist pending tenant to SharedPreferences as safety fallback
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('pending_tenantId', targetScope);
-        await prefs.setString('pending_email', email);
+        await prefs.setString('pending_email', cleanEmail);
         if (resolvedPhone.isNotEmpty) {
           await prefs.setString('pending_phone', resolvedPhone);
         }
 
-        debugPrint('Account auth validated & initial record created in Firestore for $email ($targetScope)');
+        debugPrint('Account auth validated & initial record created in Firestore for $cleanEmail ($targetScope)');
         return {'success': true, 'message': 'Account details saved.'};
       }
 
       final auth = FirebaseAuth.instance;
 
       // 1. Check if user is already logged in with same email
-      if (auth.currentUser != null && auth.currentUser!.email == email) {
+      if (auth.currentUser != null && auth.currentUser!.email == cleanEmail) {
         debugPrint('User already authenticated: ${auth.currentUser!.uid}');
       } else {
         try {
           await auth.createUserWithEmailAndPassword(
-            email: email,
+            email: cleanEmail,
             password: password,
           );
         } on FirebaseAuthException catch (e) {
           if (e.code == 'email-already-in-use') {
             try {
               await auth.signInWithEmailAndPassword(
-                email: email,
+                email: cleanEmail,
                 password: password,
               );
               debugPrint('User already exists, signed in instead');
@@ -231,7 +307,7 @@ class AuthStateService extends ChangeNotifier {
       _pendingRegistrationData = {
         'uid': uid,
         'name': name,
-        'email': email,
+        'email': cleanEmail,
         'password': password,
         'phone': resolvedPhone,
         'role': role,
@@ -364,7 +440,7 @@ class AuthStateService extends ChangeNotifier {
       } else if (additionalData.containsKey('linkedAppName')) {
         targetScope = additionalData['linkedAppName'];
       } else {
-        targetScope = FirestoreService.generateTenantId(name);
+        targetScope = await FirestoreService.getUniqueTenantId(name);
       }
 
       // 2. Store details in Firestore (Isolated to Company DB)
@@ -402,17 +478,20 @@ class AuthStateService extends ChangeNotifier {
         phone: phone,
       );
 
-      // 3. Mark as registered locally
+      // 3. Mark as registered and persist session locally
       final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(kIsLoggedIn, true);
       await prefs.setBool(_kIsRegistered, true);
+      await prefs.setString(kUserRole, role);
       await prefs.setString(_kUserRole, role);
       _isRegistered = true;
 
       if (role == 'admin' || role == 'Owner') {
-        await prefs.setBool('admin_isLoggedIn', true);
-        await prefs.setString('admin_email', email);
-        await prefs.setString('admin_org_collection', targetScope);
-        await prefs.setString('last_role', role);
+        await saveAdminSession(
+          email: email,
+          tenantId: targetScope,
+          appName: name,
+        );
 
         ThemeService.instance.updateTheme(
           primary: ThemeService.instance.primaryColor,
@@ -437,8 +516,10 @@ class AuthStateService extends ChangeNotifier {
 
   Future<Map<String, dynamic>> loginUser(String email, String password) async {
     try {
+      final cleanEmail = email.replaceAll(RegExp(r'\s+'), '').trim().toLowerCase();
+
       UserCredential userCredential = await auth.signInWithEmailAndPassword(
-        email: email,
+        email: cleanEmail,
         password: password,
       );
 
@@ -554,16 +635,30 @@ class AuthStateService extends ChangeNotifier {
       }
 
       final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(kIsLoggedIn, true);
       await prefs.setBool(_kIsRegistered, true); // Ensure this is set
+      await prefs.setString(kUserRole, role);
       await prefs.setString(_kUserRole, role);
-      await prefs.setString('tenantId', scope);
-      await prefs.setString('databaseName', scope);
+      await prefs.setString(kTenantId, scope);
+      await prefs.setString(kDatabaseName, scope);
 
       if (role == 'admin' || role == 'Owner') {
-        await prefs.setBool('admin_isLoggedIn', true);
-        await prefs.setString('admin_email', email);
-        await prefs.setString('admin_org_collection', scope);
-        await prefs.setString('last_role', role);
+        await saveAdminSession(
+          email: cleanEmail,
+          tenantId: scope,
+          appName: userData['name'] as String?,
+        );
+      } else if (role == 'engineer') {
+        await saveEngineerSession(
+          username: userData['Username'] ?? userData['name'] ?? cleanEmail,
+          tenantId: scope,
+          email: cleanEmail,
+        );
+      } else if (role == 'customer') {
+        await saveCustomerSession(
+          email: cleanEmail,
+          tenantId: scope,
+        );
       }
 
       _isRegistered = true;
@@ -613,25 +708,29 @@ class AuthStateService extends ChangeNotifier {
 
     final prefs = await SharedPreferences.getInstance();
 
-    // Clear Admin session
-    await prefs.remove('admin_isLoggedIn');
-    await prefs.remove('admin_email');
-    await prefs.remove('admin_org_collection');
-
-    // Clear Engineer session
-    await prefs.remove('engineerName');
-    await prefs.remove('engineerEmail');
-
-    // Clear Customer session
-    await prefs.remove('email');
-
-    // Clear unified session flags
-    await prefs.remove(_kIsRegistered);
+    // Clear standardized session flags
+    await prefs.remove(kIsLoggedIn);
+    await prefs.remove(kUserRole);
     await prefs.remove(_kUserRole);
     await prefs.remove('last_role');
-    await prefs.remove('tenantId');
-    await prefs.remove('databaseName');
-    await prefs.remove('appName');
+
+    // Clear Admin session
+    await prefs.remove(kAdminIsLoggedIn);
+    await prefs.remove(kAdminEmail);
+    await prefs.remove(kAdminOrgCollection);
+
+    // Clear Engineer session
+    await prefs.remove(kEngineerName);
+    await prefs.remove(kEngineerEmail);
+
+    // Clear Customer session
+    await prefs.remove(kCustomerEmail);
+
+    // Clear unified / app flags
+    await prefs.remove(_kIsRegistered);
+    await prefs.remove(kTenantId);
+    await prefs.remove(kDatabaseName);
+    await prefs.remove(kAppName);
     await prefs.remove('primaryColor');
     await prefs.remove('secondaryColor');
     await prefs.remove('backgroundColor');
@@ -662,69 +761,6 @@ class AuthStateService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<Widget> _getRestrictedOrExpiredScreen({
-    required String tenantId,
-    required String role,
-    required bool isAdmin,
-  }) async {
-    try {
-      final subDoc = await FirestoreService.instance
-          .subscriptionsRef(tenantId: tenantId, appId: 'data')
-          .limit(1)
-          .get();
-      if (subDoc.docs.isNotEmpty) {
-        return PlanExpiredScreen(role: role);
-      }
-    } catch (_) {}
-    return isAdmin
-        ? const SubscriptionPlansScreen()
-        : AccessRestrictedScreen(role: role);
-  }
-
-  Future<bool> _isBrandingSetupCompleted({
-    required SharedPreferences prefs,
-    required String tenantId,
-  }) async {
-    final tenantKey = '${_kBrandingCompleted}_$tenantId';
-    final localCompleted =
-        (prefs.getBool(_kBrandingCompleted) ?? false) ||
-        (prefs.getBool(tenantKey) ?? false);
-
-    if (localCompleted) {
-      if (!(prefs.getBool(tenantKey) ?? false)) {
-        await prefs.setBool(tenantKey, true);
-      }
-      if (!(prefs.getBool(_kBrandingCompleted) ?? false)) {
-        await prefs.setBool(_kBrandingCompleted, true);
-      }
-      return true;
-    }
-
-    try {
-      final brandingDoc = await FirestoreService.instance
-          .brandingDoc(tenantId: tenantId, appId: 'data')
-          .get();
-      final brandingData = brandingDoc.data();
-      final hasBrandingData =
-          brandingDoc.exists &&
-          brandingData != null &&
-          ((brandingData['appName']?.toString().trim().isNotEmpty ?? false) ||
-              brandingData['logoUrl'] != null ||
-              brandingData['primaryColor'] != null ||
-              brandingData['secondaryColor'] != null);
-
-      if (hasBrandingData) {
-        await prefs.setBool(_kBrandingCompleted, true);
-        await prefs.setBool(tenantKey, true);
-        return true;
-      }
-    } catch (e) {
-      debugPrint('AuthStateService: Branding completion validation failed: $e');
-    }
-
-    return false;
-  }
-
   /// Determines the initial screen based on persisted login state
   Future<Widget> getInitialScreen() async {
     try {
@@ -741,238 +777,128 @@ class AuthStateService extends ChangeNotifier {
         return PaymentRecoveryScreen(pendingPayment: pendingPayment);
       }
 
-      // 1. Check for active Firebase Session (Recovery path)
+      // ── 1. SharedPreferences-based Session Check (Instant & Offline-friendly) ──
+      final bool isExplicitlyLoggedIn = prefs.getBool(kIsLoggedIn) ?? false;
+      final bool isAdminLoggedIn = prefs.getBool(kAdminIsLoggedIn) ?? false;
+      final String? engineerName = prefs.getString(kEngineerName);
+      final String? customerEmail = prefs.getString(kCustomerEmail);
+      String? role = prefs.getString(kUserRole) ?? prefs.getString(_kUserRole);
+
+      // Infer role if not explicitly set
+      if (role == null || role.isEmpty) {
+        if (isAdminLoggedIn) {
+          role = 'admin';
+        } else if (engineerName != null && engineerName.isNotEmpty) {
+          role = 'engineer';
+        } else if (customerEmail != null && customerEmail.isNotEmpty) {
+          role = 'customer';
+        }
+      }
+
+      final bool hasSavedSession = isExplicitlyLoggedIn ||
+          isAdminLoggedIn ||
+          (engineerName != null && engineerName.isNotEmpty) ||
+          (customerEmail != null && customerEmail.isNotEmpty);
+
+      if (hasSavedSession && role != null) {
+        debugPrint('AuthStateService: Found saved session in SharedPreferences for role: $role');
+
+        // Route directly to Admin Dashboard
+        if (role == 'admin' || role == 'Owner') {
+          final adminTenantId =
+              prefs.getString(kAdminOrgCollection) ?? prefs.getString(kTenantId);
+          if (adminTenantId != null && adminTenantId.isNotEmpty) {
+            // Trigger branding sync in background
+            FirestoreService.instance.syncBranding(adminTenantId).catchError((e) {
+              debugPrint('Background syncBranding error: $e');
+            });
+          }
+          return const admindashboard();
+        }
+
+        // Route directly to Service Engineer Dashboard
+        if (role == 'engineer') {
+          final resolvedName = engineerName ?? prefs.getString(kEngineerName) ?? '';
+          final email = prefs.getString(kEngineerEmail) ?? '';
+          final tenantId = prefs.getString(kTenantId);
+
+          if (tenantId != null && tenantId.isNotEmpty) {
+            // Background branding sync
+            FirestoreService.instance.syncBranding(tenantId).catchError((e) {});
+
+            // Trigger anonymous auth in background so Firestore security rules succeed
+            if (FirebaseAuth.instance.currentUser == null) {
+              FirebaseAuth.instance
+                  .signInAnonymously()
+                  .then<void>((_) {})
+                  .catchError((e) {
+                debugPrint('Background anonymous auth failed: $e');
+              });
+            }
+          }
+
+          return EngineerPage(userEmail: email, userName: resolvedName);
+        }
+
+        // Route directly to Customer Dashboard
+        if (role == 'customer') {
+          final tenantId = prefs.getString(kTenantId);
+
+          if (tenantId != null && tenantId.isNotEmpty) {
+            // Background branding sync
+            FirestoreService.instance.syncBranding(tenantId).catchError((e) {});
+
+            // Trigger anonymous auth in background so Firestore security rules succeed
+            if (FirebaseAuth.instance.currentUser == null) {
+              FirebaseAuth.instance
+                  .signInAnonymously()
+                  .then<void>((_) {})
+                  .catchError((e) {
+                debugPrint('Background anonymous auth failed: $e');
+              });
+            }
+          }
+
+          return const AMCCustomerMainPage();
+        }
+      }
+
+      // ── 2. Firebase Session Fallback (If SharedPreferences was cleared but Auth user exists) ──
       final user = auth.currentUser;
       if (user != null && !user.isAnonymous) {
         debugPrint(
-          'AuthStateService: Firebase session found for ${user.email}',
+          'AuthStateService: Firebase Auth session found for ${user.email}',
         );
         final metadata = await FirestoreService.instance.getUserMetadata(
           user.uid,
         );
         if (metadata != null) {
-          final role = metadata['role'] as String?;
+          final recoveredRole = metadata['role'] as String?;
           final tenantId = metadata['tenantId'] as String?;
-          debugPrint(
-            'AuthStateService: Recovered metadata - role: $role, tenant: $tenantId',
-          );
 
-          // Restore SharedPreferences flags to maintain consistency
-          await prefs.setBool(_kIsRegistered, true);
-          await prefs.setString(_kUserRole, role ?? 'user');
-
-          if (tenantId != null) {
-            await prefs.setString('tenantId', tenantId);
-            await prefs.setString('databaseName', tenantId);
-            final appName = metadata['appName'] as String?;
-            if (appName != null) {
-              await prefs.setString('appName', appName);
-            }
-            // Initialize branding for the recovered tenant
-            await FirestoreService.instance.syncBranding(
-              tenantId,
-              appId: 'data',
+          if (recoveredRole == 'admin' || recoveredRole == 'Owner') {
+            await saveAdminSession(
+              email: user.email ?? '',
+              tenantId: tenantId ?? '',
+              appName: metadata['appName'] ?? metadata['name'],
             );
-          }
-
-          if (role == 'admin' || role == 'Owner') {
-            await prefs.setBool('admin_isLoggedIn', true);
-            await prefs.setString('admin_email', user.email ?? '');
-            if (tenantId != null) {
-              await prefs.setString('admin_org_collection', tenantId);
-            }
-            if (metadata.containsKey('appName')) {
-              await prefs.setString('appName', metadata['appName'] ?? '');
-            } else if (metadata.containsKey('name')) {
-              await prefs.setString('appName', metadata['name'] ?? '');
-            }
-
-            // Check subscription before allowing dashboard access
-            final effectiveTenant =
-                tenantId ?? ThemeService.instance.databaseName;
-            final isSubscribed = await FirestoreService.instance.isTenantActive(
-              tenantId: effectiveTenant,
-              appId: 'data',
-            );
-            if (!isSubscribed) {
-              return await _getRestrictedOrExpiredScreen(
-                tenantId: effectiveTenant,
-                role: role ?? 'admin',
-                isAdmin: true,
-              );
-            }
-
-            final isBrandingCompleted = await _isBrandingSetupCompleted(
-              prefs: prefs,
-              tenantId: effectiveTenant,
-            );
-            if (!isBrandingCompleted) {
-              debugPrint(
-                'AuthStateService: Branding incomplete for admin, routing to BrandingCustomizationScreen',
-              );
-              try {
-                // Fetch latest payment to populate BrandingCustomizationScreen
-                final paymentSnapshot = await FirebaseFirestore.instance
-                    .collection('payments')
-                    .where('userId', isEqualTo: user.uid)
-                    .orderBy('updatedAt', descending: true)
-                    .limit(1)
-                    .get();
-
-                if (paymentSnapshot.docs.isNotEmpty) {
-                  final paymentData = paymentSnapshot.docs.first.data();
-                  final rawAmount = paymentData['amount'];
-                  final parsedAmount = rawAmount is num
-                      ? rawAmount.toInt()
-                      : int.tryParse(rawAmount?.toString() ?? '');
-                  final rawOriginalPrice = paymentData['originalPrice'];
-                  final parsedOriginalPrice = rawOriginalPrice is num
-                      ? rawOriginalPrice.toInt()
-                      : int.tryParse(rawOriginalPrice?.toString() ?? '');
-                  final resolvedPaymentMethod =
-                      (paymentData['paymentMethod'] ??
-                              paymentData['paymentMode'] ??
-                              '')
-                          .toString()
-                          .trim();
-                  return BrandingCustomizationScreen(
-                    planName: paymentData['planName'] ?? 'Subscription',
-                    isYearly: paymentData['isYearly'] ?? false,
-                    isSixMonths: paymentData['isSixMonths'] ?? false,
-                    price: parsedAmount,
-                    transactionId: paymentSnapshot.docs.first.id,
-                    originalPrice: parsedOriginalPrice,
-                    paymentMethod: resolvedPaymentMethod.isNotEmpty
-                        ? resolvedPaymentMethod
-                        : null,
-                    limits: paymentData['limits'] as Map<String, dynamic>?,
-                    geoLocation: paymentData['geoLocation'] as bool?,
-                    attendance: paymentData['attendance'] as bool?,
-                    barcode: paymentData['barcode'] as bool?,
-                    reportExport: paymentData['reportExport'] as bool?,
-                  );
-                }
-              } catch (e) {
-                debugPrint(
-                  'AuthStateService: Error fetching latest payment for branding: $e',
-                );
-              }
-              // Fallback if no payment found
-              return const BrandingCustomizationScreen(
-                planName: 'Subscription',
-                isYearly: false,
-                price: 0,
-              );
-            }
-
             return const admindashboard();
-          } else {
-            // Engineer or Customer
-            final effectiveTenant =
-                tenantId ?? ThemeService.instance.databaseName;
-            final isSubscribed = await FirestoreService.instance.isTenantActive(
-              tenantId: effectiveTenant,
-              appId: 'data',
+          } else if (recoveredRole == 'engineer') {
+            final name = metadata['name'] ?? metadata['Username'] ?? '';
+            await saveEngineerSession(
+              username: name,
+              tenantId: tenantId ?? '',
+              email: user.email,
             );
-
-            if (!isSubscribed) {
-              return await _getRestrictedOrExpiredScreen(
-                tenantId: effectiveTenant,
-                role: role ?? 'user',
-                isAdmin: false,
-              );
-            }
-
-            if (role == 'engineer') {
-              final name = metadata['name'] ?? metadata['Username'] ?? '';
-              await prefs.setString('engineerName', name);
-              return EngineerPage(userEmail: user.email ?? '', userName: name);
-            } else if (role == 'customer') {
-              await prefs.setString('email', user.email ?? '');
-              return const AMCCustomerMainPage();
-            }
+            return EngineerPage(userEmail: user.email ?? '', userName: name);
+          } else if (recoveredRole == 'customer') {
+            await saveCustomerSession(
+              email: user.email ?? '',
+              tenantId: tenantId ?? '',
+            );
+            return const AMCCustomerMainPage();
           }
         }
-      }
-
-      // 2. Fallback to existing logic if no Firebase user or metadata not found
-      // Check Admin
-      final bool isAdminLoggedIn = await AdminLoginBackend.checkLoginStatus();
-      if (isAdminLoggedIn) {
-        final adminTenantId = prefs.getString('admin_org_collection');
-        if (adminTenantId != null) {
-          // Sync branding for the found session
-          await FirestoreService.instance.syncBranding(adminTenantId);
-
-          final isSubscribed = await FirestoreService.instance.isTenantActive(
-            tenantId: adminTenantId,
-            appId: 'data',
-          );
-          if (!isSubscribed) {
-            return await _getRestrictedOrExpiredScreen(
-              tenantId: adminTenantId,
-              role: 'admin',
-              isAdmin: true,
-            );
-          }
-
-          final isBrandingCompleted = await _isBrandingSetupCompleted(
-            prefs: prefs,
-            tenantId: adminTenantId,
-          );
-          if (!isBrandingCompleted) {
-            debugPrint(
-              'AuthStateService: Branding incomplete for fallback admin session, routing to BrandingCustomizationScreen',
-            );
-            return const BrandingCustomizationScreen(
-              planName: 'Subscription',
-              isYearly: false,
-              price: 0,
-            );
-          }
-        }
-        return const admindashboard();
-      }
-
-      // Check Engineer
-      final String? engineerName =
-          await EngineerLoginBackend.checkLoginStatus();
-      if (engineerName != null) {
-        final tenantId = prefs.getString('tenantId');
-        if (tenantId != null) {
-          final isSubscribed = await FirestoreService.instance.isTenantActive(
-            tenantId: tenantId,
-            appId: 'data',
-          );
-          if (!isSubscribed) {
-            return await _getRestrictedOrExpiredScreen(
-              tenantId: tenantId,
-              role: 'engineer',
-              isAdmin: false,
-            );
-          }
-        }
-        return EngineerPage(userEmail: '', userName: engineerName);
-      }
-
-      // Check Customer
-      final String? customerEmail = await AMCLoginBackend.checkLoginStatus();
-      if (customerEmail != null) {
-        final tenantId = prefs.getString('tenantId');
-        if (tenantId != null) {
-          final isSubscribed = await FirestoreService.instance.isTenantActive(
-            tenantId: tenantId,
-            appId: 'data',
-          );
-          if (!isSubscribed) {
-            return await _getRestrictedOrExpiredScreen(
-              tenantId: tenantId,
-              role: 'customer',
-              isAdmin: false,
-            );
-          }
-        }
-        return const AMCCustomerMainPage();
       }
 
       debugPrint(
@@ -981,7 +907,6 @@ class AuthStateService extends ChangeNotifier {
       return const RoleSelectionScreen();
     } catch (e) {
       debugPrint('AuthStateService: Error determining initial screen: $e');
-      // Default to role selection on error
       return const RoleSelectionScreen();
     }
   }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_dashboard.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_signup_page.dart';
 import 'package:subscription_rooks_app/backend/screens/admin_login_page.dart';
@@ -38,7 +39,7 @@ class _AdminLoginState extends State<AdminLogin> {
   }
 
   void _login() async {
-    String email = _emailController.text.trim();
+    String email = _emailController.text.replaceAll(RegExp(r'\s+'), '').trim().toLowerCase();
     String password = _passwordController.text.trim();
 
     if (email.isEmpty || password.isEmpty) {
@@ -150,6 +151,9 @@ class _AdminLoginState extends State<AdminLogin> {
                             prefixIcon: Icon(Icons.email, color: primaryColor),
                           ),
                           keyboardType: TextInputType.emailAddress,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                          ],
                         ),
                         const SizedBox(height: 20),
                         TextField(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:subscription_rooks_app/services/auth_state_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
@@ -71,9 +72,12 @@ class _UnifiedLoginScreenState extends State<UnifiedLoginScreen>
 
     setState(() => _isLoading = true);
 
+    final cleanEmail = _emailController.text.replaceAll(RegExp(r'\s+'), '').trim().toLowerCase();
+    final cleanPassword = _passwordController.text.trim();
+
     final result = await AuthStateService.instance.loginUser(
-      _emailController.text.trim(),
-      _passwordController.text.trim(),
+      cleanEmail,
+      cleanPassword,
     );
 
     if (!mounted) return;
@@ -335,11 +339,17 @@ class _UnifiedLoginScreenState extends State<UnifiedLoginScreen>
                                 icon: Icons.mail_outline_rounded,
                                 hintText: 'name@company.com',
                                 keyboardType: TextInputType.emailAddress,
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                                ],
                                 isDark: isDark,
                                 primaryColor: primaryColor,
                                 validator: (v) {
                                   if (v == null || v.trim().isEmpty) {
                                     return 'Please enter your email address';
+                                  }
+                                  if (v.contains(' ')) {
+                                    return 'Email cannot contain spaces';
                                   }
                                   if (!v.contains('@') || !v.contains('.')) {
                                     return 'Please enter a valid email address';
@@ -588,6 +598,7 @@ class _UnifiedLoginScreenState extends State<UnifiedLoginScreen>
     bool obscureText = false,
     Widget? suffixIcon,
     TextInputType? keyboardType,
+    List<TextInputFormatter>? inputFormatters,
     String? Function(String?)? validator,
   }) {
     return Column(
@@ -606,6 +617,7 @@ class _UnifiedLoginScreenState extends State<UnifiedLoginScreen>
           controller: controller,
           obscureText: obscureText,
           keyboardType: keyboardType,
+          inputFormatters: inputFormatters,
           validator: validator,
           style: GoogleFonts.inter(
             fontSize: 15,

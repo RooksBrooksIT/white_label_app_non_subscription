@@ -1,6 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
+import 'package:subscription_rooks_app/services/auth_state_service.dart';
 
 class AdminDashboardBackend {
   static bool _isTicketCompleted(Map<String, dynamic> data) {
@@ -208,7 +208,6 @@ class AdminDashboardBackend {
   }
 
   static Future<void> logout() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
+    await AuthStateService.instance.logout();
   }
 }

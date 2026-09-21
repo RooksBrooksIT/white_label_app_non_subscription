@@ -341,9 +341,18 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
                       label: 'Username',
                       icon: Icons.person_outline_rounded,
                       hint: 'Enter engineer username',
-                      validator: (value) => (value == null || value.isEmpty)
-                          ? 'Please enter a username'
-                          : null,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                      ],
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Please enter a username';
+                        }
+                        if (value.contains(' ')) {
+                          return 'Username cannot contain spaces';
+                        }
+                        return null;
+                      },
                     ),
                     const SizedBox(height: 20),
                     _buildFormField(
@@ -410,13 +419,19 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
                       icon: Icons.alternate_email_rounded,
                       hint: 'engineer@example.com',
                       keyboardType: TextInputType.emailAddress,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                      ],
                       validator: (value) {
-                        if (value == null || value.isEmpty) {
+                        if (value == null || value.trim().isEmpty) {
                           return 'Please enter an email';
+                        }
+                        if (value.contains(' ')) {
+                          return 'Email cannot contain spaces';
                         }
                         if (!RegExp(
                           r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
-                        ).hasMatch(value)) {
+                        ).hasMatch(value.trim())) {
                           return 'Please enter a valid email';
                         }
                         return null;
@@ -1058,12 +1073,17 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
         );
 
         if (_isEditing && _editingEngineerId != null) {
+          final cleanUsername =
+              _usernameController.text.replaceAll(RegExp(r'\s+'), '').trim();
+          final cleanEmail =
+              _emailController.text.replaceAll(RegExp(r'\s+'), '').trim().toLowerCase();
+
           // Update existing
           final data = {
-            'Username': _usernameController.text,
-            'Email': _emailController.text,
-            'Phone': _phoneController.text,
-            'Specialization': _specializationController.text,
+            'Username': cleanUsername,
+            'Email': cleanEmail,
+            'Phone': _phoneController.text.trim(),
+            'Specialization': _specializationController.text.trim(),
             'updatedAt': FieldValue.serverTimestamp(),
           };
 
@@ -1116,8 +1136,13 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
             }
           }
 
+          final cleanUsername =
+              _usernameController.text.replaceAll(RegExp(r'\s+'), '').trim();
+          final cleanEmail =
+              _emailController.text.replaceAll(RegExp(r'\s+'), '').trim().toLowerCase();
+
           final existingUserQuery = await collection
-              .where('Username', isEqualTo: _usernameController.text)
+              .where('Username', isEqualTo: cleanUsername)
               .get();
 
           if (existingUserQuery.docs.isNotEmpty) {
@@ -1136,14 +1161,14 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
           final now = DateTime.now();
           final formattedDate =
               '${now.day.toString().padLeft(2, '0')}${now.month.toString().padLeft(2, '0')}${now.year}';
-          final docId = '${_usernameController.text}_$formattedDate';
+          final docId = '${cleanUsername}_$formattedDate';
 
           await collection.doc(docId).set({
-            'Username': _usernameController.text,
+            'Username': cleanUsername,
             'Password': _passwordController.text,
-            'Email': _emailController.text,
-            'Phone': _phoneController.text,
-            'Specialization': _specializationController.text,
+            'Email': cleanEmail,
+            'Phone': _phoneController.text.trim(),
+            'Specialization': _specializationController.text.trim(),
             'createdAt': FieldValue.serverTimestamp(),
           });
 

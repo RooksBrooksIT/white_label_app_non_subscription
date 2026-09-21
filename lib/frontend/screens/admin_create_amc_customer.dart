@@ -205,11 +205,14 @@ class _AMCCreatePageState extends State<AMCCreatePage>
   }
 
   String? _validateEmail(String? value) {
-    if (value == null || value.isEmpty) {
+    if (value == null || value.trim().isEmpty) {
       return 'Please enter your email';
     }
-    final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+');
-    if (!emailRegex.hasMatch(value)) {
+    if (value.contains(' ')) {
+      return 'Email cannot contain spaces';
+    }
+    final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+    if (!emailRegex.hasMatch(value.trim())) {
       return 'Please enter a valid email address';
     }
     return null;
@@ -541,7 +544,11 @@ class _AMCCreatePageState extends State<AMCCreatePage>
               }
             }
 
-            final emailExists = await _checkEmailExists(_emailController.text);
+            final cleanEmail =
+                _emailController.text.replaceAll(RegExp(r'\s+'), '').trim().toLowerCase();
+
+            // Check if email already exists
+            final emailExists = await _checkEmailExists(cleanEmail);
             if (emailExists) {
               if (!mounted) return;
               setState(() {
@@ -551,7 +558,7 @@ class _AMCCreatePageState extends State<AMCCreatePage>
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(
-                    'Email ${_emailController.text} is already registered!',
+                    'Email $cleanEmail is already registered!',
                   ),
                   backgroundColor: errorColor,
                 ),
@@ -624,10 +631,10 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                 .collection('AMC_user')
                 .doc(newAmcId)
                 .set({
-                  'email': _emailController.text.toLowerCase().trim(),
-                  'name': _usernameController.text,
+                  'email': cleanEmail,
+                  'name': _usernameController.text.trim(),
                   'password': _passwordController.text,
-                  'Phone Number': _phoneController.text,
+                  'Phone Number': _phoneController.text.trim(),
                   'Id': newAmcId,
                   'createdAt': FieldValue.serverTimestamp(),
                 });
@@ -1305,6 +1312,9 @@ class _AMCCreatePageState extends State<AMCCreatePage>
             controller: _emailController,
             keyboardType: TextInputType.emailAddress,
             enabled: !_isEditMode,
+            inputFormatters: [
+              FilteringTextInputFormatter.deny(RegExp(r'\s')),
+            ],
             decoration: InputDecoration(
               hintText: 'customer@example.com',
               hintStyle: TextStyle(

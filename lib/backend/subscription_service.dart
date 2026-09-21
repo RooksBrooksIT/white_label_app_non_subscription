@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/firestore_service.dart';
 
@@ -43,7 +44,7 @@ class SubscriptionService {
             'createdAt': FieldValue.serverTimestamp(),
           });
     } catch (e) {
-      print('Error saving subscription: $e');
+      debugPrint('Error saving subscription: $e');
       rethrow;
     }
   }

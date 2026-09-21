@@ -120,6 +120,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
       linkedAppName = referralData['appId'] ?? 'data';
     }
 
+    final cleanEmail = _emailController.text.replaceAll(RegExp(r'\s+'), '').trim().toLowerCase();
     final phone = _phoneController.text.trim();
     final gstValue = _hasGST
         ? _gstNumberController.text.trim().toUpperCase()
@@ -133,7 +134,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     };
 
     if (_selectedRole == 'admin') {
-      final tenantId = FirestoreService.generateTenantId(
+      final tenantId = await FirestoreService.getUniqueTenantId(
         _nameController.text.trim(),
       );
       final extraDataWithTenant = {
@@ -144,7 +145,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
       // For Admins: Defer registration until after payment
       final result = await AuthStateService.instance.registerUser(
         name: _nameController.text.trim(),
-        email: _emailController.text.trim(),
+        email: cleanEmail,
         password: _passwordController.text.trim(),
         phone: phone,
         role: _selectedRole,
@@ -158,7 +159,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
       if (result['success']) {
         final pendingUserData = {
           'name': _nameController.text.trim(),
-          'email': _emailController.text.trim(),
+          'email': cleanEmail,
           'password': _passwordController.text.trim(),
           'phone': phone,
           'customerMobile': phone,
@@ -194,7 +195,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     // For non-admins: Register immediately
     final result = await AuthStateService.instance.registerUser(
       name: _nameController.text.trim(),
-      email: _emailController.text.trim(),
+      email: cleanEmail,
       password: _passwordController.text.trim(),
       role: _selectedRole,
       additionalData: extraData.isNotEmpty ? extraData : null,
@@ -977,10 +978,14 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                   icon: Icons.alternate_email_rounded,
                   hintText: 'admin@company.com',
                   keyboardType: TextInputType.emailAddress,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                  ],
                   isDark: isDark,
                   primaryColor: primaryColor,
                   validator: (v) {
                     if (v == null || v.trim().isEmpty) return 'Please enter corporate email';
+                    if (v.contains(' ')) return 'Email cannot contain spaces';
                     if (!v.contains('@') || !v.contains('.')) return 'Please enter a valid email address';
                     return null;
                   },

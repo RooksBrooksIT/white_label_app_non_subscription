@@ -8,9 +8,14 @@ class FirestoreService {
 
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  /// Generates a unique tenant ID based on user/organization name and registration timestamp.
-  /// Format: {CleanName}_{YYYYMMDD}_{UniqueSuffix} (e.g. Abi_20260610_l9f2k7)
-  static String generateTenantId(String name, [DateTime? registrationDate]) {
+  /// Generates an organization document ID based on organization name and date (YYYYMMDD).
+  /// Format: {CleanName}_{YYYYMMDD} (e.g. Duaiagency_20260919)
+  /// If [counter] is provided and > 0, formats as {CleanName}_{YYYYMMDD}_{counter} to prevent overwriting.
+  static String generateTenantId(
+    String name, [
+    DateTime? registrationDate,
+    int? counter,
+  ]) {
     final date = registrationDate ?? DateTime.now();
     final yearStr = date.year.toString();
     final monthStr = date.month.toString().padLeft(2, '0');
@@ -19,9 +24,77 @@ class FirestoreService {
     // Clean name: alphanumeric only, remove spaces/special chars (preserve case)
     String cleanName = name.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '');
     if (cleanName.isEmpty) cleanName = 'Org';
-    final uniqueSuffix = date.microsecondsSinceEpoch.toRadixString(36);
-    return "${cleanName}_${dateStr}_$uniqueSuffix";
+    if (counter != null && counter > 0) {
+      return "${cleanName}_${dateStr}_$counter";
+    }
+    return "${cleanName}_$dateStr";
   }
+
+  /// Checks whether a tenant / organization document ID already exists in Firestore.
+  Future<bool> tenantIdExists(String tenantId) async {
+    try {
+      // 1. Check if root collection has any docs
+      final rootSnap = await _db.collection(tenantId).limit(1).get();
+      if (rootSnap.docs.isNotEmpty) return true;
+
+      // 2. Check global user directory
+      final globalSnap = await _db
+          .collection('global_user_directory')
+          .where('tenantId', isEqualTo: tenantId)
+          .limit(1)
+          .get();
+      if (globalSnap.docs.isNotEmpty) return true;
+
+      // 3. Check admin collectionGroup
+      final adminSnap = await _db
+          .collectionGroup('admin')
+          .where('tenantId', isEqualTo: tenantId)
+          .limit(1)
+          .get();
+      if (adminSnap.docs.isNotEmpty) return true;
+
+      return false;
+    } catch (e) {
+      debugPrint('FirestoreService.tenantIdExists error: $e');
+      return false;
+    }
+  }
+
+  /// Generates a unique organization / tenant document ID asynchronously.
+  /// Primary format: {CleanName}_{YYYYMMDD} (e.g. Duaiagency_20260919).
+  /// If an existing document with the same ID is found in Firestore, appends
+  /// an incremental suffix ({CleanName}_{YYYYMMDD}_1, {CleanName}_{YYYYMMDD}_2, etc.)
+  /// to prevent data overwriting.
+  Future<String> generateUniqueTenantId(
+    String name, [
+    DateTime? registrationDate,
+  ]) async {
+    final baseId = generateTenantId(name, registrationDate);
+    final exists = await tenantIdExists(baseId);
+    if (!exists) {
+      return baseId;
+    }
+
+    // Handle duplicates by appending incremental index to prevent data overwriting
+    int counter = 1;
+    while (counter <= 100) {
+      final candidateId = generateTenantId(name, registrationDate, counter);
+      final candidateExists = await tenantIdExists(candidateId);
+      if (!candidateExists) {
+        return candidateId;
+      }
+      counter++;
+    }
+
+    return "${baseId}_${DateTime.now().millisecondsSinceEpoch}";
+  }
+
+  /// Static convenience helper for generating a unique organization / tenant document ID.
+  static Future<String> getUniqueTenantId(
+    String name, [
+    DateTime? registrationDate,
+  ]) => instance.generateUniqueTenantId(name, registrationDate);
+
 
   /// Returns a collection reference rooted under:
   /// {tenantId} (coll) -> {appId} (doc) -> {collectionName} (coll)

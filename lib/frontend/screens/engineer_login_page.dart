@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:subscription_rooks_app/backend/screens/engineer_login_page.dart';
@@ -44,10 +45,14 @@ class _EngineerloginState extends State<Engineerlogin> {
   Future<void> _login() async {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
+      final cleanUsername =
+          _nameController.text.replaceAll(RegExp(r'\s+'), '').trim();
+      final cleanReferral =
+          _referralCodeController.text.replaceAll(RegExp(r'\s+'), '').trim();
       final result = await EngineerLoginBackend.login(
-        _nameController.text.trim(),
-        _passwordController.text.trim(),
-        _referralCodeController.text.trim(),
+        cleanUsername,
+        _passwordController.text,
+        cleanReferral,
       );
       if (!mounted) return;
       setState(() => _isLoading = false);
@@ -189,14 +194,28 @@ class _EngineerloginState extends State<Engineerlogin> {
                   label: 'Referral Code',
                   controller: _referralCodeController,
                   icon: Icons.vpn_key_outlined,
-                  validator: (v) => v!.isEmpty ? 'Enter referral code' : null,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                  ],
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) return 'Enter referral code';
+                    if (v.contains(' ')) return 'Referral code cannot contain spaces';
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 24),
                 _buildTextField(
                   label: 'Username',
                   controller: _nameController,
                   icon: Icons.person_outline,
-                  validator: (v) => v!.isEmpty ? 'Enter your username' : null,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                  ],
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) return 'Enter your username';
+                    if (v.contains(' ')) return 'Username cannot contain spaces';
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 24),
                 _buildTextField(
@@ -321,6 +340,7 @@ class _EngineerloginState extends State<Engineerlogin> {
     bool obscureText = false,
     Widget? suffixIcon,
     TextInputType? keyboardType,
+    List<TextInputFormatter>? inputFormatters,
     String? Function(String?)? validator,
   }) {
     return Column(
@@ -339,6 +359,7 @@ class _EngineerloginState extends State<Engineerlogin> {
           controller: controller,
           obscureText: obscureText,
           keyboardType: keyboardType,
+          inputFormatters: inputFormatters,
           validator: validator,
           style: GoogleFonts.inter(),
           decoration: InputDecoration(
