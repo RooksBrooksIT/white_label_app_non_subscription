@@ -757,7 +757,6 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
         widget.customerAddress != null ||
         (widget.customerLat != null && widget.customerLng != null);
     final primaryColor = ThemeService.instance.primaryColor;
-    final isDark = ThemeService.instance.isDarkMode;
 
     // Full screen Customer Location view without background map
     if (isCustomerLocationMode) {
@@ -812,23 +811,38 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
         ),
         actions: [
           Padding(
-            padding: const EdgeInsets.all(6.0),
-            child: CircleAvatar(
-              backgroundColor: const Color(0xFFF1F5F9),
+            padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+            child: Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
+              ),
               child: IconButton(
-                icon: const Icon(Icons.refresh_rounded, color: Color(0xFF0F172A), size: 18),
+                padding: EdgeInsets.zero,
+                icon: const Icon(Icons.refresh_rounded, color: Color(0xFF0F172A), size: 19),
                 onPressed: _loadEngineersList,
                 tooltip: 'Refresh engineers list',
               ),
             ),
           ),
           Padding(
-            padding: const EdgeInsets.only(right: 8.0, top: 6, bottom: 6),
+            padding: const EdgeInsets.only(right: 16.0, top: 8.0, bottom: 8.0, left: 4.0),
             child: Stack(
+              clipBehavior: Clip.none,
               children: [
-                CircleAvatar(
-                  backgroundColor: primaryColor.withValues(alpha: 0.1),
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: primaryColor.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: primaryColor.withValues(alpha: 0.25), width: 1),
+                  ),
                   child: IconButton(
+                    padding: EdgeInsets.zero,
                     icon: Icon(Icons.person_pin_circle_rounded, color: primaryColor, size: 20),
                     onPressed: _showEngineerSelectionSheet,
                     tooltip: 'Select Engineer',
@@ -836,14 +850,21 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                 ),
                 if (_engineersList.isNotEmpty)
                   Positioned(
-                    right: 0,
-                    top: 0,
+                    right: -2,
+                    top: -2,
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                       decoration: BoxDecoration(
                         color: const Color(0xFF10B981),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(color: Colors.white, width: 1.5),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF10B981).withValues(alpha: 0.4),
+                            blurRadius: 4,
+                            offset: const Offset(0, 1),
+                          ),
+                        ],
                       ),
                       child: Text(
                         _engineersList.length.toString(),
@@ -872,73 +893,31 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
   }
 
   Widget _buildTopHeaderSegmentedBar(Color primaryColor) {
-    final onlineCount = _engineersList.where((e) => e['isOnline'] == true).length;
     return Positioned(
       top: 14,
       left: 16,
       right: 16,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          // Floating Top Segmented Bar
-          Container(
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.08),
-                  blurRadius: 16,
-                  offset: const Offset(0, 4),
-                ),
-              ],
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.08),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
             ),
-            child: Row(
-              children: [
-                _buildTabSegmentPill('ALL', _activeTabFilter == 'ALL', primaryColor),
-                _buildTabSegmentPill('ONLINE', _activeTabFilter == 'ONLINE', const Color(0xFF10B981)),
-                _buildTabSegmentPill('TRACKING', _activeTabFilter == 'TRACKING', const Color(0xFF6366F1)),
-              ],
-            ),
-          ),
-          const SizedBox(height: 10),
-          // Floating "CHECK IN" / "FOCUS" Pill Button (Reference Style)
-          GestureDetector(
-            onTap: _centerOnEngineer,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.10),
-                    blurRadius: 12,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.gps_fixed_rounded, size: 14, color: primaryColor),
-                  const SizedBox(width: 6),
-                  Text(
-                    'FOCUS',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
-                      color: const Color(0xFF1E293B),
-                      letterSpacing: 1.1,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
+          ],
+        ),
+        child: Row(
+          children: [
+            _buildTabSegmentPill('ALL', _activeTabFilter == 'ALL', primaryColor),
+            _buildTabSegmentPill('ONLINE', _activeTabFilter == 'ONLINE', const Color(0xFF10B981)),
+            _buildTabSegmentPill('TRACKING', _activeTabFilter == 'TRACKING', const Color(0xFF6366F1)),
+          ],
+        ),
       ),
     );
   }
@@ -980,209 +959,399 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
       return matchesSearch;
     }).toList();
 
+    final String activeName = _currentTrackingName ??
+        (_engineersList.isNotEmpty ? _engineersList.first['username'] : 'Engineer');
+    final activeData = _allEngineersData[_currentTrackingId];
+    final bool isCurrentOnline = activeData?['isOnline'] ??
+        (_engineersList.firstWhere(
+          (e) => e['username'] == _currentTrackingId,
+          orElse: () => {'isOnline': false},
+        )['isOnline'] ?? false);
+
     return AnimatedPositioned(
-      duration: const Duration(milliseconds: 320),
+      duration: const Duration(milliseconds: 280),
       curve: Curves.fastOutSlowIn,
       bottom: 0,
       left: 0,
       right: 0,
-      height: _isDrawerExpanded ? 340 : 65,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(36)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.14),
-              blurRadius: 24,
-              offset: const Offset(0, -6),
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            // Floating Center Handle Downward / Upward Arrow Button
-            GestureDetector(
-              onTap: () {
-                setState(() => _isDrawerExpanded = !_isDrawerExpanded);
-              },
-              child: Container(
-                margin: const EdgeInsets.only(top: 8, bottom: 4),
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9),
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.06),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Icon(
-                  _isDrawerExpanded ? Icons.keyboard_arrow_down_rounded : Icons.keyboard_arrow_up_rounded,
-                  color: const Color(0xFF0F172A),
-                  size: 24,
-                ),
+      height: _isDrawerExpanded ? 340 : 74,
+      child: GestureDetector(
+        onVerticalDragEnd: (details) {
+          if (details.primaryVelocity != null) {
+            if (details.primaryVelocity! > 100) {
+              setState(() => _isDrawerExpanded = false);
+            } else if (details.primaryVelocity! < -100) {
+              setState(() => _isDrawerExpanded = true);
+            }
+          }
+        },
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.12),
+                blurRadius: 20,
+                offset: const Offset(0, -4),
               ),
-            ),
-
-            if (_isDrawerExpanded) ...[
-              // Directory Header & Search input
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
+            ],
+          ),
+          child: Column(
+            children: [
+              // Top Drag Handle Indicator
+              GestureDetector(
+                onTap: () => setState(() => _isDrawerExpanded = !_isDrawerExpanded),
                 child: Container(
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: TextField(
-                    onChanged: (val) => setState(() => _drawerSearchQuery = val),
-                    decoration: const InputDecoration(
-                      hintText: 'Search field engineer by name...',
-                      hintStyle: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
-                      prefixIcon: Icon(Icons.search_rounded, size: 18, color: Color(0xFF64748B)),
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(vertical: 9),
+                  width: double.infinity,
+                  padding: const EdgeInsets.only(top: 8, bottom: 4),
+                  color: Colors.transparent,
+                  child: Center(
+                    child: Container(
+                      width: 38,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFCBD5E1),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
                   ),
                 ),
               ),
 
-              const SizedBox(height: 6),
-
-              // Engineer Directory List
-              Expanded(
-                child: filteredList.isEmpty
-                    ? const Center(
-                        child: Text(
-                          'No engineers available in this filter',
-                          style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-                        ),
-                      )
-                    : ListView.separated(
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
-                        physics: const BouncingScrollPhysics(),
-                        itemCount: filteredList.length,
-                        separatorBuilder: (context, index) => const Divider(
-                          height: 1,
-                          thickness: 0.8,
-                          color: Color(0xFFF1F5F9),
-                        ),
-                        itemBuilder: (context, index) {
-                          final eng = filteredList[index];
-                          final username = (eng['username'] ?? 'Staff').toString();
-                          final isOnline = eng['isOnline'] ?? false;
-                          final isSelected = username == _currentTrackingId;
-
-                          return InkWell(
-                            onTap: () {
-                              _switchEngineer(username, username);
-                            },
-                            borderRadius: BorderRadius.circular(16),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-                              decoration: BoxDecoration(
-                                color: isSelected
-                                    ? primaryColor.withValues(alpha: 0.06)
-                                    : Colors.transparent,
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: Row(
-                                children: [
-                                  // Avatar with status ring
-                                  Stack(
-                                    children: [
-                                      Container(
-                                        width: 44,
-                                        height: 44,
-                                        decoration: BoxDecoration(
-                                          color: isSelected ? primaryColor : const Color(0xFF1E293B),
-                                          shape: BoxShape.circle,
-                                        ),
-                                        child: Center(
-                                          child: Text(
-                                            username.isNotEmpty ? username[0].toUpperCase() : 'E',
-                                            style: const TextStyle(
-                                              fontSize: 17,
-                                              fontWeight: FontWeight.w800,
-                                              color: Colors.white,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                      if (isOnline)
-                                        Positioned(
-                                          right: 1,
-                                          bottom: 1,
-                                          child: Container(
-                                            width: 11,
-                                            height: 11,
-                                            decoration: BoxDecoration(
-                                              color: const Color(0xFF10B981),
-                                              shape: BoxShape.circle,
-                                              border: Border.all(color: Colors.white, width: 2),
-                                            ),
-                                          ),
-                                        ),
-                                    ],
+              if (!_isDrawerExpanded) ...[
+                // Compact Collapsed Summary Row
+                Expanded(
+                  child: InkWell(
+                    onTap: () => setState(() => _isDrawerExpanded = true),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 18),
+                      child: Row(
+                        children: [
+                          Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: primaryColor,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    activeName.isNotEmpty ? activeName[0].toUpperCase() : 'E',
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.white,
+                                    ),
                                   ),
-                                  const SizedBox(width: 14),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                ),
+                              ),
+                              Positioned(
+                                right: 0,
+                                bottom: 0,
+                                child: Container(
+                                  width: 11,
+                                  height: 11,
+                                  decoration: BoxDecoration(
+                                    color: isCurrentOnline ? const Color(0xFF10B981) : const Color(0xFF94A3B8),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: Colors.white, width: 2),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  activeName.toUpperCase(),
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF0F172A),
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  isCurrentOnline ? 'Online • Live Tracking Active' : 'Offline • Last Location Saved',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: isCurrentOnline ? const Color(0xFF059669) : const Color(0xFF64748B),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: const Color(0xFFE2E8F0)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  '${_engineersList.length} Eng',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF475569),
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                const Icon(
+                                  Icons.keyboard_arrow_up_rounded,
+                                  size: 18,
+                                  color: Color(0xFF0F172A),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ] else ...[
+                // Expanded Header with Collapse button
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 2),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          const Text(
+                            'Field Engineers',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF0F172A),
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              '${filteredList.length}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF64748B),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      GestureDetector(
+                        onTap: () => setState(() => _isDrawerExpanded = false),
+                        child: Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF1F5F9),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                          ),
+                          child: const Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            color: Color(0xFF0F172A),
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 6),
+
+                // Search field input
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 18),
+                  child: Container(
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: TextField(
+                      onChanged: (val) => setState(() => _drawerSearchQuery = val),
+                      decoration: InputDecoration(
+                        hintText: 'Search field engineer by name...',
+                        hintStyle: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                        prefixIcon: const Icon(Icons.search_rounded, size: 18, color: Color(0xFF64748B)),
+                        suffixIcon: _drawerSearchQuery.isNotEmpty
+                            ? GestureDetector(
+                                onTap: () => setState(() => _drawerSearchQuery = ''),
+                                child: const Icon(Icons.close_rounded, size: 16, color: Color(0xFF64748B)),
+                              )
+                            : null,
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 9),
+                      ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 6),
+
+                // Engineer Directory List
+                Expanded(
+                  child: filteredList.isEmpty
+                      ? const Center(
+                          child: Text(
+                            'No engineers available in this filter',
+                            style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                          ),
+                        )
+                      : ListView.separated(
+                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 2),
+                          physics: const BouncingScrollPhysics(),
+                          itemCount: filteredList.length,
+                          separatorBuilder: (context, index) => const Divider(
+                            height: 1,
+                            thickness: 0.8,
+                            color: Color(0xFFF1F5F9),
+                          ),
+                          itemBuilder: (context, index) {
+                            final eng = filteredList[index];
+                            final username = (eng['username'] ?? 'Staff').toString();
+                            final isOnline = eng['isOnline'] ?? false;
+                            final isSelected = username == _currentTrackingId;
+
+                            return InkWell(
+                              onTap: () {
+                                _switchEngineer(username, username);
+                              },
+                              borderRadius: BorderRadius.circular(16),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? primaryColor.withValues(alpha: 0.06)
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Row(
+                                  children: [
+                                    // Avatar with status ring
+                                    Stack(
                                       children: [
-                                        Text(
-                                          username.toUpperCase(),
-                                          style: const TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w800,
-                                            color: Color(0xFF0F172A),
-                                            letterSpacing: 0.3,
+                                        Container(
+                                          width: 42,
+                                          height: 42,
+                                          decoration: BoxDecoration(
+                                            color: isSelected ? primaryColor : const Color(0xFF1E293B),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: Center(
+                                            child: Text(
+                                              username.isNotEmpty ? username[0].toUpperCase() : 'E',
+                                              style: const TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w800,
+                                                color: Colors.white,
+                                              ),
+                                            ),
                                           ),
                                         ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          isOnline ? 'Online • Field Active' : 'Offline • Last Location Saved',
-                                          style: TextStyle(
-                                            fontSize: 11.5,
-                                            fontWeight: FontWeight.w500,
-                                            color: isOnline ? const Color(0xFF059669) : const Color(0xFF94A3B8),
+                                        if (isOnline)
+                                          Positioned(
+                                            right: 1,
+                                            bottom: 1,
+                                            child: Container(
+                                              width: 11,
+                                              height: 11,
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFF10B981),
+                                                shape: BoxShape.circle,
+                                                border: Border.all(color: Colors.white, width: 2),
+                                              ),
+                                            ),
                                           ),
+                                      ],
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            username.toUpperCase(),
+                                            style: const TextStyle(
+                                              fontSize: 13.5,
+                                              fontWeight: FontWeight.w800,
+                                              color: Color(0xFF0F172A),
+                                              letterSpacing: 0.2,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            isOnline ? 'Online • Field Active' : 'Offline • Last Location Saved',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w500,
+                                              color: isOnline ? const Color(0xFF059669) : const Color(0xFF94A3B8),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                          decoration: BoxDecoration(
+                                            color: isOnline
+                                                ? const Color(0xFF10B981).withValues(alpha: 0.12)
+                                                : const Color(0xFF64748B).withValues(alpha: 0.12),
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: Text(
+                                            isOnline ? 'Active' : 'Offline',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w700,
+                                              color: isOnline ? const Color(0xFF059669) : const Color(0xFF64748B),
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Icon(
+                                          Icons.arrow_forward_rounded,
+                                          size: 16,
+                                          color: isSelected ? primaryColor : const Color(0xFFCBD5E1),
                                         ),
                                       ],
                                     ),
-                                  ),
-                                  Row(
-                                    children: [
-                                      Text(
-                                        isOnline ? 'Active' : 'Offline',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w700,
-                                          color: isOnline ? const Color(0xFF10B981) : const Color(0xFF94A3B8),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Icon(
-                                        Icons.arrow_forward_rounded,
-                                        size: 18,
-                                        color: isSelected ? primaryColor : const Color(0xFFCBD5E1),
-                                      ),
-                                    ],
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
-                            ),
-                          );
-                        },
-                      ),
-              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -1646,7 +1815,6 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
         ? _customerLocation!
         : (_lastLocation ?? const latlong.LatLng(12.9716, 77.5946));
     final primaryColor = ThemeService.instance.primaryColor;
-    final isDark = ThemeService.instance.isDarkMode;
 
     return FlutterMap(
       mapController: _mapController,
@@ -1661,16 +1829,20 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
       ),
       children: [
         TileLayer(
-          urlTemplate: 'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
-          userAgentPackageName: 'com.rooks.charity_app',
+          urlTemplate:
+              'https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&key=AIzaSyDs7QWcGlXCl_vnX1XcWBuz2iahUrv-Hho',
+          subdomains: const ['0', '1', '2', '3'],
+          userAgentPackageName: 'com.rooks.subscription',
+          maxZoom: 20,
         ),
         if (_customerLocation != null)
           MarkerLayer(
             markers: [
               Marker(
                 point: _customerLocation!,
-                width: 64,
-                height: 76,
+                width: 100,
+                height: 96,
+                alignment: Alignment.bottomCenter,
                 child: _buildCustomerTeardropMarker(primaryColor: primaryColor),
               ),
             ],
@@ -1688,8 +1860,9 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
 
                 return Marker(
                   point: location,
-                  width: 72,
-                  height: 84,
+                  width: 110,
+                  height: 96,
+                  alignment: Alignment.bottomCenter,
                   child: GestureDetector(
                     onTap: () {
                       _switchEngineer(username, username);
@@ -1743,7 +1916,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
     );
   }
 
-  /// Authentic teardrop map marker with avatar and ground pulse circle
+  /// Authentic teardrop map marker with floating status pill, avatar, and ground pulse circle
   Widget _buildTeardropMarker({
     required String username,
     required bool isOnline,
@@ -1752,17 +1925,83 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
   }) {
     return Column(
       mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.end,
       children: [
+        // Floating Name & Live Status Pill
+        Container(
+          margin: const EdgeInsets.only(bottom: 3),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: isSelected ? const Color(0xFF0F172A) : Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.16),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+            border: Border.all(
+              color: isSelected ? primaryColor : const Color(0xFFE2E8F0),
+              width: isSelected ? 1.5 : 1.0,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isOnline ? const Color(0xFF10B981) : const Color(0xFF94A3B8),
+                ),
+              ),
+              const SizedBox(width: 4),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 80),
+                child: Text(
+                  username,
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w800,
+                    color: isSelected ? Colors.white : const Color(0xFF0F172A),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (isSelected) ...[
+                const SizedBox(width: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: primaryColor,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Text(
+                    'LIVE',
+                    style: TextStyle(
+                      fontSize: 8,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
         // Teardrop Pin Housing
         SizedBox(
-          width: 54,
-          height: 64,
+          width: 52,
+          height: 62,
           child: Stack(
             alignment: Alignment.topCenter,
             children: [
               // Custom Teardrop Pin Shape
               CustomPaint(
-                size: const Size(54, 64),
+                size: const Size(52, 62),
                 painter: TeardropPinPainter(
                   pinColor: Colors.white,
                   borderColor: isSelected
@@ -1775,8 +2014,8 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
               Positioned(
                 top: 4,
                 child: Container(
-                  width: 44,
-                  height: 44,
+                  width: 42,
+                  height: 42,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: isSelected ? primaryColor : const Color(0xFF1E293B),
@@ -1785,7 +2024,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                     child: Text(
                       username.isNotEmpty ? username[0].toUpperCase() : 'E',
                       style: const TextStyle(
-                        fontSize: 18,
+                        fontSize: 17,
                         fontWeight: FontWeight.w900,
                         color: Colors.white,
                       ),
@@ -1814,11 +2053,11 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
         // Ground Translucent Shadow Pulse beneath teardrop tip
         Container(
           width: 22,
-          height: 6,
+          height: 5,
           decoration: BoxDecoration(
             color: (isSelected ? primaryColor : const Color(0xFF6366F1))
                 .withValues(alpha: 0.28),
-            borderRadius: const BorderRadius.all(Radius.elliptical(22, 6)),
+            borderRadius: const BorderRadius.all(Radius.elliptical(22, 5)),
           ),
         ),
       ],
@@ -1829,15 +2068,46 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
   Widget _buildCustomerTeardropMarker({required Color primaryColor}) {
     return Column(
       mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.end,
       children: [
+        Container(
+          margin: const EdgeInsets.only(bottom: 3),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: const Color(0xFFEC4899),
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.16),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.place_rounded, size: 10, color: Colors.white),
+              SizedBox(width: 3),
+              Text(
+                'Customer',
+                style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ),
         SizedBox(
-          width: 54,
-          height: 64,
+          width: 52,
+          height: 62,
           child: Stack(
             alignment: Alignment.topCenter,
             children: [
               CustomPaint(
-                size: const Size(54, 64),
+                size: const Size(52, 62),
                 painter: TeardropPinPainter(
                   pinColor: const Color(0xFFEC4899),
                   borderColor: Colors.white,
@@ -1847,8 +2117,8 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
               Positioned(
                 top: 4,
                 child: Container(
-                  width: 44,
-                  height: 44,
+                  width: 42,
+                  height: 42,
                   decoration: const BoxDecoration(
                     shape: BoxShape.circle,
                     color: Color(0xFFEC4899),
@@ -1857,7 +2127,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
                     child: Icon(
                       Icons.home_rounded,
                       color: Colors.white,
-                      size: 24,
+                      size: 22,
                     ),
                   ),
                 ),
@@ -1867,10 +2137,10 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
         ),
         Container(
           width: 22,
-          height: 6,
+          height: 5,
           decoration: BoxDecoration(
             color: const Color(0xFFEC4899).withValues(alpha: 0.35),
-            borderRadius: const BorderRadius.all(Radius.elliptical(22, 6)),
+            borderRadius: const BorderRadius.all(Radius.elliptical(22, 5)),
           ),
         ),
       ],
@@ -1881,41 +2151,115 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
     final primaryColor = ThemeService.instance.primaryColor;
     final isDark = ThemeService.instance.isDarkMode;
     final textColor = isDark ? Colors.white : const Color(0xFF374151);
+
+    final hasTrackingLocation = _lastLocation != null ||
+        (_currentTrackingId != null &&
+            _allEngineersData[_currentTrackingId]?['location'] != null);
+
     return Positioned(
-      right: 14,
-      top: 130,
+      right: 16,
+      top: 72,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
+          // 1. FOCUS Pill Button
+          GestureDetector(
+            onTap: _centerOnEngineer,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: _autoFollow
+                    ? primaryColor.withValues(alpha: 0.12)
+                    : (isDark ? Colors.grey.shade800 : Colors.white),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: _autoFollow ? primaryColor : const Color(0xFFE2E8F0),
+                  width: 1.2,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 12,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.gps_fixed_rounded,
+                    size: 14,
+                    color: _autoFollow ? primaryColor : const Color(0xFF64748B),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'FOCUS',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      color: _autoFollow ? primaryColor : const Color(0xFF1E293B),
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 10),
+
+          // 2. Zoom In / Zoom Out Controls Card
           Container(
+            width: 44,
             decoration: BoxDecoration(
               color: isDark ? Colors.grey.shade800 : Colors.white,
               borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: isDark ? Colors.grey.shade700 : const Color(0xFFE2E8F0),
+                width: 1,
+              ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.10),
-                  blurRadius: 16,
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 12,
                   offset: const Offset(0, 4),
                 ),
               ],
             ),
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 _buildMapButton(Icons.add_rounded, _zoomIn, textColor: textColor),
-                Divider(height: 1, color: Colors.grey.shade200),
+                Divider(
+                  height: 1,
+                  thickness: 1,
+                  color: isDark ? Colors.grey.shade700 : const Color(0xFFE2E8F0),
+                ),
                 _buildMapButton(Icons.remove_rounded, _zoomOut, textColor: textColor),
               ],
             ),
           ),
-          const SizedBox(height: 12),
-          if (_lastLocation != null)
+
+          const SizedBox(height: 10),
+
+          // 3. My Location / Recenter Map Button
+          if (hasTrackingLocation)
             Container(
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(
                 color: isDark ? Colors.grey.shade800 : Colors.white,
                 shape: BoxShape.circle,
+                border: Border.all(
+                  color: _autoFollow ? primaryColor : const Color(0xFFE2E8F0),
+                  width: 1.2,
+                ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.10),
-                    blurRadius: 16,
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
                 ],
@@ -1923,7 +2267,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
               child: _buildMapButton(
                 Icons.my_location_rounded,
                 _centerOnEngineer,
-                color: _autoFollow ? primaryColor : null,
+                color: _autoFollow ? primaryColor : textColor,
                 textColor: textColor,
               ),
             ),

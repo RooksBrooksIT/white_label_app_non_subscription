@@ -156,12 +156,19 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
     });
     try {
       final snapshot = await FirestoreService.instance
-          .collection('deviceDetails')
+          .collection('Devices')
+          .orderBy('deviceName')
           .get();
       final types = snapshot.docs
-          .map((doc) => doc['deviceType']?.toString())
-          .where((type) => type != null && type.isNotEmpty)
-          .cast<String>()
+          .map((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            return (data['deviceName'] ??
+                    doc['deviceType'] ??
+                    '')
+                .toString()
+                .trim();
+          })
+          .where((type) => type.isNotEmpty)
           .toSet()
           .toList();
       if (!types.contains('Others')) {
@@ -188,16 +195,39 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
     });
 
     try {
-      // Strictly fetch from the master 'devicesbrands' collection as requested
-      final brands = await BrandModelBackend().fetchAllDeviceBrands();
+      final normalizedType = deviceType.trim();
+      final snapshot = await FirestoreService.instance
+          .collection('Devices')
+          .where('deviceName', isEqualTo: normalizedType)
+          .get();
+
+      final brands = snapshot.docs
+          .map((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            return (data['brandName'] ??
+                    data['brand'] ??
+                    '')
+                .toString()
+                .trim();
+          })
+          .where((b) => b.isNotEmpty)
+          .toSet()
+          .toList()
+        ..sort();
 
       if (!brands.contains('Others')) {
         brands.add('Others');
       }
 
-      setState(() {
-        deviceBrands = brands;
-      });
+      if (brands.isEmpty) {
+        setState(() {
+          deviceBrands = ['Others'];
+        });
+      } else {
+        setState(() {
+          deviceBrands = brands;
+        });
+      }
     } catch (e) {
       print('Error fetching device brands: $e');
       setState(() {

@@ -172,17 +172,19 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
 
               final allDocs = (snapshot.data?.docs ?? []).where((doc) {
                 final data = doc.data();
-                final cName = (data['customerName'] ?? data['CustomerName'] ?? '')
-                    .toString()
-                    .trim()
-                    .toLowerCase();
-                final cId = (data['customerid'] ??
-                        data['id'] ??
-                        data['customerId'] ??
-                        '')
-                    .toString()
-                    .trim()
-                    .toLowerCase();
+                final cName =
+                    (data['customerName'] ?? data['CustomerName'] ?? '')
+                        .toString()
+                        .trim()
+                        .toLowerCase();
+                final cId =
+                    (data['customerid'] ??
+                            data['id'] ??
+                            data['customerId'] ??
+                            '')
+                        .toString()
+                        .trim()
+                        .toLowerCase();
                 final targetName = widget.customerName.trim().toLowerCase();
                 final targetId = widget.customerId.trim().toLowerCase();
                 return (targetName.isNotEmpty && cName == targetName) ||
@@ -191,12 +193,16 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
 
               // Sort by createdAt descending
               allDocs.sort((a, b) {
-                final tsA = parseTimestamp(a.data()['createdAt'] ??
-                    a.data()['timestamp'] ??
-                    a.data()['updatedAt']);
-                final tsB = parseTimestamp(b.data()['createdAt'] ??
-                    b.data()['timestamp'] ??
-                    b.data()['updatedAt']);
+                final tsA = parseTimestamp(
+                  a.data()['createdAt'] ??
+                      a.data()['timestamp'] ??
+                      a.data()['updatedAt'],
+                );
+                final tsB = parseTimestamp(
+                  b.data()['createdAt'] ??
+                      b.data()['timestamp'] ??
+                      b.data()['updatedAt'],
+                );
                 if (tsA == null && tsB == null) return 0;
                 if (tsA == null) return 1;
                 if (tsB == null) return -1;
@@ -214,7 +220,8 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
                     .toString()
                     .toLowerCase()
                     .trim();
-                final isCompleted = engStatus == 'completed' ||
+                final isCompleted =
+                    engStatus == 'completed' ||
                     engStatus.contains('complete') ||
                     admStatus == 'completed' ||
                     admStatus == 'delivered' ||
@@ -235,7 +242,8 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
                     .toString()
                     .toLowerCase()
                     .trim();
-                final isCompleted = engStatus == 'completed' ||
+                final isCompleted =
+                    engStatus == 'completed' ||
                     engStatus.contains('complete') ||
                     admStatus == 'completed' ||
                     admStatus == 'delivered' ||
@@ -270,7 +278,9 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
                               final data = displayedTickets[index].data();
                               final documentId = displayedTickets[index].id;
                               return _buildProfessionalTicketCard(
-                                  data, documentId);
+                                data,
+                                documentId,
+                              );
                             },
                           ),
                   ),
@@ -512,12 +522,18 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
           ),
           child: Row(
             children: [
-              Icon(Icons.notifications_active, color: Theme.of(context).primaryColor),
+              Icon(
+                Icons.notifications_active,
+                color: Theme.of(context).primaryColor,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
                   bannerMessage,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
                 ),
               ),
               IconButton(
@@ -568,14 +584,18 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
                 shape: BoxShape.circle,
               ),
               child: Icon(
-                isLive ? Icons.check_circle_outline_rounded : Icons.verified_rounded,
+                isLive
+                    ? Icons.check_circle_outline_rounded
+                    : Icons.verified_rounded,
                 size: 50,
                 color: isLive ? const Color(0xFF10B981) : primary,
               ),
             ),
             const SizedBox(height: 20),
             Text(
-              isLive ? 'No Active Service In Progress' : 'No Completed Services Yet',
+              isLive
+                  ? 'No Active Service In Progress'
+                  : 'No Completed Services Yet',
               textAlign: TextAlign.center,
               style: const TextStyle(
                 fontSize: 18,
@@ -623,7 +643,8 @@ class _ExpandableTicketCard extends StatefulWidget {
 class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
   bool _isExpanded = false;
   int _selectedRating = 5;
-  final TextEditingController _ratingCommentController = TextEditingController();
+  final TextEditingController _ratingCommentController =
+      TextEditingController();
   bool _isSubmittingRating = false;
   bool _hasSubmittedRating = false;
 
@@ -634,7 +655,8 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
   }
 
   _StatusInfo _mapEngineerStatus(String status, {Map<String, dynamic>? data}) {
-    final isDelivered = data?['orderDelivered'] == true ||
+    final isDelivered =
+        data?['orderDelivered'] == true ||
         data?['isDelivered'] == true ||
         data?['adminStatus']?.toString().toLowerCase().trim() == 'delivered' ||
         data?['customerStatus']?.toString().toLowerCase().trim() == 'delivered';
@@ -672,9 +694,7 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
         if (lowerStatus.contains('observation')) {
           return _StatusInfo('UNDER OBSERVATION', const Color(0xFF0D9488));
         }
-        String formatted = status.isNotEmpty
-            ? status.toUpperCase()
-            : 'OPEN';
+        String formatted = status.isNotEmpty ? status.toUpperCase() : 'OPEN';
         return _StatusInfo(formatted, const Color(0xFF64748B));
     }
   }
@@ -701,20 +721,27 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
 
   Widget _buildStatusTracker(Map<String, dynamic> data) {
     final primary = Theme.of(context).primaryColor;
-    final adminStatus = data['adminStatus']?.toString().toLowerCase().trim() ?? '';
-    final engineerStatus = data['engineerStatus']?.toString().toLowerCase().trim() ?? '';
-    final customerStatus = data['customerStatus']?.toString().toLowerCase().trim() ?? '';
-    final assignedEngineer = data['assignedEngineer'] ?? data['assignedEmployee'];
-    final bool hasAssignedEngineer = assignedEngineer != null &&
+    final adminStatus =
+        data['adminStatus']?.toString().toLowerCase().trim() ?? '';
+    final engineerStatus =
+        data['engineerStatus']?.toString().toLowerCase().trim() ?? '';
+    final customerStatus =
+        data['customerStatus']?.toString().toLowerCase().trim() ?? '';
+    final assignedEngineer =
+        data['assignedEngineer'] ?? data['assignedEmployee'];
+    final bool hasAssignedEngineer =
+        assignedEngineer != null &&
         assignedEngineer.toString().trim().isNotEmpty &&
         assignedEngineer.toString().toLowerCase() != 'not assigned';
 
-    final bool isDelivered = data['orderDelivered'] == true ||
+    final bool isDelivered =
+        data['orderDelivered'] == true ||
         data['isDelivered'] == true ||
         adminStatus == 'delivered' ||
         customerStatus == 'delivered';
 
-    final bool isCompleted = engineerStatus == 'completed' ||
+    final bool isCompleted =
+        engineerStatus == 'completed' ||
         adminStatus == 'completed' ||
         isDelivered;
 
@@ -732,25 +759,33 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
       'order received',
     ];
 
-    final bool isInProgress = inProgressKeywords.contains(engineerStatus) ||
+    final bool isInProgress =
+        inProgressKeywords.contains(engineerStatus) ||
         engineerStatus.contains('progress') ||
         engineerStatus.contains('observation') ||
         engineerStatus.contains('spare') ||
         engineerStatus.contains('approval') ||
         isCompleted;
 
-    final bool isAssigned = hasAssignedEngineer ||
+    final bool isAssigned =
+        hasAssignedEngineer ||
         adminStatus == 'assigned' ||
         engineerStatus == 'assigned' ||
         isInProgress;
 
     int currentStep = 0; // 0: Raised
-    if (isAssigned) currentStep = 1;     // 1: Assigned
-    if (isInProgress) currentStep = 2;   // 2: In Progress
-    if (isCompleted) currentStep = 3;    // 3: Completed
-    if (isDelivered) currentStep = 4;    // 4: Delivered
+    if (isAssigned) currentStep = 1; // 1: Assigned
+    if (isInProgress) currentStep = 2; // 2: In Progress
+    if (isCompleted) currentStep = 3; // 3: Completed
+    if (isDelivered) currentStep = 4; // 4: Delivered
 
-    final stepTitles = ["Raised", "Assigned", "In Progress", "Completed", "Delivered"];
+    final stepTitles = [
+      "Raised",
+      "Assigned",
+      "In Progress",
+      "Completed",
+      "Delivered",
+    ];
 
     // Status Context Capsule Details
     String capsuleTitle;
@@ -773,7 +808,8 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
         break;
       case 2:
         capsuleTitle = 'Work In Progress';
-        capsuleSubtitle = engineerStatus.isNotEmpty && engineerStatus != 'in progress'
+        capsuleSubtitle =
+            engineerStatus.isNotEmpty && engineerStatus != 'in progress'
             ? 'Status: ${engineerStatus.toUpperCase()}'
             : 'Technician is actively servicing your device';
         capsuleIcon = Icons.bolt_rounded;
@@ -893,8 +929,8 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
                         fontWeight: i == currentStep
                             ? FontWeight.w900
                             : (i < currentStep
-                                ? FontWeight.w700
-                                : FontWeight.w500),
+                                  ? FontWeight.w700
+                                  : FontWeight.w500),
                         color: i <= currentStep
                             ? const Color(0xFF0F172A)
                             : const Color(0xFF94A3B8),
@@ -953,10 +989,7 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
           child: Container(
             width: 8,
             height: 8,
-            decoration: BoxDecoration(
-              color: primary,
-              shape: BoxShape.circle,
-            ),
+            decoration: BoxDecoration(color: primary, shape: BoxShape.circle),
           ),
         ),
       );
@@ -1223,9 +1256,15 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
 
   Widget _buildRatingSection(Map<String, dynamic> data) {
     final hasRating = data['rating'] != null || _hasSubmittedRating;
-    final existingRating = (data['rating'] as num?)?.toDouble() ?? _selectedRating.toDouble();
-    final existingComment = (data['ratingComment'] ?? data['comment'] ?? _ratingCommentController.text).toString();
-    final assignedEngineer = data['assignedEngineer']?.toString() ?? 'our technician';
+    final existingRating =
+        (data['rating'] as num?)?.toDouble() ?? _selectedRating.toDouble();
+    final existingComment =
+        (data['ratingComment'] ??
+                data['comment'] ??
+                _ratingCommentController.text)
+            .toString();
+    final assignedEngineer =
+        data['assignedEngineer']?.toString() ?? 'our technician';
 
     if (hasRating) {
       return Container(
@@ -1244,7 +1283,11 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
                 color: Color(0xFFF59E0B),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.star_rounded, size: 12, color: Colors.white),
+              child: const Icon(
+                Icons.star_rounded,
+                size: 12,
+                color: Colors.white,
+              ),
             ),
             const SizedBox(width: 8),
             Row(
@@ -1281,7 +1324,14 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
     }
 
     // Rating Input Form
-    const ratingLabels = ['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent!'];
+    const ratingLabels = [
+      '',
+      'Poor',
+      'Fair',
+      'Good',
+      'Very Good',
+      'Excellent!',
+    ];
 
     return Container(
       margin: const EdgeInsets.only(top: 14),
@@ -1302,7 +1352,11 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
                   color: Colors.amber.withValues(alpha: 0.15),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.star_rounded, color: Color(0xFFD97706), size: 18),
+                child: const Icon(
+                  Icons.star_rounded,
+                  color: Color(0xFFD97706),
+                  size: 18,
+                ),
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -1353,9 +1407,13 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
                           scale: isSelected ? 1.15 : 1.0,
                           duration: const Duration(milliseconds: 150),
                           child: Icon(
-                            isSelected ? Icons.star_rounded : Icons.star_outline_rounded,
+                            isSelected
+                                ? Icons.star_rounded
+                                : Icons.star_outline_rounded,
                             size: 32,
-                            color: isSelected ? const Color(0xFFF59E0B) : const Color(0xFFCBD5E1),
+                            color: isSelected
+                                ? const Color(0xFFF59E0B)
+                                : const Color(0xFFCBD5E1),
                           ),
                         ),
                       ),
@@ -1382,7 +1440,10 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
             maxLines: 2,
             decoration: InputDecoration(
               hintText: 'Add comments or feedback (optional)...',
-              hintStyle: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+              hintStyle: const TextStyle(
+                fontSize: 12,
+                color: Color(0xFF94A3B8),
+              ),
               filled: true,
               fillColor: Colors.white,
               border: OutlineInputBorder(
@@ -1395,9 +1456,15 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(color: Theme.of(context).primaryColor, width: 1.5),
+                borderSide: BorderSide(
+                  color: Theme.of(context).primaryColor,
+                  width: 1.5,
+                ),
               ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: 8,
+              ),
             ),
           ),
           const SizedBox(height: 10),
@@ -1411,10 +1478,17 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
                   : () async {
                       setState(() => _isSubmittingRating = true);
                       try {
-                        final ticketId = (widget.data['ticketId'] ?? widget.data['bookingId'] ?? widget.documentId).toString();
-                        final customerName = (widget.data['customerName'] ?? '').toString();
+                        final ticketId =
+                            (widget.data['ticketId'] ??
+                                    widget.data['bookingId'] ??
+                                    widget.documentId)
+                                .toString();
+                        final customerName = (widget.data['customerName'] ?? '')
+                            .toString();
                         final comment = _ratingCommentController.text.trim();
-                        final ratingDocRef = FirestoreService.instance.collection('ratings').doc();
+                        final ratingDocRef = FirestoreService.instance
+                            .collection('ratings')
+                            .doc();
 
                         final ratingPayload = {
                           'id': ratingDocRef.id,
@@ -1422,7 +1496,10 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
                           'ticketId': ticketId,
                           'bookingId': ticketId,
                           'customerName': customerName,
-                          'customerId': widget.data['customerId'] ?? widget.data['customerid'] ?? '',
+                          'customerId':
+                              widget.data['customerId'] ??
+                              widget.data['customerid'] ??
+                              '',
                           'engineerName': widget.data['assignedEngineer'] ?? '',
                           'rating': _selectedRating,
                           'comment': comment,
@@ -1458,7 +1535,8 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
                         await NotificationService.sendNotificationToFirestore(
                           audience: 'admin',
                           title: 'New Customer Rating Received',
-                          body: '$customerName rated ticket #$ticketId: $_selectedRating★ ($comment)',
+                          body:
+                              '$customerName rated ticket #$ticketId: $_selectedRating★ ($comment)',
                           type: 'customer_rating',
                           bookingId: ticketId,
                           customerName: customerName,
@@ -1471,7 +1549,9 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
                           });
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('Thank you! Your rating has been submitted.'),
+                              content: Text(
+                                'Thank you! Your rating has been submitted.',
+                              ),
                               backgroundColor: Color(0xFF10B981),
                             ),
                           );
@@ -1480,7 +1560,10 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
                         if (mounted) {
                           setState(() => _isSubmittingRating = false);
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Failed to submit rating: $e'), backgroundColor: Colors.red),
+                            SnackBar(
+                              content: Text('Failed to submit rating: $e'),
+                              backgroundColor: Colors.red,
+                            ),
                           );
                         }
                       }
@@ -1488,14 +1571,19 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Theme.of(context).primaryColor,
                 padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
                 elevation: 0,
               ),
               child: _isSubmittingRating
                   ? const SizedBox(
                       height: 18,
                       width: 18,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
                     )
                   : const Row(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -1543,11 +1631,13 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
     final customerStatus =
         widget.data['customerStatus']?.toString().toLowerCase().trim() ?? '';
     final isCanceled = adminStatus == 'canceled' || adminStatus == 'cancelled';
-    final isOrderDelivered = widget.data['orderDelivered'] == true ||
+    final isOrderDelivered =
+        widget.data['orderDelivered'] == true ||
         widget.data['isDelivered'] == true ||
         adminStatus == 'delivered' ||
         customerStatus == 'delivered';
-    final isCompleted = rawStatus.toString().toLowerCase().trim() == 'completed' ||
+    final isCompleted =
+        rawStatus.toString().toLowerCase().trim() == 'completed' ||
         adminStatus == 'completed' ||
         isOrderDelivered;
     final statusInfo = _mapEngineerStatus(rawStatus, data: widget.data);
@@ -1668,6 +1758,35 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
                           deviceType,
                         ),
                       ],
+                    ),
+                    // Quick amount info (always visible - synced from Admin)
+                    Builder(
+                      builder: (context) {
+                        final rawAmt = widget.data['amount'];
+                        final amtValue =
+                            double.tryParse(rawAmt?.toString() ?? '0') ?? 0.0;
+                        final paymentAmt =
+                            double.tryParse(
+                              widget.data['paymentDetails']?.toString() ?? '0',
+                            ) ??
+                            0.0;
+                        final finalAmt = amtValue > 0 ? amtValue : paymentAmt;
+                        return Column(
+                          children: [
+                            const SizedBox(height: 10),
+                            SizedBox(
+                              width: double.infinity,
+                              child: _buildInfoItem(
+                                Icons.currency_rupee_rounded,
+                                "Service Amount",
+                                finalAmt <= 0
+                                    ? 'Awaiting admin update'
+                                    : _formatAmount(finalAmt),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     ),
                     // Customer Star Rating Section (Visible when service is completed)
                     if (isCompleted && !isCanceled) ...[
@@ -1830,6 +1949,123 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
                       ),
                     ),
                   ],
+                  // SERVICE AMOUNT (synced from Admin Engineer Updates page)
+                  Builder(
+                    builder: (context) {
+                      final rawAmt = widget.data['amount'];
+                      final amtValue =
+                          double.tryParse(rawAmt?.toString() ?? '0') ?? 0.0;
+                      final paymentAmt =
+                          double.tryParse(
+                            widget.data['paymentDetails']?.toString() ?? '0',
+                          ) ??
+                          0.0;
+                      final finalAmt = amtValue > 0 ? amtValue : paymentAmt;
+                      return Column(
+                        children: [
+                          const SizedBox(height: 16),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: const Color(
+                                0xFFE0F2FE,
+                              ).withValues(alpha: 0.55),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: const Color(
+                                  0xFF38BDF8,
+                                ).withValues(alpha: 0.25),
+                              ),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(9),
+                                  decoration: BoxDecoration(
+                                    color: const Color(
+                                      0xFF0284C7,
+                                    ).withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Icon(
+                                    Icons.receipt_long_rounded,
+                                    color: Color(0xFF0284C7),
+                                    size: 18,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        "AMOUNT",
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w800,
+                                          color: Color(0xFF0369A1),
+                                          letterSpacing: 0.5,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        finalAmt <= 0
+                                            ? 'Awaiting admin update'
+                                            : _formatAmount(finalAmt),
+                                        style: TextStyle(
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.w800,
+                                          color: finalAmt <= 0
+                                              ? const Color(0xFF64748B)
+                                              : const Color(0xFF0C4A6E),
+                                          letterSpacing: -0.3,
+                                          height: 1.2,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        finalAmt <= 0
+                                            ? 'Service charges will be visible once the Admin updates them'
+                                            : 'Service charge as updated by the Admin',
+                                        style: TextStyle(
+                                          fontSize: 11.5,
+                                          color: const Color(
+                                            0xFF0369A1,
+                                          ).withValues(alpha: 0.75),
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                if (finalAmt > 0)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 9,
+                                      vertical: 5,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(
+                                        0xFF0284C7,
+                                      ).withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: const Icon(
+                                      Icons.currency_rupee_rounded,
+                                      color: Color(0xFF0284C7),
+                                      size: 18,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
                   if (paymentApproved) ...[
                     const SizedBox(height: 16),
                     Container(
@@ -2745,7 +2981,7 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
       TourStep(
         id: 'cust_track_service',
         targetKey: _custTrackServiceKey,
-        category: '📍 Live Tracking',   
+        category: '📍 Live Tracking',
         title: 'Track Active Service',
         description:
             'Track real-time progress on your open repairs. View assigned engineer name, live GPS status, repair notes, and invoice details.',
@@ -2833,8 +3069,6 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
       });
     }
   }
-
-
 
   Future<void> handleLogout(BuildContext context) async {
     final primaryError = const Color(0xFFEF4444);
@@ -3041,10 +3275,7 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
                 padding: const EdgeInsets.all(2),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(
-                    color: const Color(0xFFF59E0B),
-                    width: 2,
-                  ),
+                  border: Border.all(color: const Color(0xFFF59E0B), width: 2),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.15),
@@ -3057,7 +3288,9 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
                     ? CircleAvatar(
                         radius: 22,
                         backgroundColor: Colors.white,
-                        backgroundImage: NetworkImage(ThemeService.instance.logoUrl!),
+                        backgroundImage: NetworkImage(
+                          ThemeService.instance.logoUrl!,
+                        ),
                       )
                     : CircleAvatar(
                         radius: 22,
@@ -3126,9 +3359,7 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.18),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.25),
-              ),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
             ),
             child: IconButton(
               icon: const Icon(
@@ -3147,9 +3378,7 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.18),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.25),
-              ),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
             ),
             child: IconButton(
               icon: const Icon(
@@ -3518,11 +3747,7 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
               color: accentColor.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
-            child: Icon(
-              icon,
-              color: accentColor,
-              size: 22,
-            ),
+            child: Icon(icon, color: accentColor, size: 22),
           ),
           const SizedBox(height: 12),
           Text(

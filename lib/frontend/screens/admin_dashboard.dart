@@ -180,7 +180,8 @@ class _admindashboardState extends State<admindashboard> {
 
   void _loadAdminData() async {
     final prefs = await SharedPreferences.getInstance();
-    final currentTenantId = prefs.getString('tenantId') ??
+    final currentTenantId =
+        prefs.getString('tenantId') ??
         prefs.getString('databaseName') ??
         prefs.getString('admin_org_collection') ??
         ThemeService.instance.databaseName;
@@ -319,12 +320,14 @@ class _admindashboardState extends State<admindashboard> {
     }
 
     final prefs = await SharedPreferences.getInstance();
-    final bool welcomeViewed = prefs.getBool('subscriptionWelcomeViewed') ?? false;
+    final bool welcomeViewed =
+        prefs.getBool('subscriptionWelcomeViewed') ?? false;
     final String? lastPlanName = prefs.getString('lastWelcomePlanName');
     final String? lastStartedAt = prefs.getString('lastWelcomeStartedAt');
     final String? lastStatus = prefs.getString('lastWelcomeStatus');
 
-    final bool shouldShow = !welcomeViewed ||
+    final bool shouldShow =
+        !welcomeViewed ||
         lastPlanName != planName ||
         lastStartedAt != startedAt ||
         (lastStatus != 'active' && status == 'active');
@@ -361,7 +364,8 @@ class _admindashboardState extends State<admindashboard> {
                   MaterialPageRoute(
                     builder: (_) => SubscriptionPlansScreen(
                       currentPlanName: planName,
-                      hideTrial: planName.toLowerCase().contains('trial') != true,
+                      hideTrial:
+                          planName.toLowerCase().contains('trial') != true,
                       remainingDays: remainingDays,
                       billingCycle: calculatedCycle,
                     ),
@@ -453,9 +457,7 @@ class _admindashboardState extends State<admindashboard> {
   void _openDomainDetailPage(DomainModel domain) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => DomainDetailPage(domain: domain),
-      ),
+      MaterialPageRoute(builder: (context) => DomainDetailPage(domain: domain)),
     );
   }
 
@@ -509,12 +511,15 @@ class _admindashboardState extends State<admindashboard> {
           final ticketDomain = DomainModel(
             id: 'tickets',
             title: 'Ticket Management',
-            description: 'Track, assign, and manage all customer service tickets',
+            description:
+                'Track, assign, and manage all customer service tickets',
             icon: Icons.confirmation_number_rounded,
             backgroundColor: const Color(0xFFE0F2FE),
             iconColor: const Color(0xFF0284C7),
             textColor: const Color(0xFF0369A1),
-            badgeText: engineerUpdateCount > 0 ? '$engineerUpdateCount updates' : '4 actions',
+            badgeText: engineerUpdateCount > 0
+                ? '$engineerUpdateCount updates'
+                : '4 actions',
             items: [
               DomainSubItem(
                 title: 'Create Ticket',
@@ -532,7 +537,8 @@ class _admindashboardState extends State<admindashboard> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => AdminPage_CusDetails(statusFilter: ""),
+                      builder: (context) =>
+                          AdminPage_CusDetails(statusFilter: ""),
                     ),
                   );
                 },
@@ -542,14 +548,14 @@ class _admindashboardState extends State<admindashboard> {
                 subtitle: 'Real-time updates from field engineers',
                 icon: Icons.history_rounded,
                 iconColor: const Color(0xFFE17055),
-                badge: engineerUpdateCount > 0 ? '$engineerUpdateCount Updates' : null,
+                badge: engineerUpdateCount > 0
+                    ? '$engineerUpdateCount Updates'
+                    : null,
                 badgeColor: const Color(0xFFFF7675),
                 onTap: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(
-                      builder: (context) => EngineerUpdates(),
-                    ),
+                    MaterialPageRoute(builder: (context) => EngineerUpdates()),
                   );
                 },
               ),
@@ -620,7 +626,9 @@ class _admindashboardState extends State<admindashboard> {
         backgroundColor: const Color(0xFFE0F2FE), // Soft sky blue
         iconColor: const Color(0xFF0284C7),
         textColor: const Color(0xFF0369A1),
-        badgeText: engineerUpdateCount > 0 ? '$engineerUpdateCount updates' : '4 actions',
+        badgeText: engineerUpdateCount > 0
+            ? '$engineerUpdateCount updates'
+            : '4 actions',
         items: [
           DomainSubItem(
             title: 'Create Ticket',
@@ -648,14 +656,14 @@ class _admindashboardState extends State<admindashboard> {
             subtitle: 'Real-time updates from field engineers',
             icon: Icons.history_rounded,
             iconColor: const Color(0xFFE17055),
-            badge: engineerUpdateCount > 0 ? '$engineerUpdateCount Updates' : null,
+            badge: engineerUpdateCount > 0
+                ? '$engineerUpdateCount Updates'
+                : null,
             badgeColor: const Color(0xFFFF7675),
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (context) => EngineerUpdates(),
-                ),
+                MaterialPageRoute(builder: (context) => EngineerUpdates()),
               );
             },
           ),
@@ -733,6 +741,18 @@ class _admindashboardState extends State<admindashboard> {
                 );
               },
             ),
+          DomainSubItem(
+            title: 'Engineer Reports',
+            subtitle: 'Performance analytics and work summary',
+            icon: Icons.bar_chart_rounded,
+            iconColor: secondaryColor,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => AdminEngineerReports()),
+              );
+            },
+          ),
         ],
       ),
       DomainModel(
@@ -753,9 +773,7 @@ class _admindashboardState extends State<admindashboard> {
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (context) => const AMCCreatePage(),
-                ),
+                MaterialPageRoute(builder: (context) => const AMCCreatePage()),
               );
             },
           ),
@@ -775,7 +793,8 @@ class _admindashboardState extends State<admindashboard> {
           ),
           DomainSubItem(
             title: 'Customer Ratings',
-            subtitle: 'Review star ratings & customer feedback for completed jobs',
+            subtitle:
+                'Review star ratings & customer feedback for completed jobs',
             icon: Icons.star_rounded,
             iconColor: const Color(0xFFF59E0B),
             onTap: () {
@@ -807,9 +826,7 @@ class _admindashboardState extends State<admindashboard> {
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (context) => BrandModelPage(),
-                ),
+                MaterialPageRoute(builder: (context) => BrandModelPage()),
               );
             },
           ),
@@ -838,7 +855,8 @@ class _admindashboardState extends State<admindashboard> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => BarcodeIdentifierScreen(scannedBarcode: ""),
+                    builder: (context) =>
+                        BarcodeIdentifierScreen(scannedBarcode: ""),
                   ),
                 );
               },
@@ -868,7 +886,7 @@ class _admindashboardState extends State<admindashboard> {
         backgroundColor: const Color(0xFFFFF3E0), // Soft warm peach
         iconColor: const Color(0xFFE65100),
         textColor: const Color(0xFFBF360C),
-        badgeText: '2 modules',
+        badgeText: '1 module',
         items: [
           DomainSubItem(
             title: 'Transactions',
@@ -880,20 +898,6 @@ class _admindashboardState extends State<admindashboard> {
                 context,
                 MaterialPageRoute(
                   builder: (context) => const AdminTransactionsScreen(),
-                ),
-              );
-            },
-          ),
-          DomainSubItem(
-            title: 'Engineer Reports',
-            subtitle: 'Performance analytics and work summary',
-            icon: Icons.bar_chart_rounded,
-            iconColor: secondaryColor,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => AdminEngineerReports(),
                 ),
               );
             },
@@ -973,11 +977,11 @@ class _admindashboardState extends State<admindashboard> {
                         itemCount: allDomains.length,
                         gridDelegate:
                             const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          mainAxisSpacing: 14,
-                          crossAxisSpacing: 14,
-                          mainAxisExtent: 175,
-                        ),
+                              crossAxisCount: 2,
+                              mainAxisSpacing: 14,
+                              crossAxisSpacing: 14,
+                              mainAxisExtent: 175,
+                            ),
                         itemBuilder: (context, index) {
                           final domain = allDomains[index];
                           return _buildModernDomainGridCard(domain);
@@ -988,9 +992,7 @@ class _admindashboardState extends State<admindashboard> {
                 ),
               ),
 
-              const SliverToBoxAdapter(
-                child: SizedBox(height: 20),
-              ),
+              const SliverToBoxAdapter(child: SizedBox(height: 20)),
             ],
           ),
         ),
@@ -1013,10 +1015,7 @@ class _admindashboardState extends State<admindashboard> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: const Color(0xFFF1F5F9),
-          width: 1.5,
-        ),
+        border: Border.all(color: const Color(0xFFF1F5F9), width: 1.5),
         boxShadow: [
           BoxShadow(
             color: domain.iconColor.withValues(alpha: 0.12),
@@ -1141,7 +1140,9 @@ class _admindashboardState extends State<admindashboard> {
                             border: Border.all(color: Colors.white, width: 1.5),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFFFF4757).withValues(alpha: 0.35),
+                                color: const Color(
+                                  0xFFFF4757,
+                                ).withValues(alpha: 0.35),
                                 blurRadius: 6,
                                 offset: const Offset(0, 2),
                               ),
@@ -1179,10 +1180,7 @@ class _admindashboardState extends State<admindashboard> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            primaryColor,
-            secondaryColor,
-          ],
+          colors: [primaryColor, secondaryColor],
         ),
         borderRadius: BorderRadius.circular(28),
         boxShadow: [
@@ -1322,7 +1320,9 @@ class _admindashboardState extends State<admindashboard> {
                                   minHeight: 18,
                                 ),
                                 child: Text(
-                                  unreadCount > 9 ? '9+' : unreadCount.toString(),
+                                  unreadCount > 9
+                                      ? '9+'
+                                      : unreadCount.toString(),
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 9,
@@ -1368,9 +1368,7 @@ class _admindashboardState extends State<admindashboard> {
               decoration: BoxDecoration(
                 color: Colors.black.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.25),
-                ),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -1523,7 +1521,9 @@ class _admindashboardState extends State<admindashboard> {
                         const SizedBox(height: 6),
                         Text(
                           count == 1
-                              ? (bookingId.isNotEmpty ? 'Ticket #$bookingId from $customerName' : 'New ticket from $customerName')
+                              ? (bookingId.isNotEmpty
+                                    ? 'Ticket #$bookingId from $customerName'
+                                    : 'New ticket from $customerName')
                               : '$count new tickets waiting for assignment',
                           style: const TextStyle(
                             fontSize: 15,
@@ -1536,7 +1536,9 @@ class _admindashboardState extends State<admindashboard> {
                         Text(
                           count == 1
                               ? 'Tap below to review and assign an engineer immediately.'
-                              : (bookingId.isNotEmpty ? 'Latest: Ticket #$bookingId by $customerName' : 'Review and assign tickets to engineers.'),
+                              : (bookingId.isNotEmpty
+                                    ? 'Latest: Ticket #$bookingId by $customerName'
+                                    : 'Review and assign tickets to engineers.'),
                           style: const TextStyle(
                             fontSize: 12.5,
                             color: Color(0xFF9F1239),
@@ -1584,7 +1586,9 @@ class _admindashboardState extends State<admindashboard> {
                       MaterialPageRoute(
                         builder: (context) => AdminPage_CusDetails(
                           statusFilter: "",
-                          searchQuery: count == 1 && bookingId.isNotEmpty ? bookingId : null,
+                          searchQuery: count == 1 && bookingId.isNotEmpty
+                              ? bookingId
+                              : null,
                         ),
                       ),
                     );
@@ -1630,9 +1634,7 @@ class _admindashboardState extends State<admindashboard> {
       width: MediaQuery.of(context).size.width * 0.85,
       backgroundColor: const Color(0xFFF8FAFC),
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.horizontal(
-          right: Radius.circular(32),
-        ),
+        borderRadius: BorderRadius.horizontal(right: Radius.circular(32)),
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -1775,10 +1777,7 @@ class _admindashboardState extends State<admindashboard> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            primaryColor,
-            secondaryColor,
-          ],
+          colors: [primaryColor, secondaryColor],
         ),
       ),
       child: Column(
@@ -1877,9 +1876,7 @@ class _admindashboardState extends State<admindashboard> {
               decoration: BoxDecoration(
                 color: Colors.black.withValues(alpha: 0.18),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.3),
-                ),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -1931,12 +1928,7 @@ class _admindashboardState extends State<admindashboard> {
   Widget _buildDrawerHeroCreateTicketCard() {
     return Container(
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            primaryColor,
-            secondaryColor,
-          ],
-        ),
+        gradient: LinearGradient(colors: [primaryColor, secondaryColor]),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
@@ -2009,8 +2001,6 @@ class _admindashboardState extends State<admindashboard> {
     );
   }
 
-
-
   Widget _buildDrawerReferralCard() {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -2028,7 +2018,9 @@ class _admindashboardState extends State<admindashboard> {
               _showFrontAnimatedToast('Referral code copied to clipboard');
             }
           },
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           leading: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
@@ -2049,7 +2041,9 @@ class _admindashboardState extends State<admindashboard> {
             referralCode.isEmpty ? 'Not Available' : referralCode,
             style: TextStyle(
               fontSize: referralCode.isEmpty ? 11 : 15,
-              fontWeight: referralCode.isEmpty ? FontWeight.w500 : FontWeight.w900,
+              fontWeight: referralCode.isEmpty
+                  ? FontWeight.w500
+                  : FontWeight.w900,
               color: referralCode.isEmpty ? textLightColor : primaryColor,
               letterSpacing: referralCode.isEmpty ? 0 : 1.2,
             ),
@@ -2081,7 +2075,9 @@ class _admindashboardState extends State<admindashboard> {
         color: Colors.transparent,
         child: ListTile(
           onTap: onTap,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           leading: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
@@ -2098,15 +2094,16 @@ class _admindashboardState extends State<admindashboard> {
               color: textColor ?? const Color(0xFF0F172A),
             ),
           ),
-          subtitle: Text(
-            subtitle,
-          ),
+          subtitle: Text(subtitle),
         ),
       ),
     );
   }
 
-  void _showFrontAnimatedToast(String message, {IconData icon = Icons.check_circle_rounded}) {
+  void _showFrontAnimatedToast(
+    String message, {
+    IconData icon = Icons.check_circle_rounded,
+  }) {
     final overlay = Overlay.of(context);
     late OverlayEntry overlayEntry;
 
@@ -2191,7 +2188,9 @@ class _admindashboardState extends State<admindashboard> {
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: _appBarSubscriptionColor.withValues(alpha: 0.1),
+                            color: _appBarSubscriptionColor.withValues(
+                              alpha: 0.1,
+                            ),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
@@ -2208,10 +2207,7 @@ class _admindashboardState extends State<admindashboard> {
                     const SizedBox(height: 8),
                     Text(
                       'Expires in: ${remainingDays ?? 0} days',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: textLightColor,
-                      ),
+                      style: TextStyle(fontSize: 14, color: textLightColor),
                     ),
                   ],
                 ),
@@ -2232,12 +2228,14 @@ class _admindashboardState extends State<admindashboard> {
                     return const SizedBox.shrink();
                   }
 
-                  final queuedPlanName = queuedData['planName'] ?? 'Unknown Plan';
+                  final queuedPlanName =
+                      queuedData['planName'] ?? 'Unknown Plan';
                   final scheduledDate = queuedData['scheduledActivationDate'];
                   String formattedDate = 'On current plan expiry';
                   if (scheduledDate is Timestamp) {
-                    formattedDate = DateFormat('dd MMM yyyy')
-                        .format(scheduledDate.toDate().toLocal());
+                    formattedDate = DateFormat(
+                      'dd MMM yyyy',
+                    ).format(scheduledDate.toDate().toLocal());
                   }
 
                   return Container(
@@ -2297,17 +2295,21 @@ class _admindashboardState extends State<admindashboard> {
                                   final confirm = await showDialog<bool>(
                                     context: context,
                                     builder: (ctx) => AlertDialog(
-                                      title: const Text('Activate Immediately?'),
+                                      title: const Text(
+                                        'Activate Immediately?',
+                                      ),
                                       content: const Text(
                                         'Turning this off will immediately activate the queued plan, replacing your current plan. This cannot be undone. Are you sure?',
                                       ),
                                       actions: [
                                         TextButton(
-                                          onPressed: () => Navigator.pop(ctx, false),
+                                          onPressed: () =>
+                                              Navigator.pop(ctx, false),
                                           child: const Text('Cancel'),
                                         ),
                                         TextButton(
-                                          onPressed: () => Navigator.pop(ctx, true),
+                                          onPressed: () =>
+                                              Navigator.pop(ctx, true),
                                           child: const Text('Activate Now'),
                                         ),
                                       ],
@@ -2318,13 +2320,22 @@ class _admindashboardState extends State<admindashboard> {
                                     if (!context.mounted) return;
                                     Navigator.pop(context);
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Activating plan...')),
+                                      const SnackBar(
+                                        content: Text('Activating plan...'),
+                                      ),
                                     );
                                     await SubscriptionQueueService.instance
-                                        .activateQueuedPlan(tenantId: tenantId, uid: user.uid);
+                                        .activateQueuedPlan(
+                                          tenantId: tenantId,
+                                          uid: user.uid,
+                                        );
                                     if (!context.mounted) return;
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Plan activated successfully!')),
+                                      const SnackBar(
+                                        content: Text(
+                                          'Plan activated successfully!',
+                                        ),
+                                      ),
                                     );
                                   }
                                 }
@@ -2345,12 +2356,15 @@ class _admindashboardState extends State<admindashboard> {
                                   ),
                                   actions: [
                                     TextButton(
-                                      onPressed: () => Navigator.pop(ctx, false),
+                                      onPressed: () =>
+                                          Navigator.pop(ctx, false),
                                       child: const Text('Keep Plan'),
                                     ),
                                     TextButton(
                                       onPressed: () => Navigator.pop(ctx, true),
-                                      style: TextButton.styleFrom(foregroundColor: Colors.red),
+                                      style: TextButton.styleFrom(
+                                        foregroundColor: Colors.red,
+                                      ),
                                       child: const Text('Cancel Plan'),
                                     ),
                                   ],
@@ -2359,10 +2373,16 @@ class _admindashboardState extends State<admindashboard> {
 
                               if (confirm == true) {
                                 await SubscriptionQueueService.instance
-                                    .clearQueuedPlan(tenantId: tenantId, uid: user.uid);
+                                    .clearQueuedPlan(
+                                      tenantId: tenantId,
+                                      uid: user.uid,
+                                    );
                               }
                             },
-                            child: const Text('Cancel Queued Plan', style: TextStyle(color: Colors.red)),
+                            child: const Text(
+                              'Cancel Queued Plan',
+                              style: TextStyle(color: Colors.red),
+                            ),
                           ),
                         ),
                       ],
@@ -2423,7 +2443,10 @@ class _admindashboardState extends State<admindashboard> {
             return Dialog(
               backgroundColor: Colors.transparent,
               elevation: 0,
-              insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 24,
+              ),
               child: Container(
                 width: double.infinity,
                 constraints: const BoxConstraints(maxWidth: 420),
@@ -2486,8 +2509,14 @@ class _admindashboardState extends State<admindashboard> {
                             ),
                           ),
                           IconButton(
-                            onPressed: _isUploadingQR ? null : () => Navigator.pop(dialogContext),
-                            icon: const Icon(Icons.close_rounded, color: Color(0xFF94A3B8), size: 22),
+                            onPressed: _isUploadingQR
+                                ? null
+                                : () => Navigator.pop(dialogContext),
+                            icon: const Icon(
+                              Icons.close_rounded,
+                              color: Color(0xFF94A3B8),
+                              size: 22,
+                            ),
                           ),
                         ],
                       ),
@@ -2497,14 +2526,17 @@ class _admindashboardState extends State<admindashboard> {
                       FutureBuilder<String?>(
                         future: StorageService.instance.getQRCodeUrl(),
                         builder: (context, snapshot) {
-                          if (snapshot.connectionState == ConnectionState.waiting) {
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
                             return Container(
                               height: 190,
                               width: double.infinity,
                               decoration: BoxDecoration(
                                 color: const Color(0xFFF8FAFC),
                                 borderRadius: BorderRadius.circular(20),
-                                border: Border.all(color: const Color(0xFFE2E8F0)),
+                                border: Border.all(
+                                  color: const Color(0xFFE2E8F0),
+                                ),
                               ),
                               child: Center(
                                 child: CircularProgressIndicator(
@@ -2522,23 +2554,36 @@ class _admindashboardState extends State<admindashboard> {
                                   decoration: BoxDecoration(
                                     color: const Color(0xFFF8FAFC),
                                     borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                                    border: Border.all(
+                                      color: const Color(0xFFE2E8F0),
+                                    ),
                                   ),
                                   child: Column(
                                     children: [
                                       Row(
-                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
                                         children: [
                                           Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 10,
+                                              vertical: 4,
+                                            ),
                                             decoration: BoxDecoration(
-                                              color: const Color(0xFF22C55E).withValues(alpha: 0.15),
-                                              borderRadius: BorderRadius.circular(20),
+                                              color: const Color(
+                                                0xFF22C55E,
+                                              ).withValues(alpha: 0.15),
+                                              borderRadius:
+                                                  BorderRadius.circular(20),
                                             ),
                                             child: const Row(
                                               mainAxisSize: MainAxisSize.min,
                                               children: [
-                                                Icon(Icons.check_circle_rounded, color: Color(0xFF22C55E), size: 14),
+                                                Icon(
+                                                  Icons.check_circle_rounded,
+                                                  color: Color(0xFF22C55E),
+                                                  size: 14,
+                                                ),
                                                 SizedBox(width: 6),
                                                 Text(
                                                   'Active Payment QR',
@@ -2558,27 +2603,34 @@ class _admindashboardState extends State<admindashboard> {
                                         padding: const EdgeInsets.all(10),
                                         decoration: BoxDecoration(
                                           color: Colors.white,
-                                          borderRadius: BorderRadius.circular(16),
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
                                           boxShadow: [
                                             BoxShadow(
-                                              color: Colors.black.withValues(alpha: 0.05),
+                                              color: Colors.black.withValues(
+                                                alpha: 0.05,
+                                              ),
                                               blurRadius: 10,
                                               offset: const Offset(0, 4),
                                             ),
                                           ],
                                         ),
                                         child: ClipRRect(
-                                          borderRadius: BorderRadius.circular(12),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
                                           child: Image.network(
                                             snapshot.data!,
                                             height: 150,
                                             width: 150,
                                             fit: BoxFit.contain,
-                                            errorBuilder: (_, _, _) => const Icon(
-                                              Icons.broken_image_outlined,
-                                              size: 60,
-                                              color: Color(0xFF94A3B8),
-                                            ),
+                                            errorBuilder: (_, _, _) =>
+                                                const Icon(
+                                                  Icons.broken_image_outlined,
+                                                  size: 60,
+                                                  color: Color(0xFF94A3B8),
+                                                ),
                                           ),
                                         ),
                                       ),
@@ -2591,11 +2643,17 @@ class _admindashboardState extends State<admindashboard> {
 
                           return Container(
                             width: double.infinity,
-                            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 24,
+                              horizontal: 16,
+                            ),
                             decoration: BoxDecoration(
                               color: const Color(0xFFF8FAFC),
                               borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: const Color(0xFFCBD5E1), width: 1.5),
+                              border: Border.all(
+                                color: const Color(0xFFCBD5E1),
+                                width: 1.5,
+                              ),
                             ),
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
@@ -2654,18 +2712,25 @@ class _admindashboardState extends State<admindashboard> {
                                   setState(() => _isUploadingQR = true);
 
                                   final file = File(picked.path);
-                                  final url = await StorageService.instance.uploadQRCode(file: file);
+                                  final url = await StorageService.instance
+                                      .uploadQRCode(file: file);
 
                                   setState(() => _isUploadingQR = false);
 
                                   if (context.mounted) {
                                     Navigator.pop(dialogContext);
                                     if (url != null) {
-                                      _showFrontAnimatedToast('QR code uploaded successfully!');
+                                      _showFrontAnimatedToast(
+                                        'QR code uploaded successfully!',
+                                      );
                                     } else {
-                                      ScaffoldMessenger.of(context).showSnackBar(
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
                                         SnackBar(
-                                          content: const Text('Upload failed. Please try again.'),
+                                          content: const Text(
+                                            'Upload failed. Please try again.',
+                                          ),
                                           backgroundColor: errorColor,
                                           behavior: SnackBarBehavior.floating,
                                         ),
@@ -2710,7 +2775,9 @@ class _admindashboardState extends State<admindashboard> {
 
                       // Cancel Text Button
                       TextButton(
-                        onPressed: _isUploadingQR ? null : () => Navigator.pop(dialogContext),
+                        onPressed: _isUploadingQR
+                            ? null
+                            : () => Navigator.pop(dialogContext),
                         child: const Text(
                           'Cancel',
                           style: TextStyle(
@@ -2967,7 +3034,11 @@ class _DomainDetailPageState extends State<DomainDetailPage> {
           targetKey: key,
           category: '⚡ ${domain.title}',
           title: item.title,
-          description: _getDetailedDescription(domain.id, item.title, item.subtitle),
+          description: _getDetailedDescription(
+            domain.id,
+            item.title,
+            item.subtitle,
+          ),
           icon: item.icon,
           accentColor: item.iconColor,
           actionButtonText: 'Open Action',
@@ -2982,7 +3053,11 @@ class _DomainDetailPageState extends State<DomainDetailPage> {
     return steps;
   }
 
-  String _getDetailedDescription(String domainId, String title, String fallbackSubtitle) {
+  String _getDetailedDescription(
+    String domainId,
+    String title,
+    String fallbackSubtitle,
+  ) {
     switch (title) {
       case 'Create Ticket':
         return 'Capture customer issue details, symptom descriptions, and equipment category to raise a service request.';
@@ -3032,7 +3107,10 @@ class _DomainDetailPageState extends State<DomainDetailPage> {
           child: CircleAvatar(
             backgroundColor: Colors.white,
             child: IconButton(
-              icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF0F172A)),
+              icon: const Icon(
+                Icons.arrow_back_rounded,
+                color: Color(0xFF0F172A),
+              ),
               onPressed: () => Navigator.pop(context),
             ),
           ),
@@ -3047,10 +3125,7 @@ class _DomainDetailPageState extends State<DomainDetailPage> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(
-              Icons.explore_rounded,
-              color: Color(0xFF6C5CE7),
-            ),
+            icon: const Icon(Icons.explore_rounded, color: Color(0xFF6C5CE7)),
             tooltip: 'Page Tour & Guide',
             onPressed: () => _checkAndStartDomainTour(force: true),
           ),
@@ -3311,10 +3386,7 @@ class _DomainDetailPageState extends State<DomainDetailPage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: const Color(0xFFF1F5F9),
-          width: 1.5,
-        ),
+        border: Border.all(color: const Color(0xFFF1F5F9), width: 1.5),
         boxShadow: [
           BoxShadow(
             color: item.iconColor.withValues(alpha: 0.12),
@@ -3565,15 +3637,9 @@ class _FrontToastWidgetState extends State<_FrontToastWidget>
     _offsetAnimation = Tween<Offset>(
       begin: const Offset(0, -0.8),
       end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeOutBack,
-    ));
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
 
-    _fadeAnimation = CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeIn,
-    );
+    _fadeAnimation = CurvedAnimation(parent: _controller, curve: Curves.easeIn);
 
     _controller.forward();
 

@@ -214,6 +214,7 @@ class AdminDetails {
         engStatus.contains('complete') ||
         admStatus == 'completed' ||
         admStatus == 'delivered' ||
+        engStatus == 'delivered' ||
         completedAt != null;
   }
 
@@ -467,15 +468,20 @@ class _ProfessionalNavigationDrawerState
                 ),
               ),
               child: SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(0, -0.2),
-                  end: Offset.zero,
-                ).animate(
-                  CurvedAnimation(
-                    parent: _animController,
-                    curve: const Interval(0.0, 0.6, curve: Curves.easeOutCubic),
-                  ),
-                ),
+                position:
+                    Tween<Offset>(
+                      begin: const Offset(0, -0.2),
+                      end: Offset.zero,
+                    ).animate(
+                      CurvedAnimation(
+                        parent: _animController,
+                        curve: const Interval(
+                          0.0,
+                          0.6,
+                          curve: Curves.easeOutCubic,
+                        ),
+                      ),
+                    ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -493,7 +499,8 @@ class _ProfessionalNavigationDrawerState
                               snapshot.data!.data() as Map<String, dynamic>?;
                           photoUrl = data?['photoUrl'] ?? data?['profileImage'];
                         }
-                        photoUrl ??= FirebaseAuth.instance.currentUser?.photoURL;
+                        photoUrl ??=
+                            FirebaseAuth.instance.currentUser?.photoURL;
 
                         return Container(
                           decoration: BoxDecoration(
@@ -509,7 +516,9 @@ class _ProfessionalNavigationDrawerState
                           ),
                           child: CircleAvatar(
                             radius: 34,
-                            backgroundColor: Colors.white.withValues(alpha: 0.2),
+                            backgroundColor: Colors.white.withValues(
+                              alpha: 0.2,
+                            ),
                             backgroundImage: photoUrl != null
                                 ? NetworkImage(photoUrl)
                                 : null,
@@ -585,9 +594,8 @@ class _ProfessionalNavigationDrawerState
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => BarcodeScannerScreen(
-                              userName: widget.userName,
-                            ),
+                            builder: (context) =>
+                                BarcodeScannerScreen(userName: widget.userName),
                           ),
                         );
                       },
@@ -603,9 +611,9 @@ class _ProfessionalNavigationDrawerState
                           MaterialPageRoute(
                             builder: (context) =>
                                 EngineerBarcodeIdentifierScreen(
-                              scannedBarcode: '',
-                              userName: widget.userName,
-                            ),
+                                  scannedBarcode: '',
+                                  userName: widget.userName,
+                                ),
                           ),
                         );
                       },
@@ -662,10 +670,7 @@ class _ProfessionalNavigationDrawerState
       builder: (context, child) {
         return Transform.translate(
           offset: Offset((1.0 - animation.value) * 35, 0),
-          child: Opacity(
-            opacity: animation.value,
-            child: child,
-          ),
+          child: Opacity(opacity: animation.value, child: child),
         );
       },
       child: Container(
@@ -695,8 +700,8 @@ class _ProfessionalNavigationDrawerState
                       color: isLogout
                           ? const Color(0xFFFEE2E2)
                           : isSelected
-                              ? primary.withValues(alpha: 0.15)
-                              : const Color(0xFFF1F5F9),
+                          ? primary.withValues(alpha: 0.15)
+                          : const Color(0xFFF1F5F9),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Icon(
@@ -705,8 +710,8 @@ class _ProfessionalNavigationDrawerState
                       color: isLogout
                           ? const Color(0xFFEF4444)
                           : isSelected
-                              ? primary
-                              : const Color(0xFF64748B),
+                          ? primary
+                          : const Color(0xFF64748B),
                     ),
                   ),
                   const SizedBox(width: 14),
@@ -715,12 +720,14 @@ class _ProfessionalNavigationDrawerState
                       title,
                       style: TextStyle(
                         fontSize: 15,
-                        fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                        fontWeight: isSelected
+                            ? FontWeight.w800
+                            : FontWeight.w600,
                         color: isLogout
                             ? const Color(0xFFEF4444)
                             : isSelected
-                                ? primary
-                                : const Color(0xFF1E293B),
+                            ? primary
+                            : const Color(0xFF1E293B),
                         letterSpacing: -0.1,
                       ),
                     ),
@@ -1581,9 +1588,7 @@ class _EngineerPageState extends State<EngineerPage> {
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       decoration: const BoxDecoration(
         color: Colors.white,
-        border: Border(
-          bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
-        ),
+        border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1)),
       ),
       child: Row(
         children: [
@@ -1597,13 +1602,16 @@ class _EngineerPageState extends State<EngineerPage> {
                     CircleAvatar(
                       radius: 18,
                       backgroundColor: const Color(0xFFF1F5F9),
-                      backgroundImage: NetworkImage(ThemeService.instance.logoUrl!),
+                      backgroundImage: NetworkImage(
+                        ThemeService.instance.logoUrl!,
+                      ),
                     )
                   else
                     CircleAvatar(
                       radius: 18,
-                      backgroundColor:
-                          Theme.of(context).primaryColor.withValues(alpha: 0.1),
+                      backgroundColor: Theme.of(
+                        context,
+                      ).primaryColor.withValues(alpha: 0.1),
                       child: Text(
                         widget.userName.isNotEmpty
                             ? widget.userName[0].toUpperCase()
@@ -1661,8 +1669,11 @@ class _EngineerPageState extends State<EngineerPage> {
                 color: const Color(0xFFF1F5F9),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child:
-                  const Icon(Icons.menu_rounded, color: Color(0xFF0F172A), size: 20),
+              child: const Icon(
+                Icons.menu_rounded,
+                color: Color(0xFF0F172A),
+                size: 20,
+              ),
             ),
           ),
         ],
@@ -1671,8 +1682,9 @@ class _EngineerPageState extends State<EngineerPage> {
   }
 
   Widget _buildOnlineToggle() {
-    final statusColor =
-        _isOnline ? const Color(0xFF10B981) : const Color(0xFF94A3B8);
+    final statusColor = _isOnline
+        ? const Color(0xFF10B981)
+        : const Color(0xFF94A3B8);
     return Container(
       key: _engStatusToggleKey,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -1708,8 +1720,9 @@ class _EngineerPageState extends State<EngineerPage> {
                 value: _isOnline,
                 onChanged: _toggleOnlineStatus,
                 activeThumbColor: const Color(0xFF10B981),
-                activeTrackColor:
-                    const Color(0xFF10B981).withValues(alpha: 0.4),
+                activeTrackColor: const Color(
+                  0xFF10B981,
+                ).withValues(alpha: 0.4),
                 inactiveThumbColor: Colors.white,
                 inactiveTrackColor: const Color(0xFFCBD5E1),
               ),
@@ -1768,9 +1781,7 @@ class _EngineerPageState extends State<EngineerPage> {
           onTap: () => Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (ctx) => BarcodeScannerScreen(
-                userName: widget.userName,
-              ),
+              builder: (ctx) => BarcodeScannerScreen(userName: widget.userName),
             ),
           ),
         ),
@@ -1841,10 +1852,7 @@ class _EngineerPageState extends State<EngineerPage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: const Color(0xFFF1F5F9),
-          width: 1.5,
-        ),
+        border: Border.all(color: const Color(0xFFF1F5F9), width: 1.5),
         boxShadow: [
           BoxShadow(
             color: item.color.withValues(alpha: 0.12),
@@ -1878,13 +1886,13 @@ class _EngineerPageState extends State<EngineerPage> {
                     height: 52,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              item.color.withValues(alpha: 0.18),
-                              item.color.withValues(alpha: 0.05),
-                            ],
-                          ),
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          item.color.withValues(alpha: 0.18),
+                          item.color.withValues(alpha: 0.05),
+                        ],
+                      ),
                       borderRadius: BorderRadius.circular(18),
                       border: Border.all(
                         color: item.color.withValues(alpha: 0.22),
@@ -1899,11 +1907,7 @@ class _EngineerPageState extends State<EngineerPage> {
                       ],
                     ),
                     child: Center(
-                      child: Icon(
-                        item.icon,
-                        color: item.color,
-                        size: 26,
-                      ),
+                      child: Icon(item.icon, color: item.color, size: 26),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -1984,8 +1988,10 @@ class _EngineerPageState extends State<EngineerPage> {
                         setState(() => _selectedIndex = 1); // Go to Bookings
                       },
                       icon: const Icon(Icons.arrow_forward_rounded, size: 14),
-                      label: const Text('View All',
-                          style: TextStyle(fontWeight: FontWeight.w700)),
+                      label: const Text(
+                        'View All',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
                       style: TextButton.styleFrom(
                         foregroundColor: Theme.of(context).primaryColor,
                       ),
@@ -2041,11 +2047,7 @@ class _EngineerPageState extends State<EngineerPage> {
               color: primary.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
-            child: Icon(
-              Icons.location_on_rounded,
-              color: primary,
-              size: 32,
-            ),
+            child: Icon(Icons.location_on_rounded, color: primary, size: 32),
           ),
           const SizedBox(height: 14),
           const Text(
@@ -2429,8 +2431,9 @@ class _EngineerPageState extends State<EngineerPage> {
                         int month = now.month - index;
                         int assigned = assignedPerMonth[month] ?? 0;
                         int completed = completedPerMonth[month] ?? 0;
-                        String monthName =
-                            DateFormat('MMMM').format(DateTime(now.year, month));
+                        String monthName = DateFormat(
+                          'MMMM',
+                        ).format(DateTime(now.year, month));
                         bool isCurrentMonth = index == 0;
                         final primary = Theme.of(context).primaryColor;
 
@@ -2464,7 +2467,8 @@ class _EngineerPageState extends State<EngineerPage> {
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
                                     monthName,
@@ -2483,7 +2487,9 @@ class _EngineerPageState extends State<EngineerPage> {
                                         vertical: 1,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: Colors.white.withValues(alpha: 0.25),
+                                        color: Colors.white.withValues(
+                                          alpha: 0.25,
+                                        ),
                                         borderRadius: BorderRadius.circular(6),
                                       ),
                                       child: const Text(
@@ -2635,16 +2641,24 @@ class _EngineerPageState extends State<EngineerPage> {
         final docs = snapshot.data!.docs;
         final activeTasks = docs.where((d) {
           final data = d.data() as Map<String, dynamic>;
-          final engStatus = (data['engineerStatus'] ?? '').toString().toLowerCase().trim();
-          final admStatus = (data['adminStatus'] ?? '').toString().toLowerCase().trim();
-          final bool isCompleted = engStatus == 'completed' ||
+          final engStatus = (data['engineerStatus'] ?? '')
+              .toString()
+              .toLowerCase()
+              .trim();
+          final admStatus = (data['adminStatus'] ?? '')
+              .toString()
+              .toLowerCase()
+              .trim();
+          final bool isCompleted =
+              engStatus == 'completed' ||
               engStatus.contains('complete') ||
               admStatus == 'completed' ||
               admStatus == 'delivered' ||
               data['orderDelivered'] == true ||
               data['isDelivered'] == true ||
               data['completedAt'] != null;
-          final bool isCanceled = admStatus == 'canceled' || admStatus == 'cancelled';
+          final bool isCanceled =
+              admStatus == 'canceled' || admStatus == 'cancelled';
           return !isCompleted && !isCanceled;
         }).toList();
 
@@ -2752,11 +2766,15 @@ class _EngineerPageState extends State<EngineerPage> {
       return;
     }
     final sanitized = phone.replaceAll(RegExp(r'[^\d+]'), '');
-    final Uri dialUri =
-        Uri(scheme: 'tel', path: sanitized.isNotEmpty ? sanitized : phone);
+    final Uri dialUri = Uri(
+      scheme: 'tel',
+      path: sanitized.isNotEmpty ? sanitized : phone,
+    );
     try {
-      final success =
-          await launchUrl(dialUri, mode: LaunchMode.externalApplication);
+      final success = await launchUrl(
+        dialUri,
+        mode: LaunchMode.externalApplication,
+      );
       if (!success) {
         final fallbackSuccess = await launchUrl(dialUri);
         if (!fallbackSuccess) {
@@ -2790,13 +2808,14 @@ class _EngineerPageState extends State<EngineerPage> {
     final customerName = data['customerName']?.toString() ?? 'Customer';
     final deviceBrand = data['deviceBrand']?.toString() ?? '';
     final deviceType = data['deviceType']?.toString() ?? 'Service Request';
-    final mobileNumber = (data['mobileNumber'] ??
-            data['customerMobile'] ??
-            data['mobile'] ??
-            data['phone'] ??
-            data['contactNumber'] ??
-            '')
-        .toString();
+    final mobileNumber =
+        (data['mobileNumber'] ??
+                data['customerMobile'] ??
+                data['mobile'] ??
+                data['phone'] ??
+                data['contactNumber'] ??
+                '')
+            .toString();
     final address = data['address']?.toString() ?? '';
     final status = (data['engineerStatus'] ?? data['adminStatus'] ?? 'Assigned')
         .toString();
@@ -2958,9 +2977,10 @@ class _EngineerPageState extends State<EngineerPage> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            [deviceBrand, deviceType]
-                                .where((s) => s.isNotEmpty)
-                                .join(' · '),
+                            [
+                              deviceBrand,
+                              deviceType,
+                            ].where((s) => s.isNotEmpty).join(' · '),
                             style: TextStyle(
                               fontSize: 13,
                               color: Colors.white.withValues(alpha: 0.88),
@@ -3034,9 +3054,7 @@ class _EngineerPageState extends State<EngineerPage> {
                         icon: const Icon(Icons.arrow_forward_rounded, size: 16),
                         label: const Text(
                           'View Ticket',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                          ),
+                          style: TextStyle(fontWeight: FontWeight.w800),
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.white.withValues(alpha: 0.2),
@@ -3154,8 +3172,11 @@ class _EngineerPageState extends State<EngineerPage> {
                 ),
               ),
               const SizedBox(width: 4),
-              const Icon(Icons.chevron_right_rounded,
-                  color: Color(0xFF94A3B8), size: 20),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: Color(0xFF94A3B8),
+                size: 20,
+              ),
             ],
           ),
         ),
@@ -3209,7 +3230,10 @@ class _EngineerPageState extends State<EngineerPage> {
                   curve: Curves.easeInOutCubic,
                   padding: isSelected
                       ? const EdgeInsets.symmetric(horizontal: 16, vertical: 10)
-                      : const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      : const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
                   decoration: BoxDecoration(
                     color: isSelected ? primary : Colors.transparent,
                     borderRadius: BorderRadius.circular(30),
@@ -3229,8 +3253,9 @@ class _EngineerPageState extends State<EngineerPage> {
                       Icon(
                         icon,
                         size: 20,
-                        color:
-                            isSelected ? Colors.white : const Color(0xFF94A3B8),
+                        color: isSelected
+                            ? Colors.white
+                            : const Color(0xFF94A3B8),
                       ),
                       if (isSelected) ...[
                         const SizedBox(width: 8),
@@ -3290,7 +3315,10 @@ class _EngineerPageState extends State<EngineerPage> {
               // Spectacular Hero Profile Card
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 28,
+                  horizontal: 20,
+                ),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
@@ -3328,7 +3356,9 @@ class _EngineerPageState extends State<EngineerPage> {
                         radius: 46,
                         backgroundColor: Colors.white.withValues(alpha: 0.2),
                         child: Text(
-                          (widget.userName.isNotEmpty ? widget.userName[0] : 'E')
+                          (widget.userName.isNotEmpty
+                                  ? widget.userName[0]
+                                  : 'E')
                               .toUpperCase(),
                           style: const TextStyle(
                             fontSize: 38,
@@ -3442,11 +3472,7 @@ class _EngineerPageState extends State<EngineerPage> {
                 'Specialization',
                 specialization,
               ),
-              _buildProfileItem(
-                Icons.location_on_outlined,
-                'Address',
-                address,
-              ),
+              _buildProfileItem(Icons.location_on_outlined, 'Address', address),
 
               const SizedBox(height: 24),
 
@@ -3609,8 +3635,12 @@ class _EngineerPageState extends State<EngineerPage> {
             .map((doc) => AdminDetails.fromFirestore(doc))
             .toList();
 
-        final int assignedCount = allBookings.where((b) => !b.isCompleted).length;
-        final int completedCount = allBookings.where((b) => b.isCompleted).length;
+        final int assignedCount = allBookings
+            .where((b) => !b.isCompleted)
+            .length;
+        final int completedCount = allBookings
+            .where((b) => b.isCompleted)
+            .length;
 
         // Filter based on current section
         if (_currentSection == 'completed') {
@@ -3713,8 +3743,10 @@ class _EngineerPageState extends State<EngineerPage> {
               });
             },
             icon: const Icon(Icons.close_rounded, size: 14),
-            label: const Text('Clear filters',
-                style: TextStyle(fontWeight: FontWeight.w700)),
+            label: const Text(
+              'Clear filters',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
             style: TextButton.styleFrom(
               foregroundColor: primary,
               padding: EdgeInsets.zero,
@@ -3830,7 +3862,8 @@ class _EngineerPageState extends State<EngineerPage> {
           count: assignedCount.toString(),
           icon: Icons.assignment_rounded,
           onTap: () {
-            if (_currentSection == 'dashboard' || _currentSection == 'assigned') return;
+            if (_currentSection == 'dashboard' || _currentSection == 'assigned')
+              return;
             setState(() {
               _currentSection = 'dashboard';
               _statusFilter = null;
@@ -3985,11 +4018,7 @@ class _EngineerPageState extends State<EngineerPage> {
             fontWeight: FontWeight.w500,
             fontSize: 13,
           ),
-          prefixIcon: Icon(
-            Icons.search_rounded,
-            color: primary,
-            size: 20,
-          ),
+          prefixIcon: Icon(Icons.search_rounded, color: primary, size: 20),
           suffixIcon: _searchQuery.isNotEmpty
               ? IconButton(
                   icon: const Icon(
@@ -4041,7 +4070,8 @@ class _EngineerPageState extends State<EngineerPage> {
           b.customerName.toLowerCase().contains(_searchQuery.toLowerCase());
       final matchesStatus = _statusFilter == null || _statusFilter!.isEmpty
           ? true
-          : b.selectedStatus.toLowerCase().trim() == _statusFilter!.toLowerCase().trim();
+          : b.selectedStatus.toLowerCase().trim() ==
+                _statusFilter!.toLowerCase().trim();
       return matchesSearch && matchesStatus;
     }).toList();
   }
@@ -4074,7 +4104,10 @@ class _EngineerPageState extends State<EngineerPage> {
               borderRadius: BorderRadius.circular(20),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: isSelected ? primary : const Color(0xFFF1F5F9),
                   borderRadius: BorderRadius.circular(20),
@@ -4096,15 +4129,23 @@ class _EngineerPageState extends State<EngineerPage> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (isSelected) ...[
-                      const Icon(Icons.check_rounded, size: 14, color: Colors.white),
+                      const Icon(
+                        Icons.check_rounded,
+                        size: 14,
+                        color: Colors.white,
+                      ),
                       const SizedBox(width: 4),
                     ],
                     Text(
                       _shortenStatus(status),
                       style: TextStyle(
                         fontSize: 12,
-                        color: isSelected ? Colors.white : const Color(0xFF475569),
-                        fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                        color: isSelected
+                            ? Colors.white
+                            : const Color(0xFF475569),
+                        fontWeight: isSelected
+                            ? FontWeight.w800
+                            : FontWeight.w600,
                       ),
                     ),
                   ],
@@ -4276,9 +4317,10 @@ class ProfessionalBookingCard extends StatelessWidget {
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      [booking.deviceBrand, booking.deviceType]
-                          .where((s) => s.isNotEmpty)
-                          .join(' · '),
+                      [
+                        booking.deviceBrand,
+                        booking.deviceType,
+                      ].where((s) => s.isNotEmpty).join(' · '),
                       style: const TextStyle(
                         fontSize: 13,
                         color: Color(0xFF64748B),
@@ -4389,11 +4431,13 @@ class ProfessionalBookingCard extends StatelessWidget {
       },
     };
 
-    final config = statusConfig[status] ?? {
-      'color': const Color(0xFF64748B),
-      'icon': Icons.help_outline,
-      'text': status,
-    };
+    final config =
+        statusConfig[status] ??
+        {
+          'color': const Color(0xFF64748B),
+          'icon': Icons.help_outline,
+          'text': status,
+        };
 
     final color = config['color'] as Color;
     final text = config['text'] as String;
@@ -4456,6 +4500,7 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
   bool _isPickingImages = false;
   bool _isReadOnly = false;
   bool _isUploading = false;
+  bool _isDeliveryTicket = false;
   String _currentStatus = '';
   String _selectedPaymentType = 'Cash';
   String _selectedPaymentMethod = 'Visiting Charge';
@@ -4476,11 +4521,15 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
       return;
     }
     final sanitized = phone.replaceAll(RegExp(r'[^\d+]'), '');
-    final Uri dialUri =
-        Uri(scheme: 'tel', path: sanitized.isNotEmpty ? sanitized : phone);
+    final Uri dialUri = Uri(
+      scheme: 'tel',
+      path: sanitized.isNotEmpty ? sanitized : phone,
+    );
     try {
-      final success =
-          await launchUrl(dialUri, mode: LaunchMode.externalApplication);
+      final success = await launchUrl(
+        dialUri,
+        mode: LaunchMode.externalApplication,
+      );
       if (!success) {
         final fallbackSuccess = await launchUrl(dialUri);
         if (!fallbackSuccess) {
@@ -4512,7 +4561,9 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
     setState(() => _isLoadingLocation = true);
     try {
       Position position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
       setState(() {
         _capturedLat = position.latitude;
@@ -4531,6 +4582,7 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
     super.initState();
     _amountController.text = widget.booking.amount;
     _currentStatus = widget.booking.selectedStatus;
+    _isDeliveryTicket = widget.booking.bookingId.toUpperCase().startsWith('D');
     _selectedPaymentType = widget.booking.paymentType.isNotEmpty
         ? ([
                 'Cash',
@@ -4595,16 +4647,24 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
   void _updateReadOnlyStatus() {
     final bool wasCompleted =
         widget.booking.selectedStatus.toLowerCase() == 'completed';
+    final bool wasDelivered =
+        widget.booking.selectedStatus.toLowerCase() == 'delivered';
 
     setState(() {
       _isReadOnly =
           wasCompleted ||
+          wasDelivered ||
           _currentStatus.toLowerCase() == 'completed' ||
+          _currentStatus.toLowerCase() == 'delivered' ||
           widget.booking.isCanceled ||
           widget.isCompletedSection;
 
       if (wasCompleted || _currentStatus.toLowerCase() == 'completed') {
         _currentStatus = 'Completed';
+      } else if ((wasDelivered ||
+              _currentStatus.toLowerCase() == 'delivered') &&
+          _isDeliveryTicket) {
+        _currentStatus = 'Delivered';
       }
     });
   }
@@ -4817,7 +4877,8 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
         ];
 
         final String bookingId = widget.booking.bookingId.trim();
-        final String updateDesc = widget.descriptionController.text.trim().isNotEmpty
+        final String updateDesc =
+            widget.descriptionController.text.trim().isNotEmpty
             ? widget.descriptionController.text.trim()
             : 'Status updated to $_currentStatus by engineer';
 
@@ -4834,10 +4895,7 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
 
         if (_payments.isNotEmpty) {
           updateData['payments'] = _payments.map((p) {
-            return {
-              ...p,
-              'addedAt': Timestamp.now(),
-            };
+            return {...p, 'addedAt': Timestamp.now()};
           }).toList();
         }
 
@@ -4853,6 +4911,16 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
           updateData['engineerStatus'] = 'Completed';
           updateData['completedAt'] = FieldValue.serverTimestamp();
           updateData['completedBy'] = widget.userName;
+        }
+
+        if (_isDeliveryTicket && _currentStatus.toLowerCase() == 'delivered') {
+          updateData['engineerStatus'] = 'Delivered';
+          updateData['adminStatus'] = 'Delivered';
+          updateData['customerStatus'] = 'Delivered';
+          updateData['completedAt'] = FieldValue.serverTimestamp();
+          updateData['completedBy'] = widget.userName;
+          updateData['orderDelivered'] = true;
+          updateData['isDelivered'] = true;
         }
 
         // Direct write to Admin_ticket_entry
@@ -4911,6 +4979,7 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
 
           _isReadOnly =
               _currentStatus.toLowerCase() == 'completed' ||
+              _currentStatus.toLowerCase() == 'delivered' ||
               widget.booking.isCanceled ||
               widget.isCompletedSection;
           _updateReadOnlyStatus();
@@ -4954,7 +5023,11 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
         backgroundColor: Colors.white,
         elevation: 0.5,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF0F172A), size: 20),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: Color(0xFF0F172A),
+            size: 20,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
@@ -5006,20 +5079,35 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.35),
+                          ),
                         ),
-                        child: const Row(
+                        child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.stars_rounded, size: 12, color: Colors.amberAccent),
-                            SizedBox(width: 4),
+                            Icon(
+                              _isDeliveryTicket
+                                  ? Icons.local_shipping_rounded
+                                  : Icons.stars_rounded,
+                              size: 12,
+                              color: _isDeliveryTicket
+                                  ? const Color(0xFF34D399)
+                                  : Colors.amberAccent,
+                            ),
+                            const SizedBox(width: 4),
                             Text(
-                              'SERVICE TICKET DETAILS',
-                              style: TextStyle(
+                              _isDeliveryTicket
+                                  ? 'DELIVERY TICKET DETAILS'
+                                  : 'SERVICE TICKET DETAILS',
+                              style: const TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w900,
                                 color: Colors.white,
@@ -5051,9 +5139,10 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    [widget.booking.deviceBrand, widget.booking.deviceType]
-                        .where((s) => s.isNotEmpty)
-                        .join(' · '),
+                    [
+                      widget.booking.deviceBrand,
+                      widget.booking.deviceType,
+                    ].where((s) => s.isNotEmpty).join(' · '),
                     style: TextStyle(
                       fontSize: 14,
                       color: Colors.white.withValues(alpha: 0.9),
@@ -5064,7 +5153,11 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
                     const SizedBox(height: 12),
                     Row(
                       children: [
-                        Icon(Icons.location_on_rounded, size: 14, color: Colors.white.withValues(alpha: 0.85)),
+                        Icon(
+                          Icons.location_on_rounded,
+                          size: 14,
+                          color: Colors.white.withValues(alpha: 0.85),
+                        ),
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
@@ -5090,12 +5183,17 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
                         child: ElevatedButton.icon(
                           onPressed: () => _launchPhoneDialer(mobileNumber),
                           icon: const Icon(Icons.phone_rounded, size: 16),
-                          label: const Text('Call Customer', style: TextStyle(fontWeight: FontWeight.w800)),
+                          label: const Text(
+                            'Call Customer',
+                            style: TextStyle(fontWeight: FontWeight.w800),
+                          ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.white,
                             foregroundColor: primary,
                             padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                             elevation: 0,
                           ),
                         ),
@@ -5103,17 +5201,30 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
                       const SizedBox(width: 10),
                       ElevatedButton.icon(
                         onPressed: () {
-                          Clipboard.setData(ClipboardData(text: widget.booking.address));
-                          _showSnackBar('Address copied to clipboard', ProfessionalTheme.info(context));
+                          Clipboard.setData(
+                            ClipboardData(text: widget.booking.address),
+                          );
+                          _showSnackBar(
+                            'Address copied to clipboard',
+                            ProfessionalTheme.info(context),
+                          );
                         },
                         icon: const Icon(Icons.copy_rounded, size: 16),
-                        label: const Text('Copy Address', style: TextStyle(fontWeight: FontWeight.w800)),
+                        label: const Text(
+                          'Copy Address',
+                          style: TextStyle(fontWeight: FontWeight.w800),
+                        ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.white.withValues(alpha: 0.2),
                           foregroundColor: Colors.white,
                           side: const BorderSide(color: Colors.white38),
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                           elevation: 0,
                         ),
                       ),
@@ -5131,7 +5242,10 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
             const SizedBox(height: 10),
             _buildStatusSection(),
             const SizedBox(height: 20),
-            _buildSectionHeader('Update Description', Icons.description_outlined),
+            _buildSectionHeader(
+              'Update Description',
+              Icons.description_outlined,
+            ),
             const SizedBox(height: 10),
             _buildDescriptionSection(),
             const SizedBox(height: 20),
@@ -5139,7 +5253,10 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
             const SizedBox(height: 10),
             _buildPaymentSection(),
             const SizedBox(height: 20),
-            _buildSectionHeader('Completion Photos', Icons.photo_library_outlined),
+            _buildSectionHeader(
+              'Completion Photos',
+              Icons.photo_library_outlined,
+            ),
             const SizedBox(height: 10),
             _buildImageSection(),
             const SizedBox(height: 30),
@@ -5163,26 +5280,37 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
             width: double.infinity,
             height: 50,
             child: ElevatedButton.icon(
-              onPressed: (_isUploading || _isReadOnly || widget.booking.isCanceled) ? null : _performUpdate,
+              onPressed:
+                  (_isUploading || _isReadOnly || widget.booking.isCanceled)
+                  ? null
+                  : _performUpdate,
               icon: _isUploading
                   ? const SizedBox(
                       width: 20,
                       height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
                     )
                   : const Icon(Icons.check_circle_rounded, size: 20),
               label: Text(
                 _isUploading
                     ? 'Updating Ticket...'
                     : _isReadOnly
-                        ? 'Ticket Read Only'
-                        : 'Save & Update Ticket Status',
-                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
+                    ? 'Ticket Read Only'
+                    : 'Save & Update Ticket Status',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 15,
+                ),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: primary,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
                 elevation: 0,
               ),
             ),
@@ -5196,11 +5324,22 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
     final statusConfig = {
       'Completed': {'color': const Color(0xFF10B981), 'text': 'Completed'},
       'Assigned': {'color': const Color(0xFF10B981), 'text': 'Assigned'},
-      'Pending for Approval': {'color': const Color(0xFF8B5CF6), 'text': 'Pending'},
-      'Pending for Spares': {'color': const Color(0xFFF59E0B), 'text': 'Spares'},
-      'Under Observation': {'color': const Color(0xFF06B6D4), 'text': 'Observation'},
+      'Pending for Approval': {
+        'color': const Color(0xFF8B5CF6),
+        'text': 'Pending',
+      },
+      'Pending for Spares': {
+        'color': const Color(0xFFF59E0B),
+        'text': 'Spares',
+      },
+      'Under Observation': {
+        'color': const Color(0xFF06B6D4),
+        'text': 'Observation',
+      },
     };
-    final config = statusConfig[status] ?? {'color': const Color(0xFF64748B), 'text': status};
+    final config =
+        statusConfig[status] ??
+        {'color': const Color(0xFF64748B), 'text': status};
     final color = config['color'] as Color;
     final text = config['text'] as String;
 
@@ -5213,7 +5352,11 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
       ),
       child: Text(
         text,
-        style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w800),
+        style: TextStyle(
+          fontSize: 11,
+          color: color,
+          fontWeight: FontWeight.w800,
+        ),
       ),
     );
   }
@@ -5251,7 +5394,10 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
             icon: Icons.location_on_outlined,
             onCopy: () {
               Clipboard.setData(ClipboardData(text: widget.booking.address));
-              _showSnackBar('Address copied to clipboard', ProfessionalTheme.info(context));
+              _showSnackBar(
+                'Address copied to clipboard',
+                ProfessionalTheme.info(context),
+              );
             },
           ),
           const Divider(height: 1, color: Color(0xFFE2E8F0)),
@@ -5260,8 +5406,13 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
             value: widget.booking.mobileNumber,
             icon: Icons.phone_android_outlined,
             onCopy: () {
-              Clipboard.setData(ClipboardData(text: widget.booking.mobileNumber));
-              _showSnackBar('Phone number copied', ProfessionalTheme.info(context));
+              Clipboard.setData(
+                ClipboardData(text: widget.booking.mobileNumber),
+              );
+              _showSnackBar(
+                'Phone number copied',
+                ProfessionalTheme.info(context),
+              );
             },
           ),
           const Divider(height: 1, color: Color(0xFFE2E8F0)),
@@ -5287,7 +5438,11 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.verified, size: 16, color: Color(0xFF10B981)),
+                  const Icon(
+                    Icons.verified,
+                    size: 16,
+                    color: Color(0xFF10B981),
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -5358,7 +5513,11 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
           if (onCopy != null)
             IconButton(
               onPressed: onCopy,
-              icon: const Icon(Icons.copy_rounded, size: 16, color: Color(0xFF94A3B8)),
+              icon: const Icon(
+                Icons.copy_rounded,
+                size: 16,
+                color: Color(0xFF94A3B8),
+              ),
               tooltip: 'Copy',
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
@@ -5369,14 +5528,23 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
   }
 
   Widget _buildStatusSection() {
-    final allowedStatuses = [
-      'Assigned',
-      'In Progress',
-      'Under Observation',
-      'Pending for Spares',
-      'Pending for Approval',
-      'Completed',
-    ];
+    final List<String> allowedStatuses;
+    if (_isDeliveryTicket) {
+      allowedStatuses = ['Delivered', 'Not Delivered'];
+    } else {
+      allowedStatuses = [
+        'Assigned',
+        'In Progress',
+        'Under Observation',
+        'Pending for Spares',
+        'Pending for Approval',
+        'Completed',
+      ];
+    }
+    if (!allowedStatuses.contains(_currentStatus) &&
+        _currentStatus.isNotEmpty) {
+      allowedStatuses.add(_currentStatus);
+    }
     String? dropdownValue = allowedStatuses.contains(_currentStatus)
         ? _currentStatus
         : (_currentStatus.isNotEmpty ? _currentStatus : null);
@@ -5402,7 +5570,10 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
                 borderRadius: BorderRadius.circular(14),
                 borderSide: BorderSide.none,
               ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 12,
+              ),
               filled: true,
               fillColor: Colors.transparent,
             ),
@@ -5432,11 +5603,15 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
           spacing: 8,
           runSpacing: 8,
           children: allowedStatuses.map((status) {
-            final isSelected = _currentStatus.toLowerCase() == status.toLowerCase();
+            final isSelected =
+                _currentStatus.toLowerCase() == status.toLowerCase();
             Color chipColor = const Color(0xFF0284C7);
-            if (status == 'Completed') chipColor = const Color(0xFF10B981);
+            if (status == 'Completed' || status == 'Delivered')
+              chipColor = const Color(0xFF10B981);
+            if (status == 'Not Delivered') chipColor = const Color(0xFFEF4444);
             if (status.contains('Pending')) chipColor = const Color(0xFFD97706);
-            if (status.contains('Observation')) chipColor = const Color(0xFF0D9488);
+            if (status.contains('Observation'))
+              chipColor = const Color(0xFF0D9488);
 
             return InkWell(
               onTap: (_isReadOnly || widget.booking.isCanceled)
@@ -5448,7 +5623,10 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
                     },
               borderRadius: BorderRadius.circular(10),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: isSelected ? chipColor : const Color(0xFFF1F5F9),
                   borderRadius: BorderRadius.circular(10),
@@ -5460,15 +5638,23 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (isSelected) ...[
-                      const Icon(Icons.check_rounded, size: 14, color: Colors.white),
+                      const Icon(
+                        Icons.check_rounded,
+                        size: 14,
+                        color: Colors.white,
+                      ),
                       const SizedBox(width: 4),
                     ],
                     Text(
                       status,
                       style: TextStyle(
                         fontSize: 12,
-                        fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                        color: isSelected ? Colors.white : const Color(0xFF475569),
+                        fontWeight: isSelected
+                            ? FontWeight.w800
+                            : FontWeight.w600,
+                        color: isSelected
+                            ? Colors.white
+                            : const Color(0xFF475569),
                       ),
                     ),
                   ],
@@ -5488,7 +5674,8 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
             ),
           ),
         ],
-        if (_currentStatus == 'Order Taken' || _currentStatus == 'Order Received') ...[
+        if (_currentStatus == 'Order Taken' ||
+            _currentStatus == 'Order Received') ...[
           const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
@@ -5497,7 +5684,9 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 side: BorderSide(color: Theme.of(context).primaryColor),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
               icon: _isLoadingLocation
                   ? SizedBox(
@@ -5508,7 +5697,10 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
                         color: Theme.of(context).primaryColor,
                       ),
                     )
-                  : Icon(Icons.my_location, color: Theme.of(context).primaryColor),
+                  : Icon(
+                      Icons.my_location,
+                      color: Theme.of(context).primaryColor,
+                    ),
               label: Text(
                 _isLoadingLocation ? 'Logging...' : 'Log Current Location',
                 style: TextStyle(
@@ -5533,7 +5725,8 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
           minLines: 3,
           enabled: !_isReadOnly,
           decoration: InputDecoration(
-            hintText: 'Describe the current status, issues found, or work completed...',
+            hintText:
+                'Describe the current status, issues found, or work completed...',
             hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
@@ -5579,7 +5772,10 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide.none,
               ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 12,
+              ),
               filled: true,
               fillColor: Colors.white,
             ),
@@ -5609,8 +5805,13 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
             enabled: !_isReadOnly,
             decoration: InputDecoration(
               labelText: 'Specify Payment Type',
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 12,
+              ),
             ),
           ),
         ],
@@ -5623,7 +5824,22 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
   }
 
   Widget _buildPaymentMethodSection() {
-    final methods = ['Visiting Charge', 'Spare Charge', 'Service Charge'];
+    final List<String> methods;
+    if (_isDeliveryTicket) {
+      methods = [
+        'Delivery Charge',
+        'Visiting Charge',
+        'Spare Charge',
+        'Service Charge',
+      ];
+    } else {
+      methods = [
+        'Visiting Charge',
+        'Spare Charge',
+        'Service Charge',
+        'Delivery Charge',
+      ];
+    }
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -5637,7 +5853,11 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
         children: [
           const Text(
             'Add Payment Item',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF0F172A),
+            ),
           ),
           const SizedBox(height: 12),
           Column(
@@ -5660,7 +5880,10 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
                   Flexible(
                     child: Text(
                       m,
-                      style: const TextStyle(fontSize: 15, color: Color(0xFF0F172A)),
+                      style: const TextStyle(
+                        fontSize: 15,
+                        color: Color(0xFF0F172A),
+                      ),
                     ),
                   ),
                 ],
@@ -5673,7 +5896,9 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
               Expanded(
                 child: TextField(
                   controller: _paymentAmountController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   inputFormatters: [
                     FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
                   ],
@@ -5681,20 +5906,35 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
                   decoration: InputDecoration(
                     prefixText: '₹ ',
                     hintText: 'Amount',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                   ),
                 ),
               ),
               const SizedBox(width: 12),
               ElevatedButton(
-                onPressed: _isReadOnly || _selectedPaymentType == 'No Payment' ? null : _addPayment,
+                onPressed: _isReadOnly || _selectedPaymentType == 'No Payment'
+                    ? null
+                    : _addPayment,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Theme.of(context).primaryColor,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                 ),
-                child: const Text('Add', style: TextStyle(color: Colors.white, fontSize: 14)),
+                child: const Text(
+                  'Add',
+                  style: TextStyle(color: Colors.white, fontSize: 14),
+                ),
               ),
             ],
           ),
@@ -5713,7 +5953,11 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
       children: [
         const Text(
           'Added Payments',
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF0F172A),
+          ),
         ),
         const SizedBox(height: 8),
         ..._payments.asMap().entries.map((entry) {
@@ -5735,18 +5979,29 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
                     children: [
                       Text(
                         payment['paymentType'] ?? '',
-                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF0F172A),
+                        ),
                       ),
                       Text(
                         payment['paymentMethod'] ?? '',
-                        style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF64748B),
+                        ),
                       ),
                     ],
                   ),
                 ),
                 Text(
                   '₹${payment['amount']}',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Theme.of(context).primaryColor),
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: Theme.of(context).primaryColor,
+                  ),
                 ),
                 if (!_isReadOnly) ...[
                   const SizedBox(width: 8),
@@ -5757,7 +6012,11 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
                         _recomputeTotalAmountFromPayments();
                       });
                     },
-                    child: const Icon(Icons.delete, size: 18, color: Colors.redAccent),
+                    child: const Icon(
+                      Icons.delete,
+                      size: 18,
+                      color: Colors.redAccent,
+                    ),
                   ),
                 ],
               ],
@@ -5774,7 +6033,11 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
       children: [
         const Text(
           'Total Amount',
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF0F172A),
+          ),
         ),
         const SizedBox(height: 8),
         TextField(
@@ -5785,10 +6048,17 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
             prefixText: '₹ ',
             hintText: '0.00',
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 12,
+            ),
             helperText: 'Auto-calculated from added payments',
           ),
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF0F172A),
+          ),
         ),
       ],
     );
@@ -5806,12 +6076,21 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
               children: [
                 Text(
                   'PHOTOS',
-                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF64748B), letterSpacing: 1.5),
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF64748B),
+                    letterSpacing: 1.5,
+                  ),
                 ),
                 SizedBox(height: 2),
                 Text(
                   'Max 3 images required',
-                  style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8), fontStyle: FontStyle.italic),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF94A3B8),
+                    fontStyle: FontStyle.italic,
+                  ),
                 ),
               ],
             ),
@@ -5820,7 +6099,9 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
                 onPressed: _isPickingImages ? null : _pickImages,
                 icon: const Icon(Icons.add_a_photo_outlined, size: 18),
                 label: const Text('Add Photo'),
-                style: TextButton.styleFrom(foregroundColor: Theme.of(context).primaryColor),
+                style: TextButton.styleFrom(
+                  foregroundColor: Theme.of(context).primaryColor,
+                ),
               ),
           ],
         ),
@@ -5852,11 +6133,19 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
                         top: 4,
                         right: 4,
                         child: GestureDetector(
-                          onTap: () => setState(() => _imageFiles!.removeAt(index)),
+                          onTap: () =>
+                              setState(() => _imageFiles!.removeAt(index)),
                           child: Container(
                             padding: const EdgeInsets.all(4),
-                            decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                            child: const Icon(Icons.close, size: 14, color: Colors.redAccent),
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.close,
+                              size: 14,
+                              color: Colors.redAccent,
+                            ),
                           ),
                         ),
                       ),
@@ -5876,9 +6165,20 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
             ),
             child: const Column(
               children: [
-                Icon(Icons.no_photography_outlined, color: Color(0xFF94A3B8), size: 32),
+                Icon(
+                  Icons.no_photography_outlined,
+                  color: Color(0xFF94A3B8),
+                  size: 32,
+                ),
                 SizedBox(height: 8),
-                Text('No photos uploaded', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12, fontWeight: FontWeight.w600)),
+                Text(
+                  'No photos uploaded',
+                  style: TextStyle(
+                    color: Color(0xFF94A3B8),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ],
             ),
           )
@@ -5891,15 +6191,31 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
               decoration: BoxDecoration(
                 color: Theme.of(context).primaryColor.withValues(alpha: 0.04),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Theme.of(context).primaryColor.withValues(alpha: 0.2)),
+                border: Border.all(
+                  color: Theme.of(context).primaryColor.withValues(alpha: 0.2),
+                ),
               ),
               child: Column(
                 children: [
-                  Icon(Icons.add_a_photo_rounded, color: Theme.of(context).primaryColor, size: 40),
+                  Icon(
+                    Icons.add_a_photo_rounded,
+                    color: Theme.of(context).primaryColor,
+                    size: 40,
+                  ),
                   const SizedBox(height: 12),
-                  Text('Tap to capture or upload photos', style: TextStyle(color: Theme.of(context).primaryColor, fontWeight: FontWeight.w700, fontSize: 14)),
+                  Text(
+                    'Tap to capture or upload photos',
+                    style: TextStyle(
+                      color: Theme.of(context).primaryColor,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                  ),
                   const SizedBox(height: 4),
-                  const Text('Upload up to 3 high-quality job photos', style: TextStyle(color: Color(0xFF64748B), fontSize: 12)),
+                  const Text(
+                    'Upload up to 3 high-quality job photos',
+                    style: TextStyle(color: Color(0xFF64748B), fontSize: 12),
+                  ),
                 ],
               ),
             ),

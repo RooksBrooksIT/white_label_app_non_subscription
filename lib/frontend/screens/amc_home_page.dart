@@ -207,12 +207,19 @@ class _AmcCustomerHomePageState extends State<AmcCustomerHomePage> {
     });
     try {
       final snapshot = await FirestoreService.instance
-          .collection('deviceDetails')
+          .collection('Devices')
+          .orderBy('deviceName')
           .get();
       final types = snapshot.docs
-          .map((doc) => doc['deviceType']?.toString())
-          .where((t) => t != null && t.isNotEmpty)
-          .cast<String>()
+          .map((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            return (data['deviceName'] ??
+                    doc['deviceType'] ??
+                    '')
+                .toString()
+                .trim();
+          })
+          .where((t) => t.isNotEmpty)
           .toSet()
           .toList();
 
@@ -239,58 +246,41 @@ class _AmcCustomerHomePageState extends State<AmcCustomerHomePage> {
     });
 
     try {
-      String? collectionName;
-      switch (deviceType.toLowerCase()) {
-        case 'desktop':
-          collectionName = 'desktopBrands';
-          break;
-        case 'laptop':
-          collectionName = 'laptopBrands';
-          break;
-        case 'cctv':
-          collectionName = 'cctvBrands';
-          break;
-        case 'projector':
-          collectionName = 'projectorBrands';
-          break;
-        case 'printer':
-          collectionName = 'printerBrands';
-          break;
-        default:
-          collectionName = null;
-      }
+      final normalizedType = deviceType.trim();
+      final snapshot = await FirestoreService.instance
+          .collection('Devices')
+          .where('deviceName', isEqualTo: normalizedType)
+          .get();
 
-      if (collectionName != null) {
-        final snapshot = await FirestoreService.instance
-            .collection(collectionName)
-            .get();
-        final brands =
-            snapshot.docs
-                .map(
-                  (doc) =>
-                      doc['brandName']?.toString() ??
-                      doc['name']?.toString() ??
-                      doc['brand']?.toString() ??
-                      '',
-                )
-                .where((b) => b.isNotEmpty)
-                .toSet()
-                .toList()
-              ..sort();
+      final brands = snapshot.docs
+          .map((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            return (data['brandName'] ??
+                    data['brand'] ??
+                    data['name'] ??
+                    '')
+                .toString()
+                .trim();
+          })
+          .where((b) => b.isNotEmpty)
+          .toSet()
+          .toList()
+        ..sort();
 
-        if (!brands.contains('Others')) brands.add('Others');
+      if (!brands.contains('Others')) brands.add('Others');
 
+      if (brands.isEmpty) {
         setState(() {
-          deviceBrands = brands;
+          deviceBrands = ['Others'];
         });
       } else {
         setState(() {
-          deviceBrands = ['DELL', 'HP', 'MAC', 'LENOVO', 'ASUS', 'Others'];
+          deviceBrands = brands;
         });
       }
     } catch (_) {
       setState(() {
-        deviceBrands = ['DELL', 'HP', 'MAC', 'LENOVO', 'ASUS', 'Others'];
+        deviceBrands = ['Others'];
       });
     } finally {
       setState(() {

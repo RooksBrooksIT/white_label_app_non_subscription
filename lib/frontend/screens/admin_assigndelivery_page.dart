@@ -101,15 +101,19 @@ class _AssigndeliveryCustomerPageState
                         child: Container(
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           decoration: BoxDecoration(
-                            color: _isEngineerSelected ? Colors.white : Colors.transparent,
+                            color: _isEngineerSelected
+                                ? Colors.white
+                                : Colors.transparent,
                             borderRadius: BorderRadius.circular(12),
                             boxShadow: _isEngineerSelected
                                 ? [
                                     BoxShadow(
-                                      color: Colors.black.withValues(alpha: 0.05),
+                                      color: Colors.black.withValues(
+                                        alpha: 0.05,
+                                      ),
                                       blurRadius: 8,
                                       offset: const Offset(0, 2),
-                                    )
+                                    ),
                                   ]
                                 : null,
                           ),
@@ -118,8 +122,12 @@ class _AssigndeliveryCustomerPageState
                               'Lead Engineer',
                               style: GoogleFonts.inter(
                                 fontSize: 14,
-                                fontWeight: _isEngineerSelected ? FontWeight.w700 : FontWeight.w500,
-                                color: _isEngineerSelected ? const Color(0xFF0F172A) : const Color(0xFF64748B),
+                                fontWeight: _isEngineerSelected
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                                color: _isEngineerSelected
+                                    ? const Color(0xFF0F172A)
+                                    : const Color(0xFF64748B),
                               ),
                             ),
                           ),
@@ -140,15 +148,19 @@ class _AssigndeliveryCustomerPageState
                         child: Container(
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           decoration: BoxDecoration(
-                            color: !_isEngineerSelected ? Colors.white : Colors.transparent,
+                            color: !_isEngineerSelected
+                                ? Colors.white
+                                : Colors.transparent,
                             borderRadius: BorderRadius.circular(12),
                             boxShadow: !_isEngineerSelected
                                 ? [
                                     BoxShadow(
-                                      color: Colors.black.withValues(alpha: 0.05),
+                                      color: Colors.black.withValues(
+                                        alpha: 0.05,
+                                      ),
                                       blurRadius: 8,
                                       offset: const Offset(0, 2),
-                                    )
+                                    ),
                                   ]
                                 : null,
                           ),
@@ -157,8 +169,12 @@ class _AssigndeliveryCustomerPageState
                               'Helper Staff',
                               style: GoogleFonts.inter(
                                 fontSize: 14,
-                                fontWeight: !_isEngineerSelected ? FontWeight.w700 : FontWeight.w500,
-                                color: !_isEngineerSelected ? const Color(0xFF0F172A) : const Color(0xFF64748B),
+                                fontWeight: !_isEngineerSelected
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                                color: !_isEngineerSelected
+                                    ? const Color(0xFF0F172A)
+                                    : const Color(0xFF64748B),
                               ),
                             ),
                           ),
@@ -171,7 +187,9 @@ class _AssigndeliveryCustomerPageState
               const SizedBox(height: 20),
               _buildTicketSummaryCard(primaryColor),
               const SizedBox(height: 24),
-              _isEngineerSelected ? _buildEngineerView(primaryColor) : _buildHelperView(primaryColor),
+              _isEngineerSelected
+                  ? _buildEngineerView(primaryColor)
+                  : _buildHelperView(primaryColor),
             ],
           ),
         ),
@@ -303,16 +321,14 @@ class _AssigndeliveryCustomerPageState
           ),
         ),
         const SizedBox(height: 14),
-        StreamBuilder<QuerySnapshot>(
-          stream: FirestoreService.instance
-              .collection('delivery_employees')
-              .snapshots(),
+        FutureBuilder<List<Map<String, dynamic>>>(
+          future: _loadAvailableDeliveryEngineers(),
           builder: (context, snapshot) {
-            if (!snapshot.hasData) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
             }
 
-            final employees = snapshot.data!.docs;
+            final employees = snapshot.data ?? <Map<String, dynamic>>[];
             if (employees.isEmpty) {
               return Container(
                 padding: const EdgeInsets.all(24),
@@ -335,9 +351,13 @@ class _AssigndeliveryCustomerPageState
               physics: const NeverScrollableScrollPhysics(),
               itemCount: employees.length,
               itemBuilder: (context, index) {
-                final emp = employees[index].data() as Map<String, dynamic>;
-                final name = emp['name'] ?? emp['username'] ?? 'Unknown';
-                final phone = emp['phone'] ?? emp['mobileNumber'] ?? '';
+                final emp = employees[index];
+                final name = (emp['name'] ?? emp['username'] ?? 'Unknown')
+                    .toString();
+                final phone = (emp['phone'] ?? emp['mobileNumber'] ?? '')
+                    .toString();
+                final email = (emp['email'] ?? '').toString();
+                final specialization = (emp['specialization'] ?? '').toString();
 
                 return Container(
                   margin: const EdgeInsets.only(bottom: 12),
@@ -345,7 +365,10 @@ class _AssigndeliveryCustomerPageState
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
+                    border: Border.all(
+                      color: const Color(0xFFE2E8F0),
+                      width: 1.2,
+                    ),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withValues(alpha: 0.025),
@@ -362,7 +385,11 @@ class _AssigndeliveryCustomerPageState
                           color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Icon(Icons.person_rounded, color: Color(0xFF3B82F6), size: 22),
+                        child: const Icon(
+                          Icons.person_rounded,
+                          color: Color(0xFF3B82F6),
+                          size: 22,
+                        ),
                       ),
                       const SizedBox(width: 14),
                       Expanded(
@@ -377,9 +404,26 @@ class _AssigndeliveryCustomerPageState
                                 color: const Color(0xFF0F172A),
                               ),
                             ),
+                            if (specialization.isNotEmpty)
+                              Text(
+                                specialization,
+                                style: GoogleFonts.inter(
+                                  fontSize: 11.5,
+                                  color: primaryColor,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                             if (phone.isNotEmpty)
                               Text(
                                 phone,
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  color: const Color(0xFF64748B),
+                                ),
+                              ),
+                            if (phone.isEmpty && email.isNotEmpty)
+                              Text(
+                                email,
                                 style: GoogleFonts.inter(
                                   fontSize: 12,
                                   color: const Color(0xFF64748B),
@@ -389,12 +433,17 @@ class _AssigndeliveryCustomerPageState
                         ),
                       ),
                       ElevatedButton(
-                        onPressed: _isAssigning ? null : () => _assignEngineerToCustomer(name),
+                        onPressed: _isAssigning
+                            ? null
+                            : () => _assignEngineerToCustomer(name),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: primaryColor,
                           foregroundColor: Colors.white,
                           elevation: 0,
-                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 10,
+                          ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -416,6 +465,62 @@ class _AssigndeliveryCustomerPageState
         ),
       ],
     );
+  }
+
+  Future<List<Map<String, dynamic>>> _loadAvailableDeliveryEngineers() async {
+    final Set<String> seen = {};
+    final List<Map<String, dynamic>> result = [];
+
+    Future<void> pushDoc(Map<String, dynamic> raw, String source) async {
+      final name =
+          (raw['name'] ??
+                  raw['username'] ??
+                  raw['Username'] ??
+                  raw['Name'] ??
+                  '')
+              .toString()
+              .trim();
+      if (name.isEmpty) return;
+      final key = name.toLowerCase();
+      if (!seen.add(key)) return;
+      result.add({
+        'name': name,
+        'phone': (raw['phone'] ?? raw['Phone'] ?? raw['mobileNumber'] ?? '')
+            .toString(),
+        'email': (raw['email'] ?? raw['Email'] ?? '').toString(),
+        'specialization':
+            (raw['specialization'] ??
+                    raw['Specialization'] ??
+                    (source == 'EngineerLogin'
+                        ? 'Service Engineer'
+                        : 'Delivery Staff') ??
+                    '')
+                .toString(),
+        'source': source,
+      });
+    }
+
+    try {
+      final primary = await FirestoreService.instance
+          .collection('EngineerLogin')
+          .orderBy('Username')
+          .get();
+      for (final d in primary.docs) {
+        await pushDoc(d.data() as Map<String, dynamic>, 'EngineerLogin');
+      }
+    } catch (_) {}
+
+    try {
+      final legacy = await FirestoreService.instance
+          .collection('delivery_employees')
+          .get();
+      for (final d in legacy.docs) {
+        await pushDoc(d.data() as Map<String, dynamic>, 'delivery_employees');
+      }
+    } catch (_) {}
+
+    result.sort((a, b) => a['name'].compareTo(b['name']));
+    return result;
   }
 
   Widget _buildHelperView(Color primaryColor) {
@@ -475,7 +580,10 @@ class _AssigndeliveryCustomerPageState
               ),
               child: Text(
                 'Assign Helper',
-                style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 15),
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                ),
               ),
             ),
           ),
@@ -487,25 +595,137 @@ class _AssigndeliveryCustomerPageState
   Future<void> _assignEngineerToCustomer(String engineerName) async {
     setState(() => _isAssigning = true);
     try {
+      final bookingId = widget.customer.ticketId;
+      final cJobType =
+          (widget.customer.jobType ?? 'Delivery').toString().trim().isEmpty
+          ? 'Delivery'
+          : widget.customer.jobType;
+      final cId = widget.customer.customerid;
+      final cName = widget.customer.customerName;
+      final cMobile = widget.customer.mobileNumber;
+      final cAddress = widget.customer.address;
+      final cDeviceType = widget.customer.deviceType;
+      final cDeviceBrand = widget.customer.deviceBrand;
+      final cDeviceCondition = widget.customer.deviceCondition;
+      final cMessage = widget.customer.issueDescription;
+      final rawAmount = widget.customer.amount?.toString().trim() ?? '';
+      final amountDouble = double.tryParse(rawAmount) ?? 0.0;
+      final paymentDetailsStr = rawAmount.isEmpty ? '' : rawAmount;
+
+      final Map<String, dynamic> payload = {
+        'id': cId,
+        'customerid': cId,
+        'assignedEmployee': engineerName,
+        'assignedEngineer': engineerName,
+        'customerName': cName,
+        'bookingId': bookingId,
+        'ticketId': bookingId,
+        'deviceType': cDeviceType,
+        'deviceBrand': cDeviceBrand,
+        'deviceCondition': cDeviceCondition,
+        'message': cMessage,
+        'description': cMessage,
+        'address': cAddress,
+        'notificationStatus': 'pending',
+        'engineerStatus': 'Assigned',
+        'adminStatus': 'Assigned',
+        'customerStatus': 'Engineer Assigned',
+        'JobType': cJobType,
+        'jobType': cJobType,
+        'categoryName': 'Delivery',
+        'timestamp': FieldValue.serverTimestamp(),
+        'assignedTimestamp': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+        'lastUpdated': FieldValue.serverTimestamp(),
+        'mobileNumber': cMobile,
+        'customerType': widget.customer.customerType,
+        'DeviceName': widget.customer.deviceName,
+        'Problem': widget.customer.problem,
+        'customerFileUrl': widget.customer.customerFileUrl,
+        'fileName': widget.customer.fileName,
+        'amount': amountDouble,
+        'paymentDetails': paymentDetailsStr,
+      };
+
       await FirestoreService.instance
           .collection('Admin_details')
-          .doc(widget.customer.ticketId)
-          .set({
-            'id': widget.customer.customerid,
-            'assignedEmployee': engineerName,
-            'customerName': widget.customer.customerName,
-            'bookingId': widget.customer.ticketId,
-            'deviceType': widget.customer.deviceType,
-            'deviceBrand': widget.customer.deviceBrand,
-            'deviceCondition': widget.customer.deviceCondition,
-            'message': widget.customer.issueDescription,
-            'address': widget.customer.address,
-            'notificationStatus': 'pending',
-            'engineerStatus': 'Assigned',
-            'timestamp': FieldValue.serverTimestamp(),
-            'assignedTimestamp': FieldValue.serverTimestamp(),
-            'mobileNumber': widget.customer.mobileNumber,
-          }, SetOptions(merge: true));
+          .doc(bookingId)
+          .set(payload, SetOptions(merge: true));
+
+      try {
+        await FirestoreService.instance
+            .collection('Admin_ticket_entry')
+            .doc(bookingId)
+            .set(payload, SetOptions(merge: true));
+      } catch (_) {
+        final found = await FirestoreService.instance
+            .collection('Admin_ticket_entry')
+            .where(
+              Filter.or(
+                Filter('bookingId', isEqualTo: bookingId),
+                Filter('ticketId', isEqualTo: bookingId),
+              ),
+            )
+            .limit(1)
+            .get();
+        if (found.docs.isNotEmpty) {
+          await found.docs.first.reference.set(
+            payload,
+            SetOptions(merge: true),
+          );
+        }
+      }
+
+      try {
+        final raisedQuery = Filter.or(
+          Filter('bookingId', isEqualTo: bookingId),
+          Filter('ticketId', isEqualTo: bookingId),
+        );
+        final raisedMatch = await FirestoreService.instance
+            .collection('Raised_tickets')
+            .where(raisedQuery)
+            .limit(1)
+            .get();
+        if (raisedMatch.docs.isNotEmpty) {
+          await raisedMatch.docs.first.reference.set(
+            payload,
+            SetOptions(merge: true),
+          );
+        } else {
+          final byCustomer =
+              (cId?.toString().trim().isNotEmpty ?? false) ||
+              cName.toString().trim().isNotEmpty;
+          if (byCustomer) {
+            final cIdStr = (cId ?? '').toString().trim();
+            final cNameLower = cName.toString().trim().toLowerCase();
+            final allRaised = await FirestoreService.instance
+                .collection('Raised_tickets')
+                .limit(200)
+                .get();
+            for (final d in allRaised.docs) {
+              final m = d.data() as Map<String, dynamic>;
+              final docId =
+                  (m['customerid'] ?? m['id'] ?? m['customerId'] ?? '')
+                      .toString()
+                      .trim();
+              final docName = (m['customerName'] ?? '')
+                  .toString()
+                  .trim()
+                  .toLowerCase();
+              final docTicket = (m['ticketId'] ?? m['bookingId'] ?? '')
+                  .toString()
+                  .trim();
+              final match =
+                  (cIdStr.isNotEmpty && docId == cIdStr) ||
+                  (cNameLower.isNotEmpty && docName == cNameLower);
+              if (match && (docTicket.isEmpty || docTicket == bookingId)) {
+                await d.reference.set(payload, SetOptions(merge: true));
+                break;
+              }
+            }
+          }
+        }
+      } catch (_) {}
 
       if (mounted) {
         Navigator.push(

@@ -39,6 +39,7 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
   bool _passwordVisible = false;
+  final Map<String, bool> _directoryPasswordVisible = {};
   List<Map<String, dynamic>> _engineers = [];
 
   String _confirmPasswordMessage = '';
@@ -132,7 +133,11 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
               ],
             ),
             child: IconButton(
-              icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 18),
+              icon: Icon(
+                Icons.arrow_back_ios_new_rounded,
+                color: textColor,
+                size: 18,
+              ),
               onPressed: () => _onWillPop(),
             ),
           ),
@@ -167,12 +172,7 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
         bottomNavigationBar: Container(
           decoration: const BoxDecoration(
             color: Colors.white,
-            border: Border(
-              top: BorderSide(
-                color: Color(0xFFE2E8F0),
-                width: 1,
-              ),
-            ),
+            border: Border(top: BorderSide(color: Color(0xFFE2E8F0), width: 1)),
           ),
           child: SafeArea(
             child: AnimatedBuilder(
@@ -273,17 +273,16 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [
-                    primaryColor,
-                    primaryColor.withValues(alpha: 0.7),
-                  ],
+                  colors: [primaryColor, primaryColor.withValues(alpha: 0.7)],
                 ),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Row(
                 children: [
                   Icon(
-                    _isEditing ? Icons.edit_note_rounded : Icons.person_add_alt_rounded,
+                    _isEditing
+                        ? Icons.edit_note_rounded
+                        : Icons.person_add_alt_rounded,
                     color: Colors.white,
                     size: 28,
                   ),
@@ -318,7 +317,7 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
               ),
             ),
             const SizedBox(height: 24),
-            
+
             // Form Fields Container
             Container(
               decoration: BoxDecoration(
@@ -357,15 +356,21 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
                     const SizedBox(height: 20),
                     _buildFormField(
                       controller: _passwordController,
-                      label: _isEditing ? 'New Password (Optional)' : 'Password',
+                      label: _isEditing
+                          ? 'New Password (Optional)'
+                          : 'Password',
                       icon: Icons.lock_outline_rounded,
-                      hint: _isEditing ? 'Leave blank to keep current password' : 'Create a strong password',
+                      hint: _isEditing
+                          ? 'Leave blank to keep current password'
+                          : 'Create a strong password',
                       isPasswordField: true,
                       validator: (value) {
                         if (!_isEditing && (value == null || value.isEmpty)) {
                           return 'Please enter a password';
                         }
-                        if (value != null && value.isNotEmpty && value.length < 6) {
+                        if (value != null &&
+                            value.isNotEmpty &&
+                            value.length < 6) {
                           return 'Password must be at least 6 characters';
                         }
                         return null;
@@ -394,8 +399,8 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
                         child: Row(
                           children: [
                             Icon(
-                              _confirmPasswordMessageColor == successColor 
-                                  ? Icons.check_circle_outline 
+                              _confirmPasswordMessageColor == successColor
+                                  ? Icons.check_circle_outline
                                   : Icons.error_outline,
                               color: _confirmPasswordMessageColor,
                               size: 14,
@@ -450,7 +455,8 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
                         if (value == null || value.isEmpty) {
                           return 'Please enter a phone number';
                         }
-                        if (value.length != 10) return 'Phone number must be 10 digits';
+                        if (value.length != 10)
+                          return 'Phone number must be 10 digits';
                         return null;
                       },
                     ),
@@ -468,9 +474,9 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
                 ),
               ),
             ),
-            
+
             const SizedBox(height: 24),
-            
+
             // Action Buttons
             Row(
               children: [
@@ -518,7 +524,10 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
               child: TextButton(
                 onPressed: _isEditing ? _cancelEdit : _clearForm,
                 style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
                 ),
                 child: Text(
                   _isEditing ? 'Cancel Edit' : 'Clear Form',
@@ -583,10 +592,7 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: Colors.grey.shade200,
-              width: 1.5,
-            ),
+            border: Border.all(color: Colors.grey.shade200, width: 1.5),
           ),
           child: TextFormField(
             controller: controller,
@@ -605,11 +611,7 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
                 color: textLightColor.withValues(alpha: 0.6),
                 fontSize: 13,
               ),
-              prefixIcon: Icon(
-                icon,
-                color: primaryColor,
-                size: 20,
-              ),
+              prefixIcon: Icon(icon, color: primaryColor, size: 20),
               counterText: "",
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(16),
@@ -624,7 +626,9 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
               suffixIcon: isPasswordField
                   ? IconButton(
                       icon: Icon(
-                        _passwordVisible ? Icons.visibility : Icons.visibility_off,
+                        _passwordVisible
+                            ? Icons.visibility
+                            : Icons.visibility_off,
                         color: textLightColor,
                         size: 20,
                       ),
@@ -707,7 +711,10 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
                             ),
                           ),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
                             decoration: BoxDecoration(
                               color: primaryColor.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(10),
@@ -767,7 +774,11 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                 ),
-                prefixIcon: Icon(Icons.search_rounded, color: primaryColor, size: 22),
+                prefixIcon: Icon(
+                  Icons.search_rounded,
+                  color: primaryColor,
+                  size: 22,
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(20),
                   borderSide: BorderSide.none,
@@ -878,7 +889,9 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
                                     borderRadius: BorderRadius.circular(16),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: primaryColor.withValues(alpha: 0.25),
+                                        color: primaryColor.withValues(
+                                          alpha: 0.25,
+                                        ),
                                         blurRadius: 8,
                                         offset: const Offset(0, 3),
                                       ),
@@ -900,7 +913,8 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
                                 const SizedBox(width: 14),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Row(
                                         children: [
@@ -920,11 +934,15 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
                                               vertical: 2.5,
                                             ),
                                             decoration: BoxDecoration(
-                                              color: primaryColor.withValues(alpha: 0.1),
-                                              borderRadius: BorderRadius.circular(6),
+                                              color: primaryColor.withValues(
+                                                alpha: 0.1,
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(6),
                                             ),
                                             child: Text(
-                                              engineer['Specialization'] ?? 'Service Engineer',
+                                              engineer['Specialization'] ??
+                                                  'Service Engineer',
                                               style: TextStyle(
                                                 fontSize: 10,
                                                 fontWeight: FontWeight.w800,
@@ -976,6 +994,66 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
                                           ),
                                         ],
                                       ),
+                                      const SizedBox(height: 4),
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            Icons.lock_outline_rounded,
+                                            size: 13,
+                                            color: const Color(0xFF64748B),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Expanded(
+                                            child: Text(
+                                              (engineer['Password']
+                                                          ?.toString()
+                                                          .isNotEmpty ??
+                                                      false)
+                                                  ? ((_directoryPasswordVisible[engineer['id']] ??
+                                                            false)
+                                                        ? engineer['Password']
+                                                              .toString()
+                                                        : '••••••••')
+                                                  : 'No password set',
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                color: Color(0xFF64748B),
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 4),
+                                          InkWell(
+                                            onTap: () {
+                                              setState(() {
+                                                _directoryPasswordVisible[engineer['id']] =
+                                                    !(_directoryPasswordVisible[engineer['id']] ??
+                                                        false);
+                                              });
+                                            },
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                            child: Padding(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 6,
+                                                    vertical: 4,
+                                                  ),
+                                              child: Icon(
+                                                (_directoryPasswordVisible[engineer['id']] ??
+                                                        false)
+                                                    ? Icons.visibility
+                                                    : Icons.visibility_off,
+                                                size: 15,
+                                                color: primaryColor,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ],
                                   ),
                                 ),
@@ -987,8 +1065,12 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
                                       child: Container(
                                         padding: const EdgeInsets.all(8),
                                         decoration: BoxDecoration(
-                                          color: primaryColor.withValues(alpha: 0.08),
-                                          borderRadius: BorderRadius.circular(10),
+                                          color: primaryColor.withValues(
+                                            alpha: 0.08,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
                                         ),
                                         child: Icon(
                                           Icons.edit_rounded,
@@ -999,13 +1081,18 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
                                     ),
                                     const SizedBox(width: 6),
                                     InkWell(
-                                      onTap: () => _deleteEngineer(engineer['id']),
+                                      onTap: () =>
+                                          _deleteEngineer(engineer['id']),
                                       borderRadius: BorderRadius.circular(10),
                                       child: Container(
                                         padding: const EdgeInsets.all(8),
                                         decoration: BoxDecoration(
-                                          color: errorColor.withValues(alpha: 0.08),
-                                          borderRadius: BorderRadius.circular(10),
+                                          color: errorColor.withValues(
+                                            alpha: 0.08,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
                                         ),
                                         child: Icon(
                                           Icons.delete_outline_rounded,
@@ -1045,6 +1132,7 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
             'Email': data['Email'],
             'Phone': data['Phone'],
             'Specialization': data['Specialization'],
+            'Password': data['Password'],
           };
         }).toList();
         _filteredEngineers = _engineers;
@@ -1073,10 +1161,13 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
         );
 
         if (_isEditing && _editingEngineerId != null) {
-          final cleanUsername =
-              _usernameController.text.replaceAll(RegExp(r'\s+'), '').trim();
-          final cleanEmail =
-              _emailController.text.replaceAll(RegExp(r'\s+'), '').trim().toLowerCase();
+          final cleanUsername = _usernameController.text
+              .replaceAll(RegExp(r'\s+'), '')
+              .trim();
+          final cleanEmail = _emailController.text
+              .replaceAll(RegExp(r'\s+'), '')
+              .trim()
+              .toLowerCase();
 
           // Update existing
           final data = {
@@ -1101,30 +1192,30 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
           );
         } else {
           // Create new logic
-          
+
           // Check subscription limits
           final tenantId = ThemeService.instance.databaseName;
           final appId = ThemeService.instance.appName;
-          final actualAppId = await FirestoreService.instance.getActiveSubscriptionAppId(
-            tenantId: tenantId,
-            appId: appId,
-          );
-          
+          final actualAppId = await FirestoreService.instance
+              .getActiveSubscriptionAppId(tenantId: tenantId, appId: appId);
+
           final subSnapshot = await FirestoreService.instance
               .subscriptionsRef(tenantId: tenantId, appId: actualAppId)
               .limit(1)
               .get();
-              
+
           if (subSnapshot.docs.isNotEmpty) {
             final subData = subSnapshot.docs.first.data();
             final limits = subData['limits'] as Map<String, dynamic>?;
             final maxEngineers = limits?['maxEngineers'] as int?;
-            
+
             if (maxEngineers != null && _engineers.length >= maxEngineers) {
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('Subscription limit reached. You can only create up to $maxEngineers engineers.'),
+                    content: Text(
+                      'Subscription limit reached. You can only create up to $maxEngineers engineers.',
+                    ),
                     backgroundColor: errorColor,
                   ),
                 );
@@ -1136,10 +1227,13 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
             }
           }
 
-          final cleanUsername =
-              _usernameController.text.replaceAll(RegExp(r'\s+'), '').trim();
-          final cleanEmail =
-              _emailController.text.replaceAll(RegExp(r'\s+'), '').trim().toLowerCase();
+          final cleanUsername = _usernameController.text
+              .replaceAll(RegExp(r'\s+'), '')
+              .trim();
+          final cleanEmail = _emailController.text
+              .replaceAll(RegExp(r'\s+'), '')
+              .trim()
+              .toLowerCase();
 
           final existingUserQuery = await collection
               .where('Username', isEqualTo: cleanUsername)

@@ -38,15 +38,15 @@ class ThemeService extends ChangeNotifier {
       textTheme: GoogleFonts.getTextTheme(_fontFamily, base.textTheme),
       scaffoldBackgroundColor: _backgroundColor,
       canvasColor: _backgroundColor,
-      snackBarTheme: const SnackBarThemeData(
-        behavior: SnackBarBehavior.fixed,
-      ),
+      snackBarTheme: const SnackBarThemeData(behavior: SnackBarBehavior.fixed),
       appBarTheme: AppBarTheme(
         backgroundColor: _backgroundColor,
         foregroundColor:
-            _isDarkMode || _backgroundColor.computeLuminance() < 0.5 || _primaryColor.computeLuminance() < 0.5
-                ? Colors.white
-                : Colors.black,
+            _isDarkMode ||
+                _backgroundColor.computeLuminance() < 0.5 ||
+                _primaryColor.computeLuminance() < 0.5
+            ? Colors.white
+            : Colors.black,
         elevation: 0,
       ),
     );
@@ -71,9 +71,7 @@ class ThemeService extends ChangeNotifier {
       textTheme: GoogleFonts.getTextTheme(fontFamily, base.textTheme),
       scaffoldBackgroundColor: background,
       canvasColor: background,
-      snackBarTheme: const SnackBarThemeData(
-        behavior: SnackBarBehavior.fixed,
-      ),
+      snackBarTheme: const SnackBarThemeData(behavior: SnackBarBehavior.fixed),
       appBarTheme: const AppBarTheme(
         backgroundColor: background,
         foregroundColor: Colors.black,
@@ -107,7 +105,8 @@ class ThemeService extends ChangeNotifier {
     final storedTenantId = prefs.getString('tenantId');
     final storedDatabaseName = prefs.getString('databaseName');
     final adminOrgCollection = prefs.getString('admin_org_collection');
-    _databaseName = storedTenantId ?? storedDatabaseName ?? adminOrgCollection ?? '';
+    _databaseName =
+        storedTenantId ?? storedDatabaseName ?? adminOrgCollection ?? '';
 
     _logoUrl = prefs.getString('logoUrl');
     notifyListeners();

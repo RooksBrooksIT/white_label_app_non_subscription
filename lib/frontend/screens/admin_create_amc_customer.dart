@@ -27,6 +27,7 @@ class _AMCCreatePageState extends State<AMCCreatePage>
       TextEditingController();
 
   bool _obscurePassword = true;
+  final Map<String, bool> _directoryPasswordVisible = {};
   bool _isLoading = false;
   bool _isCheckingEmail = false;
   bool _isCheckingPhone = false;
@@ -509,30 +510,30 @@ class _AMCCreatePageState extends State<AMCCreatePage>
             _clearForm();
           } else {
             // Create new account (existing logic)
-            
+
             // Check subscription limits for maxCustomers
             final tenantId = ThemeService.instance.databaseName;
             final appId = ThemeService.instance.appName;
-            final actualAppId = await FirestoreService.instance.getActiveSubscriptionAppId(
-              tenantId: tenantId,
-              appId: appId,
-            );
-            
+            final actualAppId = await FirestoreService.instance
+                .getActiveSubscriptionAppId(tenantId: tenantId, appId: appId);
+
             final subSnapshot = await FirestoreService.instance
                 .subscriptionsRef(tenantId: tenantId, appId: actualAppId)
                 .limit(1)
                 .get();
-                
+
             if (subSnapshot.docs.isNotEmpty) {
               final subData = subSnapshot.docs.first.data();
               final limits = subData['limits'] as Map<String, dynamic>?;
               final maxCustomers = limits?['maxCustomers'] as int?;
-              
+
               if (maxCustomers != null && _customers.length >= maxCustomers) {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('Subscription limit reached. You can only create up to $maxCustomers customers.'),
+                      content: Text(
+                        'Subscription limit reached. You can only create up to $maxCustomers customers.',
+                      ),
                       backgroundColor: errorColor,
                     ),
                   );
@@ -544,8 +545,10 @@ class _AMCCreatePageState extends State<AMCCreatePage>
               }
             }
 
-            final cleanEmail =
-                _emailController.text.replaceAll(RegExp(r'\s+'), '').trim().toLowerCase();
+            final cleanEmail = _emailController.text
+                .replaceAll(RegExp(r'\s+'), '')
+                .trim()
+                .toLowerCase();
 
             // Check if email already exists
             final emailExists = await _checkEmailExists(cleanEmail);
@@ -557,9 +560,7 @@ class _AMCCreatePageState extends State<AMCCreatePage>
               });
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text(
-                    'Email $cleanEmail is already registered!',
-                  ),
+                  content: Text('Email $cleanEmail is already registered!'),
                   backgroundColor: errorColor,
                 ),
               );
@@ -894,7 +895,11 @@ class _AMCCreatePageState extends State<AMCCreatePage>
           child: CircleAvatar(
             backgroundColor: const Color(0xFFF1F5F9),
             child: IconButton(
-              icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF0F172A), size: 18),
+              icon: const Icon(
+                Icons.arrow_back_rounded,
+                color: Color(0xFF0F172A),
+                size: 18,
+              ),
               onPressed: () => Navigator.pop(context),
             ),
           ),
@@ -938,10 +943,7 @@ class _AMCCreatePageState extends State<AMCCreatePage>
             ),
           ],
           border: const Border(
-            top: BorderSide(
-              color: Color(0xFFE2E8F0),
-              width: 1,
-            ),
+            top: BorderSide(color: Color(0xFFE2E8F0), width: 1),
           ),
         ),
         child: SafeArea(
@@ -1041,17 +1043,16 @@ class _AMCCreatePageState extends State<AMCCreatePage>
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [
-                    primaryColor,
-                    primaryColor.withValues(alpha: 0.7),
-                  ],
+                  colors: [primaryColor, primaryColor.withValues(alpha: 0.7)],
                 ),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Row(
                 children: [
                   Icon(
-                    _isEditMode ? Icons.edit_note_rounded : Icons.person_add_alt_rounded,
+                    _isEditMode
+                        ? Icons.edit_note_rounded
+                        : Icons.person_add_alt_rounded,
                     color: Colors.white,
                     size: 28,
                   ),
@@ -1086,7 +1087,7 @@ class _AMCCreatePageState extends State<AMCCreatePage>
               ),
             ),
             const SizedBox(height: 24),
-            
+
             // Form Fields Container
             Container(
               decoration: BoxDecoration(
@@ -1110,7 +1111,8 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                       icon: Icons.person_outline_rounded,
                       hint: 'Enter customer full name',
                       validator: (value) {
-                        if (value == null || value.isEmpty) return 'Please enter name';
+                        if (value == null || value.isEmpty)
+                          return 'Please enter name';
                         if (value.length < 3) return 'Name too short';
                         return null;
                       },
@@ -1123,9 +1125,13 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                     const SizedBox(height: 20),
                     _buildFormField(
                       controller: _passwordController,
-                      label: _isEditMode ? 'New Password (Optional)' : 'Password',
+                      label: _isEditMode
+                          ? 'New Password (Optional)'
+                          : 'Password',
                       icon: Icons.lock_outline_rounded,
-                      hint: _isEditMode ? 'Leave blank to keep current password' : 'Create a strong password',
+                      hint: _isEditMode
+                          ? 'Leave blank to keep current password'
+                          : 'Create a strong password',
                       isPasswordField: true,
                       validator: _validatePassword,
                     ),
@@ -1142,9 +1148,9 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                 ),
               ),
             ),
-            
+
             const SizedBox(height: 24),
-            
+
             // Action Buttons
             Row(
               children: [
@@ -1186,7 +1192,10 @@ class _AMCCreatePageState extends State<AMCCreatePage>
               child: TextButton(
                 onPressed: _isEditMode ? _cancelEdit : _clearForm,
                 style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
                 ),
                 child: Text(
                   _isEditMode ? 'Cancel Edit' : 'Clear Form',
@@ -1236,12 +1245,11 @@ class _AMCCreatePageState extends State<AMCCreatePage>
         const SizedBox(height: 8),
         Container(
           decoration: BoxDecoration(
-            color: enabled ? Colors.white : backgroundColor.withValues(alpha: 0.3),
+            color: enabled
+                ? Colors.white
+                : backgroundColor.withValues(alpha: 0.3),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: Colors.grey.shade200,
-              width: 1.5,
-            ),
+            border: Border.all(color: Colors.grey.shade200, width: 1.5),
           ),
           child: TextFormField(
             controller: controller,
@@ -1257,7 +1265,9 @@ class _AMCCreatePageState extends State<AMCCreatePage>
               suffixIcon: isPasswordField
                   ? IconButton(
                       icon: Icon(
-                        _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                        _obscurePassword
+                            ? Icons.visibility_off
+                            : Icons.visibility,
                         color: textLightColor,
                         size: 20,
                       ),
@@ -1301,7 +1311,9 @@ class _AMCCreatePageState extends State<AMCCreatePage>
         const SizedBox(height: 8),
         Container(
           decoration: BoxDecoration(
-            color: !_isEditMode ? Colors.white : backgroundColor.withValues(alpha: 0.3),
+            color: !_isEditMode
+                ? Colors.white
+                : backgroundColor.withValues(alpha: 0.3),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: _emailError != null ? errorColor : Colors.grey.shade200,
@@ -1312,16 +1324,18 @@ class _AMCCreatePageState extends State<AMCCreatePage>
             controller: _emailController,
             keyboardType: TextInputType.emailAddress,
             enabled: !_isEditMode,
-            inputFormatters: [
-              FilteringTextInputFormatter.deny(RegExp(r'\s')),
-            ],
+            inputFormatters: [FilteringTextInputFormatter.deny(RegExp(r'\s'))],
             decoration: InputDecoration(
               hintText: 'customer@example.com',
               hintStyle: TextStyle(
                 color: textLightColor.withValues(alpha: 0.6),
                 fontSize: 13,
               ),
-              prefixIcon: Icon(Icons.email_outlined, color: primaryColor, size: 20),
+              prefixIcon: Icon(
+                Icons.email_outlined,
+                color: primaryColor,
+                size: 20,
+              ),
               suffixIcon: _isCheckingEmail
                   ? Padding(
                       padding: const EdgeInsets.all(12),
@@ -1389,7 +1403,9 @@ class _AMCCreatePageState extends State<AMCCreatePage>
         const SizedBox(height: 8),
         Container(
           decoration: BoxDecoration(
-            color: !_isEditMode ? Colors.white : backgroundColor.withValues(alpha: 0.3),
+            color: !_isEditMode
+                ? Colors.white
+                : backgroundColor.withValues(alpha: 0.3),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: _phoneError != null ? errorColor : Colors.grey.shade200,
@@ -1410,7 +1426,11 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                 color: textLightColor.withValues(alpha: 0.6),
                 fontSize: 13,
               ),
-              prefixIcon: Icon(Icons.phone_android_rounded, color: primaryColor, size: 20),
+              prefixIcon: Icon(
+                Icons.phone_android_rounded,
+                color: primaryColor,
+                size: 20,
+              ),
               suffixIcon: _isCheckingPhone
                   ? Padding(
                       padding: const EdgeInsets.all(12),
@@ -1528,7 +1548,10 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                             ),
                           ),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
                             decoration: BoxDecoration(
                               color: primaryColor.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(10),
@@ -1588,7 +1611,11 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                 ),
-                prefixIcon: Icon(Icons.search_rounded, color: primaryColor, size: 22),
+                prefixIcon: Icon(
+                  Icons.search_rounded,
+                  color: primaryColor,
+                  size: 22,
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(20),
                   borderSide: BorderSide.none,
@@ -1664,7 +1691,10 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
+                        border: Border.all(
+                          color: const Color(0xFFE2E8F0),
+                          width: 1,
+                        ),
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withValues(alpha: 0.03),
@@ -1677,7 +1707,8 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                         color: Colors.transparent,
                         borderRadius: BorderRadius.circular(20),
                         child: InkWell(
-                          onTap: () => _loadAccountForEdit(customer, customer['id']),
+                          onTap: () =>
+                              _loadAccountForEdit(customer, customer['id']),
                           borderRadius: BorderRadius.circular(20),
                           child: Padding(
                             padding: const EdgeInsets.all(14),
@@ -1698,7 +1729,9 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                                     shape: BoxShape.circle,
                                     boxShadow: [
                                       BoxShadow(
-                                        color: primaryColor.withValues(alpha: 0.2),
+                                        color: primaryColor.withValues(
+                                          alpha: 0.2,
+                                        ),
                                         blurRadius: 8,
                                         offset: const Offset(0, 2),
                                       ),
@@ -1706,7 +1739,9 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                                   ),
                                   child: Center(
                                     child: Text(
-                                      name.isNotEmpty ? name[0].toUpperCase() : '?',
+                                      name.isNotEmpty
+                                          ? name[0].toUpperCase()
+                                          : '?',
                                       style: const TextStyle(
                                         fontSize: 18,
                                         fontWeight: FontWeight.w800,
@@ -1718,7 +1753,8 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Row(
                                         children: [
@@ -1742,8 +1778,11 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                                               vertical: 2,
                                             ),
                                             decoration: BoxDecoration(
-                                              color: primaryColor.withValues(alpha: 0.1),
-                                              borderRadius: BorderRadius.circular(6),
+                                              color: primaryColor.withValues(
+                                                alpha: 0.1,
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(6),
                                             ),
                                             child: Text(
                                               id,
@@ -1798,6 +1837,66 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                                           ),
                                         ],
                                       ),
+                                      const SizedBox(height: 4),
+                                      Row(
+                                        children: [
+                                          const Icon(
+                                            Icons.lock_outline_rounded,
+                                            size: 13,
+                                            color: Color(0xFF64748B),
+                                          ),
+                                          const SizedBox(width: 5),
+                                          Expanded(
+                                            child: Text(
+                                              (customer['password']
+                                                          ?.toString()
+                                                          .isNotEmpty ??
+                                                      false)
+                                                  ? ((_directoryPasswordVisible[customer['id']] ??
+                                                            false)
+                                                        ? customer['password']
+                                                              .toString()
+                                                        : '••••••••')
+                                                  : 'No password set',
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                color: Color(0xFF64748B),
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 4),
+                                          InkWell(
+                                            onTap: () {
+                                              setState(() {
+                                                _directoryPasswordVisible[customer['id']] =
+                                                    !(_directoryPasswordVisible[customer['id']] ??
+                                                        false);
+                                              });
+                                            },
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                            child: Padding(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 6,
+                                                    vertical: 4,
+                                                  ),
+                                              child: Icon(
+                                                (_directoryPasswordVisible[customer['id']] ??
+                                                        false)
+                                                    ? Icons.visibility
+                                                    : Icons.visibility_off,
+                                                size: 15,
+                                                color: primaryColor,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ],
                                   ),
                                 ),
@@ -1839,8 +1938,10 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                                           color: Color(0xFFDC2626),
                                           size: 18,
                                         ),
-                                        onPressed: () =>
-                                            _deleteAccount(customer['id'], name),
+                                        onPressed: () => _deleteAccount(
+                                          customer['id'],
+                                          name,
+                                        ),
                                       ),
                                     ),
                                   ],

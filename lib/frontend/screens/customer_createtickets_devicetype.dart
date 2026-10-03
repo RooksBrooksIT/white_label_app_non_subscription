@@ -41,7 +41,8 @@ class Device {
     return Device(
       id: doc.id,
       deviceId: (data['deviceId'] ?? data['brandId'] ?? '').toString(),
-      name: (data['deviceType'] ?? 'Unknown Device').toString(),
+      name: (data['deviceName'] ?? data['deviceType'] ?? 'Unknown Device')
+          .toString(),
       iconData: data['icon']?.toString() ?? 'devices',
       color: parseColor(
         data['color'] ??
@@ -50,8 +51,11 @@ class Device {
                 .toRadixString(16)
                 .padLeft(8, '0'),
       ),
-      description: (data['description'] ?? 'Professional Device Service')
-          .toString(),
+      description:
+          (data['description'] ??
+                  data['specification'] ??
+                  'Professional Device Service')
+              .toString(),
     );
   }
 
@@ -167,26 +171,46 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
 
   Future<void> _fetchDevices() async {
     try {
-      print('DEBUG: Fetching devices from deviceDetails...');
-      QuerySnapshot querySnapshot = await _firestore
-          .collection('deviceDetails')
-          .orderBy('deviceType')
-          .get();
+      final Set<String> seenNames = {};
+      final List<Device> devices = [];
 
-      print('DEBUG: Fetched ${querySnapshot.docs.length} devices total');
-      List<Device> devices = [];
-      for (var doc in querySnapshot.docs) {
-        final data = doc.data() as Map<String, dynamic>;
-        print('DEBUG: Doc ID: ${doc.id}, Data: $data');
-        devices.add(Device.fromFirestore(doc));
-      }
+      // Primary: read from 'Devices' collection (Admin-configured via
+      // admin_brandandmodel_page -> BrandModelBackend.saveDeviceEntry)
+      try {
+        final primary = await _firestore
+            .collection('Devices')
+            .orderBy('deviceName')
+            .get();
+        for (var doc in primary.docs) {
+          final d = Device.fromFirestore(doc);
+          final key = d.name.toLowerCase().trim();
+          if (key.isNotEmpty && seenNames.add(key)) {
+            devices.add(d);
+          }
+        }
+      } catch (_) {}
+
+      // Fallback: also include legacy entries from 'deviceDetails' if any
+      // (deduplicates by name so new config takes precedence)
+      try {
+        final fallback = await _firestore
+            .collection('deviceDetails')
+            .orderBy('deviceType')
+            .get();
+        for (var doc in fallback.docs) {
+          final d = Device.fromFirestore(doc);
+          final key = d.name.toLowerCase().trim();
+          if (key.isNotEmpty && seenNames.add(key)) {
+            devices.add(d);
+          }
+        }
+      } catch (_) {}
 
       setState(() {
         allDevices = devices;
         isLoading = false;
       });
     } catch (e) {
-      print('DEBUG: Error fetching devices: $e');
       setState(() {
         isLoading = false;
       });
@@ -338,10 +362,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
         Row(
           children: [
             Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 10,
-                vertical: 4,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
                 color: primary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(20),
@@ -349,11 +370,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    Icons.stars_rounded,
-                    size: 14,
-                    color: primary,
-                  ),
+                  Icon(Icons.stars_rounded, size: 14, color: primary),
                   const SizedBox(width: 4),
                   Text(
                     'SERVICE & PRODUCTS',
@@ -557,9 +574,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                       end: Alignment.bottomRight,
                     ),
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: color.withValues(alpha: 0.18),
-                    ),
+                    border: Border.all(color: color.withValues(alpha: 0.18)),
                   ),
                   child: Icon(icon, color: color, size: 26),
                 ),
@@ -750,7 +765,9 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              selectedDeviceId != null ? 'Step 2/2' : 'Step 1/2',
+                              selectedDeviceId != null
+                                  ? 'Step 2/2'
+                                  : 'Step 1/2',
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w800,
@@ -825,11 +842,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        Icons.hardware_rounded,
-                        size: 13,
-                        color: primary,
-                      ),
+                      Icon(Icons.hardware_rounded, size: 13, color: primary),
                       const SizedBox(width: 4),
                       Text(
                         'AVAILABLE EQUIPMENT',
@@ -891,7 +904,9 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                           : Colors.white,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: isOtherSelected ? primary : const Color(0xFFE2E8F0),
+                        color: isOtherSelected
+                            ? primary
+                            : const Color(0xFFE2E8F0),
                         width: isOtherSelected ? 2 : 1,
                       ),
                       boxShadow: [
@@ -1015,11 +1030,15 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                         fillColor: const Color(0xFFF8FAFC),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(14),
-                          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE2E8F0),
+                          ),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(14),
-                          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE2E8F0),
+                          ),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(14),
@@ -1078,7 +1097,9 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                             customerType: widget.customerType,
                             initialJobType: 'Service',
                             initialDeviceType: isOther ? 'Others' : deviceName,
-                            initialCustomDeviceType: isOther ? deviceName : null,
+                            initialCustomDeviceType: isOther
+                                ? deviceName
+                                : null,
                           ),
                         ),
                       );
@@ -1129,9 +1150,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         decoration: BoxDecoration(
-          color: isSelected
-              ? primary.withValues(alpha: 0.08)
-              : Colors.white,
+          color: isSelected ? primary.withValues(alpha: 0.08) : Colors.white,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: isSelected ? primary : const Color(0xFFE2E8F0),
@@ -1155,9 +1174,7 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
                 height: 44,
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: isSelected
-                      ? primary
-                      : primary.withValues(alpha: 0.1),
+                  color: isSelected ? primary : primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Icon(
