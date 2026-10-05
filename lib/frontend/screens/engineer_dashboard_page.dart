@@ -8,6 +8,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:intl/intl.dart';
 import 'package:subscription_rooks_app/frontend/screens/engineer_barcode_identifier.dart';
 import 'package:subscription_rooks_app/frontend/screens/engineer_barcode_scanner_page.dart';
+import 'package:subscription_rooks_app/frontend/screens/engineer_office_pay_qr_screen.dart';
 import 'package:subscription_rooks_app/frontend/screens/role_selection_screen.dart';
 import 'package:subscription_rooks_app/services/auth_state_service.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -403,6 +404,7 @@ class _ProfessionalNavigationDrawerState
   @override
   void initState() {
     super.initState();
+    StorageService.instance.preloadQRCodeCache();
     _animController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 450),
@@ -621,6 +623,21 @@ class _ProfessionalNavigationDrawerState
                   ],
                   _buildAnimatedMenuItem(
                     index: widget.barcodeEnabled ? 4 : 2,
+                    icon: Icons.qr_code_rounded,
+                    title: 'Office Pay QR Scanner',
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              const EngineerOfficePayQRScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  _buildAnimatedMenuItem(
+                    index: widget.barcodeEnabled ? 5 : 3,
                     icon: Icons.explore_rounded,
                     title: 'App Tour & Guide',
                     onTap: () {
@@ -632,7 +649,7 @@ class _ProfessionalNavigationDrawerState
                   ),
                   const Spacer(),
                   _buildAnimatedMenuItem(
-                    index: widget.barcodeEnabled ? 5 : 3,
+                    index: widget.barcodeEnabled ? 6 : 4,
                     icon: Icons.logout_rounded,
                     title: 'Logout',
                     isLogout: true,
@@ -819,6 +836,9 @@ class _EngineerPageState extends State<EngineerPage> {
   bool _isCheckingIn = false;
   bool _barcodeEnabled =
       true; // Default to true to maintain backward compatibility
+  bool _attendanceEnabled = true;
+  bool _geoLocationEnabled = true;
+  StreamSubscription<Map<String, dynamic>?>? _subscriptionSubscription;
 
   @override
   void initState() {
@@ -1014,24 +1034,48 @@ class _EngineerPageState extends State<EngineerPage> {
 
   Future<void> _fetchSubscriptionData() async {
     try {
-      final tenantId = await SharedPreferences.getInstance().then(
-        (p) => p.getString('tenantId'),
-      );
+      final prefs = await SharedPreferences.getInstance();
+      final tenantId = prefs.getString('tenantId') ??
+          (ThemeService.instance.databaseName.isNotEmpty
+              ? ThemeService.instance.databaseName
+              : null);
       if (tenantId != null) {
         final subscriptionData = await FirestoreService.instance
             .getTenantSubscriptionData(tenantId: tenantId);
-        if (subscriptionData != null) {
-          setState(() {
-            _barcodeEnabled = subscriptionData['barcode'] ?? true;
-          });
+        if (subscriptionData != null && mounted) {
+          _updateSubscriptionFeatures(subscriptionData);
         }
+
+        // Listen for real-time subscription changes
+        _subscriptionSubscription?.cancel();
+        _subscriptionSubscription = FirestoreService.instance
+            .streamTenantSubscription(tenantId)
+            .listen((data) {
+          if (mounted && data != null) {
+            _updateSubscriptionFeatures(data);
+          }
+        });
       }
     } catch (e) {
       debugPrint('Error fetching subscription data: $e');
     }
   }
 
+  void _updateSubscriptionFeatures(Map<String, dynamic> data) {
+    setState(() {
+      _barcodeEnabled = data['barcode'] as bool? ?? true;
+      _attendanceEnabled = data['attendance'] as bool? ?? true;
+      _geoLocationEnabled = data['geoLocation'] as bool? ?? true;
+
+      // If currently on Live Map (index 2) and geoLocation is disabled, switch to Dashboard (index 0)
+      if (!_geoLocationEnabled && _selectedIndex == 2) {
+        _selectedIndex = 0;
+      }
+    });
+  }
+
   Future<void> _checkAttendanceStatus() async {
+    if (!_attendanceEnabled) return;
     bool checkedIn = await AttendanceService.instance.hasCheckedInToday(
       widget.userName,
     );
@@ -1043,6 +1087,7 @@ class _EngineerPageState extends State<EngineerPage> {
   }
 
   Future<void> _handleCheckIn() async {
+    if (!_attendanceEnabled) return;
     setState(() => _isCheckingIn = true);
     try {
       await AttendanceService.instance.checkIn(widget.userName);
@@ -1145,6 +1190,7 @@ class _EngineerPageState extends State<EngineerPage> {
 
   @override
   void dispose() {
+    _subscriptionSubscription?.cancel();
     _searchDebounceTimer?.cancel();
     _searchController.dispose();
     _notificationSubscription?.cancel();
@@ -1785,13 +1831,14 @@ class _EngineerPageState extends State<EngineerPage> {
             ),
           ),
         ),
-      _EngineerQuickAction(
-        icon: Icons.location_on_rounded,
-        label: 'Live Map',
-        subtitle: 'Live route',
-        color: const Color(0xFFF59E0B),
-        onTap: () => setState(() => _selectedIndex = 2),
-      ),
+      if (_geoLocationEnabled)
+        _EngineerQuickAction(
+          icon: Icons.location_on_rounded,
+          label: 'Live Map',
+          subtitle: 'Live route',
+          color: const Color(0xFFF59E0B),
+          onTap: () => setState(() => _selectedIndex = 2),
+        ),
       _EngineerQuickAction(
         icon: Icons.person_rounded,
         label: 'My Profile',
@@ -1956,7 +2003,7 @@ class _EngineerPageState extends State<EngineerPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ── 1. Attendance / Check-In Hero Card ──
-          if (!_isCheckedIn) ...[
+          if (_attendanceEnabled && !_isCheckedIn) ...[
             _buildCheckInCard(),
             const SizedBox(height: 20),
           ],
@@ -3187,10 +3234,11 @@ class _EngineerPageState extends State<EngineerPage> {
   Widget _buildBottomNavigationBar() {
     final primary = Theme.of(context).primaryColor;
     final navItems = [
-      {'icon': Icons.grid_view_rounded, 'label': 'Dashboard'},
-      {'icon': Icons.assignment_rounded, 'label': 'Bookings'},
-      {'icon': Icons.location_on_rounded, 'label': 'Location'},
-      {'icon': Icons.person_rounded, 'label': 'Profile'},
+      {'icon': Icons.grid_view_rounded, 'label': 'Dashboard', 'index': 0},
+      {'icon': Icons.assignment_rounded, 'label': 'Bookings', 'index': 1},
+      if (_geoLocationEnabled)
+        {'icon': Icons.location_on_rounded, 'label': 'Location', 'index': 2},
+      {'icon': Icons.person_rounded, 'label': 'Profile', 'index': 3},
     ];
 
     return Container(
@@ -3212,16 +3260,17 @@ class _EngineerPageState extends State<EngineerPage> {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: List.generate(navItems.length, (index) {
-              final isSelected = _selectedIndex == index;
-              final item = navItems[index];
+            children: List.generate(navItems.length, (i) {
+              final item = navItems[i];
+              final itemIndex = item['index'] as int;
+              final isSelected = _selectedIndex == itemIndex;
               final icon = item['icon'] as IconData;
               final label = item['label'] as String;
 
               return InkWell(
                 onTap: () {
                   setState(() {
-                    _selectedIndex = index;
+                    _selectedIndex = itemIndex;
                   });
                 },
                 borderRadius: BorderRadius.circular(30),
@@ -3281,6 +3330,48 @@ class _EngineerPageState extends State<EngineerPage> {
   }
 
   Widget _buildLocationView() {
+    if (!_geoLocationEnabled) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade50,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.location_off_rounded,
+                  size: 48,
+                  color: Colors.amber.shade700,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Live Map Disabled',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1E293B),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Live Map functionality is not enabled in your organization\'s active subscription plan.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     return EngineerLocationScreen(engineerName: widget.userName);
   }
 

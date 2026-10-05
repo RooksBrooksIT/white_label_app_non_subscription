@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
+import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
@@ -31,15 +33,43 @@ class _EngineerBarcodeIdentifierScreenState
   // final Color _deepBlue = const Color(0xFF0B3470);
   // final Color _lightBlue = const Color(0xFF4B6A93);
 
+  bool _barcodeFeatureEnabled = true;
+
   @override
   void initState() {
     super.initState();
+    _checkSubscriptionFeature();
     _scannedBarcode = widget.scannedBarcode;
     // If barcode is provided initially, fetch data
     if (_scannedBarcode != null && _scannedBarcode!.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _fetchProductData(_scannedBarcode!);
       });
+    }
+  }
+
+  Future<void> _checkSubscriptionFeature() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final tenantId = prefs.getString('tenantId') ??
+          (ThemeService.instance.databaseName.isNotEmpty
+              ? ThemeService.instance.databaseName
+              : null);
+      if (tenantId != null) {
+        final data = await FirestoreService.instance
+            .getTenantSubscriptionData(tenantId: tenantId);
+        if (data != null && mounted) {
+          final enabled = data['barcode'] as bool? ?? true;
+          if (!enabled) {
+            setState(() {
+              _barcodeFeatureEnabled = false;
+              _scannerActive = false;
+            });
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error checking barcode feature: $e');
     }
   }
 
@@ -200,6 +230,55 @@ class _EngineerBarcodeIdentifierScreenState
 
   @override
   Widget build(BuildContext context) {
+    if (!_barcodeFeatureEnabled) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Barcode Identifier'),
+          centerTitle: true,
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.shade50,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.qr_code_2_rounded,
+                    size: 48,
+                    color: Colors.amber.shade700,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Barcode Identifier Disabled',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1E293B),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Barcode identifier functionality is not enabled in your organization\'s active subscription plan.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       body: ResponsiveWrapper(
         maxWidth: 1200.0,

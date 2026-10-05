@@ -414,7 +414,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
 
   Widget _buildQuickFilterChips() {
     final primaryColor = Theme.of(context).primaryColor;
-    final filterOptions = ['All', 'Not Assigned', 'Assigned', 'Completed', 'Canceled', 'Others'];
+    final filterOptions = ['All', 'Not Assigned', 'Assigned', 'Completed', 'Others'];
 
     return SizedBox(
       height: 38,
@@ -572,7 +572,6 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
       'Not Assigned',
       'Assigned',
       'Completed',
-      'Canceled',
       'Others',
     ];
 

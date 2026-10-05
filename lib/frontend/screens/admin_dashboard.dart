@@ -70,6 +70,7 @@ class _admindashboardState extends State<admindashboard> {
   bool _hasGeoLocationFeature = true;
   StreamSubscription<QuerySnapshot>? _adminNotificationSubscription;
   bool _welcomeModalShowing = false;
+  File? _cachedLogoFile;
 
   // Dynamic Color Palette from ThemeService
   late Color primaryColor;
@@ -90,6 +91,8 @@ class _admindashboardState extends State<admindashboard> {
   @override
   void initState() {
     super.initState();
+    _cachedLogoFile = StorageService.instance.getSyncCachedLogoFile();
+    _loadBrandingLogo();
     _initStreams();
     _loadAdminData();
     NotificationService.instance.initialize();
@@ -103,7 +106,28 @@ class _admindashboardState extends State<admindashboard> {
   }
 
   void _onThemeChanged() {
-    if (mounted) setState(() {});
+    if (mounted) {
+      _loadBrandingLogo();
+      setState(() {});
+    }
+  }
+
+  Future<void> _loadBrandingLogo({bool forceRefresh = false}) async {
+    try {
+      final file = await StorageService.instance.getCachedLogoFile(
+        logoUrl: _profileImageUrl(),
+        forceRefresh: forceRefresh,
+      );
+      if (mounted && file != null) {
+        if (_cachedLogoFile == null || _cachedLogoFile!.path != file.path || forceRefresh) {
+          setState(() {
+            _cachedLogoFile = file;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('AdminDashboard: Error loading cached logo: $e');
+    }
   }
 
   @override
@@ -188,7 +212,10 @@ class _admindashboardState extends State<admindashboard> {
 
     if (currentTenantId.isNotEmpty) {
       await FirestoreService.instance.syncBranding(currentTenantId);
-      if (mounted) setState(() {});
+      if (mounted) {
+        _loadBrandingLogo();
+        setState(() {});
+      }
     }
     final profile = await AdminDashboardBackend.getAdminProfile();
     final code = await AdminDashboardBackend.getReferralCode();
@@ -435,6 +462,65 @@ class _admindashboardState extends State<admindashboard> {
       return photoUrl;
     }
     return null;
+  }
+
+  Widget _buildBrandingLogoAvatar({
+    required double radius,
+    required double iconSize,
+  }) {
+    // 1. If local cached logo file exists, display immediately with zero delay!
+    if (_cachedLogoFile != null && _cachedLogoFile!.existsSync()) {
+      return Image.file(
+        _cachedLogoFile!,
+        width: radius * 2,
+        height: radius * 2,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => Icon(
+          Icons.person_rounded,
+          color: Colors.white,
+          size: iconSize,
+        ),
+      );
+    }
+
+    // 2. Fallback to memory cached file in StorageService if available
+    final memoryFile = StorageService.memoryCachedLogoFile;
+    if (memoryFile != null && memoryFile.existsSync()) {
+      return Image.file(
+        memoryFile,
+        width: radius * 2,
+        height: radius * 2,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => Icon(
+          Icons.person_rounded,
+          color: Colors.white,
+          size: iconSize,
+        ),
+      );
+    }
+
+    // 3. Fallback to network image if remote URL exists while cache resolves
+    final remoteUrl = _profileImageUrl();
+    if (remoteUrl != null && remoteUrl.isNotEmpty) {
+      return Image.network(
+        remoteUrl,
+        width: radius * 2,
+        height: radius * 2,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => Icon(
+          Icons.person_rounded,
+          color: Colors.white,
+          size: iconSize,
+        ),
+      );
+    }
+
+    // 4. Default fallback icon
+    return Icon(
+      Icons.person_rounded,
+      color: Colors.white,
+      size: iconSize,
+    );
   }
 
   void _navigateToCreateTicket() {
@@ -1214,23 +1300,10 @@ class _admindashboardState extends State<admindashboard> {
                   radius: 24,
                   backgroundColor: Colors.white.withValues(alpha: 0.2),
                   child: ClipOval(
-                    child: _profileImageUrl() != null
-                        ? Image.network(
-                            _profileImageUrl()!,
-                            width: 48,
-                            height: 48,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) => const Icon(
-                              Icons.person_rounded,
-                              color: Colors.white,
-                              size: 26,
-                            ),
-                          )
-                        : const Icon(
-                            Icons.person_rounded,
-                            color: Colors.white,
-                            size: 26,
-                          ),
+                    child: _buildBrandingLogoAvatar(
+                      radius: 24,
+                      iconSize: 26,
+                    ),
                   ),
                 ),
               ),
@@ -1630,6 +1703,7 @@ class _admindashboardState extends State<admindashboard> {
   // REDESIGNED MODERN LEFT NAVIGATION DRAWER
   // ==========================================
   Widget _buildModernLeftDrawer() {
+    StorageService.instance.preloadQRCodeCache();
     return Drawer(
       width: MediaQuery.of(context).size.width * 0.85,
       backgroundColor: const Color(0xFFF8FAFC),
@@ -1804,23 +1878,10 @@ class _admindashboardState extends State<admindashboard> {
                   radius: 30,
                   backgroundColor: Colors.white.withValues(alpha: 0.2),
                   child: ClipOval(
-                    child: _profileImageUrl() != null
-                        ? Image.network(
-                            _profileImageUrl()!,
-                            width: 60,
-                            height: 60,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) => const Icon(
-                              Icons.person_rounded,
-                              color: Colors.white,
-                              size: 32,
-                            ),
-                          )
-                        : const Icon(
-                            Icons.person_rounded,
-                            color: Colors.white,
-                            size: 32,
-                          ),
+                    child: _buildBrandingLogoAvatar(
+                      radius: 30,
+                      iconSize: 32,
+                    ),
                   ),
                 ),
               ),
@@ -2434,12 +2495,30 @@ class _admindashboardState extends State<admindashboard> {
   }
 
   void _showQRUploadDialog() {
+    File? cachedQRFile = StorageService.memoryCachedQRFile;
+    bool isLoadingQR = cachedQRFile == null;
+    bool hasInitiatedFetch = false;
+
     showDialog(
       context: context,
       barrierDismissible: !_isUploadingQR,
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (ctx, setDialogState) {
+            if (cachedQRFile == null && isLoadingQR && !hasInitiatedFetch) {
+              hasInitiatedFetch = true;
+              StorageService.instance
+                  .getCachedQRCodeFile(forceRefresh: false)
+                  .then((file) {
+                if (ctx.mounted) {
+                  setDialogState(() {
+                    cachedQRFile = file;
+                    isLoadingQR = false;
+                  });
+                }
+              });
+            }
+
             return Dialog(
               backgroundColor: Colors.transparent,
               elevation: 0,
@@ -2523,11 +2602,9 @@ class _admindashboardState extends State<admindashboard> {
                       const SizedBox(height: 20),
 
                       // QR Code Content Preview Container
-                      FutureBuilder<String?>(
-                        future: StorageService.instance.getQRCodeUrl(),
-                        builder: (context, snapshot) {
-                          if (snapshot.connectionState ==
-                              ConnectionState.waiting) {
+                      Builder(
+                        builder: (context) {
+                          if (isLoadingQR && cachedQRFile == null) {
                             return Container(
                               height: 190,
                               width: double.infinity,
@@ -2546,7 +2623,9 @@ class _admindashboardState extends State<admindashboard> {
                             );
                           }
 
-                          if (snapshot.hasData && snapshot.data != null) {
+                          if (cachedQRFile != null &&
+                              cachedQRFile!.existsSync() &&
+                              cachedQRFile!.lengthSync() > 0) {
                             return Column(
                               children: [
                                 Container(
@@ -2620,8 +2699,8 @@ class _admindashboardState extends State<admindashboard> {
                                           borderRadius: BorderRadius.circular(
                                             12,
                                           ),
-                                          child: Image.network(
-                                            snapshot.data!,
+                                          child: Image.file(
+                                            cachedQRFile!,
                                             height: 150,
                                             width: 150,
                                             fit: BoxFit.contain,
@@ -2714,6 +2793,10 @@ class _admindashboardState extends State<admindashboard> {
                                   final file = File(picked.path);
                                   final url = await StorageService.instance
                                       .uploadQRCode(file: file);
+
+                                  PaintingBinding.instance.imageCache.clear();
+                                  cachedQRFile =
+                                      StorageService.memoryCachedQRFile ?? file;
 
                                   setState(() => _isUploadingQR = false);
 

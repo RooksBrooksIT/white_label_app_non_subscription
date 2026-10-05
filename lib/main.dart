@@ -10,6 +10,7 @@ import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:subscription_rooks_app/services/subscription_expiry_service.dart';
 import 'package:subscription_rooks_app/services/invoice_email_service.dart';
+import 'package:subscription_rooks_app/services/storage_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -38,6 +39,12 @@ Future<void> main() async {
 
   // Initialize Theme
   await ThemeService.instance.init();
+
+  // Pre-initialize and warm up branding logo cache for instant Admin Dashboard display
+  StorageService.instance.initLogoCache().catchError((e) {
+    debugPrint('Logo cache init error: $e');
+    return null;
+  });
 
   // Initialize Subscription Expiry Service
   SubscriptionExpiryService.instance.initialize();

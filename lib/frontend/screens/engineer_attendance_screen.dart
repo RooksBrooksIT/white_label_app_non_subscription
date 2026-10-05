@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:subscription_rooks_app/backend/attendance_backend.dart';
 import 'package:subscription_rooks_app/services/auth_state_service.dart';
+import 'package:subscription_rooks_app/services/firestore_service.dart';
+import 'package:subscription_rooks_app/services/theme_service.dart';
 
 class EngineerAttendanceScreen extends StatefulWidget {
   const EngineerAttendanceScreen({super.key});
@@ -16,10 +19,12 @@ class _EngineerAttendanceScreenState extends State<EngineerAttendanceScreen> {
   late String _engineerId;
   final DateTime _today = DateTime.now();
   bool _isLoading = false;
+  bool _attendanceFeatureEnabled = true;
 
   @override
   void initState() {
     super.initState();
+    _checkSubscriptionFeature();
     // Get current engineer ID from AuthStateService
     final user = AuthStateService.instance.currentUser;
     if (user != null) {
@@ -461,8 +466,82 @@ class _EngineerAttendanceScreenState extends State<EngineerAttendanceScreen> {
     );
   }
 
+  Future<void> _checkSubscriptionFeature() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final tenantId = prefs.getString('tenantId') ??
+          (ThemeService.instance.databaseName.isNotEmpty
+              ? ThemeService.instance.databaseName
+              : null);
+      if (tenantId != null) {
+        final data = await FirestoreService.instance
+            .getTenantSubscriptionData(tenantId: tenantId);
+        if (data != null && mounted) {
+          final enabled = data['attendance'] as bool? ?? true;
+          if (!enabled) {
+            setState(() {
+              _attendanceFeatureEnabled = false;
+            });
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error checking attendance feature: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (!_attendanceFeatureEnabled) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('My Attendance'),
+          backgroundColor: Theme.of(context).primaryColor,
+          foregroundColor: Colors.white,
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.shade50,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.event_busy_rounded,
+                    size: 48,
+                    color: Colors.amber.shade700,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Attendance Disabled',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1E293B),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Attendance tracking functionality is not enabled in your organization\'s active subscription plan.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     if (_engineerId.isEmpty) return const SizedBox.shrink();
 
     return Scaffold(
