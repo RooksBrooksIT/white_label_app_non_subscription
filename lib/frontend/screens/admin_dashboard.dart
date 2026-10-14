@@ -233,7 +233,13 @@ class _admindashboardState extends State<admindashboard> {
           email: adminEmail,
         );
 
-        final tenantId = ThemeService.instance.databaseName;
+        final prefs = await SharedPreferences.getInstance();
+        final tenantId = ThemeService.instance.databaseName.isNotEmpty
+            ? ThemeService.instance.databaseName
+            : (prefs.getString('tenantId') ??
+                prefs.getString('admin_org_collection') ??
+                prefs.getString('databaseName') ??
+                '');
         final appId = ThemeService.instance.appName;
         final isSubscribed = await FirestoreService.instance.isTenantActive(
           tenantId: tenantId,
@@ -253,9 +259,6 @@ class _admindashboardState extends State<admindashboard> {
         }
 
         try {
-          final tenantId = ThemeService.instance.databaseName;
-          final appId = ThemeService.instance.appName;
-
           final actualAppId = await FirestoreService.instance
               .getActiveSubscriptionAppId(tenantId: tenantId, appId: appId);
 

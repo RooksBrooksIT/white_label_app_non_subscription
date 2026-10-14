@@ -74,7 +74,7 @@ class _PaymentScreenState extends State<PaymentScreen>
     with WidgetsBindingObserver {
   bool _isVerifying = false;
   static const Color brandBlue = Color(0xFF1A237E);
-  final String selectedPaymentMethod = 'Card'; // Hardcoded for hosted flow
+  String selectedPaymentMethod = 'Card';
 
   String? _activeTxnId;
 
@@ -131,18 +131,31 @@ class _PaymentScreenState extends State<PaymentScreen>
     return status == 'FAILED' || status == 'CANCELLED';
   }
 
+  String _formatPaymentMethod(String method) {
+    final upper = method.toUpperCase();
+    if (upper.contains('UPI')) return 'UPI';
+    if (upper.contains('CARD')) return 'Card';
+    if (upper.contains('NETBANKING') ||
+        upper.contains('NET_BANKING') ||
+        upper.contains('NET BANKING')) {
+      return 'Net Banking';
+    }
+    return method;
+  }
+
   String _resolvePaymentMethodFromResult(
     Map<String, dynamic>? result, {
-    String fallback = 'CARD',
+    String? fallback,
   }) {
-    if (result == null) return fallback;
+    final effectiveFallback = fallback ?? selectedPaymentMethod;
+    if (result == null) return _formatPaymentMethod(effectiveFallback);
     
     // 1. Check inside iciciResponse object if available
     final iciciResponse = result['iciciResponse'];
     if (iciciResponse is Map<String, dynamic>) {
       final iciciMode = iciciResponse['paymentMode'] ?? iciciResponse['paymentMethod'];
       if (iciciMode != null && iciciMode.toString().trim().isNotEmpty) {
-        return iciciMode.toString().trim().toUpperCase();
+        return _formatPaymentMethod(iciciMode.toString().trim());
       }
     }
 
@@ -154,8 +167,8 @@ class _PaymentScreenState extends State<PaymentScreen>
         result['txnPaymentMode'] ??
         result['mode'];
     final method = rawValue?.toString().trim();
-    if (method == null || method.isEmpty) return fallback;
-    return method.toUpperCase();
+    if (method == null || method.isEmpty) return _formatPaymentMethod(effectiveFallback);
+    return _formatPaymentMethod(method);
   }
 
   Future<void> _verifyPaymentOnReturn(String txnId) async {
@@ -183,8 +196,8 @@ class _PaymentScreenState extends State<PaymentScreen>
     Map<String, dynamic>? finalVerifyResult;
     String errorMessage = 'Payment failed or was cancelled.';
 
-    const verificationWindow = Duration(seconds: 5);
-    const pollInterval = Duration(seconds: 1);
+    const verificationWindow = Duration(seconds: 25);
+    const pollInterval = Duration(milliseconds: 1500);
     final deadline = DateTime.now().add(verificationWindow);
 
     try {
@@ -303,7 +316,7 @@ class _PaymentScreenState extends State<PaymentScreen>
     setState(() { _isVerifying = false; });
     final resolvedPaymentMethod = _resolvePaymentMethodFromResult(
       finalVerifyResult,
-      fallback: selectedPaymentMethod.toUpperCase(),
+      fallback: selectedPaymentMethod,
     );
 
     if (isSuccess) {
@@ -595,7 +608,11 @@ class _PaymentScreenState extends State<PaymentScreen>
       await FirestoreService.instance.logPaymentTransaction(
         txnId: txnId,
         uidOrMobile: uid ?? widget.pendingUserData?['email'] ?? 'unknown',
+        userId: uid,
+        tenantId: tenantId,
         planName: widget.planName,
+        newPlan: widget.planName,
+        previousPlan: widget.currentActivePlanName,
         amount: widget.price,
         status: isPending ? 'PENDING' : 'FAILED',
         isYearly: widget.isYearly,
@@ -603,6 +620,13 @@ class _PaymentScreenState extends State<PaymentScreen>
         failureReason: displayError,
         registrationCompleted: false,
         firestoreSynced: true,
+        gatewayResponse: finalVerifyResult ?? {
+          'paymentMode': resolvedPaymentMethod,
+          'paymentMethod': resolvedPaymentMethod,
+          'amount': widget.price,
+          'status': isPending ? 'PENDING' : 'FAILED',
+          'transactionId': txnId,
+        },
       );
 
       // Retain pending payment state locally if it is PENDING so it can be recovered later.
@@ -611,31 +635,9 @@ class _PaymentScreenState extends State<PaymentScreen>
         await PaymentRecoveryService.instance.clearPendingPayment();
       }
 
-      if (uid != null) {
-        try {
-          // Record failed/pending attempt but do not finalize registration
-          await FirestoreService.instance.upsertSubscription(
-            uid: uid,
-            tenantId: tenantId,
-            appId: tenantId, // Standardized to tenantId to avoid duplication
-            planName: widget.planName,
-            isYearly: widget.isYearly,
-            isSixMonths: widget.isSixMonths,
-            price: widget.price,
-            originalPrice: widget.originalPrice,
-            paymentMethod: resolvedPaymentMethod,
-            status: isPending ? 'pending' : 'failed',
-            gstNumber: widget.pendingUserData?['gstNumber'],
-            limits: widget.limits,
-            geoLocation: widget.geoLocation,
-            attendance: widget.attendance,
-            barcode: widget.barcode,
-            reportExport: widget.reportExport,
-          );
-        } catch (e) {
-          debugPrint('Error recording failed/pending payment: $e');
-        }
-      }
+      // Note: Failed or cancelled payments must NEVER overwrite or mutate the user's active
+      // subscription in Firestore. The existing active plan remains unchanged.
+
 
       if (!mounted) return;
       Navigator.push(
@@ -820,9 +822,9 @@ class _PaymentScreenState extends State<PaymentScreen>
                       // Summary Section
                       _buildSubscriptionSummary(formattedDate),
 
-                      const SizedBox(height: 40),
+                      const SizedBox(height: 32),
                       _buildSecurityBadges(),
-                      const SizedBox(height: 40),
+                      const SizedBox(height: 32),
                       _buildActionButtons(),
                       const SizedBox(height: 24),
                       _buildTermsText(),
@@ -865,20 +867,30 @@ class _PaymentScreenState extends State<PaymentScreen>
               Container(
                 padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: Color(0xFFF1F5F9),
+                  color: widget.hasActiveSubscription
+                      ? const Color(0xFFEEF2FF)
+                      : const Color(0xFFF1F5F9),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.circle, size: 8, color: Color(0xFF10B981)),
-                    SizedBox(width: 6),
+                    Icon(
+                      Icons.circle,
+                      size: 8,
+                      color: widget.hasActiveSubscription
+                          ? const Color(0xFF6366F1)
+                          : const Color(0xFF10B981),
+                    ),
+                    const SizedBox(width: 6),
                     Text(
-                      'ACTIVE',
+                      widget.hasActiveSubscription ? 'UPGRADE' : 'SELECTED PLAN',
                       style: TextStyle(
                         fontSize: isDesktop ? 11 : 10,
                         fontWeight: FontWeight.w700,
-                        color: Color(0xFF10B981),
+                        color: widget.hasActiveSubscription
+                            ? const Color(0xFF6366F1)
+                            : const Color(0xFF10B981),
                         letterSpacing: 0.8,
                       ),
                     ),
@@ -1117,7 +1129,7 @@ class _PaymentScreenState extends State<PaymentScreen>
               color: _queueUpgrade
                   ? const Color(0xFFF0F0FF)
                   : Colors.white,
-              borderRadius: BorderRadius.circular(12),
+              clipBehavior: Clip.antiAlias,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
                 side: BorderSide(
@@ -1350,13 +1362,19 @@ class _PaymentScreenState extends State<PaymentScreen>
           'isYearly': widget.isYearly,
           'isSixMonths': widget.isSixMonths,
           'originalPrice': widget.originalPrice,
-          'paymentMethod': selectedPaymentMethod,
+          'paymentMethod': _formatPaymentMethod(selectedPaymentMethod),
           'pendingUserData': widget.pendingUserData,
           'limits': widget.limits,
           'geoLocation': widget.geoLocation,
           'attendance': widget.attendance,
           'barcode': widget.barcode,
           'reportExport': widget.reportExport,
+          'tenantId': tenantId,
+          'userId': effectiveUid,
+          'currentActivePlanName': widget.currentActivePlanName,
+          'hasActiveSubscription': widget.hasActiveSubscription,
+          'activePlanExpiryDate': widget.activePlanExpiryDate?.toIso8601String(),
+          'queueUpgrade': _queueUpgrade,
         });
       }
 
@@ -1390,7 +1408,7 @@ class _PaymentScreenState extends State<PaymentScreen>
                 MaterialPageRoute(
                   builder: (context) => PaymentFailedScreen(
                     errorMessage: errorMessage,
-                    paymentMethod: selectedPaymentMethod,
+                    paymentMethod: _formatPaymentMethod(selectedPaymentMethod),
                     amount: widget.price,
                     transactionId: 'INIT_ERROR',
                   ),
@@ -1470,6 +1488,7 @@ class _PaymentScreenState extends State<PaymentScreen>
             paymentUrl: url,
             merchantTxnNo: txnId,
             returnUrl: IciciService.returnUrl,
+            paymentMethod: selectedPaymentMethod,
           ),
         ),
       );
@@ -1477,13 +1496,10 @@ class _PaymentScreenState extends State<PaymentScreen>
       if (!mounted) return;
 
       if (result != null && result is IciciPaymentResult) {
-        if (result.success) {
-          _verifyPaymentOnReturn(txnId);
-        } else {
-          // Verify on return anyway in case it was a delayed success,
-          // or just handle failure directly.
-          _verifyPaymentOnReturn(txnId);
+        if (result.paymentMethod != null && result.paymentMethod!.isNotEmpty) {
+          selectedPaymentMethod = _formatPaymentMethod(result.paymentMethod!);
         }
+        _verifyPaymentOnReturn(txnId);
       } else {
         // User closed the webview without a conclusive result.
         // We should verify just in case.

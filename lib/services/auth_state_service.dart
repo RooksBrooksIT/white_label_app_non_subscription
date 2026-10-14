@@ -11,6 +11,7 @@ import 'package:subscription_rooks_app/frontend/screens/role_selection_screen.da
 import 'package:subscription_rooks_app/services/subscription_expiry_service.dart';
 import 'package:subscription_rooks_app/services/payment_recovery_service.dart';
 import 'package:subscription_rooks_app/subscription/payment_recovery_screen.dart';
+import 'package:subscription_rooks_app/subscription/subscription_plans_screen.dart';
 
 class AuthStateService extends ChangeNotifier {
   AuthStateService._();
@@ -767,14 +768,57 @@ class AuthStateService extends ChangeNotifier {
       debugPrint('AuthStateService: Determining initial screen...');
       final prefs = await SharedPreferences.getInstance();
 
-      // Check for pending payment recovery first
+      // 1. Check for pending payment recovery (local SharedPreferences cache ONLY for active flow within 20 min)
       final pendingPayment = await PaymentRecoveryService.instance
           .getPendingPayment();
+
       if (pendingPayment != null) {
-        debugPrint(
-          'AuthStateService: Found pending payment for recovery, redirecting to PaymentRecoveryScreen',
-        );
-        return PaymentRecoveryScreen(pendingPayment: pendingPayment);
+        // If payment has already been confirmed and subscription is activated,
+        // navigate directly to the appropriate screen without showing the verification screen again.
+        final txnId = pendingPayment['txnId']?.toString() ?? '';
+        final tenantId = pendingPayment['tenantId'] as String? ??
+            prefs.getString(kTenantId) ??
+            prefs.getString(kAdminOrgCollection) ??
+            prefs.getString(kDatabaseName);
+
+        bool alreadyHandled = false;
+
+        if (tenantId != null && tenantId.isNotEmpty) {
+          try {
+            // Check if tenant already has an active subscription in Firestore
+            final isSubscribed = await FirestoreService.instance.isTenantActive(
+              tenantId: tenantId,
+            );
+
+            if (isSubscribed) {
+              debugPrint('Subscription is active. Clearing pending recovery without showing verification screen.');
+              await PaymentRecoveryService.instance.clearPendingPayment();
+              alreadyHandled = true;
+            } else if (txnId.isNotEmpty) {
+              final paymentDoc = await FirebaseFirestore.instance
+                  .collection('payments')
+                  .doc(txnId)
+                  .get();
+              if (paymentDoc.exists) {
+                final status = (paymentDoc.data()?['status'] as String? ?? '').toUpperCase();
+                if (status == 'FAILED' || status == 'CANCELLED') {
+                  debugPrint('Payment was already marked FAILED/CANCELLED. Clearing pending recovery.');
+                  await PaymentRecoveryService.instance.clearPendingPayment();
+                  alreadyHandled = true;
+                }
+              }
+            }
+          } catch (e) {
+            debugPrint('Error checking if pending payment already confirmed: $e');
+          }
+        }
+
+        if (!alreadyHandled) {
+          debugPrint(
+            'AuthStateService: Found genuine pending payment requiring verification, redirecting to PaymentRecoveryScreen',
+          );
+          return PaymentRecoveryScreen(pendingPayment: pendingPayment);
+        }
       }
 
       // ── 1. SharedPreferences-based Session Check (Instant & Offline-friendly) ──
@@ -803,7 +847,7 @@ class AuthStateService extends ChangeNotifier {
       if (hasSavedSession && role != null) {
         debugPrint('AuthStateService: Found saved session in SharedPreferences for role: $role');
 
-        // Route directly to Admin Dashboard
+        // Route directly to Admin Dashboard or Plan Screen based on verified subscription
         if (role == 'admin' || role == 'Owner') {
           final adminTenantId =
               prefs.getString(kAdminOrgCollection) ?? prefs.getString(kTenantId);
@@ -812,6 +856,15 @@ class AuthStateService extends ChangeNotifier {
             FirestoreService.instance.syncBranding(adminTenantId).catchError((e) {
               debugPrint('Background syncBranding error: $e');
             });
+
+            // Verify tenant subscription status directly from backend
+            final isSubscribed = await FirestoreService.instance.isTenantActive(
+              tenantId: adminTenantId,
+            );
+            if (!isSubscribed) {
+              debugPrint('AuthStateService: Admin subscription is inactive or expired');
+              return const SubscriptionPlansScreen(hideTrial: true);
+            }
           }
           return const admindashboard();
         }
@@ -882,6 +935,14 @@ class AuthStateService extends ChangeNotifier {
               tenantId: tenantId ?? '',
               appName: metadata['appName'] ?? metadata['name'],
             );
+            if (tenantId != null && tenantId.isNotEmpty) {
+              final isSubscribed = await FirestoreService.instance.isTenantActive(
+                tenantId: tenantId,
+              );
+              if (!isSubscribed) {
+                return const SubscriptionPlansScreen(hideTrial: true);
+              }
+            }
             return const admindashboard();
           } else if (recoveredRole == 'engineer') {
             final name = metadata['name'] ?? metadata['Username'] ?? '';

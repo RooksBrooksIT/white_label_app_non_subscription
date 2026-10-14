@@ -119,6 +119,17 @@ exports.createPaymentSession = functions
             let result;
             if (normMode === "UPI") {
                 result = await iciciService.generateUpiQr({ txnId, amount, email });
+                if (!result.success) {
+                    console.warn(`${TAG} generateUpiQr failed (${result.error}), falling back to initiateSale for UPI`);
+                    result = await iciciService.initiateSale({
+                        txnId,
+                        amount,
+                        email,
+                        paymentMode: normMode,
+                        customerName: customerName || "Customer",
+                        customerMobile: resolvedMobile || "919999999999",
+                    });
+                }
             } else {
                 // CARD or NETBANKING — pass real customer details for prefill
                 result = await iciciService.initiateSale({

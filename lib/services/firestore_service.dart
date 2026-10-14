@@ -492,23 +492,45 @@ class FirestoreService {
         appId: appId,
       ).where('status', isEqualTo: 'active').limit(1).get();
 
-      if (querySnapshot.docs.isEmpty) return false;
-
-      final doc = querySnapshot.docs.first;
-      final data = doc.data();
-      final expiryDate = _getExpiryDate(data);
-      if (expiryDate == null || DateTime.now().toUtc().isAfter(expiryDate)) {
-        // Found an active doc but it's expired -> Update status to expired
-        await doc.reference.update({'status': 'expired'});
-        // Deactivate the admin user associated with this doc
-        await setUserActiveStatus(
-          uid: doc.id,
-          tenantId: tenantId,
-          active: false,
-        );
-        return false;
+      if (querySnapshot.docs.isNotEmpty) {
+        final doc = querySnapshot.docs.first;
+        final data = doc.data();
+        final expiryDate = _getExpiryDate(data);
+        if (expiryDate == null || DateTime.now().toUtc().isAfter(expiryDate)) {
+          // Found an active doc but it's expired -> Update status to expired
+          await doc.reference.update({'status': 'expired'});
+          await setUserActiveStatus(
+            uid: doc.id,
+            tenantId: tenantId,
+            active: false,
+          );
+          return false;
+        }
+        return true;
       }
-      return true;
+
+      // If no doc had status == 'active', check if any doc has a valid future expiry date
+      final allDocs = await subscriptionsRef(
+        tenantId: tenantId,
+        appId: appId,
+      ).limit(5).get();
+
+      for (final doc in allDocs.docs) {
+        final data = doc.data();
+        final expiryDate = _getExpiryDate(data);
+        if (expiryDate != null && DateTime.now().toUtc().isBefore(expiryDate)) {
+          // Auto-heal status to active
+          await doc.reference.update({'status': 'active'});
+          await setUserActiveStatus(
+            uid: doc.id,
+            tenantId: tenantId,
+            active: true,
+          );
+          return true;
+        }
+      }
+
+      return false;
     } catch (e) {
       debugPrint('Error checking tenant active status: $e');
       return false;
@@ -594,15 +616,15 @@ class FirestoreService {
       snapshot,
     ) {
       if (snapshot.docs.isNotEmpty) {
-        // Try to find one that is active or just return the first one
-        try {
-          return snapshot.docs.firstWhere((doc) {
-            final data = doc.data();
-            return data['status'] == 'active';
-          }).data();
-        } catch (_) {
-          return snapshot.docs.first.data();
+        // 1. Try to find one that is marked 'active'
+        for (final doc in snapshot.docs) {
+          final data = doc.data();
+          if (data['status'] == 'active') {
+            return data;
+          }
         }
+        // 2. If none explicitly marked active, return the first doc so expiry logic can evaluate
+        return snapshot.docs.first.data();
       }
       return null;
     });

@@ -110,34 +110,27 @@ class _TransactionCompletedScreenState
         .trim()
         .toUpperCase();
 
+    if (raw.contains('UPI')) return 'UPI';
+    if (raw.contains('CREDIT')) return 'Credit Card';
+    if (raw.contains('DEBIT')) return 'Debit Card';
+    if (raw.contains('CARD')) return 'Card';
+    if (raw.contains('NETBANKING') || raw.contains('NET_BANKING') || raw.contains('NET BANKING')) {
+      return 'Net Banking';
+    }
+
     switch (raw) {
       case 'CC':
-      case 'CREDIT':
-      case 'CREDITCARD':
-      case 'CREDIT_CARD':
         return 'Credit Card';
       case 'DC':
-      case 'DEBIT':
-      case 'DEBITCARD':
-      case 'DEBIT_CARD':
         return 'Debit Card';
       case 'NB':
-      case 'NETBANKING':
-      case 'NET_BANKING':
-      case 'NET BANKING':
         return 'Net Banking';
-      case 'UPI':
-        return 'UPI';
       case 'WALLET':
         return 'Wallet';
       case 'EMI':
         return 'EMI';
-      case 'CARD':
-        return 'Card';
       default:
-        // If the raw value is already human-readable, return it as-is
         if (raw.isEmpty) return 'Card';
-        // Title-case the raw value for unknown modes
         return raw[0] + raw.substring(1).toLowerCase();
     }
   }

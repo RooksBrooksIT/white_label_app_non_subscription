@@ -1731,6 +1731,7 @@ exports.verifyOTPAndResetPassword = verifyOTPAndResetPassword;
 exports.processRefund = iciciFunctions.processRefund;
 exports.adminProcessRefund = iciciFunctions.adminProcessRefund;
 exports.paymentCallback = iciciFunctions.paymentCallback;
+exports.paymentReturn = iciciFunctions.paymentCallback;
 exports.verifyPayment = iciciFunctions.verifyPayment;
 exports.createPaymentSession = createPaymentSession;
 

@@ -68,7 +68,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
       'name': 'Silver',
       'badge': 'Starter',
       'tagline': 'Essential tools for small teams & freelancers',
-      'monthlyPrice': 99,
+      'monthlyPrice': 1,
       'monthlyOriginalPrice': 149,
       'sixMonthPrice': 594, // 99 * 6
       'sixMonthOriginalPrice': 894,
@@ -321,29 +321,69 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
         return;
       }
 
-      final querySnapshot = await FirestoreService.instance
-          .collection(
-            'payment_transactions',
-            tenantId: tenantId,
-            appId: _consistentAppId,
-          )
-          .orderBy('timestamp', descending: true)
-          .limit(10)
-          .get();
-
       Map<String, dynamic>? activeData;
-      for (var doc in querySnapshot.docs) {
-        final map = doc.data();
-        final transactionUserId = map['userId']?.toString() ?? '';
-        final currentUserId =
-            user?.uid ?? widget.pendingUserData?['userId']?.toString() ?? '';
 
-        if (transactionUserId != currentUserId) continue;
+      // 1. Primary source of truth: authoritative subscription doc in subscriptionsRef
+      if (user != null) {
+        try {
+          final subDoc = await FirestoreService.instance
+              .subscriptionsRef(tenantId: tenantId)
+              .doc(user.uid)
+              .get();
+          if (subDoc.exists && subDoc.data() != null) {
+            final data = subDoc.data()!;
+            if (data['status'] == 'active') {
+              DateTime? expiry;
+              final exp = data['expiresAt'];
+              if (exp is Timestamp) {
+                expiry = exp.toDate();
+              } else if (exp is String) {
+                expiry = DateTime.tryParse(exp);
+              }
+              expiry ??= data['nextBillingAt'] != null
+                  ? DateTime.tryParse(data['nextBillingAt'].toString())
+                  : null;
 
-        final status = (map['status'] ?? '').toString().toUpperCase();
-        if (status == 'SUCCESS' || status == 'UAT_SIMULATED') {
-          activeData = map;
-          break;
+              if (expiry == null || DateTime.now().isBefore(expiry)) {
+                activeData = data;
+              }
+            }
+          }
+        } catch (e) {
+          debugPrint('Error reading subscriptionsRef: $e');
+        }
+      }
+
+      // 2. Secondary fallback: check payment_transactions for latest successful transaction
+      if (activeData == null) {
+        try {
+          final querySnapshot = await FirestoreService.instance
+              .collection(
+                'payment_transactions',
+                tenantId: tenantId,
+                appId: _consistentAppId,
+              )
+              .orderBy('timestamp', descending: true)
+              .limit(10)
+              .get();
+
+          for (var doc in querySnapshot.docs) {
+            final map = doc.data();
+            final transactionUserId =
+                map['userId']?.toString() ?? map['uidOrMobile']?.toString() ?? '';
+            final currentUserId =
+                user?.uid ?? widget.pendingUserData?['userId']?.toString() ?? '';
+
+            if (transactionUserId != currentUserId && currentUserId.isNotEmpty) continue;
+
+            final status = (map['status'] ?? '').toString().toUpperCase();
+            if (status == 'SUCCESS' || status == 'UAT_SIMULATED') {
+              activeData = map;
+              break;
+            }
+          }
+        } catch (e) {
+          debugPrint('Error reading payment_transactions: $e');
         }
       }
 
@@ -368,10 +408,22 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
             _billingDuration = BillingDuration.monthly;
           }
 
-          final timestamp = activeData['timestamp'] as Timestamp?;
-          if (timestamp != null) {
-            final startedAt = timestamp.toDate();
-            DateTime nextBilling;
+          DateTime? nextBilling;
+          final exp = activeData['expiresAt'];
+          if (exp is Timestamp) {
+            nextBilling = exp.toDate();
+          } else if (exp is String) {
+            nextBilling = DateTime.tryParse(exp);
+          }
+          if (nextBilling == null && activeData['nextBillingAt'] != null) {
+            nextBilling = DateTime.tryParse(activeData['nextBillingAt'].toString());
+          }
+          if (nextBilling == null) {
+            final timestamp = activeData['timestamp'] as Timestamp?;
+            final startedAt = timestamp?.toDate() ??
+                (activeData['startedAt'] != null
+                    ? DateTime.tryParse(activeData['startedAt'].toString()) ?? DateTime.now()
+                    : DateTime.now());
             if (_fetchedPlanName?.toLowerCase().contains('trial') ?? false) {
               nextBilling = startedAt.add(const Duration(days: 7));
             } else if (isYearly) {
@@ -407,12 +459,10 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
                   : day;
               nextBilling = DateTime(year, month, day);
             }
-
-            _fetchedRemainingDays = nextBilling
-                .difference(DateTime.now())
-                .inDays;
-            if (_fetchedRemainingDays! < 0) _fetchedRemainingDays = 0;
           }
+
+          _fetchedRemainingDays = nextBilling.difference(DateTime.now()).inDays;
+          if (_fetchedRemainingDays! < 0) _fetchedRemainingDays = 0;
 
           if (activeData.containsKey('limits')) {
             _fetchedLimits = activeData['limits'] as Map<String, dynamic>?;
@@ -862,6 +912,12 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
       originalPrice = (selectedPlan['monthlyOriginalPrice'] as num?)?.toInt();
     }
 
+    final effectiveCurrentPlan = widget.currentPlanName ?? _fetchedPlanName;
+    final effectiveRemainingDays =
+        widget.remainingDays ?? _fetchedRemainingDays;
+    final hasActive =
+        effectiveCurrentPlan != null && effectiveCurrentPlan.isNotEmpty;
+
     if (mounted) {
       Navigator.push(
         context,
@@ -879,16 +935,18 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
             barcode: selectedPlan['barcode'] as bool?,
             reportExport: selectedPlan['reportExport'] as bool?,
             pendingUserData: widget.pendingUserData,
-            hasActiveSubscription:
-                widget.currentPlanName != null &&
-                widget.currentPlanName!.isNotEmpty,
-            currentActivePlanName: widget.currentPlanName,
-            activePlanExpiryDate: widget.remainingDays != null
-                ? DateTime.now().add(Duration(days: widget.remainingDays!))
+            hasActiveSubscription: hasActive,
+            currentActivePlanName: effectiveCurrentPlan,
+            activePlanExpiryDate: effectiveRemainingDays != null
+                ? DateTime.now().add(Duration(days: effectiveRemainingDays))
                 : null,
           ),
         ),
-      );
+      ).then((_) {
+        if (mounted) {
+          _fetchSubscriptionData();
+        }
+      });
     }
   }
 

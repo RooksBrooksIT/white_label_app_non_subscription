@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'subscription_plans_screen.dart';
 
 class PaymentFailedScreen extends StatelessWidget {
   final String? errorMessage;
@@ -124,7 +125,10 @@ class PaymentFailedScreen extends StatelessWidget {
                           _buildDetailRow('AMOUNT', '₹ $amount'),
                         if (transactionId != null)
                           _buildDetailRow('TRANSACTION ID', transactionId!),
-                        _buildDetailRow('PAYMENT METHOD', paymentMethod),
+                        _buildDetailRow(
+                          'PAYMENT METHOD',
+                          _formatPaymentMethod(paymentMethod),
+                        ),
                       ],
                     ),
                   ),
@@ -135,7 +139,18 @@ class PaymentFailedScreen extends StatelessWidget {
                   width: double.infinity,
                   height: 60,
                   child: ElevatedButton(
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: () {
+                      if (Navigator.canPop(context)) {
+                        Navigator.pop(context);
+                      } else {
+                        Navigator.of(context).pushAndRemoveUntil(
+                          MaterialPageRoute(
+                            builder: (_) => const SubscriptionPlansScreen(),
+                          ),
+                          (route) => false,
+                        );
+                      }
+                    },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.black87,
                       shape: RoundedRectangleBorder(
@@ -161,7 +176,18 @@ class PaymentFailedScreen extends StatelessWidget {
                   width: double.infinity,
                   height: 60,
                   child: OutlinedButton(
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: () {
+                      if (Navigator.canPop(context)) {
+                        Navigator.pop(context);
+                      } else {
+                        Navigator.of(context).pushAndRemoveUntil(
+                          MaterialPageRoute(
+                            builder: (_) => const SubscriptionPlansScreen(),
+                          ),
+                          (route) => false,
+                        );
+                      }
+                    },
                     style: OutlinedButton.styleFrom(
                       side: const BorderSide(color: Colors.black87, width: 2),
                       shape: RoundedRectangleBorder(
@@ -221,5 +247,25 @@ class PaymentFailedScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String _formatPaymentMethod(String method) {
+    final upper = method.trim().toUpperCase();
+    switch (upper) {
+      case 'CARD':
+      case 'CC':
+      case 'DC':
+      case 'DEBIT_CARD':
+      case 'CREDIT_CARD':
+        return 'Card';
+      case 'UPI':
+        return 'UPI';
+      case 'NETBANKING':
+      case 'NB':
+        return 'Net Banking';
+      default:
+        if (upper == 'FREE TRIAL') return 'Free Trial';
+        return method.isNotEmpty ? method : 'Unknown';
+    }
   }
 }

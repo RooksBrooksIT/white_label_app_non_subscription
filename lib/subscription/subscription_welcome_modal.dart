@@ -235,7 +235,7 @@ class _SubscriptionWelcomeModalState extends State<SubscriptionWelcomeModal>
                               ],
                             ),
                           );
-                        }).toList(),
+                        }),
                         const SizedBox(height: 24),
 
                         // Limits Section
