@@ -68,7 +68,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
       'name': 'Silver',
       'badge': 'Starter',
       'tagline': 'Essential tools for small teams & freelancers',
-      'monthlyPrice': 1,
+      'monthlyPrice': 99,
       'monthlyOriginalPrice': 149,
       'sixMonthPrice': 594, // 99 * 6
       'sixMonthOriginalPrice': 894,

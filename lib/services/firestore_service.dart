@@ -1,4 +1,5 @@
   import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 
@@ -387,6 +388,7 @@ class FirestoreService {
     bool? attendance,
     bool? barcode,
     bool? reportExport,
+    bool? welcomeModalViewed,
   }) async {
     final normalizedPlanName = planName.trim();
     if (normalizedPlanName.isEmpty) {
@@ -426,6 +428,7 @@ class FirestoreService {
           nextBilling, // DateTime is converted to Timestamp by Firestore
       'updatedAt': FieldValue.serverTimestamp(),
       'originalPrice': ?originalPrice,
+      'welcomeModalViewed': welcomeModalViewed ?? false,
       if (customerMobile != null && customerMobile.isNotEmpty)
         'customerMobile': customerMobile,
       if (gstNumber != null && gstNumber.isNotEmpty) 'gstNumber': gstNumber,
@@ -618,16 +621,46 @@ class FirestoreService {
       if (snapshot.docs.isNotEmpty) {
         // 1. Try to find one that is marked 'active'
         for (final doc in snapshot.docs) {
-          final data = doc.data();
+          final data = Map<String, dynamic>.from(doc.data());
+          data['docId'] = doc.id;
           if (data['status'] == 'active') {
             return data;
           }
         }
         // 2. If none explicitly marked active, return the first doc so expiry logic can evaluate
-        return snapshot.docs.first.data();
+        final firstData = Map<String, dynamic>.from(snapshot.docs.first.data());
+        firstData['docId'] = snapshot.docs.first.id;
+        return firstData;
       }
       return null;
     });
+  }
+
+  /// Marks the subscription welcome modal as viewed in Firestore.
+  Future<void> markSubscriptionWelcomeModalViewed({
+    required String tenantId,
+    String? docId,
+    String? uid,
+    String? appId,
+  }) async {
+    try {
+      final targetDocId =
+          docId ?? uid ?? FirebaseAuth.instance.currentUser?.uid;
+      if (targetDocId != null && targetDocId.isNotEmpty) {
+        await subscriptionsRef(
+          tenantId: tenantId,
+          appId: appId,
+        ).doc(targetDocId).set(
+          {
+            'welcomeModalViewed': true,
+            'welcomeModalViewedAt': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error marking subscription welcome modal viewed: $e');
+    }
   }
 
   Future<String?> getActiveSubscriptionAppId({

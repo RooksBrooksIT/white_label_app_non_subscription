@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:subscription_rooks_app/firebase_options.dart';
 import 'package:subscription_rooks_app/frontend/screens/splash_screen.dart';
@@ -14,7 +15,11 @@ import 'package:subscription_rooks_app/services/storage_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: ".env");
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (e) {
+    debugPrint('Info: .env not loaded or not available on web: $e');
+  }
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   // Initialize App Check
@@ -28,8 +33,10 @@ Future<void> main() async {
     debugPrint('Firebase App Check initialization failed: $e');
   }
 
-  // Set up background message handler
-  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  // Set up background message handler (mobile only)
+  if (!kIsWeb) {
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  }
 
   // Initialize Notification Service
   await NotificationService.instance.initialize();
