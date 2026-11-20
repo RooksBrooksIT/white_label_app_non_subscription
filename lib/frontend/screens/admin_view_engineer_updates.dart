@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -23,15 +24,18 @@ class _EngineerUpdatesState extends State<EngineerUpdates> {
 
   final List<String> statusFilterOptions = [
     'All',
+    'Open',
     'Not Assigned',
     'Assigned',
     'In Progress',
+    'Ready for Delivery',
+    'Delivered',
     'Pending',
     'Pending for Approval',
     'Pending for Spares',
     'Observation',
     'Completed',
-    'Canceled',
+    'Cancelled',
   ];
 
   @override
@@ -69,19 +73,156 @@ class _EngineerUpdatesState extends State<EngineerUpdates> {
     } catch (_) {}
   }
 
+  bool _isTicketCancelled(Map<String, dynamic> data) {
+    final status = (data['status'] ?? '').toString().toLowerCase().trim();
+    final adminStatus = (data['adminStatus'] ?? '')
+        .toString()
+        .toLowerCase()
+        .trim();
+    final engineerStatus = (data['engineerStatus'] ?? '')
+        .toString()
+        .toLowerCase()
+        .trim();
+    final custDecision =
+        (data['Customer_decision'] ?? data['customerStatus'] ?? '')
+            .toString()
+            .toLowerCase()
+            .trim();
+    final reasonCancel = (data['Reason_cancel'] ?? '').toString().trim();
+    final cancellationReason =
+        (data['cancellationReason'] ??
+                data['cancellation_reason'] ??
+                data['cancelReason'] ??
+                '')
+            .toString()
+            .trim();
+
+    return status == 'cancelled' ||
+        status == 'canceled' ||
+        adminStatus == 'cancelled' ||
+        adminStatus == 'canceled' ||
+        engineerStatus == 'cancelled' ||
+        engineerStatus == 'canceled' ||
+        custDecision.contains('cancel') ||
+        reasonCancel.isNotEmpty ||
+        cancellationReason.isNotEmpty ||
+        data['cancelledAt'] != null ||
+        data['isCancelled'] == true ||
+        data['isCanceled'] == true;
+  }
+
+  String _extractCustomerId(Map<String, dynamic> data) {
+    final fields = [
+      data['customerId'],
+      data['customerid'],
+      data['customerIdToUse'],
+      data['id'],
+      data['Id'],
+      data['userId'],
+      data['user_id'],
+      data['uid'],
+    ];
+    for (final f in fields) {
+      if (f != null) {
+        final s = f.toString().trim();
+        if (s.isNotEmpty &&
+            s.toLowerCase() != 'n/a' &&
+            s.toLowerCase() != 'null') {
+          return s;
+        }
+      }
+    }
+    return '';
+  }
+
+  Map<String, String> _getCustomerStatusNotificationContent({
+    required String status,
+    required String ticketId,
+    String cancellationReason = '',
+  }) {
+    final s = status.toLowerCase().trim();
+    if (s == 'open') {
+      return {
+        'title': 'Service Ticket Update',
+        'body': 'Your service ticket $ticketId is now Open.',
+        'type': 'status_update',
+      };
+    } else if (s == 'in progress' || s.contains('progress')) {
+      return {
+        'title': 'Service Work Started',
+        'body': 'Your service ticket $ticketId is now In Progress.',
+        'type': 'service_in_progress',
+      };
+    } else if (s == 'ready for delivery' || s.contains('ready')) {
+      return {
+        'title': 'Service Ready',
+        'body': 'Your service ticket $ticketId is ready for delivery.',
+        'type': 'ready_for_delivery',
+      };
+    } else if (s == 'delivered') {
+      return {
+        'title': 'Service Delivered',
+        'body': 'Your service ticket $ticketId has been marked as Delivered.',
+        'type': 'service_delivered',
+      };
+    } else if (s == 'completed' || s == 'complete') {
+      return {
+        'title': 'Service Completed',
+        'body':
+            'Your service ticket $ticketId has been completed successfully. Please share your rating and feedback.',
+        'type': 'ticket_completed_feedback',
+      };
+    } else if (s == 'cancelled' || s == 'canceled') {
+      return {
+        'title': 'Service Ticket Cancelled',
+        'body': 'Your service ticket $ticketId has been cancelled.',
+        'type': 'ticket_cancelled',
+      };
+    } else {
+      return {
+        'title': 'Service Ticket Update',
+        'body':
+            'Your service ticket $ticketId status has been updated to "$status".',
+        'type': 'status_update',
+      };
+    }
+  }
+
+  String _formatDateTime(dynamic timestamp) {
+    if (timestamp == null) return 'N/A';
+    if (timestamp is Timestamp) {
+      return DateFormat('dd MMM yyyy, hh:mm a').format(timestamp.toDate());
+    }
+    if (timestamp is String) {
+      try {
+        final parsed = DateTime.parse(timestamp);
+        return DateFormat('dd MMM yyyy, hh:mm a').format(parsed);
+      } catch (_) {
+        return timestamp;
+      }
+    }
+    return timestamp.toString();
+  }
+
   Color _getStatusColor(String status) {
     final s = status.toLowerCase().trim();
+    if (s == 'canceled' || s == 'cancelled') return const Color(0xFFDC2626);
     if (s == 'assigned') return const Color(0xFF0984E3);
-    if (s == 'completed' || s == 'complete' || s == 'delivered')
+    if (s == 'completed' || s == 'complete' || s == 'delivered') {
       return const Color(0xFF10B981);
-    if (s == 'not assigned' || s == 'not assinged')
-      return const Color(0xFFEF4444);
+    }
+    if (s == 'ready for delivery' || s.contains('ready')) {
+      return const Color(0xFF0D9488);
+    }
+    if (s == 'not assigned' || s == 'not assinged') {
+      return const Color(0xFFEA580C);
+    }
     if (s.contains('approval')) return const Color(0xFF8B5CF6);
     if (s.contains('spare')) return const Color(0xFFF59E0B);
     if (s.contains('observation')) return const Color(0xFF06B6D4);
-    if (s == 'canceled' || s == 'cancelled') return const Color(0xFF64748B);
-    if (s == 'in progress' || s.contains('progress'))
+    if (s == 'in progress' || s.contains('progress')) {
       return const Color(0xFF3B82F6);
+    }
     if (s == 'pending' || s == 'open') return const Color(0xFFF97316);
     return const Color(0xFF64748B);
   }
@@ -95,20 +236,23 @@ class _EngineerUpdatesState extends State<EngineerUpdates> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0.5,
-        leading: Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: CircleAvatar(
-            backgroundColor: const Color(0xFFF1F5F9),
-            child: IconButton(
-              icon: const Icon(
-                Icons.arrow_back_rounded,
-                color: Color(0xFF0F172A),
-                size: 18,
+        automaticallyImplyLeading: !kIsWeb,
+        leading: kIsWeb
+            ? null
+            : Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: CircleAvatar(
+                  backgroundColor: const Color(0xFFF1F5F9),
+                  child: IconButton(
+                    icon: const Icon(
+                      Icons.arrow_back_rounded,
+                      color: Color(0xFF0F172A),
+                      size: 18,
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ),
               ),
-              onPressed: () => Navigator.pop(context),
-            ),
-          ),
-        ),
         title: Text(
           'Engineer Updates',
           style: GoogleFonts.plusJakartaSans(
@@ -387,9 +531,11 @@ class _EngineerUpdatesState extends State<EngineerUpdates> {
           final assignedEngineer = (data['assignedEmployee'] ?? '')
               .toString()
               .toLowerCase();
-          final engineerStatus =
-              (data['engineerStatus'] ?? data['adminStatus'] ?? 'Pending')
-                  .toString();
+          final isCancelled = _isTicketCancelled(data);
+          final engineerStatus = isCancelled
+              ? 'Cancelled'
+              : (data['engineerStatus'] ?? data['adminStatus'] ?? 'Pending')
+                    .toString();
 
           if (searchQuery.isNotEmpty) {
             if (!bookingId.contains(searchQuery) &&
@@ -401,9 +547,17 @@ class _EngineerUpdatesState extends State<EngineerUpdates> {
           }
 
           if (selectedFilter != 'All') {
-            if (engineerStatus.toLowerCase().trim() !=
-                selectedFilter.toLowerCase().trim()) {
-              return false;
+            final isFilterCancelled =
+                selectedFilter.toLowerCase() == 'cancelled' ||
+                selectedFilter.toLowerCase() == 'canceled';
+            if (isFilterCancelled) {
+              if (!isCancelled) return false;
+            } else {
+              if (isCancelled) return false;
+              if (engineerStatus.toLowerCase().trim() !=
+                  selectedFilter.toLowerCase().trim()) {
+                return false;
+              }
             }
           }
 
@@ -488,8 +642,11 @@ class _EngineerUpdatesState extends State<EngineerUpdates> {
     final deviceCondition =
         (data['deviceCondition'] ?? data['description'] ?? 'General Service')
             .toString();
-    final status = (data['engineerStatus'] ?? data['adminStatus'] ?? 'Pending')
-        .toString();
+    final bool isCancelled = _isTicketCancelled(data);
+    final status = isCancelled
+        ? 'Cancelled'
+        : (data['engineerStatus'] ?? data['adminStatus'] ?? 'Pending')
+              .toString();
     final statusColor = _getStatusColor(status);
     final List<String> imageUrls = List<String>.from(data['imageUrls'] ?? []);
 
@@ -532,18 +689,24 @@ class _EngineerUpdatesState extends State<EngineerUpdates> {
                       width: 46,
                       height: 46,
                       decoration: BoxDecoration(
-                        color: isDelivery
-                            ? const Color(0xFFECFDF5)
-                            : statusColor.withValues(alpha: 0.1),
+                        color: isCancelled
+                            ? const Color(0xFFFEF2F2)
+                            : (isDelivery
+                                  ? const Color(0xFFECFDF5)
+                                  : statusColor.withValues(alpha: 0.1)),
                         borderRadius: BorderRadius.circular(14),
                       ),
                       child: Icon(
-                        isDelivery
-                            ? Icons.local_shipping_rounded
-                            : Icons.build_circle_rounded,
-                        color: isDelivery
-                            ? const Color(0xFF10B981)
-                            : statusColor,
+                        isCancelled
+                            ? Icons.cancel_rounded
+                            : (isDelivery
+                                  ? Icons.local_shipping_rounded
+                                  : Icons.build_circle_rounded),
+                        color: isCancelled
+                            ? const Color(0xFFDC2626)
+                            : (isDelivery
+                                  ? const Color(0xFF10B981)
+                                  : statusColor),
                         size: 24,
                       ),
                     ),
@@ -585,16 +748,23 @@ class _EngineerUpdatesState extends State<EngineerUpdates> {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: 0.12),
+                        color: isCancelled
+                            ? const Color(0xFFFEF2F2)
+                            : statusColor.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color: statusColor.withValues(alpha: 0.2),
+                          color: isCancelled
+                              ? const Color(0xFFFCA5A5)
+                              : statusColor.withValues(alpha: 0.2),
+                          width: isCancelled ? 1.2 : 1.0,
                         ),
                       ),
                       child: Text(
-                        status.toUpperCase(),
+                        isCancelled ? 'CANCELLED' : status.toUpperCase(),
                         style: GoogleFonts.inter(
-                          color: statusColor,
+                          color: isCancelled
+                              ? const Color(0xFFDC2626)
+                              : statusColor,
                           fontWeight: FontWeight.w800,
                           fontSize: 11,
                           letterSpacing: 0.4,
@@ -617,7 +787,7 @@ class _EngineerUpdatesState extends State<EngineerUpdates> {
                       Icons.person_rounded,
                       assignedEngineer,
                       assignedEngineer.toLowerCase() == 'not assigned'
-                          ? const Color(0xFFEF4444)
+                          ? const Color(0xFFEA580C)
                           : const Color(0xFF3B82F6),
                     ),
                     _buildPill(
@@ -846,439 +1016,973 @@ class _EngineerUpdatesState extends State<EngineerUpdates> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            final List<String> availableStatuses;
-            if (isDelivery) {
-              availableStatuses = <String>['Delivered', 'Not Delivered'];
-            } else {
-              availableStatuses = <String>[
-                'Not Assigned',
-                'Assigned',
-                'In Progress',
-                'Pending',
-                'Pending for Approval',
-                'Pending for Spares',
-                'Observation',
-                'Completed',
-                'Canceled',
-                'Unrepairable',
-              ];
-            }
-            if (!availableStatuses.contains(currentStatus)) {
-              availableStatuses.add(currentStatus);
+        return StreamBuilder<DocumentSnapshot>(
+          stream: doc.reference.snapshots(),
+          builder: (context, snapshot) {
+            final liveDoc = snapshot.data;
+            final liveData =
+                (liveDoc != null && liveDoc.exists && liveDoc.data() != null)
+                ? (liveDoc.data() as Map<String, dynamic>)
+                : data;
+
+            final bool isCancelled = _isTicketCancelled(liveData);
+
+            final currentBookingId =
+                (liveData['bookingId'] ?? liveData['ticketId'] ?? doc.id)
+                    .toString();
+            final currentCustomerName =
+                (liveData['customerName'] ?? customerName).toString();
+            final currentCustomerPhone =
+                (liveData['mobileNumber'] ??
+                        liveData['phoneNumber'] ??
+                        customerPhone)
+                    .toString();
+            final currentCustomerId =
+                (liveData['id'] ??
+                        liveData['Id'] ??
+                        liveData['customerId'] ??
+                        customerId)
+                    .toString();
+            final currentAddress = (liveData['address'] ?? address).toString();
+            final currentAssignedEngineer =
+                (liveData['assignedEmployee'] ??
+                        liveData['assignedEngineer'] ??
+                        assignedEngineer)
+                    .toString();
+            final currentDeviceBrand =
+                (liveData['deviceBrand'] ??
+                        liveData['deviceType'] ??
+                        deviceBrand)
+                    .toString();
+            final currentDeviceCondition =
+                (liveData['deviceCondition'] ??
+                        liveData['problem'] ??
+                        liveData['reportedIssue'] ??
+                        deviceCondition)
+                    .toString();
+            final currentNotes =
+                (liveData['statusDescription'] ??
+                        liveData['description'] ??
+                        notes)
+                    .toString();
+            final List<String> currentImageUrls = List<String>.from(
+              liveData['imageUrls'] ?? imageUrls,
+            );
+
+            final cancellationReason =
+                (liveData['Reason_cancel'] ??
+                        liveData['cancellationReason'] ??
+                        liveData['reason'] ??
+                        liveData['cancelReason'] ??
+                        '')
+                    .toString();
+            final cancellationDateStr = _formatDateTime(
+              liveData['cancelledAt'] ??
+                  liveData['cancellationDate'] ??
+                  liveData['canceledAt'] ??
+                  liveData['cancelDate'],
+            );
+            final cancelledBy =
+                (liveData['cancelledBy'] ??
+                        liveData['canceledBy'] ??
+                        liveData['cancelledByRole'] ??
+                        '')
+                    .toString();
+
+            if (isCancelled) {
+              notesController.text = currentNotes;
+              amountController.text = (liveData['amount']?.toString() ?? '0');
             }
 
-            return Container(
-              height: MediaQuery.of(context).size.height * 0.85,
-              padding: const EdgeInsets.all(24),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: statusColor.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Icon(
-                          Icons.build_circle_rounded,
-                          color: statusColor,
-                          size: 24,
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Ticket #$bookingId',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w800,
-                                color: const Color(0xFF0F172A),
-                              ),
-                            ),
-                            Text(
-                              customerName,
-                              style: GoogleFonts.inter(
-                                fontSize: 13,
-                                color: const Color(0xFF64748B),
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(
-                          Icons.close_rounded,
-                          color: Color(0xFF64748B),
-                        ),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                    ],
+            return StatefulBuilder(
+              builder: (context, setSheetState) {
+                final List<String> availableStatuses;
+                if (isDelivery) {
+                  availableStatuses = <String>['Delivered', 'Not Delivered'];
+                } else {
+                  availableStatuses = <String>[
+                    'Open',
+                    'Not Assigned',
+                    'Assigned',
+                    'In Progress',
+                    'Ready for Delivery',
+                    'Delivered',
+                    'Pending',
+                    'Pending for Approval',
+                    'Pending for Spares',
+                    'Observation',
+                    'Completed',
+                    'Unrepairable',
+                  ];
+                }
+                // Do not allow Cancelled or Canceled to be chosen in Engineer Updates
+                availableStatuses.remove('Cancelled');
+                availableStatuses.remove('Canceled');
+
+                if (!isCancelled &&
+                    !availableStatuses.contains(currentStatus)) {
+                  availableStatuses.add(currentStatus);
+                }
+
+                final effectiveStatusColor = isCancelled
+                    ? const Color(0xFFDC2626)
+                    : _getStatusColor(currentStatus);
+
+                return Container(
+                  height: MediaQuery.of(context).size.height * 0.85,
+                  padding: const EdgeInsets.all(24),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(28),
+                    ),
                   ),
-
-                  const SizedBox(height: 16),
-                  const Divider(color: Color(0xFFF1F5F9), height: 1),
-                  const SizedBox(height: 16),
-
-                  // Content
-                  Expanded(
-                    child: SingleChildScrollView(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header
+                      Row(
                         children: [
-                          // Details Card
                           Container(
-                            padding: const EdgeInsets.all(16),
+                            padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFF8FAFC),
-                              borderRadius: BorderRadius.circular(18),
-                              border: Border.all(
-                                color: const Color(0xFFE2E8F0),
-                              ),
+                              color: isCancelled
+                                  ? const Color(0xFFFEF2F2)
+                                  : effectiveStatusColor.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(14),
+                              border: isCancelled
+                                  ? Border.all(color: const Color(0xFFFCA5A5))
+                                  : null,
                             ),
+                            child: Icon(
+                              isCancelled
+                                  ? Icons.cancel_rounded
+                                  : (isDelivery
+                                        ? Icons.local_shipping_rounded
+                                        : Icons.build_circle_rounded),
+                              color: isCancelled
+                                  ? const Color(0xFFDC2626)
+                                  : effectiveStatusColor,
+                              size: 24,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
                             child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                _modalDetailRow('Customer ID', customerId),
-                                _modalDetailRow('Phone Number', customerPhone),
-                                _modalDetailRow('Device Brand', deviceBrand),
-                                _modalDetailRow(
-                                  'Assigned To',
-                                  assignedEngineer,
+                                Row(
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        'Ticket #$currentBookingId',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w800,
+                                          color: const Color(0xFF0F172A),
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    if (isCancelled) ...[
+                                      const SizedBox(width: 8),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 3,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFFEF2F2),
+                                          borderRadius: BorderRadius.circular(
+                                            6,
+                                          ),
+                                          border: Border.all(
+                                            color: const Color(0xFFFCA5A5),
+                                          ),
+                                        ),
+                                        child: Text(
+                                          'CANCELLED',
+                                          style: GoogleFonts.inter(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w800,
+                                            color: const Color(0xFFDC2626),
+                                            letterSpacing: 0.5,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
                                 ),
-                                if (address != 'N/A')
-                                  _modalDetailRow('Address', address),
+                                Text(
+                                  currentCustomerName,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    color: const Color(0xFF64748B),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
                               ],
                             ),
                           ),
-
-                          const SizedBox(height: 20),
-                          Text(
-                            'Reported Issue',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: const Color(0xFF0F172A),
+                          IconButton(
+                            icon: const Icon(
+                              Icons.close_rounded,
+                              color: Color(0xFF64748B),
                             ),
+                            onPressed: () => Navigator.pop(context),
                           ),
-                          const SizedBox(height: 8),
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF8FAFC),
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                color: const Color(0xFFE2E8F0),
-                              ),
-                            ),
-                            child: Text(
-                              deviceCondition,
-                              style: GoogleFonts.inter(
-                                fontSize: 13,
-                                color: const Color(0xFF475569),
-                              ),
-                            ),
-                          ),
-
-                          const SizedBox(height: 24),
-                          Text(
-                            'Update Ticket Status',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: const Color(0xFF0F172A),
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-
-                          DropdownButtonFormField<String>(
-                            decoration: InputDecoration(
-                              labelText: 'Status',
-                              labelStyle: GoogleFonts.inter(
-                                color: const Color(0xFF64748B),
-                              ),
-                              filled: true,
-                              fillColor: const Color(0xFFF8FAFC),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(14),
-                                borderSide: const BorderSide(
-                                  color: Color(0xFFE2E8F0),
-                                ),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(14),
-                                borderSide: const BorderSide(
-                                  color: Color(0xFFE2E8F0),
-                                ),
-                              ),
-                            ),
-                            initialValue: currentStatus,
-                            items: availableStatuses
-                                .map(
-                                  (s) => DropdownMenuItem(
-                                    value: s,
-                                    child: Text(s),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (val) {
-                              if (val != null) {
-                                setSheetState(() {
-                                  currentStatus = val;
-                                });
-                              }
-                            },
-                          ),
-
-                          const SizedBox(height: 14),
-
-                          TextField(
-                            controller: notesController,
-                            maxLines: 3,
-                            decoration: InputDecoration(
-                              labelText: 'Engineer / Admin Notes',
-                              labelStyle: GoogleFonts.inter(
-                                color: const Color(0xFF64748B),
-                              ),
-                              filled: true,
-                              fillColor: const Color(0xFFF8FAFC),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(14),
-                                borderSide: const BorderSide(
-                                  color: Color(0xFFE2E8F0),
-                                ),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(14),
-                                borderSide: const BorderSide(
-                                  color: Color(0xFFE2E8F0),
-                                ),
-                              ),
-                            ),
-                            style: GoogleFonts.inter(fontSize: 13.5),
-                          ),
-
-                          const SizedBox(height: 14),
-
-                          TextField(
-                            controller: amountController,
-                            keyboardType: TextInputType.number,
-                            decoration: InputDecoration(
-                              labelText: 'Amount (₹)',
-                              labelStyle: GoogleFonts.inter(
-                                color: const Color(0xFF64748B),
-                              ),
-                              filled: true,
-                              fillColor: const Color(0xFFF8FAFC),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(14),
-                                borderSide: const BorderSide(
-                                  color: Color(0xFFE2E8F0),
-                                ),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(14),
-                                borderSide: const BorderSide(
-                                  color: Color(0xFFE2E8F0),
-                                ),
-                              ),
-                            ),
-                            style: GoogleFonts.inter(fontSize: 13.5),
-                          ),
-
-                          const SizedBox(height: 24),
-                          _buildModalImageGallerySection(imageUrls),
-
-                          const SizedBox(height: 24),
                         ],
                       ),
-                    ),
-                  ),
 
-                  // Bottom Action Button
-                  SizedBox(
-                    width: double.infinity,
-                    height: 52,
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        final nav = Navigator.of(context);
-                        final messenger = ScaffoldMessenger.of(context);
-                        try {
-                          final newAmount =
-                              double.tryParse(amountController.text) ?? 0;
-                          final newDescription = notesController.text.trim();
-                          final newStatus = currentStatus;
-                          await doc.reference.update({
-                            'engineerStatus': newStatus,
-                            'adminStatus': newStatus,
-                            'statusDescription': newDescription,
-                            'amount': newAmount,
-                            'lastUpdated': FieldValue.serverTimestamp(),
-                          });
+                      const SizedBox(height: 16),
+                      const Divider(color: Color(0xFFF1F5F9), height: 1),
+                      const SizedBox(height: 16),
 
-                          try {
-                            final raisedRef = FirestoreService.instance
-                                .collection('Raised_tickets');
-                            final syncTicketId =
-                                (data['ticketId'] ??
-                                        data['bookingId'] ??
-                                        doc.id)
-                                    .toString();
-
-                            // 1) Try to find a matching doc by ticketId / bookingId
-                            QuerySnapshot match = await raisedRef
-                                .where(
-                                  Filter.or(
-                                    Filter('ticketId', isEqualTo: syncTicketId),
-                                    Filter(
-                                      'bookingId',
-                                      isEqualTo: syncTicketId,
+                      // Content
+                      Expanded(
+                        child: SingleChildScrollView(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Prominent Cancelled Banner if cancelled
+                              if (isCancelled)
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(14),
+                                  margin: const EdgeInsets.only(bottom: 16),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFEF2F2),
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(
+                                      color: const Color(0xFFFCA5A5),
+                                      width: 1.2,
                                     ),
                                   ),
-                                )
-                                .limit(1)
-                                .get();
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(6),
+                                        decoration: BoxDecoration(
+                                          color: const Color(
+                                            0xFFDC2626,
+                                          ).withValues(alpha: 0.12),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(
+                                          Icons.lock_rounded,
+                                          color: Color(0xFFDC2626),
+                                          size: 18,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'THIS TICKET HAS BEEN CANCELLED',
+                                              style:
+                                                  GoogleFonts.plusJakartaSans(
+                                                    fontSize: 13,
+                                                    fontWeight: FontWeight.w800,
+                                                    color: const Color(
+                                                      0xFFDC2626,
+                                                    ),
+                                                    letterSpacing: 0.3,
+                                                  ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'This ticket was cancelled by Admin. Editing and further status updates have been disabled.',
+                                              style: GoogleFonts.inter(
+                                                fontSize: 12,
+                                                color: const Color(0xFF991B1B),
+                                                height: 1.35,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
 
-                            DocumentReference? raisedDocRef;
-                            if (match.docs.isNotEmpty) {
-                              raisedDocRef = match.docs.first.reference;
-                            } else {
-                              // 2) Fallback: try to match by customer id +
-                              //    created timestamp + customerName
-                              final cId =
-                                  (customerId ??
-                                          data['customerid'] ??
-                                          data['id'] ??
-                                          '')
-                                      .toString();
-                              final cName = (data['customerName'] ?? '')
-                                  .toString()
-                                  .trim()
-                                  .toLowerCase();
-                              if (cId.isNotEmpty || cName.isNotEmpty) {
-                                QuerySnapshot fallbacks = await raisedRef
-                                    .limit(200)
-                                    .get();
-                                for (final d in fallbacks.docs) {
-                                  final m = d.data() as Map<String, dynamic>;
-                                  final docCId =
-                                      (m['customerid'] ??
-                                              m['id'] ??
-                                              m['customerId'] ??
-                                              '')
-                                          .toString()
-                                          .trim();
-                                  final docCName = (m['customerName'] ?? '')
-                                      .toString()
-                                      .trim()
-                                      .toLowerCase();
-                                  final docTicketId =
-                                      (m['ticketId'] ?? m['bookingId'] ?? '')
-                                          .toString();
-                                  if ((cId.isNotEmpty && docCId == cId) ||
-                                      (cName.isNotEmpty && docCName == cName)) {
-                                    if (docTicketId.isEmpty ||
-                                        docTicketId == syncTicketId) {
-                                      raisedDocRef = d.reference;
-                                      break;
-                                    }
-                                  }
-                                }
-                              }
-                            }
-
-                            if (raisedDocRef != null) {
-                              final Map<String, dynamic> syncData = {
-                                'engineerStatus': newStatus,
-                                'adminStatus': newStatus,
-                                'statusDescription': newDescription,
-                                'description': newDescription,
-                                'amount': newAmount,
-                                'paymentDetails': newAmount.toString(),
-                                'lastUpdated': FieldValue.serverTimestamp(),
-                                'updatedAt': FieldValue.serverTimestamp(),
-                              };
-                              try {
-                                await raisedDocRef.update(syncData);
-                              } catch (_) {
-                                await raisedDocRef.set(
-                                  syncData,
-                                  SetOptions(merge: true),
-                                );
-                              }
-                            }
-                          } catch (_) {}
-
-                          try {
-                            await NotificationService.sendNotificationToFirestore(
-                              audience: 'customer',
-                              customerId: customerId,
-                              customerName: customerName,
-                              bookingId: bookingId,
-                              title: 'Ticket Status Updated',
-                              body:
-                                  'Your ticket #$bookingId status has been updated to "$currentStatus".',
-                              type: 'status_update',
-                            );
-                          } catch (_) {}
-
-                          nav.pop();
-                          messenger.showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                'Status updated to $currentStatus',
-                                style: GoogleFonts.inter(
-                                  fontWeight: FontWeight.w600,
+                              // Details Card
+                              Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF8FAFC),
+                                  borderRadius: BorderRadius.circular(18),
+                                  border: Border.all(
+                                    color: const Color(0xFFE2E8F0),
+                                  ),
+                                ),
+                                child: Column(
+                                  children: [
+                                    _modalDetailRow(
+                                      'Ticket ID',
+                                      currentBookingId,
+                                    ),
+                                    _modalDetailRow(
+                                      'Customer Name',
+                                      currentCustomerName,
+                                    ),
+                                    _modalDetailRow(
+                                      'Customer ID',
+                                      currentCustomerId,
+                                    ),
+                                    _modalDetailRow(
+                                      'Phone Number',
+                                      currentCustomerPhone,
+                                    ),
+                                    _modalDetailRow(
+                                      'Device Brand',
+                                      currentDeviceBrand,
+                                    ),
+                                    _modalDetailRow(
+                                      'Assigned To',
+                                      currentAssignedEngineer,
+                                    ),
+                                    if (currentAddress != 'N/A' &&
+                                        currentAddress.isNotEmpty)
+                                      _modalDetailRow(
+                                        'Address',
+                                        currentAddress,
+                                      ),
+                                    if (isCancelled) ...[
+                                      _modalDetailRow(
+                                        'Status',
+                                        'Cancelled',
+                                        valueColor: const Color(0xFFDC2626),
+                                      ),
+                                      if (cancellationReason.isNotEmpty &&
+                                          cancellationReason != 'N/A')
+                                        _modalDetailRow(
+                                          'Cancellation Reason',
+                                          cancellationReason,
+                                          valueColor: const Color(0xFFDC2626),
+                                        ),
+                                      if (cancellationDateStr.isNotEmpty &&
+                                          cancellationDateStr != 'N/A')
+                                        _modalDetailRow(
+                                          'Cancellation Date & Time',
+                                          cancellationDateStr,
+                                          valueColor: const Color(0xFFDC2626),
+                                        ),
+                                      if (cancelledBy.isNotEmpty &&
+                                          cancelledBy != 'N/A')
+                                        _modalDetailRow(
+                                          'Cancelled By',
+                                          cancelledBy,
+                                        ),
+                                    ],
+                                  ],
                                 ),
                               ),
-                              backgroundColor: const Color(0xFF10B981),
-                              behavior: SnackBarBehavior.floating,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+
+                              const SizedBox(height: 20),
+                              Text(
+                                'Reported Issue',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF0F172A),
+                                ),
                               ),
-                            ),
-                          );
-                        } catch (e) {
-                          messenger.showSnackBar(
-                            SnackBar(
-                              content: Text('Error updating: $e'),
-                              backgroundColor: Colors.redAccent,
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: primaryColor,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+                              const SizedBox(height: 8),
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF8FAFC),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: const Color(0xFFE2E8F0),
+                                  ),
+                                ),
+                                child: Text(
+                                  currentDeviceCondition,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    color: const Color(0xFF475569),
+                                  ),
+                                ),
+                              ),
+
+                              const SizedBox(height: 24),
+                              Text(
+                                isCancelled
+                                    ? 'Ticket Status'
+                                    : 'Update Ticket Status',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF0F172A),
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+
+                              if (isCancelled)
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 14,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFEF2F2),
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(
+                                      color: const Color(0xFFFCA5A5),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.cancel_rounded,
+                                        color: Color(0xFFDC2626),
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Text(
+                                          'Cancelled (Locked – Read Only)',
+                                          style: GoogleFonts.inter(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w700,
+                                            color: const Color(0xFFDC2626),
+                                          ),
+                                        ),
+                                      ),
+                                      const Icon(
+                                        Icons.lock_rounded,
+                                        color: Color(0xFFDC2626),
+                                        size: 16,
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              else
+                                DropdownButtonFormField<String>(
+                                  decoration: InputDecoration(
+                                    labelText: 'Status',
+                                    labelStyle: GoogleFonts.inter(
+                                      color: const Color(0xFF64748B),
+                                    ),
+                                    filled: true,
+                                    fillColor: const Color(0xFFF8FAFC),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                      borderSide: const BorderSide(
+                                        color: Color(0xFFE2E8F0),
+                                      ),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                      borderSide: const BorderSide(
+                                        color: Color(0xFFE2E8F0),
+                                      ),
+                                    ),
+                                  ),
+                                  initialValue: currentStatus,
+                                  items: availableStatuses
+                                      .map(
+                                        (s) => DropdownMenuItem(
+                                          value: s,
+                                          child: Text(s),
+                                        ),
+                                      )
+                                      .toList(),
+                                  onChanged: (val) {
+                                    if (val != null) {
+                                      setSheetState(() {
+                                        currentStatus = val;
+                                      });
+                                    }
+                                  },
+                                ),
+
+                              const SizedBox(height: 14),
+
+                              TextField(
+                                controller: notesController,
+                                maxLines: 3,
+                                readOnly: isCancelled,
+                                enabled: !isCancelled,
+                                decoration: InputDecoration(
+                                  labelText: isCancelled
+                                      ? 'Engineer / Admin Notes (Read Only)'
+                                      : 'Engineer / Admin Notes',
+                                  labelStyle: GoogleFonts.inter(
+                                    color: isCancelled
+                                        ? const Color(0xFF94A3B8)
+                                        : const Color(0xFF64748B),
+                                  ),
+                                  filled: true,
+                                  fillColor: isCancelled
+                                      ? const Color(0xFFF1F5F9)
+                                      : const Color(0xFFF8FAFC),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFFE2E8F0),
+                                    ),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFFE2E8F0),
+                                    ),
+                                  ),
+                                  disabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFFE2E8F0),
+                                    ),
+                                  ),
+                                ),
+                                style: GoogleFonts.inter(
+                                  fontSize: 13.5,
+                                  color: isCancelled
+                                      ? const Color(0xFF64748B)
+                                      : const Color(0xFF0F172A),
+                                ),
+                              ),
+
+                              const SizedBox(height: 14),
+
+                              TextField(
+                                controller: amountController,
+                                keyboardType: TextInputType.number,
+                                readOnly: isCancelled,
+                                enabled: !isCancelled,
+                                decoration: InputDecoration(
+                                  labelText: isCancelled
+                                      ? 'Amount (₹) (Read Only)'
+                                      : 'Amount (₹)',
+                                  labelStyle: GoogleFonts.inter(
+                                    color: isCancelled
+                                        ? const Color(0xFF94A3B8)
+                                        : const Color(0xFF64748B),
+                                  ),
+                                  filled: true,
+                                  fillColor: isCancelled
+                                      ? const Color(0xFFF1F5F9)
+                                      : const Color(0xFFF8FAFC),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFFE2E8F0),
+                                    ),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFFE2E8F0),
+                                    ),
+                                  ),
+                                  disabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFFE2E8F0),
+                                    ),
+                                  ),
+                                ),
+                                style: GoogleFonts.inter(
+                                  fontSize: 13.5,
+                                  color: isCancelled
+                                      ? const Color(0xFF64748B)
+                                      : const Color(0xFF0F172A),
+                                ),
+                              ),
+
+                              const SizedBox(height: 24),
+                              _buildModalImageGallerySection(currentImageUrls),
+
+                              const SizedBox(height: 24),
+                            ],
+                          ),
                         ),
                       ),
-                      child: Text(
-                        'Save & Apply Update',
-                        style: GoogleFonts.inter(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                        ),
+
+                      // Bottom Action Button
+                      SizedBox(
+                        width: double.infinity,
+                        height: 52,
+                        child: isCancelled
+                            ? ElevatedButton.icon(
+                                onPressed: null,
+                                icon: const Icon(Icons.lock_rounded, size: 18),
+                                label: Text(
+                                  'Ticket Cancelled – Editing Disabled',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  disabledBackgroundColor: const Color(
+                                    0xFFE2E8F0,
+                                  ),
+                                  disabledForegroundColor: const Color(
+                                    0xFF94A3B8,
+                                  ),
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                ),
+                              )
+                            : ElevatedButton(
+                                onPressed: () async {
+                                  final nav = Navigator.of(context);
+                                  final messenger = ScaffoldMessenger.of(
+                                    context,
+                                  );
+                                  try {
+                                    // 1. Re-validate Firestore status before saving
+                                    final freshDoc = await doc.reference.get();
+                                    if (freshDoc.exists) {
+                                      final freshData =
+                                          freshDoc.data()
+                                              as Map<String, dynamic>? ??
+                                          {};
+                                      if (_isTicketCancelled(freshData)) {
+                                        messenger.showSnackBar(
+                                          SnackBar(
+                                            content: Row(
+                                              children: [
+                                                const Icon(
+                                                  Icons.error_outline_rounded,
+                                                  color: Colors.white,
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Expanded(
+                                                  child: Text(
+                                                    'This ticket has been cancelled and cannot be updated.',
+                                                    style: GoogleFonts.inter(
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            backgroundColor: const Color(
+                                              0xFFDC2626,
+                                            ),
+                                            behavior: SnackBarBehavior.floating,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                          ),
+                                        );
+                                        return;
+                                      }
+                                    }
+
+                                    final previousStatus =
+                                        (liveData['engineerStatus'] ??
+                                                liveData['adminStatus'] ??
+                                                liveData['status'] ??
+                                                data['engineerStatus'] ??
+                                                data['adminStatus'] ??
+                                                'Pending')
+                                            .toString()
+                                            .trim();
+                                    final newStatus = currentStatus.trim();
+                                    final bool statusActuallyChanged =
+                                        previousStatus.toLowerCase() !=
+                                        newStatus.toLowerCase();
+
+                                    final newAmount =
+                                        double.tryParse(
+                                          amountController.text,
+                                        ) ??
+                                        0;
+                                    final newDescription = notesController.text
+                                        .trim();
+
+                                    final Map<String, dynamic> updateData = {
+                                      'engineerStatus': newStatus,
+                                      'adminStatus': newStatus,
+                                      'status': newStatus,
+                                      'customerStatus': newStatus,
+                                      'statusDescription': newDescription,
+                                      'amount': newAmount,
+                                      'lastUpdated':
+                                          FieldValue.serverTimestamp(),
+                                      'updatedAt': FieldValue.serverTimestamp(),
+                                    };
+
+                                    final isCompleteOrDelivered =
+                                        newStatus.toLowerCase().contains(
+                                          'complete',
+                                        ) ||
+                                        newStatus.toLowerCase() == 'delivered';
+
+                                    if (isCompleteOrDelivered) {
+                                      updateData['completionTimestamp'] =
+                                          FieldValue.serverTimestamp();
+                                      updateData['completedAt'] =
+                                          FieldValue.serverTimestamp();
+                                      updateData['feedbackSubmitted'] = false;
+                                      updateData['isFeedbackMandatory'] = true;
+                                      updateData['completionFeedbackNotificationSent'] =
+                                          true;
+                                    }
+
+                                    await doc.reference.update(updateData);
+
+                                    DocumentReference? raisedDocRef;
+                                    Map<String, dynamic>? matchedRaisedData;
+                                    try {
+                                      final raisedRef = FirestoreService
+                                          .instance
+                                          .collection('Raised_tickets');
+                                      final syncTicketId =
+                                          (data['ticketId'] ??
+                                                  data['bookingId'] ??
+                                                  doc.id)
+                                              .toString();
+
+                                      // 1) Try to find a matching doc by ticketId / bookingId
+                                      QuerySnapshot match = await raisedRef
+                                          .where(
+                                            Filter.or(
+                                              Filter(
+                                                'ticketId',
+                                                isEqualTo: syncTicketId,
+                                              ),
+                                              Filter(
+                                                'bookingId',
+                                                isEqualTo: syncTicketId,
+                                              ),
+                                            ),
+                                          )
+                                          .limit(1)
+                                          .get();
+
+                                      if (match.docs.isNotEmpty) {
+                                        raisedDocRef =
+                                            match.docs.first.reference;
+                                        matchedRaisedData =
+                                            match.docs.first.data()
+                                                as Map<String, dynamic>?;
+                                      } else {
+                                        // 2) Fallback: try to match by customer id + customerName
+                                        final cId =
+                                            _extractCustomerId(
+                                              liveData,
+                                            ).isNotEmpty
+                                            ? _extractCustomerId(liveData)
+                                            : _extractCustomerId(data);
+                                        final cName =
+                                            (data['customerName'] ?? '')
+                                                .toString()
+                                                .trim()
+                                                .toLowerCase();
+                                        if (cId.isNotEmpty ||
+                                            cName.isNotEmpty) {
+                                          QuerySnapshot fallbacks =
+                                              await raisedRef.limit(200).get();
+                                          for (final d in fallbacks.docs) {
+                                            final m =
+                                                d.data()
+                                                    as Map<String, dynamic>;
+                                            final docCId = _extractCustomerId(
+                                              m,
+                                            );
+                                            final docCName =
+                                                (m['customerName'] ?? '')
+                                                    .toString()
+                                                    .trim()
+                                                    .toLowerCase();
+                                            final docTicketId =
+                                                (m['ticketId'] ??
+                                                        m['bookingId'] ??
+                                                        '')
+                                                    .toString();
+                                            if ((cId.isNotEmpty &&
+                                                    docCId == cId) ||
+                                                (cName.isNotEmpty &&
+                                                    docCName == cName)) {
+                                              if (docTicketId.isEmpty ||
+                                                  docTicketId == syncTicketId) {
+                                                raisedDocRef = d.reference;
+                                                matchedRaisedData = m;
+                                                break;
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+
+                                      if (raisedDocRef != null) {
+                                        final Map<String, dynamic> syncData =
+                                            Map<String, dynamic>.from(
+                                              updateData,
+                                            );
+                                        syncData['description'] =
+                                            newDescription;
+                                        syncData['paymentDetails'] = newAmount
+                                            .toString();
+                                        try {
+                                          await raisedDocRef.update(syncData);
+                                        } catch (_) {
+                                          await raisedDocRef.set(
+                                            syncData,
+                                            SetOptions(merge: true),
+                                          );
+                                        }
+                                      }
+                                    } catch (_) {}
+
+                                    // Resolve target customerId robustly
+                                    String targetCustomerId =
+                                        _extractCustomerId(liveData);
+                                    if (targetCustomerId.isEmpty) {
+                                      targetCustomerId = _extractCustomerId(
+                                        data,
+                                      );
+                                    }
+                                    if (targetCustomerId.isEmpty &&
+                                        matchedRaisedData != null) {
+                                      targetCustomerId = _extractCustomerId(
+                                        matchedRaisedData,
+                                      );
+                                    }
+                                    if (targetCustomerId.isEmpty &&
+                                        currentCustomerPhone.isNotEmpty &&
+                                        currentCustomerPhone != 'N/A') {
+                                      targetCustomerId = currentCustomerPhone;
+                                    }
+
+                                    // Trigger status notification ONLY when status actually changed
+                                    if (statusActuallyChanged) {
+                                      if (targetCustomerId.isEmpty) {
+                                        debugPrint(
+                                          '[WARN] Skipping customer notification: No valid customerId found for ticket #$bookingId',
+                                        );
+                                      } else {
+                                        try {
+                                          final notifContent =
+                                              _getCustomerStatusNotificationContent(
+                                                status: newStatus,
+                                                ticketId: currentBookingId,
+                                                cancellationReason:
+                                                    (liveData['Reason_cancel'] ??
+                                                            liveData['cancellationReason'] ??
+                                                            data['Reason_cancel'] ??
+                                                            data['cancellationReason'] ??
+                                                            '')
+                                                        .toString(),
+                                              );
+
+                                          final notifTitle =
+                                              notifContent['title']!;
+                                          final notifBody =
+                                              notifContent['body']!;
+                                          final notifType =
+                                              notifContent['type']!;
+
+                                          await NotificationService.sendNotificationToFirestore(
+                                            audience: 'customer',
+                                            customerId: targetCustomerId,
+                                            customerName: currentCustomerName,
+                                            bookingId: currentBookingId,
+                                            title: notifTitle,
+                                            body: notifBody,
+                                            type: notifType,
+                                            additionalData: {
+                                              'ticketId': currentBookingId,
+                                              'bookingId': currentBookingId,
+                                              'status': newStatus,
+                                              'customerPhone':
+                                                  currentCustomerPhone,
+                                              'customerName':
+                                                  currentCustomerName,
+                                              'customerId': targetCustomerId,
+                                              'screen':
+                                                  notifType ==
+                                                      'ticket_completed_feedback'
+                                                  ? 'customer_feedback'
+                                                  : 'amc_main',
+                                              'notificationType': notifType,
+                                              'eventId':
+                                                  'status_${currentBookingId}_${newStatus.toLowerCase().replaceAll(' ', '_')}_${DateTime.now().millisecondsSinceEpoch}',
+                                            },
+                                          );
+                                          debugPrint(
+                                            '[NOTIFICATION] Sent customer notification ($notifType): $notifTitle',
+                                          );
+                                        } catch (notifErr) {
+                                          debugPrint(
+                                            '[WARN] Error sending customer notification: $notifErr',
+                                          );
+                                        }
+                                      }
+                                    } else {
+                                      debugPrint(
+                                        '[NOTIFICATION] Status unchanged ($previousStatus -> $newStatus). No notification sent.',
+                                      );
+                                    }
+
+                                    nav.pop();
+                                    messenger.showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Status updated to $currentStatus',
+                                          style: GoogleFonts.inter(
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        backgroundColor: const Color(
+                                          0xFF10B981,
+                                        ),
+                                        behavior: SnackBarBehavior.floating,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  } catch (e) {
+                                    messenger.showSnackBar(
+                                      SnackBar(
+                                        content: Text('Error updating: $e'),
+                                        backgroundColor: Colors.redAccent,
+                                        behavior: SnackBarBehavior.floating,
+                                      ),
+                                    );
+                                  }
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: primaryColor,
+                                  foregroundColor: Colors.white,
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                ),
+                                child: Text(
+                                  'Save & Apply Update',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
-              ),
+                );
+              },
             );
           },
         );
@@ -1286,14 +1990,14 @@ class _EngineerUpdatesState extends State<EngineerUpdates> {
     );
   }
 
-  Widget _modalDetailRow(String label, String value) {
+  Widget _modalDetailRow(String label, String value, {Color? valueColor}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 110,
+            width: 125,
             child: Text(
               label,
               style: GoogleFonts.inter(
@@ -1310,7 +2014,7 @@ class _EngineerUpdatesState extends State<EngineerUpdates> {
               style: GoogleFonts.inter(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
-                color: const Color(0xFF0F172A),
+                color: valueColor ?? const Color(0xFF0F172A),
               ),
             ),
           ),

@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
+import 'package:subscription_rooks_app/services/notification_service.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_dashboard.dart';
 import 'package:subscription_rooks_app/frontend/screens/engineer_dashboard_page.dart';
 import 'package:subscription_rooks_app/frontend/screens/amc_main_page.dart';
@@ -153,8 +154,12 @@ class AuthStateService extends ChangeNotifier {
     bool deferAuth = false,
   }) async {
     try {
-      final cleanEmail = email.replaceAll(RegExp(r'\s+'), '').trim().toLowerCase();
-      final resolvedPhone = phone?.trim() ??
+      final cleanEmail = email
+          .replaceAll(RegExp(r'\s+'), '')
+          .trim()
+          .toLowerCase();
+      final resolvedPhone =
+          phone?.trim() ??
           (additionalData?['phone'] as String?)?.trim() ??
           (additionalData?['customerMobile'] as String?)?.trim() ??
           '';
@@ -184,11 +189,14 @@ class AuthStateService extends ChangeNotifier {
                   email: cleanEmail,
                   password: password,
                 );
-                debugPrint('User already exists, signed in to validate credentials');
+                debugPrint(
+                  'User already exists, signed in to validate credentials',
+                );
               } catch (signInError) {
                 return {
                   'success': false,
-                  'message': 'Auth Error: The email address is already in use and the password provided is incorrect.',
+                  'message':
+                      'Auth Error: The email address is already in use and the password provided is incorrect.',
                 };
               }
             } else {
@@ -266,7 +274,9 @@ class AuthStateService extends ChangeNotifier {
           await prefs.setString('pending_phone', resolvedPhone);
         }
 
-        debugPrint('Account auth validated & initial record created in Firestore for $cleanEmail ($targetScope)');
+        debugPrint(
+          'Account auth validated & initial record created in Firestore for $cleanEmail ($targetScope)',
+        );
         return {'success': true, 'message': 'Account details saved.'};
       }
 
@@ -389,11 +399,13 @@ class AuthStateService extends ChangeNotifier {
       final currentAuthUser = auth.currentUser;
       if (currentAuthUser != null) {
         final prefs = await SharedPreferences.getInstance();
-        final tenantId = prefs.getString('pending_tenantId') ??
+        final tenantId =
+            prefs.getString('pending_tenantId') ??
             prefs.getString('admin_org_collection') ??
             ThemeService.instance.databaseName;
         if (tenantId.isNotEmpty) {
-          final email = currentAuthUser.email ?? prefs.getString('pending_email') ?? '';
+          final email =
+              currentAuthUser.email ?? prefs.getString('pending_email') ?? '';
           final phone = prefs.getString('pending_phone') ?? '';
           await FirestoreService.instance
               .collection('users', tenantId: tenantId)
@@ -424,8 +436,10 @@ class AuthStateService extends ChangeNotifier {
       final name = data['name'] ?? 'User';
       final email = data['email'] ?? auth.currentUser?.email ?? '';
       final role = data['role'] ?? 'admin';
-      final additionalData = data['additionalData'] as Map<String, dynamic>? ?? {};
-      final phone = (data['phone'] as String?)?.trim() ??
+      final additionalData =
+          data['additionalData'] as Map<String, dynamic>? ?? {};
+      final phone =
+          (data['phone'] as String?)?.trim() ??
           (additionalData['phone'] as String?)?.trim() ??
           (additionalData['customerMobile'] as String?)?.trim() ??
           '';
@@ -449,10 +463,7 @@ class AuthStateService extends ChangeNotifier {
         'uid': uid,
         'name': name,
         'email': email,
-        if (phone.isNotEmpty) ...{
-          'phone': phone,
-          'customerMobile': phone,
-        },
+        if (phone.isNotEmpty) ...{'phone': phone, 'customerMobile': phone},
         'role': role,
         'registeredAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
@@ -505,6 +516,39 @@ class AuthStateService extends ChangeNotifier {
         );
       }
 
+      if (role == 'customer') {
+        final custId = (data['Id'] ?? data['customerId'] ?? data['id'] ?? uid)
+            .toString();
+        final phone =
+            (data['Phone Number'] ?? data['phonenumber'])?.toString();
+        NotificationService.instance.registerToken(
+          role: 'customer',
+          userId: uid,
+          email: email,
+          tenantId: targetScope,
+          customerId: custId,
+          phoneNumber: phone,
+          displayName: data['name'] as String?,
+        );
+      } else if (role == 'engineer') {
+        NotificationService.instance.registerToken(
+          role: 'engineer',
+          userId: uid,
+          username: (data['Username'] ?? data['name'] ?? email).toString(),
+          email: email,
+          tenantId: targetScope,
+          displayName: data['name'] as String?,
+        );
+      } else if (role == 'admin' || role == 'Owner') {
+        NotificationService.instance.registerToken(
+          role: 'admin',
+          userId: uid,
+          email: email,
+          tenantId: targetScope,
+          displayName: data['name'] as String?,
+        );
+      }
+
       _pendingRegistrationData = null; // Clear after successful save
       notifyListeners();
 
@@ -517,7 +561,10 @@ class AuthStateService extends ChangeNotifier {
 
   Future<Map<String, dynamic>> loginUser(String email, String password) async {
     try {
-      final cleanEmail = email.replaceAll(RegExp(r'\s+'), '').trim().toLowerCase();
+      final cleanEmail = email
+          .replaceAll(RegExp(r'\s+'), '')
+          .trim()
+          .toLowerCase();
 
       UserCredential userCredential = await auth.signInWithEmailAndPassword(
         email: cleanEmail,
@@ -649,16 +696,45 @@ class AuthStateService extends ChangeNotifier {
           tenantId: scope,
           appName: userData['name'] as String?,
         );
+        NotificationService.instance.registerToken(
+          role: 'admin',
+          userId: uid,
+          email: cleanEmail,
+          tenantId: scope,
+          displayName: userData['name'] as String?,
+        );
       } else if (role == 'engineer') {
+        final engUsername =
+            (userData['Username'] ?? userData['name'] ?? cleanEmail)
+                .toString();
         await saveEngineerSession(
-          username: userData['Username'] ?? userData['name'] ?? cleanEmail,
+          username: engUsername,
           tenantId: scope,
           email: cleanEmail,
         );
-      } else if (role == 'customer') {
-        await saveCustomerSession(
+        NotificationService.instance.registerToken(
+          role: 'engineer',
+          userId: uid,
+          username: engUsername,
           email: cleanEmail,
           tenantId: scope,
+          displayName: userData['name'] as String?,
+        );
+      } else if (role == 'customer') {
+        await saveCustomerSession(email: cleanEmail, tenantId: scope);
+        final custId =
+            (userData['Id'] ?? userData['customerId'] ?? userData['id'] ?? uid)
+                .toString();
+        final phone =
+            (userData['Phone Number'] ?? userData['phonenumber'])?.toString();
+        NotificationService.instance.registerToken(
+          role: 'customer',
+          userId: uid,
+          email: cleanEmail,
+          tenantId: scope,
+          customerId: custId,
+          phoneNumber: phone,
+          displayName: userData['name'] as String?,
         );
       }
 
@@ -701,6 +777,14 @@ class AuthStateService extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    try {
+      await NotificationService.instance.unregisterToken();
+    } catch (e) {
+      debugPrint(
+        'AuthStateService: Error unregistering notification token: $e',
+      );
+    }
+
     try {
       await auth.signOut();
     } catch (e) {
@@ -776,7 +860,8 @@ class AuthStateService extends ChangeNotifier {
         // If payment has already been confirmed and subscription is activated,
         // navigate directly to the appropriate screen without showing the verification screen again.
         final txnId = pendingPayment['txnId']?.toString() ?? '';
-        final tenantId = pendingPayment['tenantId'] as String? ??
+        final tenantId =
+            pendingPayment['tenantId'] as String? ??
             prefs.getString(kTenantId) ??
             prefs.getString(kAdminOrgCollection) ??
             prefs.getString(kDatabaseName);
@@ -791,7 +876,9 @@ class AuthStateService extends ChangeNotifier {
             );
 
             if (isSubscribed) {
-              debugPrint('Subscription is active. Clearing pending recovery without showing verification screen.');
+              debugPrint(
+                'Subscription is active. Clearing pending recovery without showing verification screen.',
+              );
               await PaymentRecoveryService.instance.clearPendingPayment();
               alreadyHandled = true;
             } else if (txnId.isNotEmpty) {
@@ -800,16 +887,21 @@ class AuthStateService extends ChangeNotifier {
                   .doc(txnId)
                   .get();
               if (paymentDoc.exists) {
-                final status = (paymentDoc.data()?['status'] as String? ?? '').toUpperCase();
+                final status = (paymentDoc.data()?['status'] as String? ?? '')
+                    .toUpperCase();
                 if (status == 'FAILED' || status == 'CANCELLED') {
-                  debugPrint('Payment was already marked FAILED/CANCELLED. Clearing pending recovery.');
+                  debugPrint(
+                    'Payment was already marked FAILED/CANCELLED. Clearing pending recovery.',
+                  );
                   await PaymentRecoveryService.instance.clearPendingPayment();
                   alreadyHandled = true;
                 }
               }
             }
           } catch (e) {
-            debugPrint('Error checking if pending payment already confirmed: $e');
+            debugPrint(
+              'Error checking if pending payment already confirmed: $e',
+            );
           }
         }
 
@@ -839,21 +931,38 @@ class AuthStateService extends ChangeNotifier {
         }
       }
 
-      final bool hasSavedSession = isExplicitlyLoggedIn ||
+      final bool hasSavedSession =
+          isExplicitlyLoggedIn ||
           isAdminLoggedIn ||
           (engineerName != null && engineerName.isNotEmpty) ||
           (customerEmail != null && customerEmail.isNotEmpty);
 
       if (hasSavedSession && role != null) {
-        debugPrint('AuthStateService: Found saved session in SharedPreferences for role: $role');
+        debugPrint(
+          'AuthStateService: Found saved session in SharedPreferences for role: $role',
+        );
 
         // Route directly to Admin Dashboard or Plan Screen based on verified subscription
         if (role == 'admin' || role == 'Owner') {
           final adminTenantId =
-              prefs.getString(kAdminOrgCollection) ?? prefs.getString(kTenantId);
+              prefs.getString(kAdminOrgCollection) ??
+              prefs.getString(kTenantId);
           if (adminTenantId != null && adminTenantId.isNotEmpty) {
+            // Register FCM token for Admin on session restore
+            final adminUser = FirebaseAuth.instance.currentUser;
+            if (adminUser != null) {
+              NotificationService.instance.registerToken(
+                role: 'admin',
+                userId: adminUser.uid,
+                email: adminUser.email ?? '',
+                tenantId: adminTenantId,
+              );
+            }
+
             // Trigger branding sync in background
-            FirestoreService.instance.syncBranding(adminTenantId).catchError((e) {
+            FirestoreService.instance.syncBranding(adminTenantId).catchError((
+              e,
+            ) {
               debugPrint('Background syncBranding error: $e');
             });
 
@@ -862,7 +971,9 @@ class AuthStateService extends ChangeNotifier {
               tenantId: adminTenantId,
             );
             if (!isSubscribed) {
-              debugPrint('AuthStateService: Admin subscription is inactive or expired');
+              debugPrint(
+                'AuthStateService: Admin subscription is inactive or expired',
+              );
               return const SubscriptionPlansScreen(hideTrial: true);
             }
           }
@@ -871,11 +982,21 @@ class AuthStateService extends ChangeNotifier {
 
         // Route directly to Service Engineer Dashboard
         if (role == 'engineer') {
-          final resolvedName = engineerName ?? prefs.getString(kEngineerName) ?? '';
+          final resolvedName =
+              engineerName ?? prefs.getString(kEngineerName) ?? '';
           final email = prefs.getString(kEngineerEmail) ?? '';
           final tenantId = prefs.getString(kTenantId);
 
           if (tenantId != null && tenantId.isNotEmpty) {
+            // Register FCM token for Engineer on session restore
+            NotificationService.instance.registerToken(
+              role: 'engineer',
+              userId: FirebaseAuth.instance.currentUser?.uid ?? resolvedName,
+              username: resolvedName,
+              email: email,
+              tenantId: tenantId,
+            );
+
             // Background branding sync
             FirestoreService.instance.syncBranding(tenantId).catchError((e) {});
 
@@ -885,8 +1006,8 @@ class AuthStateService extends ChangeNotifier {
                   .signInAnonymously()
                   .then<void>((_) {})
                   .catchError((e) {
-                debugPrint('Background anonymous auth failed: $e');
-              });
+                    debugPrint('Background anonymous auth failed: $e');
+                  });
             }
           }
 
@@ -898,6 +1019,19 @@ class AuthStateService extends ChangeNotifier {
           final tenantId = prefs.getString(kTenantId);
 
           if (tenantId != null && tenantId.isNotEmpty) {
+            // Register FCM token for Customer on session restore
+            final custEmail = prefs.getString('email') ?? '';
+            final customerUser = FirebaseAuth.instance.currentUser;
+            final custId =
+                prefs.getString('customerId') ?? customerUser?.uid ?? '';
+            NotificationService.instance.registerToken(
+              role: 'customer',
+              userId: customerUser?.uid ?? custId,
+              email: custEmail,
+              tenantId: tenantId,
+              customerId: custId,
+            );
+
             // Background branding sync
             FirestoreService.instance.syncBranding(tenantId).catchError((e) {});
 
@@ -907,8 +1041,8 @@ class AuthStateService extends ChangeNotifier {
                   .signInAnonymously()
                   .then<void>((_) {})
                   .catchError((e) {
-                debugPrint('Background anonymous auth failed: $e');
-              });
+                    debugPrint('Background anonymous auth failed: $e');
+                  });
             }
           }
 
@@ -935,10 +1069,16 @@ class AuthStateService extends ChangeNotifier {
               tenantId: tenantId ?? '',
               appName: metadata['appName'] ?? metadata['name'],
             );
+            NotificationService.instance.registerToken(
+              role: 'admin',
+              userId: user.uid,
+              email: user.email ?? '',
+              tenantId: tenantId ?? '',
+              displayName: (metadata['appName'] ?? metadata['name']) as String?,
+            );
             if (tenantId != null && tenantId.isNotEmpty) {
-              final isSubscribed = await FirestoreService.instance.isTenantActive(
-                tenantId: tenantId,
-              );
+              final isSubscribed = await FirestoreService.instance
+                  .isTenantActive(tenantId: tenantId);
               if (!isSubscribed) {
                 return const SubscriptionPlansScreen(hideTrial: true);
               }
@@ -951,11 +1091,32 @@ class AuthStateService extends ChangeNotifier {
               tenantId: tenantId ?? '',
               email: user.email,
             );
+            NotificationService.instance.registerToken(
+              role: 'engineer',
+              userId: user.uid,
+              username: name,
+              email: user.email ?? '',
+              tenantId: tenantId ?? '',
+              displayName: metadata['name'] as String?,
+            );
             return EngineerPage(userEmail: user.email ?? '', userName: name);
           } else if (recoveredRole == 'customer') {
             await saveCustomerSession(
               email: user.email ?? '',
               tenantId: tenantId ?? '',
+            );
+            final custId =
+                (metadata['Id'] ??
+                        metadata['customerId'] ??
+                        metadata['id'] ??
+                        user.uid)
+                    .toString();
+            NotificationService.instance.registerToken(
+              role: 'customer',
+              userId: user.uid,
+              email: user.email ?? '',
+              tenantId: tenantId ?? '',
+              customerId: custId,
             );
             return const AMCCustomerMainPage();
           }

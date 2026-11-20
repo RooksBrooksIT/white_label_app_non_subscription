@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
+import '../../utils/responsive_wrapper.dart';
 
 class AdminRatingsPage extends StatefulWidget {
   const AdminRatingsPage({super.key});
@@ -31,20 +33,23 @@ class _AdminRatingsPageState extends State<AdminRatingsPage> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0.5,
-        leading: Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: CircleAvatar(
-            backgroundColor: const Color(0xFFF1F5F9),
-            child: IconButton(
-              icon: const Icon(
-                Icons.arrow_back_rounded,
-                color: Color(0xFF0F172A),
-                size: 18,
+        automaticallyImplyLeading: !kIsWeb,
+        leading: kIsWeb
+            ? null
+            : Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: CircleAvatar(
+                  backgroundColor: const Color(0xFFF1F5F9),
+                  child: IconButton(
+                    icon: const Icon(
+                      Icons.arrow_back_rounded,
+                      color: Color(0xFF0F172A),
+                      size: 18,
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ),
               ),
-              onPressed: () => Navigator.pop(context),
-            ),
-          ),
-        ),
         title: const Text(
           'Customer Ratings & Feedback',
           style: TextStyle(
@@ -55,7 +60,9 @@ class _AdminRatingsPageState extends State<AdminRatingsPage> {
           ),
         ),
       ),
-      body: StreamBuilder<QuerySnapshot>(
+      body: ResponsiveWrapper(
+        maxWidth: 960,
+        child: StreamBuilder<QuerySnapshot>(
         stream: FirestoreService.instance
             .collection('ratings')
             .orderBy('createdAt', descending: true)
@@ -257,7 +264,8 @@ class _AdminRatingsPageState extends State<AdminRatingsPage> {
           );
         },
       ),
-    );
+    ),
+  );
   }
 
   Widget _buildSummaryCard({

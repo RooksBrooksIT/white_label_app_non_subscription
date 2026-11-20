@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:subscription_rooks_app/services/icici_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:subscription_rooks_app/services/auth_state_service.dart';
@@ -6,6 +7,7 @@ import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/services/payment_recovery_service.dart';
 import 'package:subscription_rooks_app/services/invoice_email_service.dart';
 import 'package:subscription_rooks_app/services/subscription_queue_service.dart';
+import 'package:subscription_rooks_app/services/app_update_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'icici_payment_webview_screen.dart';
 import 'queued_upgrade_confirmation_screen.dart';
@@ -19,6 +21,7 @@ class PaymentScreen extends StatefulWidget {
   final String planName;
   final bool isYearly;
   final bool isSixMonths;
+  final int subscriptionYears;
   final int price;
   final int? originalPrice;
   final Map<String, dynamic>? brandingData;
@@ -51,6 +54,7 @@ class PaymentScreen extends StatefulWidget {
     required this.planName,
     required this.isYearly,
     this.isSixMonths = false,
+    this.subscriptionYears = 1,
     required this.price,
     this.originalPrice,
     this.brandingData,
@@ -85,11 +89,13 @@ class _PaymentScreenState extends State<PaymentScreen>
   @override
   void initState() {
     super.initState();
+    AppUpdateService.isPaymentInProgress = true;
     WidgetsBinding.instance.addObserver(this);
   }
 
   @override
   void dispose() {
+    AppUpdateService.isPaymentInProgress = false;
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -385,6 +391,7 @@ class _PaymentScreenState extends State<PaymentScreen>
                     status: 'SUCCESS_ORPHANED',
                     isYearly: widget.isYearly,
                     isSixMonths: widget.isSixMonths,
+                    subscriptionYears: widget.subscriptionYears,
                     registrationCompleted: false,
                     firestoreSynced: false,
                     failureReason: 'Wrong password for existing account',
@@ -444,6 +451,7 @@ class _PaymentScreenState extends State<PaymentScreen>
               planName: widget.planName,
               isYearly: widget.isYearly,
               isSixMonths: widget.isSixMonths,
+              subscriptionYears: widget.subscriptionYears,
               price: actualAmount,
               originalPrice: widget.originalPrice,
               paymentMethod: resolvedPaymentMethod,
@@ -463,6 +471,7 @@ class _PaymentScreenState extends State<PaymentScreen>
               planName: widget.planName,
               isYearly: widget.isYearly,
               isSixMonths: widget.isSixMonths,
+              subscriptionYears: widget.subscriptionYears,
               price: actualAmount,
               originalPrice: widget.originalPrice,
               paymentMethod: resolvedPaymentMethod,
@@ -501,6 +510,7 @@ class _PaymentScreenState extends State<PaymentScreen>
             status: 'SUCCESS',
             isYearly: widget.isYearly,
             isSixMonths: widget.isSixMonths,
+            subscriptionYears: widget.subscriptionYears,
             queueStatus: _queueUpgrade ? 'Queued' : 'Immediate',
             registrationCompleted: true,
             firestoreSynced: true,
@@ -530,6 +540,7 @@ class _PaymentScreenState extends State<PaymentScreen>
             planName: widget.planName,
             isYearly: widget.isYearly,
             isSixMonths: widget.isSixMonths,
+            subscriptionYears: widget.subscriptionYears,
             amountPaid: actualAmount,
             gstNumber: widget.pendingUserData?['gstNumber'],
           );
@@ -617,6 +628,7 @@ class _PaymentScreenState extends State<PaymentScreen>
         status: isPending ? 'PENDING' : 'FAILED',
         isYearly: widget.isYearly,
         isSixMonths: widget.isSixMonths,
+        subscriptionYears: widget.subscriptionYears,
         failureReason: displayError,
         registrationCompleted: false,
         firestoreSynced: true,
@@ -725,14 +737,16 @@ class _PaymentScreenState extends State<PaymentScreen>
 
   // Get next billing date
   DateTime getNextBillingDate() {
+    final now = DateTime.now();
     if (widget.isYearly) {
-      return DateTime.now().add(const Duration(days: 365));
+      final yearsToAdd =
+          widget.subscriptionYears > 0 ? widget.subscriptionYears : 1;
+      return DateTime(now.year + yearsToAdd, now.month, now.day);
     } else if (widget.isSixMonths) {
       // Best way to add 6 months:
-      final now = DateTime.now();
       return DateTime(now.year, now.month + 6, now.day);
     } else {
-      return DateTime.now().add(const Duration(days: 30));
+      return now.add(const Duration(days: 30));
     }
   }
 
@@ -793,22 +807,25 @@ class _PaymentScreenState extends State<PaymentScreen>
             backgroundColor: Colors.white,
             foregroundColor: Colors.black,
             elevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new, size: 20),
-              onPressed: () {
-                if (_isVerifying) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Please wait. Payment verification is in progress. You can go back once the verification process is complete.',
-                      ),
-                    ),
-                  );
-                } else {
-                  Navigator.pop(context);
-                }
-              },
-            ),
+            automaticallyImplyLeading: !kIsWeb,
+            leading: kIsWeb
+                ? null
+                : IconButton(
+                    icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+                    onPressed: () {
+                      if (_isVerifying) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Please wait. Payment verification is in progress. You can go back once the verification process is complete.',
+                            ),
+                          ),
+                        );
+                      } else {
+                        Navigator.pop(context);
+                      }
+                    },
+                  ),
           ),
           body: SafeArea(
             child: SingleChildScrollView(
@@ -943,7 +960,9 @@ class _PaymentScreenState extends State<PaymentScreen>
                   padding: EdgeInsets.only(left: 4, bottom: 6),
                   child: Text(
                     widget.isYearly
-                        ? '/year'
+                        ? (widget.subscriptionYears > 1
+                            ? '/${widget.subscriptionYears} yrs'
+                            : '/year')
                         : (widget.isSixMonths ? '/6mo' : '/mo'),
                     style: TextStyle(
                       fontSize: isDesktop ? 14 : 12,
@@ -998,7 +1017,9 @@ class _PaymentScreenState extends State<PaymentScreen>
                   value: widget.price == 0
                       ? '7 Days Free Trial'
                       : widget.isYearly
-                      ? 'Billed Annually (12 months)'
+                      ? (widget.subscriptionYears > 1
+                          ? 'Billed for ${widget.subscriptionYears} Years (${widget.subscriptionYears * 12} months)'
+                          : 'Billed Annually (12 months)')
                       : widget.isSixMonths
                       ? 'Billed Every 6 Months'
                       : 'Billed Monthly',
@@ -1334,6 +1355,7 @@ class _PaymentScreenState extends State<PaymentScreen>
         customerMobile: customerData['phone'],
         isYearly: widget.isYearly,
         isSixMonths: widget.isSixMonths,
+        subscriptionYears: widget.subscriptionYears,
         limits: widget.limits,
         geoLocation: widget.geoLocation,
         attendance: widget.attendance,
@@ -1361,6 +1383,8 @@ class _PaymentScreenState extends State<PaymentScreen>
           'price': widget.price,
           'isYearly': widget.isYearly,
           'isSixMonths': widget.isSixMonths,
+          'subscriptionYears': widget.subscriptionYears,
+          'billingYears': widget.subscriptionYears,
           'originalPrice': widget.originalPrice,
           'paymentMethod': _formatPaymentMethod(selectedPaymentMethod),
           'pendingUserData': widget.pendingUserData,
@@ -1432,6 +1456,7 @@ class _PaymentScreenState extends State<PaymentScreen>
           planName: widget.planName,
           amountPaid: actualAmount,
           isYearly: widget.isYearly,
+          subscriptionYears: widget.subscriptionYears,
           paymentMethod: resolvedPaymentMethod,
           timestamp: DateTime.now(),
           isFirstTimeRegistration: widget.isFirstTimeRegistration,
@@ -1463,6 +1488,7 @@ class _PaymentScreenState extends State<PaymentScreen>
           scheduledActivationDate: widget.activePlanExpiryDate,
           isYearly: widget.isYearly,
           isSixMonths: widget.isSixMonths,
+          subscriptionYears: widget.subscriptionYears,
         ),
       ),
       (route) => route.isFirst,

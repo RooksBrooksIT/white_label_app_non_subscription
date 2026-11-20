@@ -22,12 +22,19 @@ class EngineerLoginBackend {
     return null;
   }
 
-  static Future<void> registerFcmToken(String engineerName) async {
+  static Future<void> registerFcmToken(
+    String engineerName, {
+    String? tenantId,
+    String? email,
+  }) async {
     try {
       // Use the unified NotificationService for consistency
       await NotificationService.instance.registerToken(
-        userId: engineerName,
+        userId: FirebaseAuth.instance.currentUser?.uid ?? engineerName,
+        username: engineerName,
         role: 'engineer',
+        tenantId: tenantId,
+        email: email ?? '',
       );
     } catch (e) {
       debugPrint('Error registering engineer FCM token: $e');
@@ -115,7 +122,7 @@ class EngineerLoginBackend {
         await prefs.setBool('app_is_registered', true);
         await prefs.setString('user_role', 'engineer');
         await prefs.setString('last_role', 'engineer');
-        await registerFcmToken(cleanUsername);
+        await registerFcmToken(cleanUsername, tenantId: tenantId, email: email);
 
         // Save persistent session via AuthStateService
         await AuthStateService.instance.saveEngineerSession(
@@ -134,7 +141,10 @@ class EngineerLoginBackend {
           isOnline: true,
         );
 
-        return {'success': true, 'username': cleanUsername};
+        final engineerDocId = querySnapshot.docs.first.id;
+        await prefs.setString('engineerUserId', engineerDocId);
+
+        return {'success': true, 'username': cleanUsername, 'userId': engineerDocId};
       } else {
         return {
           'success': false,

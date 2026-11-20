@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -73,6 +74,7 @@ class StorageService {
 
   /// Initialize and warm up the local branding logo cache
   Future<File?> initLogoCache({String? tenantId}) async {
+    if (kIsWeb) return null;
     try {
       final prefs = await SharedPreferences.getInstance();
       String effectiveTenant = tenantId ?? ThemeService.instance.databaseName;
@@ -108,6 +110,7 @@ class StorageService {
 
   /// Returns the in-memory cached logo file synchronously if available
   File? getSyncCachedLogoFile({String? tenantId}) {
+    if (kIsWeb) return null;
     if (_memoryCachedLogoFile != null &&
         _memoryCachedLogoFile!.existsSync() &&
         _memoryCachedLogoFile!.lengthSync() > 0) {
@@ -124,6 +127,7 @@ class StorageService {
     required String tenantId,
     String? logoUrl,
   }) async {
+    if (kIsWeb) return null;
     try {
       final docDir = await getApplicationDocumentsDirectory();
       final cacheDir = Directory('${docDir.path}/logo_cache');
@@ -157,6 +161,7 @@ class StorageService {
     String? logoUrl,
     bool forceRefresh = false,
   }) async {
+    if (kIsWeb) return null;
     try {
       String effectiveTenant = tenantId ?? ThemeService.instance.databaseName;
       if (effectiveTenant.isEmpty) {
@@ -272,6 +277,7 @@ class StorageService {
 
   /// Invalidates the local logo cache for a tenant
   Future<void> invalidateLogoCache({String? tenantId}) async {
+    if (kIsWeb) return;
     try {
       String effectiveTenant = tenantId ?? ThemeService.instance.databaseName;
       if (effectiveTenant.isEmpty) {
@@ -320,19 +326,21 @@ class StorageService {
       final snapshot = await uploadTask;
       final downloadUrl = await snapshot.ref.getDownloadURL();
 
-      // Immediately cache the newly uploaded image locally for instant access
-      try {
-        final docDir = await getApplicationDocumentsDirectory();
-        final cacheDir = Directory('${docDir.path}/qr_cache');
-        if (!await cacheDir.exists()) {
-          await cacheDir.create(recursive: true);
-        }
-        final cacheFile =
-            File('${cacheDir.path}/office_pay_qr_$tenantId.png');
-        await cacheFile.writeAsBytes(await file.readAsBytes(), flush: true);
-        _memoryCachedQRFile = cacheFile;
-        _memoryCachedTenant = tenantId;
-      } catch (_) {}
+      // Immediately cache the newly uploaded image locally for instant access (mobile only)
+      if (!kIsWeb) {
+        try {
+          final docDir = await getApplicationDocumentsDirectory();
+          final cacheDir = Directory('${docDir.path}/qr_cache');
+          if (!await cacheDir.exists()) {
+            await cacheDir.create(recursive: true);
+          }
+          final cacheFile =
+              File('${cacheDir.path}/office_pay_qr_$tenantId.png');
+          await cacheFile.writeAsBytes(await file.readAsBytes(), flush: true);
+          _memoryCachedQRFile = cacheFile;
+          _memoryCachedTenant = tenantId;
+        } catch (_) {}
+      }
 
       return downloadUrl;
     } catch (e) {
@@ -382,6 +390,7 @@ class StorageService {
     String? tenantId,
     bool forceRefresh = false,
   }) async {
+    if (kIsWeb) return null;
     try {
       String effectiveTenant = tenantId ?? ThemeService.instance.databaseName;
       if (effectiveTenant.isEmpty) {
@@ -472,6 +481,7 @@ class StorageService {
 
   /// Preload QR code cache in the background
   void preloadQRCodeCache({String? tenantId}) {
+    if (kIsWeb) return;
     getCachedQRCodeFile(tenantId: tenantId, forceRefresh: false);
   }
 

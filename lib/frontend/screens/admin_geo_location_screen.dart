@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -8,6 +9,7 @@ import 'package:cloud_firestore/cloud_firestore.dart' as firestore;
 import 'package:intl/intl.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -763,6 +765,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
       return Scaffold(
         backgroundColor: const Color(0xFFF8FAFC),
         appBar: AppBar(
+          automaticallyImplyLeading: !kIsWeb,
           title: const Text(
             'Customer Location Workspace',
             style: TextStyle(
@@ -776,9 +779,12 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
           elevation: 0,
           foregroundColor: Colors.white,
         ),
-        body: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-          child: _buildCustomerLocationWorkspaceCard(primaryColor),
+        body: ResponsiveWrapper(
+          maxWidth: 960,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+            child: _buildCustomerLocationWorkspaceCard(primaryColor),
+          ),
         ),
       );
     }
@@ -788,16 +794,19 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0.5,
-        leading: Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: CircleAvatar(
-            backgroundColor: const Color(0xFFF1F5F9),
-            child: IconButton(
-              icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF0F172A), size: 18),
-              onPressed: () => Navigator.pop(context),
-            ),
-          ),
-        ),
+        automaticallyImplyLeading: !kIsWeb,
+        leading: kIsWeb
+            ? null
+            : Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: CircleAvatar(
+                  backgroundColor: const Color(0xFFF1F5F9),
+                  child: IconButton(
+                    icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF0F172A), size: 18),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ),
+              ),
         title: Text(
           isEngineerSelected
               ? "Tracking: $_currentTrackingName"

@@ -62,6 +62,8 @@ exports.createPaymentSession = functions
                 customerMobile,
                 isYearly,
                 isSixMonths,
+                subscriptionYears,
+                billingYears,
                 limits,
                 geoLocation,
                 attendance,
@@ -86,6 +88,7 @@ exports.createPaymentSession = functions
             // 3. Prepare Firestore Document — include all subscription fields
             //    so that processPaymentSuccess has everything it needs.
             const resolvedMobile = customerMobile || mobile || null;
+            const parsedYears = parseInt(subscriptionYears || billingYears || 1, 10) || 1;
             const paymentData = {
                 txnId,
                 uid: userId,             // Required by processPaymentSuccess
@@ -104,6 +107,12 @@ exports.createPaymentSession = functions
                 customerMobile: resolvedMobile,
                 isYearly: isYearly === true || isYearly === "true",
                 isSixMonths: isSixMonths === true || isSixMonths === "true",
+                subscriptionYears: parsedYears,
+                billingYears: parsedYears,
+                durationYears: parsedYears,
+                totalAmount: parseFloat(amount),
+                annualPrice: (isYearly === true || isYearly === "true") ? Math.round(parseFloat(amount) / parsedYears) : null,
+                billingType: (isYearly === true || isYearly === "true") ? "Yearly" : ((isSixMonths === true || isSixMonths === "true") ? "6 Months" : "Monthly"),
                 limits: limits || null,
                 geoLocation: geoLocation === true || geoLocation === "true" || false,
                 attendance: attendance === true || attendance === "true" || false,

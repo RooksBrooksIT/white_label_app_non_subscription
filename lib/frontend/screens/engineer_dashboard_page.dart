@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
@@ -8,6 +10,8 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:intl/intl.dart';
 import 'package:subscription_rooks_app/frontend/screens/engineer_barcode_identifier.dart';
 import 'package:subscription_rooks_app/frontend/screens/engineer_barcode_scanner_page.dart';
+import 'package:subscription_rooks_app/frontend/screens/engineer_notifications_page.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:subscription_rooks_app/frontend/screens/engineer_office_pay_qr_screen.dart';
 import 'package:subscription_rooks_app/frontend/screens/role_selection_screen.dart';
 import 'package:subscription_rooks_app/services/auth_state_service.dart';
@@ -147,6 +151,35 @@ class AdminDetails {
   final String assignedDate;
   final double? lat;
   final double? lng;
+
+  // Cancellation Fields
+  final String status;
+  final String cancellationReason;
+  final String cancelledBy;
+  final String cancelledByRole;
+  final Timestamp? cancelledAt;
+
+  // Staff Assignment Fields
+  final String assignedEmployee;
+  final String assignedEngineer;
+  final String assignedEngineerId;
+  final String helperName;
+  final String helperId;
+  final String helper1;
+  final String helperReason;
+  final List<String> helpers;
+
+  // Visit Scheduling Fields
+  final String expectedVisitDate;
+  final String expectedVisitTime;
+  final Timestamp? expectedVisitAt;
+  final String visitNotes;
+  final double? customerRating;
+  final String customerFeedback;
+  final String feedbackStatus;
+  final Timestamp? feedbackSubmittedAt;
+  final bool completionFeedbackNotificationSent;
+
   AdminDetails({
     required this.docId,
     required this.bookingId,
@@ -166,10 +199,31 @@ class AdminDetails {
     required this.customerDecision,
     this.assignedTimestamp,
     this.completedAt,
-
     this.id = '',
     this.lat,
     this.lng,
+    this.status = '',
+    this.cancellationReason = '',
+    this.cancelledBy = '',
+    this.cancelledByRole = '',
+    this.cancelledAt,
+    this.assignedEmployee = '',
+    this.assignedEngineer = '',
+    this.assignedEngineerId = '',
+    this.helperName = '',
+    this.helperId = '',
+    this.helper1 = '',
+    this.helperReason = '',
+    this.helpers = const [],
+    this.expectedVisitDate = '',
+    this.expectedVisitTime = '',
+    this.expectedVisitAt,
+    this.visitNotes = '',
+    this.customerRating,
+    this.customerFeedback = '',
+    this.feedbackStatus = '',
+    this.feedbackSubmittedAt,
+    this.completionFeedbackNotificationSent = false,
   }) : assignedDate = assignedTimestamp != null
            ? '${assignedTimestamp.toDate().day}/${assignedTimestamp.toDate().month}/${assignedTimestamp.toDate().year}'
            : 'Not assigned';
@@ -183,6 +237,28 @@ class AdminDetails {
 
   factory AdminDetails.fromFirestore(DocumentSnapshot doc) {
     var data = doc.data() as Map<String, dynamic>;
+    final rawHelpers = data['helpers'];
+    List<String> parsedHelpers = [];
+    if (rawHelpers is List) {
+      parsedHelpers = rawHelpers.map((e) => e.toString().trim()).toList();
+    }
+    // Also scan all Helper1, Helper2, etc. fields
+    data.forEach((key, value) {
+      if (RegExp(r'^Helper\d+$').hasMatch(key) && value != null) {
+        final val = value.toString().trim();
+        if (val.isNotEmpty && !parsedHelpers.contains(val)) {
+          parsedHelpers.add(val);
+        }
+      }
+    });
+    final hName =
+        (data['helperName'] ?? data['helper'] ?? data['Helper1'] ?? '')
+            .toString()
+            .trim();
+    if (hName.isNotEmpty && !parsedHelpers.contains(hName)) {
+      parsedHelpers.add(hName);
+    }
+
     return AdminDetails(
       docId: doc.id,
       bookingId: data['bookingId'] ?? '',
@@ -205,7 +281,119 @@ class AdminDetails {
       id: data['id'] ?? '',
       lat: (data['lat'] as num?)?.toDouble(),
       lng: (data['lng'] as num?)?.toDouble(),
+      status: (data['status'] ?? '').toString().trim(),
+      cancellationReason:
+          (data['cancellationReason'] ??
+                  data['cancellation_reason'] ??
+                  data['cancelReason'] ??
+                  data['Reason_cancel'] ??
+                  '')
+              .toString()
+              .trim(),
+      cancelledBy: (data['cancelledBy'] ?? '').toString().trim(),
+      cancelledByRole: (data['cancelledByRole'] ?? '').toString().trim(),
+      cancelledAt: data['cancelledAt'] is Timestamp
+          ? data['cancelledAt'] as Timestamp
+          : null,
+      assignedEmployee: (data['assignedEmployee'] ?? '').toString().trim(),
+      assignedEngineer: (data['assignedEngineer'] ?? '').toString().trim(),
+      assignedEngineerId: (data['assignedEngineerId'] ?? '').toString().trim(),
+      helperName: hName,
+      helperId: (data['helperId'] ?? '').toString().trim(),
+      helper1: (data['Helper1'] ?? '').toString().trim(),
+      helperReason: (data['Helper1_Reason'] ?? data['helperReason'] ?? '')
+          .toString()
+          .trim(),
+      helpers: parsedHelpers,
+      expectedVisitDate: (data['expectedVisitDate'] ?? '').toString().trim(),
+      expectedVisitTime: (data['expectedVisitTime'] ?? '').toString().trim(),
+      expectedVisitAt: data['expectedVisitAt'] is Timestamp
+          ? data['expectedVisitAt'] as Timestamp
+          : null,
+      visitNotes: (data['visitNotes'] ?? '').toString().trim(),
+      customerRating: (data['customerRating'] ?? data['rating'] as num?)
+          ?.toDouble(),
+      customerFeedback:
+          (data['customerFeedback'] ??
+                  data['ratingComment'] ??
+                  data['comment'] ??
+                  '')
+              .toString()
+              .trim(),
+      feedbackStatus: (data['feedbackStatus'] ?? '').toString().trim(),
+      feedbackSubmittedAt: data['feedbackSubmittedAt'] is Timestamp
+          ? data['feedbackSubmittedAt'] as Timestamp
+          : (data['ratedAt'] is Timestamp
+                ? data['ratedAt'] as Timestamp
+                : null),
+      completionFeedbackNotificationSent:
+          data['completionFeedbackNotificationSent'] == true,
     );
+  }
+
+  bool get hasVisitSchedule =>
+      expectedVisitDate.isNotEmpty || expectedVisitTime.isNotEmpty;
+
+  String get formattedVisitSchedule {
+    if (expectedVisitDate.isNotEmpty && expectedVisitTime.isNotEmpty) {
+      return '$expectedVisitDate at $expectedVisitTime';
+    } else if (expectedVisitDate.isNotEmpty) {
+      return expectedVisitDate;
+    } else if (expectedVisitTime.isNotEmpty) {
+      return expectedVisitTime;
+    }
+    return 'Not scheduled';
+  }
+
+  bool isPrimaryAssignment(
+    String currentUserName, [
+    String currentUserId = '',
+  ]) {
+    final cleanUser = currentUserName.trim().toLowerCase();
+    final cleanId = currentUserId.trim().toLowerCase();
+    final matchesName =
+        cleanUser.isNotEmpty &&
+        (assignedEmployee.trim().toLowerCase() == cleanUser ||
+            assignedEngineer.trim().toLowerCase() == cleanUser ||
+            assignedEngineerId.trim().toLowerCase() == cleanUser);
+    final matchesId =
+        cleanId.isNotEmpty &&
+        assignedEngineerId.trim().toLowerCase() == cleanId;
+    return matchesName || matchesId;
+  }
+
+  bool isHelperAssignment(String currentUserName, [String currentUserId = '']) {
+    final cleanUser = currentUserName.trim().toLowerCase();
+    final cleanId = currentUserId.trim().toLowerCase();
+    final matchesName =
+        cleanUser.isNotEmpty &&
+        (helperName.trim().toLowerCase() == cleanUser ||
+            helper1.trim().toLowerCase() == cleanUser ||
+            helpers.any((h) => h.trim().toLowerCase() == cleanUser) ||
+            helperId.trim().toLowerCase() == cleanUser);
+    final matchesId =
+        cleanId.isNotEmpty && helperId.trim().toLowerCase() == cleanId;
+    final isHelper = matchesName || matchesId;
+    final isPrimary = isPrimaryAssignment(currentUserName, currentUserId);
+    return isHelper && !isPrimary;
+  }
+
+  bool isBothLeadAndHelper(
+    String currentUserName, [
+    String currentUserId = '',
+  ]) {
+    final cleanUser = currentUserName.trim().toLowerCase();
+    final cleanId = currentUserId.trim().toLowerCase();
+    final matchesName =
+        cleanUser.isNotEmpty &&
+        (helperName.trim().toLowerCase() == cleanUser ||
+            helper1.trim().toLowerCase() == cleanUser ||
+            helpers.any((h) => h.trim().toLowerCase() == cleanUser));
+    final matchesId =
+        cleanId.isNotEmpty && helperId.trim().toLowerCase() == cleanId;
+    final isHelper = matchesName || matchesId;
+    final isPrimary = isPrimaryAssignment(currentUserName, currentUserId);
+    return isHelper && isPrimary;
   }
 
   bool get isCompleted {
@@ -220,17 +408,31 @@ class AdminDetails {
   }
 
   bool get isCanceled {
-    return adminStatus.toLowerCase() == 'canceled' ||
-        customerDecision.toLowerCase() == 'canceled';
+    final adm = adminStatus.toLowerCase().trim();
+    final sel = selectedStatus.toLowerCase().trim();
+    final cus = customerDecision.toLowerCase().trim();
+    final st = status.toLowerCase().trim();
+    return adm == 'canceled' ||
+        adm == 'cancelled' ||
+        sel == 'canceled' ||
+        sel == 'cancelled' ||
+        st == 'canceled' ||
+        st == 'cancelled' ||
+        cus == 'canceled' ||
+        cus == 'cancelled';
   }
 
   String get cancellationMessage {
-    if (adminStatus.toLowerCase() == 'canceled') {
-      return 'This ticket was canceled by admin';
-    } else if (customerDecision.toLowerCase() == 'canceled') {
-      return 'This ticket was canceled by customer: $customerName';
+    if (cancellationReason.isNotEmpty) {
+      return 'Cancelled by ${cancelledByRole.isNotEmpty ? cancelledByRole : "Admin"}: $cancellationReason';
+    } else if (adminStatus.toLowerCase() == 'canceled' ||
+        adminStatus.toLowerCase() == 'cancelled') {
+      return 'This ticket was cancelled by Admin';
+    } else if (customerDecision.toLowerCase() == 'canceled' ||
+        customerDecision.toLowerCase() == 'cancelled') {
+      return 'This ticket was cancelled by customer: $customerName';
     }
-    return '';
+    return 'This ticket has been cancelled';
   }
 
   // Calculate days since assignment
@@ -562,101 +764,122 @@ class _ProfessionalNavigationDrawerState
 
           // Menu Items with Staggered Entrance Animation
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
-              child: Column(
-                children: [
-                  _buildAnimatedMenuItem(
-                    index: 0,
-                    icon: Icons.dashboard_rounded,
-                    title: 'Dashboard',
-                    isSelected: widget.currentSection == 'dashboard',
-                    onTap: () {
-                      Navigator.pop(context);
-                      widget.onSectionChange('dashboard');
-                    },
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final minH = constraints.maxHeight > 32
+                    ? constraints.maxHeight - 32
+                    : 0.0;
+                return SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 16,
+                    horizontal: 12,
                   ),
-                  _buildAnimatedMenuItem(
-                    index: 1,
-                    icon: Icons.assignment_turned_in_rounded,
-                    title: 'Completed Tickets',
-                    isSelected: widget.currentSection == 'completed',
-                    onTap: () {
-                      Navigator.pop(context);
-                      widget.onSectionChange('completed');
-                    },
-                  ),
-                  if (widget.barcodeEnabled) ...[
-                    _buildAnimatedMenuItem(
-                      index: 2,
-                      icon: Icons.qr_code_scanner_rounded,
-                      title: 'Barcode Scanner',
-                      onTap: () {
-                        Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                BarcodeScannerScreen(userName: widget.userName),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minHeight: minH),
+                    child: IntrinsicHeight(
+                      child: Column(
+                        children: [
+                          _buildAnimatedMenuItem(
+                            index: 0,
+                            icon: Icons.dashboard_rounded,
+                            title: 'Dashboard',
+                            isSelected: widget.currentSection == 'dashboard',
+                            onTap: () {
+                              Navigator.pop(context);
+                              widget.onSectionChange('dashboard');
+                            },
                           ),
-                        );
-                      },
-                    ),
-                    _buildAnimatedMenuItem(
-                      index: 3,
-                      icon: Icons.qr_code_2_rounded,
-                      title: 'Barcode Identifier',
-                      onTap: () {
-                        Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                EngineerBarcodeIdentifierScreen(
-                                  scannedBarcode: '',
-                                  userName: widget.userName,
+                          _buildAnimatedMenuItem(
+                            index: 1,
+                            icon: Icons.assignment_turned_in_rounded,
+                            title: 'Completed Tickets',
+                            isSelected: widget.currentSection == 'completed',
+                            onTap: () {
+                              Navigator.pop(context);
+                              widget.onSectionChange('completed');
+                            },
+                          ),
+                          if (widget.barcodeEnabled) ...[
+                            _buildAnimatedMenuItem(
+                              index: 2,
+                              icon: Icons.qr_code_scanner_rounded,
+                              title: 'Barcode Scanner',
+                              onTap: () {
+                                Navigator.pop(context);
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => BarcodeScannerScreen(
+                                      userName: widget.userName,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                            _buildAnimatedMenuItem(
+                              index: 3,
+                              icon: Icons.qr_code_2_rounded,
+                              title: 'Barcode Identifier',
+                              onTap: () {
+                                Navigator.pop(context);
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        EngineerBarcodeIdentifierScreen(
+                                          scannedBarcode: '',
+                                          userName: widget.userName,
+                                        ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                          _buildAnimatedMenuItem(
+                            index: widget.barcodeEnabled ? 4 : 2,
+                            icon: Icons.qr_code_rounded,
+                            title: 'Office Pay QR Scanner',
+                            onTap: () {
+                              Navigator.pop(context);
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      const EngineerOfficePayQRScreen(),
                                 ),
+                              );
+                            },
                           ),
-                        );
-                      },
+                          _buildAnimatedMenuItem(
+                            index: widget.barcodeEnabled ? 5 : 3,
+                            icon: Icons.explore_rounded,
+                            title: 'App Tour & Guide',
+                            onTap: () {
+                              Navigator.pop(context);
+                              Future.delayed(
+                                const Duration(milliseconds: 300),
+                                () {
+                                  widget.onStartTour?.call();
+                                },
+                              );
+                            },
+                          ),
+                          const Spacer(),
+                          const SizedBox(height: 12),
+                          _buildAnimatedMenuItem(
+                            index: widget.barcodeEnabled ? 6 : 4,
+                            icon: Icons.logout_rounded,
+                            title: 'Logout',
+                            isLogout: true,
+                            onTap: widget.onLogout,
+                          ),
+                        ],
+                      ),
                     ),
-                  ],
-                  _buildAnimatedMenuItem(
-                    index: widget.barcodeEnabled ? 4 : 2,
-                    icon: Icons.qr_code_rounded,
-                    title: 'Office Pay QR Scanner',
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              const EngineerOfficePayQRScreen(),
-                        ),
-                      );
-                    },
                   ),
-                  _buildAnimatedMenuItem(
-                    index: widget.barcodeEnabled ? 5 : 3,
-                    icon: Icons.explore_rounded,
-                    title: 'App Tour & Guide',
-                    onTap: () {
-                      Navigator.pop(context);
-                      Future.delayed(const Duration(milliseconds: 300), () {
-                        widget.onStartTour?.call();
-                      });
-                    },
-                  ),
-                  const Spacer(),
-                  _buildAnimatedMenuItem(
-                    index: widget.barcodeEnabled ? 6 : 4,
-                    icon: Icons.logout_rounded,
-                    title: 'Logout',
-                    isLogout: true,
-                    onTap: widget.onLogout,
-                  ),
-                ],
-              ),
+                );
+              },
             ),
           ),
         ],
@@ -784,12 +1007,14 @@ class _ProfessionalNavigationDrawerState
 class EngineerPage extends StatefulWidget {
   final String userEmail;
   final String userName;
+  final String? userId;
   final Map<String, dynamic>? notificationData;
 
   const EngineerPage({
     super.key,
     required this.userEmail,
     required this.userName,
+    this.userId,
     this.notificationData,
   });
 
@@ -839,15 +1064,24 @@ class _EngineerPageState extends State<EngineerPage> {
   bool _attendanceEnabled = true;
   bool _geoLocationEnabled = true;
   StreamSubscription<Map<String, dynamic>?>? _subscriptionSubscription;
+  late String _engineerUserId;
 
   @override
   void initState() {
     super.initState();
+    _engineerUserId = widget.userId ?? '';
+    _initEngineerUserId();
 
+    final currentEngUid =
+        widget.userId ?? FirebaseAuth.instance.currentUser?.uid;
     NotificationService.instance.registerToken(
       role: 'engineer',
-      userId: widget.userName,
+      userId: (currentEngUid != null && currentEngUid.isNotEmpty)
+          ? currentEngUid
+          : widget.userName,
+      username: widget.userName,
       email: widget.userEmail,
+      displayName: widget.userName,
     );
 
     _handleInitialNotification();
@@ -863,6 +1097,54 @@ class _EngineerPageState extends State<EngineerPage> {
         if (mounted) _checkAndStartEngineerTour();
       });
     });
+  }
+
+  Future<void> _initEngineerUserId() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cached =
+          prefs.getString('engineerUserId') ?? prefs.getString('userId') ?? '';
+      if (cached.isNotEmpty && cached != _engineerUserId) {
+        if (mounted) setState(() => _engineerUserId = cached);
+      } else if (_engineerUserId.isEmpty && widget.userName.isNotEmpty) {
+        final snap = await FirestoreService.instance
+            .collection('EngineerLogin')
+            .where('Username', isEqualTo: widget.userName)
+            .limit(1)
+            .get();
+        if (snap.docs.isNotEmpty) {
+          final id = snap.docs.first.id;
+          await prefs.setString('engineerUserId', id);
+          if (mounted) setState(() => _engineerUserId = id);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error initializing engineer user id: $e');
+    }
+  }
+
+  Filter _buildEngineerFilter() {
+    final cleanName = widget.userName.trim();
+    final cleanId = _engineerUserId.trim();
+    if (cleanId.isNotEmpty) {
+      return Filter.or(
+        Filter('assignedEmployee', isEqualTo: cleanName),
+        Filter('assignedEngineer', isEqualTo: cleanName),
+        Filter('helperName', isEqualTo: cleanName),
+        Filter('helper', isEqualTo: cleanName),
+        Filter('Helper1', isEqualTo: cleanName),
+        Filter('assignedEngineerId', isEqualTo: cleanId),
+        Filter('helperId', isEqualTo: cleanId),
+      );
+    } else {
+      return Filter.or(
+        Filter('assignedEmployee', isEqualTo: cleanName),
+        Filter('assignedEngineer', isEqualTo: cleanName),
+        Filter('helperName', isEqualTo: cleanName),
+        Filter('helper', isEqualTo: cleanName),
+        Filter('Helper1', isEqualTo: cleanName),
+      );
+    }
   }
 
   Future<void> _checkAndStartEngineerTour({bool force = false}) async {
@@ -1035,7 +1317,8 @@ class _EngineerPageState extends State<EngineerPage> {
   Future<void> _fetchSubscriptionData() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final tenantId = prefs.getString('tenantId') ??
+      final tenantId =
+          prefs.getString('tenantId') ??
           (ThemeService.instance.databaseName.isNotEmpty
               ? ThemeService.instance.databaseName
               : null);
@@ -1051,10 +1334,10 @@ class _EngineerPageState extends State<EngineerPage> {
         _subscriptionSubscription = FirestoreService.instance
             .streamTenantSubscription(tenantId)
             .listen((data) {
-          if (mounted && data != null) {
-            _updateSubscriptionFeatures(data);
-          }
-        });
+              if (mounted && data != null) {
+                _updateSubscriptionFeatures(data);
+              }
+            });
       }
     } catch (e) {
       debugPrint('Error fetching subscription data: $e');
@@ -1214,6 +1497,12 @@ class _EngineerPageState extends State<EngineerPage> {
               final data = change.doc.data();
               if (data == null) continue;
 
+              final type = data['type']?.toString().toLowerCase();
+              final title = data['title']?.toString().toLowerCase() ?? '';
+              if (type == 'test' || title.contains('test notification')) {
+                continue;
+              }
+
               final docId = change.doc.id;
               final bookingId = data['bookingId']?.toString() ?? '';
               if (bookingId.isNotEmpty) {
@@ -1245,14 +1534,21 @@ class _EngineerPageState extends State<EngineerPage> {
       if (doc.exists) {
         final ticketData = doc.data();
         final engineerStatus = ticketData?['engineerStatus'] ?? '';
+        final type = (data['type'] ?? 'notification').toString();
+        final isCancelledNotif = type == 'ticket_cancelled';
 
-        // Only show notification if status is "Assigned" (not "Completed")
-        if (engineerStatus == 'Assigned') {
+        // Only show notification if status is "Assigned" or if ticket was cancelled
+        if (engineerStatus == 'Assigned' || isCancelledNotif) {
           // Show dialog with bookingId and customerName (uses existing helper)
           WidgetsBinding.instance.addPostFrameCallback((_) {
             _showNotificationDialog({
-              'type': data['type'] ?? 'notification',
+              'type': type,
               'bookingId': bookingId,
+              'title':
+                  data['title'] ??
+                  (isCancelledNotif
+                      ? 'Assigned Ticket Cancelled'
+                      : 'Notification'),
               'body': data['body'] ?? '',
             });
           });
@@ -1323,6 +1619,8 @@ class _EngineerPageState extends State<EngineerPage> {
   }
 
   void _showNotificationDialog(Map<String, dynamic> data) async {
+    final isCancelled = data['type'] == 'ticket_cancelled';
+
     // Show in-app dialog
     showDialog(
       context: context,
@@ -1337,38 +1635,69 @@ class _EngineerPageState extends State<EngineerPage> {
                 width: 60,
                 height: 60,
                 decoration: BoxDecoration(
-                  color: ProfessionalTheme.primary(
-                    context,
-                  ).withValues(alpha: 0.1),
+                  color: isCancelled
+                      ? const Color(0xFFFEF2F2)
+                      : ProfessionalTheme.primary(
+                          context,
+                        ).withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
-                  Icons.notifications_active,
-                  color: ProfessionalTheme.primary(context),
+                  isCancelled
+                      ? Icons.cancel_rounded
+                      : Icons.notifications_active,
+                  color: isCancelled
+                      ? const Color(0xFFEF4444)
+                      : ProfessionalTheme.primary(context),
                   size: 32,
                 ),
               ),
               const SizedBox(height: 16),
               Text(
-                data['type'] == 'new_assignment'
+                isCancelled
+                    ? 'Ticket Cancelled'
+                    : data['type'] == 'new_assignment'
                     ? 'New Assignment'
                     : 'Notification',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
-                  color: ProfessionalTheme.textPrimary(context),
+                  color: isCancelled
+                      ? const Color(0xFF991B1B)
+                      : ProfessionalTheme.textPrimary(context),
                 ),
               ),
               const SizedBox(height: 12),
-              if (data['type'] == 'new_assignment') ...[
-                // const SizedBox(height: 8, width: 8),
-                // _buildNotificationItem('Customer', data['customerName']),
-                // const SizedBox(height: 8),
-                _buildNotificationItem('Booking ID', data['bookingId']),
+              if (data['bookingId'] != null) ...[
+                _buildNotificationItem('Booking ID', '#${data['bookingId']}'),
+              ],
+              if (data['customerName'] != null &&
+                  data['customerName'].toString().isNotEmpty) ...[
+                const SizedBox(height: 8),
+                _buildNotificationItem(
+                  'Customer',
+                  data['customerName'].toString(),
+                ),
+              ],
+              if (data['expectedVisitDate'] != null &&
+                  data['expectedVisitDate'].toString().isNotEmpty) ...[
+                const SizedBox(height: 8),
+                _buildNotificationItem(
+                  'Expected Visit',
+                  '${data['expectedVisitDate']}${data['expectedVisitTime'] != null && data['expectedVisitTime'].toString().isNotEmpty ? " at ${data['expectedVisitTime']}" : ""}',
+                ),
+              ],
+              if (data['visitNotes'] != null &&
+                  data['visitNotes'].toString().trim().isNotEmpty) ...[
+                const SizedBox(height: 8),
+                _buildNotificationItem(
+                  'Visit Notes',
+                  data['visitNotes'].toString(),
+                ),
               ],
               if (data['body'] != null) ...[
                 const SizedBox(height: 8),
-                _buildNotificationItem('Message', data['body']),
+                _buildNotificationItem('Message', data['body'].toString()),
               ],
               const SizedBox(height: 20),
               SizedBox(
@@ -1702,10 +2031,13 @@ class _EngineerPageState extends State<EngineerPage> {
               ),
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
           // Online Toggle
           _buildOnlineToggle(),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
+          // Notification Bell Icon with Live Unread Badge
+          _buildNotificationBell(),
+          const SizedBox(width: 8),
           // Burger Menu Button
           GestureDetector(
             onTap: () => _scaffoldKey.currentState?.openEndDrawer(),
@@ -1724,6 +2056,85 @@ class _EngineerPageState extends State<EngineerPage> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildNotificationBell() {
+    final tenantId = ThemeService.instance.databaseName;
+    final primaryColor = Theme.of(context).primaryColor;
+
+    return StreamBuilder<int>(
+      stream: NotificationService.instance
+          .getUnreadEngineerNotificationsCountStream(
+        tenantId,
+        engineerName: widget.userName,
+        engineerId: widget.userId,
+      ),
+      builder: (context, snapshot) {
+        final unreadCount = snapshot.data ?? 0;
+        return GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => EngineerNotificationsPage(
+                  engineerName: widget.userName,
+                  engineerId: widget.userId,
+                  userEmail: widget.userEmail,
+                ),
+              ),
+            );
+          },
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                const Icon(
+                  LucideIcons.bell,
+                  color: Color(0xFF0F172A),
+                  size: 20,
+                ),
+                if (unreadCount > 0)
+                  Positioned(
+                    top: -4,
+                    right: -6,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 1,
+                      ),
+                      decoration: BoxDecoration(
+                        color: primaryColor,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.white, width: 1.5),
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 16,
+                        minHeight: 16,
+                      ),
+                      child: Center(
+                        child: Text(
+                          unreadCount > 99 ? '99+' : '$unreadCount',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            height: 1.1,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -2160,7 +2571,7 @@ class _EngineerPageState extends State<EngineerPage> {
     return StreamBuilder<QuerySnapshot>(
       stream: FirestoreService.instance
           .collection('Admin_ticket_entry')
-          .where('assignedEmployee', isEqualTo: widget.userName)
+          .where(_buildEngineerFilter())
           .snapshots(),
       builder: (context, snapshot) {
         int totalCompleted = 0;
@@ -2168,16 +2579,20 @@ class _EngineerPageState extends State<EngineerPage> {
         int newlyAssigned = 0;
 
         if (snapshot.hasData) {
+          final Set<String> seenIds = {};
           for (var doc in snapshot.data!.docs) {
             final data = doc.data() as Map<String, dynamic>;
-            final status =
-                data['engineerStatus']?.toString().toLowerCase() ?? '';
-            if (status == 'completed') {
-              totalCompleted++;
-            } else if (status == 'assigned') {
-              newlyAssigned++;
-            } else {
-              activeTasks++;
+            final bookingId = (data['bookingId'] ?? doc.id).toString();
+            if (seenIds.add(bookingId)) {
+              final status =
+                  data['engineerStatus']?.toString().toLowerCase() ?? '';
+              if (status == 'completed') {
+                totalCompleted++;
+              } else if (status == 'assigned') {
+                newlyAssigned++;
+              } else {
+                activeTasks++;
+              }
             }
           }
         }
@@ -2251,7 +2666,7 @@ class _EngineerPageState extends State<EngineerPage> {
     return StreamBuilder<QuerySnapshot>(
       stream: FirestoreService.instance
           .collection('Admin_ticket_entry')
-          .where('assignedEmployee', isEqualTo: widget.userName)
+          .where(_buildEngineerFilter())
           .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
@@ -2268,8 +2683,12 @@ class _EngineerPageState extends State<EngineerPage> {
         Map<int, int> assignedPerMonth = {};
         Map<int, int> completedPerMonth = {};
 
+        final Set<String> seenIds = {};
         for (var doc in docs) {
           final data = doc.data() as Map<String, dynamic>;
+          final bookingId = (data['bookingId'] ?? doc.id).toString();
+          if (!seenIds.add(bookingId)) continue;
+
           final status = (data['engineerStatus'] ?? data['adminStatus'] ?? '')
               .toString()
               .toLowerCase();
@@ -2678,7 +3097,7 @@ class _EngineerPageState extends State<EngineerPage> {
     return StreamBuilder<QuerySnapshot>(
       stream: FirestoreService.instance
           .collection('Admin_ticket_entry')
-          .where('assignedEmployee', isEqualTo: widget.userName)
+          .where(_buildEngineerFilter())
           .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
@@ -2686,7 +3105,17 @@ class _EngineerPageState extends State<EngineerPage> {
         }
 
         final docs = snapshot.data!.docs;
-        final activeTasks = docs.where((d) {
+        final Set<String> seenIds = {};
+        final uniqueDocs = <QueryDocumentSnapshot>[];
+        for (final d in docs) {
+          final data = d.data() as Map<String, dynamic>;
+          final bookingId = (data['bookingId'] ?? d.id).toString();
+          if (seenIds.add(bookingId)) {
+            uniqueDocs.add(d);
+          }
+        }
+
+        final activeTasks = uniqueDocs.where((d) {
           final data = d.data() as Map<String, dynamic>;
           final engStatus = (data['engineerStatus'] ?? '')
               .toString()
@@ -2866,6 +3295,42 @@ class _EngineerPageState extends State<EngineerPage> {
     final address = data['address']?.toString() ?? '';
     final status = (data['engineerStatus'] ?? data['adminStatus'] ?? 'Assigned')
         .toString();
+    final isTaskCancelled = status.toLowerCase().contains('cancel');
+    final statusColor = isTaskCancelled
+        ? const Color(0xFFDC2626)
+        : primary;
+    final statusBg = isTaskCancelled
+        ? const Color(0xFFFEF2F2)
+        : primary.withValues(alpha: 0.08);
+    final statusBorder = isTaskCancelled
+        ? const Color(0xFFFCA5A5)
+        : Colors.transparent;
+
+    final cleanUser = widget.userName.trim().toLowerCase();
+    final cleanId = _engineerUserId.trim().toLowerCase();
+    final hName =
+        (data['helperName'] ?? data['helper'] ?? data['Helper1'] ?? '')
+            .toString()
+            .trim()
+            .toLowerCase();
+    final hId = (data['helperId'] ?? '').toString().trim().toLowerCase();
+    final primaryEmp =
+        (data['assignedEmployee'] ?? data['assignedEngineer'] ?? '')
+            .toString()
+            .trim()
+            .toLowerCase();
+    final primaryId = (data['assignedEngineerId'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+
+    final isPrimaryAssignment =
+        (cleanUser.isNotEmpty && primaryEmp == cleanUser) ||
+        (cleanId.isNotEmpty && primaryId == cleanId);
+    final isHelperAssignment =
+        ((cleanUser.isNotEmpty && hName == cleanUser) ||
+            (cleanId.isNotEmpty && hId == cleanId)) &&
+        !isPrimaryAssignment;
 
     return Container(
       width: double.infinity,
@@ -2914,24 +3379,32 @@ class _EngineerPageState extends State<EngineerPage> {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.2),
+                        color: isHelperAssignment
+                            ? const Color(0xFFF59E0B)
+                            : Colors.white.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.35),
+                          color: isHelperAssignment
+                              ? const Color(0xFFFDE68A)
+                              : Colors.white.withValues(alpha: 0.35),
                         ),
                       ),
-                      child: const Row(
+                      child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
-                            Icons.star_rounded,
+                            isHelperAssignment
+                                ? Icons.handshake_rounded
+                                : Icons.badge_rounded,
                             size: 12,
-                            color: Colors.amberAccent,
+                            color: Colors.white,
                           ),
-                          SizedBox(width: 4),
+                          const SizedBox(width: 4),
                           Text(
-                            'MAIN ACTIVE TASK',
-                            style: TextStyle(
+                            isHelperAssignment
+                                ? 'HELPER ASSIGNED'
+                                : 'PRIMARY ENGINEER',
+                            style: const TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w900,
                               color: Colors.white,
@@ -2949,18 +3422,24 @@ class _EngineerPageState extends State<EngineerPage> {
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.2),
+                            color: isTaskCancelled
+                                ? statusBg
+                                : Colors.white.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.3),
+                              color: isTaskCancelled
+                                  ? statusBorder
+                                  : Colors.white.withValues(alpha: 0.3),
                             ),
                           ),
                           child: Text(
                             status,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w800,
-                              color: Colors.white,
+                              color: isTaskCancelled
+                                  ? statusColor
+                                  : Colors.white,
                             ),
                           ),
                         ),
@@ -3132,6 +3611,42 @@ class _EngineerPageState extends State<EngineerPage> {
     final deviceBrand = data['deviceBrand']?.toString() ?? 'Task';
     final status = (data['engineerStatus'] ?? data['adminStatus'] ?? 'Assigned')
         .toString();
+    final isTaskCancelled = status.toLowerCase().contains('cancel');
+    final statusColor = isTaskCancelled
+        ? const Color(0xFFDC2626)
+        : primary;
+    final statusBg = isTaskCancelled
+        ? const Color(0xFFFEF2F2)
+        : primary.withValues(alpha: 0.08);
+    final statusBorder = isTaskCancelled
+        ? const Color(0xFFFCA5A5)
+        : Colors.transparent;
+
+    final cleanUser = widget.userName.trim().toLowerCase();
+    final cleanId = _engineerUserId.trim().toLowerCase();
+    final hName =
+        (data['helperName'] ?? data['helper'] ?? data['Helper1'] ?? '')
+            .toString()
+            .trim()
+            .toLowerCase();
+    final hId = (data['helperId'] ?? '').toString().trim().toLowerCase();
+    final primaryEmp =
+        (data['assignedEmployee'] ?? data['assignedEngineer'] ?? '')
+            .toString()
+            .trim()
+            .toLowerCase();
+    final primaryId = (data['assignedEngineerId'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+
+    final isPrimary =
+        (cleanUser.isNotEmpty && primaryEmp == cleanUser) ||
+        (cleanId.isNotEmpty && primaryId == cleanId);
+    final isHelper =
+        ((cleanUser.isNotEmpty && hName == cleanUser) ||
+            (cleanId.isNotEmpty && hId == cleanId)) &&
+        !isPrimary;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -3189,6 +3704,79 @@ class _EngineerPageState extends State<EngineerPage> {
                             ),
                           ),
                         ],
+                        if (isHelper) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFEF3C7),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: const Color(
+                                  0xFFF59E0B,
+                                ).withValues(alpha: 0.5),
+                              ),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.handshake_rounded,
+                                  size: 10,
+                                  color: Color(0xFFD97706),
+                                ),
+                                SizedBox(width: 3),
+                                Text(
+                                  'HELPER ASSIGNED',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFFD97706),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ] else if (isPrimary) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEFF6FF),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: const Color(
+                                  0xFF3B82F6,
+                                ).withValues(alpha: 0.5),
+                              ),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.badge_rounded,
+                                  size: 10,
+                                  color: Color(0xFF1D4ED8),
+                                ),
+                                SizedBox(width: 3),
+                                Text(
+                                  'PRIMARY ENGINEER',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF1D4ED8),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                     const SizedBox(height: 2),
@@ -3206,15 +3794,16 @@ class _EngineerPageState extends State<EngineerPage> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: primary.withValues(alpha: 0.08),
+                  color: statusBg,
                   borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: statusBorder),
                 ),
                 child: Text(
                   status,
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
-                    color: primary,
+                    color: statusColor,
                   ),
                 ),
               ),
@@ -3362,10 +3951,7 @@ class _EngineerPageState extends State<EngineerPage> {
               Text(
                 'Live Map functionality is not enabled in your organization\'s active subscription plan.',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey.shade600,
-                ),
+                style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
               ),
             ],
           ),
@@ -3712,7 +4298,7 @@ class _EngineerPageState extends State<EngineerPage> {
     return StreamBuilder<QuerySnapshot>(
       stream: FirestoreService.instance
           .collection('Admin_ticket_entry')
-          .where('assignedEmployee', isEqualTo: widget.userName)
+          .where(_buildEngineerFilter())
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting && _isLoading) {
@@ -3722,9 +4308,17 @@ class _EngineerPageState extends State<EngineerPage> {
           return _buildEmptyState();
         }
 
-        final allBookings = snapshot.data!.docs
-            .map((doc) => AdminDetails.fromFirestore(doc))
-            .toList();
+        final Set<String> seenIds = {};
+        final List<AdminDetails> allBookings = [];
+        for (var doc in snapshot.data!.docs) {
+          final adminDetail = AdminDetails.fromFirestore(doc);
+          final idToTrack = adminDetail.bookingId.isNotEmpty
+              ? adminDetail.bookingId
+              : adminDetail.docId;
+          if (seenIds.add(idToTrack)) {
+            allBookings.add(adminDetail);
+          }
+        }
 
         final int assignedCount = allBookings
             .where((b) => !b.isCompleted)
@@ -4072,6 +4666,7 @@ class _EngineerPageState extends State<EngineerPage> {
             descriptionController: descriptionController,
             index: index,
             userName: widget.userName,
+            userId: widget.userId,
             isCompletedSection: _currentSection == 'completed',
           ),
         );
@@ -4295,6 +4890,7 @@ class ProfessionalBookingCard extends StatelessWidget {
   final TextEditingController descriptionController;
   final int index;
   final String userName;
+  final String? userId;
   final bool isCompletedSection;
 
   const ProfessionalBookingCard({
@@ -4303,6 +4899,7 @@ class ProfessionalBookingCard extends StatelessWidget {
     required this.descriptionController,
     required this.index,
     required this.userName,
+    this.userId,
     this.isCompletedSection = false,
   });
 
@@ -4315,6 +4912,7 @@ class ProfessionalBookingCard extends StatelessWidget {
           descriptionController: descriptionController,
           index: index,
           userName: userName,
+          userId: userId ?? '',
           isCompletedSection: isCompletedSection,
         ),
       ),
@@ -4324,7 +4922,9 @@ class ProfessionalBookingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final primary = Theme.of(context).primaryColor;
-    final status = booking.selectedStatus;
+    final isCancelled = booking.isCanceled ||
+        booking.selectedStatus.toLowerCase().contains('cancel');
+    final status = isCancelled ? 'Cancelled' : booking.selectedStatus;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -4384,6 +4984,79 @@ class ProfessionalBookingCard extends StatelessWidget {
                         letterSpacing: 0.3,
                       ),
                     ),
+                    if (booking.isHelperAssignment(userName)) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFEF3C7),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: const Color(
+                              0xFFF59E0B,
+                            ).withValues(alpha: 0.5),
+                          ),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.handshake_rounded,
+                              size: 12,
+                              color: Color(0xFFD97706),
+                            ),
+                            SizedBox(width: 4),
+                            Text(
+                              'Helper Assigned',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFFD97706),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ] else if (booking.isPrimaryAssignment(userName)) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEFF6FF),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: const Color(
+                              0xFF3B82F6,
+                            ).withValues(alpha: 0.5),
+                          ),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.badge_rounded,
+                              size: 12,
+                              color: Color(0xFF1D4ED8),
+                            ),
+                            SizedBox(width: 4),
+                            Text(
+                              'Primary Engineer',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF1D4ED8),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     const Spacer(),
                     _buildStatusChip(context, status),
                   ],
@@ -4398,6 +5071,29 @@ class ProfessionalBookingCard extends StatelessWidget {
                     letterSpacing: -0.2,
                   ),
                 ),
+                if (booking.isHelperAssignment(userName) &&
+                    booking.assignedEmployee.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    'Lead Engineer: ${booking.assignedEmployee}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFFD97706),
+                    ),
+                  ),
+                ] else if (booking.isPrimaryAssignment(userName) &&
+                    booking.helpers.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    'Helper: ${booking.helpers.join(", ")}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF1D4ED8),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 4),
                 Row(
                   children: [
@@ -4420,6 +5116,43 @@ class ProfessionalBookingCard extends StatelessWidget {
                     ),
                   ],
                 ),
+                if (booking.hasVisitSchedule) ...[
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF0FDF4),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFBBF7D0)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.event_available_rounded,
+                          size: 14,
+                          color: Color(0xFF16A34A),
+                        ),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            'Visit: ${booking.formattedVisitSchedule}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF15803D),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 14),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -4520,26 +5253,46 @@ class ProfessionalBookingCard extends StatelessWidget {
         'icon': Icons.visibility_outlined,
         'text': 'Observation',
       },
+      'Cancelled': {
+        'color': const Color(0xFFDC2626), // Dark red
+        'bgColor': const Color(0xFFFEF2F2), // Light red
+        'borderColor': const Color(0xFFFCA5A5), // Subtle red
+        'icon': Icons.cancel_outlined,
+        'text': 'Cancelled',
+      },
+      'Canceled': {
+        'color': const Color(0xFFDC2626),
+        'bgColor': const Color(0xFFFEF2F2),
+        'borderColor': const Color(0xFFFCA5A5),
+        'icon': Icons.cancel_outlined,
+        'text': 'Cancelled',
+      },
     };
 
-    final config =
-        statusConfig[status] ??
-        {
-          'color': const Color(0xFF64748B),
-          'icon': Icons.help_outline,
-          'text': status,
-        };
+    final isCancelStatus = status.toLowerCase().contains('cancel');
+    final config = isCancelStatus
+        ? statusConfig['Cancelled']!
+        : (statusConfig[status] ??
+            {
+              'color': const Color(0xFF64748B),
+              'icon': Icons.help_outline,
+              'text': status,
+            });
 
     final color = config['color'] as Color;
     final text = config['text'] as String;
     final icon = config['icon'] as IconData;
+    final bgColor =
+        (config['bgColor'] as Color?) ?? color.withValues(alpha: 0.1);
+    final borderColor =
+        (config['borderColor'] as Color?) ?? color.withValues(alpha: 0.25);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
+        color: bgColor,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.25)),
+        border: Border.all(color: borderColor),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -4550,8 +5303,8 @@ class ProfessionalBookingCard extends StatelessWidget {
             text,
             style: TextStyle(
               fontSize: 11,
+              fontWeight: FontWeight.w700,
               color: color,
-              fontWeight: FontWeight.w800,
             ),
           ),
         ],
@@ -4563,17 +5316,19 @@ class ProfessionalBookingCard extends StatelessWidget {
 // Dedicated Full-Screen Ticket Details Page
 class TicketDetailScreen extends StatefulWidget {
   final AdminDetails booking;
-  final TextEditingController descriptionController;
+  final TextEditingController? descriptionController;
   final int index;
   final String userName;
+  final String userId;
   final bool isCompletedSection;
 
   const TicketDetailScreen({
     super.key,
     required this.booking,
-    required this.descriptionController,
-    required this.index,
+    this.descriptionController,
+    this.index = 0,
     required this.userName,
+    this.userId = '',
     this.isCompletedSection = false,
   });
 
@@ -4599,6 +5354,16 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
   double? _capturedLat;
   double? _capturedLng;
   bool _isLoadingLocation = false;
+
+  // Real-time Cancellation State
+  bool _isLiveCancelled = false;
+  String _liveCancellationReason = '';
+  String _liveCancelledByRole = 'Admin';
+  Timestamp? _liveCancelledAt;
+  StreamSubscription<DocumentSnapshot>? _ticketSubscription;
+
+  bool get _isHelper =>
+      widget.booking.isHelperAssignment(widget.userName, widget.userId);
 
   void _launchPhoneDialer(String rawPhone) async {
     String phone = rawPhone.trim().replaceAll(' ', '');
@@ -4649,6 +5414,18 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
   }
 
   Future<void> _logManualLocation() async {
+    if (_isHelper ||
+        _isReadOnly ||
+        _isLiveCancelled ||
+        widget.booking.isCanceled) {
+      _showSnackBar(
+        (_isLiveCancelled || widget.booking.isCanceled)
+            ? 'Location logging is disabled for cancelled tickets.'
+            : 'Location logging is restricted for Helper assignments.',
+        ProfessionalTheme.error,
+      );
+      return;
+    }
     setState(() => _isLoadingLocation = true);
     try {
       Position position = await Geolocator.getCurrentPosition(
@@ -4671,6 +5448,14 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.booking.isCanceled) {
+      _isLiveCancelled = true;
+      _liveCancellationReason = widget.booking.cancellationReason;
+      _liveCancelledByRole = widget.booking.cancelledByRole.isNotEmpty
+          ? widget.booking.cancelledByRole
+          : 'Admin';
+      _liveCancelledAt = widget.booking.cancelledAt;
+    }
     _amountController.text = widget.booking.amount;
     _currentStatus = widget.booking.selectedStatus;
     _isDeliveryTicket = widget.booking.bookingId.toUpperCase().startsWith('D');
@@ -4691,6 +5476,77 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
 
     _loadExistingPayments();
     _updateReadOnlyStatus();
+    _listenToTicketDoc();
+  }
+
+  void _listenToTicketDoc() {
+    final bookingId = widget.booking.bookingId.trim();
+    if (bookingId.isEmpty) return;
+    _ticketSubscription = FirestoreService.instance
+        .collection('Admin_ticket_entry')
+        .doc(bookingId)
+        .snapshots()
+        .listen((snapshot) {
+          if (!snapshot.exists || !mounted) return;
+          final data = snapshot.data();
+          if (data == null) return;
+          final s = (data['status'] ?? '').toString().toLowerCase().trim();
+          final adm = (data['adminStatus'] ?? '')
+              .toString()
+              .toLowerCase()
+              .trim();
+          final eng = (data['engineerStatus'] ?? '')
+              .toString()
+              .toLowerCase()
+              .trim();
+          final cus =
+              (data['Customer_decision'] ?? data['customerStatus'] ?? '')
+                  .toString()
+                  .toLowerCase()
+                  .trim();
+
+          final isCancelled =
+              s == 'cancelled' ||
+              s == 'canceled' ||
+              adm == 'cancelled' ||
+              adm == 'canceled' ||
+              eng == 'cancelled' ||
+              eng == 'canceled' ||
+              cus == 'cancelled' ||
+              cus == 'canceled';
+
+          if (isCancelled) {
+            setState(() {
+              _isLiveCancelled = true;
+              _liveCancellationReason =
+                  (data['cancellationReason'] ??
+                          data['cancellation_reason'] ??
+                          data['cancelReason'] ??
+                          data['Reason_cancel'] ??
+                          _liveCancellationReason)
+                      .toString()
+                      .trim();
+              _liveCancelledByRole =
+                  (data['cancelledByRole'] ?? _liveCancelledByRole)
+                      .toString()
+                      .trim();
+              if (data['cancelledAt'] is Timestamp) {
+                _liveCancelledAt = data['cancelledAt'] as Timestamp;
+              }
+              _isReadOnly = true;
+              _currentStatus = 'Cancelled';
+            });
+          }
+        });
+  }
+
+  @override
+  void dispose() {
+    _ticketSubscription?.cancel();
+    _amountController.dispose();
+    _paymentAmountController.dispose();
+    _otherPaymentController.dispose();
+    super.dispose();
   }
 
   void _loadExistingPayments() {
@@ -4736,6 +5592,7 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
   }
 
   void _updateReadOnlyStatus() {
+    final bool isHelper = _isHelper;
     final bool wasCompleted =
         widget.booking.selectedStatus.toLowerCase() == 'completed';
     final bool wasDelivered =
@@ -4743,14 +5600,18 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
 
     setState(() {
       _isReadOnly =
+          isHelper ||
           wasCompleted ||
           wasDelivered ||
           _currentStatus.toLowerCase() == 'completed' ||
           _currentStatus.toLowerCase() == 'delivered' ||
           widget.booking.isCanceled ||
+          _isLiveCancelled ||
           widget.isCompletedSection;
 
-      if (wasCompleted || _currentStatus.toLowerCase() == 'completed') {
+      if (_isLiveCancelled || widget.booking.isCanceled) {
+        _currentStatus = 'Cancelled';
+      } else if (wasCompleted || _currentStatus.toLowerCase() == 'completed') {
         _currentStatus = 'Completed';
       } else if ((wasDelivered ||
               _currentStatus.toLowerCase() == 'delivered') &&
@@ -4761,7 +5622,12 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
   }
 
   Future<void> _pickImages() async {
-    if (_isPickingImages || _isReadOnly) return;
+    if (_isPickingImages ||
+        _isReadOnly ||
+        _isHelper ||
+        _isLiveCancelled ||
+        widget.booking.isCanceled)
+      return;
 
     setState(() {
       _isPickingImages = true;
@@ -4802,7 +5668,13 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
   }
 
   void _addPayment() {
-    if (_isReadOnly) return;
+    if (_isReadOnly || _isHelper) {
+      _showSnackBar(
+        'Payments can only be added by the Primary Engineer.',
+        ProfessionalTheme.error,
+      );
+      return;
+    }
 
     String paymentTypeToSave = _selectedPaymentType == 'Others'
         ? _otherPaymentController.text.trim()
@@ -4854,12 +5726,30 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
   }
 
   Future<void> _performUpdate() async {
+    // 1. Frontend validation: Block Helper-assigned engineers from modifying ticket
+    if (_isHelper) {
+      _showSnackBar(
+        'Helper assignment is read-only. Updates can only be performed by the Primary Engineer.',
+        ProfessionalTheme.error,
+      );
+      return;
+    }
+
+    if (_isReadOnly) {
+      _showSnackBar(
+        'This ticket is read-only and cannot be updated.',
+        ProfessionalTheme.error,
+      );
+      return;
+    }
+
     String paymentTypeToSave = _selectedPaymentType == 'Others'
         ? _otherPaymentController.text.trim()
         : _selectedPaymentType;
 
     if (_currentStatus.isEmpty ||
-        widget.descriptionController.text.trim().isEmpty) {
+        (widget.descriptionController != null &&
+            widget.descriptionController!.text.trim().isEmpty)) {
       _showSnackBar(
         'Status and Status Description are required!',
         ProfessionalTheme.error,
@@ -4961,16 +5851,72 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
     if (confirm == true) {
       setState(() => _isUploading = true);
       try {
+        final String bookingId = widget.booking.bookingId.trim();
+
+        // 2. Backend verification: Check live ticket assignment in Firestore database
+        try {
+          DocumentSnapshot? docSnap;
+          try {
+            docSnap = await FirestoreService.instance
+                .collection('Admin_ticket_entry')
+                .doc(bookingId)
+                .get();
+          } catch (_) {}
+
+          if (docSnap == null || !docSnap.exists) {
+            try {
+              docSnap = await FirestoreService.instance
+                  .collection('Raised_tickets')
+                  .doc(bookingId)
+                  .get();
+            } catch (_) {}
+          }
+
+          if (docSnap != null && docSnap.exists) {
+            final liveBooking = AdminDetails.fromFirestore(docSnap);
+            if (liveBooking.isCanceled) {
+              _showSnackBar(
+                'Operation Rejected: This ticket has been cancelled.',
+                ProfessionalTheme.error,
+              );
+              if (mounted) {
+                setState(() {
+                  _isReadOnly = true;
+                  _isLiveCancelled = true;
+                  _currentStatus = 'Cancelled';
+                });
+              }
+              return;
+            }
+            if (liveBooking.isHelperAssignment(
+              widget.userName,
+              widget.userId,
+            )) {
+              _showSnackBar(
+                'Unauthorized: Helper assignment is read-only. Updates can only be performed by the Primary Engineer.',
+                ProfessionalTheme.error,
+              );
+              if (mounted) {
+                setState(() {
+                  _isReadOnly = true;
+                });
+              }
+              return;
+            }
+          }
+        } catch (e) {
+          debugPrint('Backend assignment verification error: $e');
+        }
+
         List<String> newImageUrls = await _uploadImages(_imageFiles ?? []);
         List<String> allImageUrls = [
           ...widget.booking.imageUrls,
           ...newImageUrls,
         ];
 
-        final String bookingId = widget.booking.bookingId.trim();
         final String updateDesc =
-            widget.descriptionController.text.trim().isNotEmpty
-            ? widget.descriptionController.text.trim()
+            (widget.descriptionController?.text.trim().isNotEmpty ?? false)
+            ? widget.descriptionController!.text.trim()
             : 'Status updated to $_currentStatus by engineer';
 
         Map<String, dynamic> updateData = {
@@ -4998,6 +5944,10 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
           },
         ];
 
+        final bool isNowCompleted =
+            _currentStatus.toLowerCase() == 'completed' ||
+            (_isDeliveryTicket && _currentStatus.toLowerCase() == 'delivered');
+
         if (_currentStatus.toLowerCase() == 'completed') {
           updateData['engineerStatus'] = 'Completed';
           updateData['completedAt'] = FieldValue.serverTimestamp();
@@ -5012,6 +5962,11 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
           updateData['completedBy'] = widget.userName;
           updateData['orderDelivered'] = true;
           updateData['isDelivered'] = true;
+        }
+
+        if (isNowCompleted &&
+            !widget.booking.completionFeedbackNotificationSent) {
+          updateData['completionFeedbackNotificationSent'] = true;
         }
 
         // Direct write to Admin_ticket_entry
@@ -5060,6 +6015,20 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
           engineerName: widget.userName,
           customerName: widget.booking.customerName,
         );
+
+        if (isNowCompleted &&
+            !widget.booking.completionFeedbackNotificationSent) {
+          await NotificationService.sendNotificationToFirestore(
+            audience: 'customer',
+            title: 'Service Completed – Share Your Feedback',
+            body:
+                'Your service ticket ${widget.booking.bookingId} has been completed successfully. Please share your rating and feedback about our service.',
+            type: 'ticket_completed_feedback',
+            bookingId: widget.booking.bookingId,
+            customerName: widget.booking.customerName,
+            customerId: widget.booking.customerId,
+          );
+        }
 
         setState(() {
           _imageFiles = [];
@@ -5113,14 +6082,17 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0.5,
-        leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new_rounded,
-            color: Color(0xFF0F172A),
-            size: 20,
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: !kIsWeb,
+        leading: kIsWeb
+            ? null
+            : IconButton(
+                icon: const Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  color: Color(0xFF0F172A),
+                  size: 20,
+                ),
+                onPressed: () => Navigator.pop(context),
+              ),
         title: Text(
           'Ticket #${widget.booking.bookingId}',
           style: const TextStyle(
@@ -5132,323 +6104,865 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16),
-            child: Center(child: _buildStatusHeaderChip(_currentStatus)),
+            child: Center(
+              child: _buildStatusHeaderChip(
+                (_isLiveCancelled || widget.booking.isCanceled)
+                    ? 'Cancelled'
+                    : _currentStatus,
+              ),
+            ),
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        physics: const BouncingScrollPhysics(),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    primary,
-                    HSLColor.fromColor(primary).withLightness(0.30).toColor(),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(22),
-                boxShadow: [
-                  BoxShadow(
-                    color: primary.withValues(alpha: 0.3),
-                    blurRadius: 16,
-                    offset: const Offset(0, 8),
+      body: ResponsiveWrapper(
+        maxWidth: 960,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          physics: const BouncingScrollPhysics(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (_isLiveCancelled || widget.booking.isCanceled) ...[
+                _buildCancellationBanner(),
+              ],
+              if (_isHelper) ...[
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFFBEB),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFFDE68A)),
                   ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  child: Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
+                        padding: const EdgeInsets.all(8),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFF59E0B),
+                          shape: BoxShape.circle,
                         ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.35),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              _isDeliveryTicket
-                                  ? Icons.local_shipping_rounded
-                                  : Icons.stars_rounded,
-                              size: 12,
-                              color: _isDeliveryTicket
-                                  ? const Color(0xFF34D399)
-                                  : Colors.amberAccent,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              _isDeliveryTicket
-                                  ? 'DELIVERY TICKET DETAILS'
-                                  : 'SERVICE TICKET DETAILS',
-                              style: const TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w900,
-                                color: Colors.white,
-                                letterSpacing: 0.8,
-                              ),
-                            ),
-                          ],
+                        child: const Icon(
+                          Icons.handshake_rounded,
+                          color: Colors.white,
+                          size: 18,
                         ),
                       ),
-                      Text(
-                        widget.booking.daysDisplayText,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white.withValues(alpha: 0.9),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Text(
+                                  'Helper Assigned',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 14,
+                                    color: Color(0xFF92400E),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFEF3C7),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(
+                                      color: const Color(0xFFF59E0B),
+                                    ),
+                                  ),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.lock_rounded,
+                                        size: 10,
+                                        color: Color(0xFFB45309),
+                                      ),
+                                      SizedBox(width: 3),
+                                      Text(
+                                        'READ-ONLY',
+                                        style: TextStyle(
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w900,
+                                          color: Color(0xFFB45309),
+                                          letterSpacing: 0.5,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'You have read-only access to this ticket as a Helper. Ticket updates can only be made by Primary Engineer: ${widget.booking.assignedEmployee.isNotEmpty ? widget.booking.assignedEmployee : "Not Assigned"}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFFB45309),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            if (widget.booking.helperReason.isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                'Instructions: ${widget.booking.helperReason}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontStyle: FontStyle.italic,
+                                  color: Color(0xFF92400E),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
-                  Text(
-                    widget.booking.customerName,
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.white,
-                      letterSpacing: -0.4,
-                    ),
+                ),
+              ] else if (widget.booking.isPrimaryAssignment(
+                widget.userName,
+                widget.userId,
+              )) ...[
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFF6FF),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFBFDBFE)),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    [
-                      widget.booking.deviceBrand,
-                      widget.booking.deviceType,
-                    ].where((s) => s.isNotEmpty).join(' · '),
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.white.withValues(alpha: 0.9),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  if (widget.booking.address.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.location_on_rounded,
-                          size: 14,
-                          color: Colors.white.withValues(alpha: 0.85),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF3B82F6),
+                          shape: BoxShape.circle,
                         ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            widget.booking.address,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.white.withValues(alpha: 0.9),
-                              fontWeight: FontWeight.w500,
+                        child: const Icon(
+                          Icons.badge_rounded,
+                          color: Colors.white,
+                          size: 18,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Primary Engineer',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 14,
+                                color: Color(0xFF1E40AF),
+                              ),
                             ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
+                            const SizedBox(height: 2),
+                            Text(
+                              widget.booking.helpers.isNotEmpty
+                                  ? 'Assigned Helper: ${widget.booking.helpers.join(", ")}'
+                                  : 'You are assigned as the main Engineer for this service ticket.',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF1D4ED8),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            if (widget.booking.helperReason.isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                'Helper Instructions: ${widget.booking.helperReason}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontStyle: FontStyle.italic,
+                                  color: Color(0xFF1E40AF),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      primary,
+                      HSLColor.fromColor(primary).withLightness(0.30).toColor(),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(22),
+                  boxShadow: [
+                    BoxShadow(
+                      color: primary.withValues(alpha: 0.3),
+                      blurRadius: 16,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.35),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                _isDeliveryTicket
+                                    ? Icons.local_shipping_rounded
+                                    : Icons.stars_rounded,
+                                size: 12,
+                                color: _isDeliveryTicket
+                                    ? const Color(0xFF34D399)
+                                    : Colors.amberAccent,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                _isDeliveryTicket
+                                    ? 'DELIVERY TICKET DETAILS'
+                                    : 'SERVICE TICKET DETAILS',
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.white,
+                                  letterSpacing: 0.8,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          widget.booking.daysDisplayText,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white.withValues(alpha: 0.9),
                           ),
                         ),
                       ],
                     ),
-                  ],
-                  const SizedBox(height: 18),
-                  const Divider(color: Colors.white24, height: 1),
-                  const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () => _launchPhoneDialer(mobileNumber),
-                          icon: const Icon(Icons.phone_rounded, size: 16),
+                    const SizedBox(height: 16),
+                    Text(
+                      widget.booking.customerName,
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        letterSpacing: -0.4,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      [
+                        widget.booking.deviceBrand,
+                        widget.booking.deviceType,
+                      ].where((s) => s.isNotEmpty).join(' · '),
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.white.withValues(alpha: 0.9),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (widget.booking.address.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.location_on_rounded,
+                            size: 14,
+                            color: Colors.white.withValues(alpha: 0.85),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              widget.booking.address,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.white.withValues(alpha: 0.9),
+                                fontWeight: FontWeight.w500,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                    const SizedBox(height: 18),
+                    const Divider(color: Colors.white24, height: 1),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () => _launchPhoneDialer(mobileNumber),
+                            icon: const Icon(Icons.phone_rounded, size: 16),
+                            label: const Text(
+                              'Call Customer',
+                              style: TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.white,
+                              foregroundColor: primary,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              elevation: 0,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            Clipboard.setData(
+                              ClipboardData(text: widget.booking.address),
+                            );
+                            _showSnackBar(
+                              'Address copied to clipboard',
+                              ProfessionalTheme.info(context),
+                            );
+                          },
+                          icon: const Icon(Icons.copy_rounded, size: 16),
                           label: const Text(
-                            'Call Customer',
+                            'Copy Address',
                             style: TextStyle(fontWeight: FontWeight.w800),
                           ),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: primary,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            backgroundColor: Colors.white.withValues(
+                              alpha: 0.2,
+                            ),
+                            foregroundColor: Colors.white,
+                            side: const BorderSide(color: Colors.white38),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
                             elevation: 0,
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      ElevatedButton.icon(
-                        onPressed: () {
-                          Clipboard.setData(
-                            ClipboardData(text: widget.booking.address),
-                          );
-                          _showSnackBar(
-                            'Address copied to clipboard',
-                            ProfessionalTheme.info(context),
-                          );
-                        },
-                        icon: const Icon(Icons.copy_rounded, size: 16),
-                        label: const Text(
-                          'Copy Address',
-                          style: TextStyle(fontWeight: FontWeight.w800),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white.withValues(alpha: 0.2),
-                          foregroundColor: Colors.white,
-                          side: const BorderSide(color: Colors.white38),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          elevation: 0,
-                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              if (widget.booking.hasVisitSchedule) ...[
+                const SizedBox(height: 16),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0xFFBAE6FD)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF0284C7).withValues(alpha: 0.06),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
                       ),
                     ],
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-            _buildSectionHeader('Job Details', Icons.info_outline),
-            const SizedBox(height: 10),
-            _buildDetailsSection(),
-            const SizedBox(height: 20),
-            _buildSectionHeader('Status Management', Icons.assignment_outlined),
-            const SizedBox(height: 10),
-            _buildStatusSection(),
-            const SizedBox(height: 20),
-            _buildSectionHeader(
-              'Update Description',
-              Icons.description_outlined,
-            ),
-            const SizedBox(height: 10),
-            _buildDescriptionSection(),
-            const SizedBox(height: 20),
-            _buildSectionHeader('Payments & Charges', Icons.payments_outlined),
-            const SizedBox(height: 10),
-            _buildPaymentSection(),
-            const SizedBox(height: 20),
-            _buildSectionHeader(
-              'Completion Photos',
-              Icons.photo_library_outlined,
-            ),
-            const SizedBox(height: 10),
-            _buildImageSection(),
-            const SizedBox(height: 30),
-          ],
-        ),
-      ),
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 10,
-              offset: const Offset(0, -4),
-            ),
-          ],
-        ),
-        child: SafeArea(
-          child: SizedBox(
-            width: double.infinity,
-            height: 50,
-            child: ElevatedButton.icon(
-              onPressed:
-                  (_isUploading || _isReadOnly || widget.booking.isCanceled)
-                  ? null
-                  : _performUpdate,
-              icon: _isUploading
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: const Color(
+                                0xFF0284C7,
+                              ).withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(
+                              Icons.calendar_month_rounded,
+                              size: 18,
+                              color: Color(0xFF0284C7),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          const Text(
+                            'ENGINEER VISIT SCHEDULE',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xFF0F172A),
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
                       ),
-                    )
-                  : const Icon(Icons.check_circle_rounded, size: 20),
-              label: Text(
-                _isUploading
-                    ? 'Updating Ticket...'
-                    : _isReadOnly
-                    ? 'Ticket Read Only'
-                    : 'Save & Update Ticket Status',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w900,
-                  fontSize: 15,
+                      const SizedBox(height: 14),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF0F9FF),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFE0F2FE)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.access_time_filled_rounded,
+                              size: 20,
+                              color: Color(0xFF0284C7),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Expected Customer Visit',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF0284C7),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    widget.booking.formattedVisitSchedule,
+                                    style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w800,
+                                      color: Color(0xFF0C4A6E),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (widget.booking.visitNotes.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Row(
+                                children: [
+                                  Icon(
+                                    Icons.notes_rounded,
+                                    size: 14,
+                                    color: Color(0xFF64748B),
+                                  ),
+                                  SizedBox(width: 6),
+                                  Text(
+                                    'VISIT NOTES',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w800,
+                                      color: Color(0xFF64748B),
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                widget.booking.visitNotes,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: Color(0xFF334155),
+                                  fontWeight: FontWeight.w600,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
+              ],
+              const SizedBox(height: 20),
+              _buildSectionHeader('Job Details', Icons.info_outline),
+              const SizedBox(height: 10),
+              _buildDetailsSection(),
+              const SizedBox(height: 20),
+              _buildSectionHeader(
+                'Status Management',
+                Icons.assignment_outlined,
               ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primary,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                elevation: 0,
+              const SizedBox(height: 10),
+              _buildStatusSection(),
+              const SizedBox(height: 20),
+              _buildSectionHeader(
+                'Update Description',
+                Icons.description_outlined,
               ),
-            ),
+              const SizedBox(height: 10),
+              _buildDescriptionSection(),
+              const SizedBox(height: 20),
+              _buildSectionHeader(
+                'Payments & Charges',
+                Icons.payments_outlined,
+              ),
+              const SizedBox(height: 10),
+              _buildPaymentSection(),
+              const SizedBox(height: 20),
+              _buildSectionHeader(
+                'Completion Photos',
+                Icons.photo_library_outlined,
+              ),
+              const SizedBox(height: 10),
+              _buildImageSection(),
+              const SizedBox(height: 30),
+            ],
           ),
         ),
       ),
+      bottomNavigationBar: _isHelper
+          ? Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: const BoxDecoration(
+                color: Color(0xFFFFFBEB),
+                border: Border(top: BorderSide(color: Color(0xFFFDE68A))),
+              ),
+              child: SafeArea(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.lock_rounded,
+                      size: 18,
+                      color: Color(0xFFB45309),
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        'Helper Assignment – Read-Only (Updates Restricted)',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF92400E),
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.06),
+                    blurRadius: 10,
+                    offset: const Offset(0, -4),
+                  ),
+                ],
+              ),
+              child: SafeArea(
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton.icon(
+                    onPressed:
+                        (_isUploading ||
+                            _isReadOnly ||
+                            _isLiveCancelled ||
+                            widget.booking.isCanceled)
+                        ? null
+                        : _performUpdate,
+                    icon: _isUploading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.check_circle_rounded, size: 20),
+                    label: Text(
+                      _isUploading
+                          ? 'Updating Ticket...'
+                          : _isReadOnly
+                          ? 'Ticket Read Only'
+                          : 'Save & Update Ticket Status',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 15,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      elevation: 0,
+                    ),
+                  ),
+                ),
+              ),
+            ),
     );
   }
 
   Widget _buildStatusHeaderChip(String status) {
+    final isCancelled = status.toLowerCase().contains('cancel') ||
+        _isLiveCancelled ||
+        widget.booking.isCanceled;
+
     final statusConfig = {
-      'Completed': {'color': const Color(0xFF10B981), 'text': 'Completed'},
-      'Assigned': {'color': const Color(0xFF10B981), 'text': 'Assigned'},
+      'Completed': {
+        'color': const Color(0xFF10B981),
+        'icon': Icons.check_circle_outline,
+        'text': 'Completed',
+      },
+      'Assigned': {
+        'color': const Color(0xFF10B981),
+        'icon': Icons.assignment_ind_outlined,
+        'text': 'Assigned',
+      },
       'Pending for Approval': {
         'color': const Color(0xFF8B5CF6),
+        'icon': Icons.hourglass_empty_rounded,
         'text': 'Pending',
       },
       'Pending for Spares': {
         'color': const Color(0xFFF59E0B),
+        'icon': Icons.settings_input_component_outlined,
         'text': 'Spares',
       },
       'Under Observation': {
         'color': const Color(0xFF06B6D4),
+        'icon': Icons.visibility_outlined,
         'text': 'Observation',
       },
+      'Cancelled': {
+        'color': const Color(0xFFDC2626), // Dark red
+        'bgColor': const Color(0xFFFEF2F2), // Light red
+        'borderColor': const Color(0xFFFCA5A5), // Subtle red
+        'icon': Icons.cancel_outlined,
+        'text': 'Cancelled',
+      },
+      'Canceled': {
+        'color': const Color(0xFFDC2626),
+        'bgColor': const Color(0xFFFEF2F2),
+        'borderColor': const Color(0xFFFCA5A5),
+        'icon': Icons.cancel_outlined,
+        'text': 'Cancelled',
+      },
     };
-    final config =
-        statusConfig[status] ??
-        {'color': const Color(0xFF64748B), 'text': status};
+    final config = isCancelled
+        ? statusConfig['Cancelled']!
+        : (statusConfig[status] ??
+            {'color': const Color(0xFF64748B), 'text': status});
     final color = config['color'] as Color;
     final text = config['text'] as String;
+    final bgColor =
+        (config['bgColor'] as Color?) ?? color.withValues(alpha: 0.12);
+    final borderColor =
+        (config['borderColor'] as Color?) ?? color.withValues(alpha: 0.3);
+    final icon = config['icon'] as IconData?;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
+        color: bgColor,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        border: Border.all(color: borderColor),
       ),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 11,
-          color: color,
-          fontWeight: FontWeight.w800,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 13, color: color),
+            const SizedBox(width: 4),
+          ],
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: 11,
+              color: color,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCancellationBanner() {
+    final reason = _liveCancellationReason.isNotEmpty
+        ? _liveCancellationReason
+        : (widget.booking.cancellationReason.isNotEmpty
+              ? widget.booking.cancellationReason
+              : 'No reason specified');
+    final cancelledBy = _liveCancelledByRole.isNotEmpty
+        ? _liveCancelledByRole
+        : (widget.booking.cancelledByRole.isNotEmpty
+              ? widget.booking.cancelledByRole
+              : 'Admin');
+    final timestamp = _liveCancelledAt ?? widget.booking.cancelledAt;
+    final dateStr = timestamp != null
+        ? DateFormat('dd MMM yyyy, hh:mm a').format(timestamp.toDate())
+        : 'N/A';
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFEF2F2),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFCA5A5), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.red.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFEF4444),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.cancel_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'THIS TICKET HAS BEEN CANCELLED',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF991B1B),
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'All actions and edits are locked. This ticket is strictly read-only.',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFFB91C1C),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFFECACA)),
+            ),
+            child: Column(
+              children: [
+                _buildCancellationInfoRow('Cancellation Reason', reason),
+                const Divider(color: Color(0xFFFEE2E2), height: 14),
+                _buildCancellationInfoRow(
+                  'Cancelled By',
+                  cancelledBy.toUpperCase(),
+                ),
+                const Divider(color: Color(0xFFFEE2E2), height: 14),
+                _buildCancellationInfoRow('Cancelled Date & Time', dateStr),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCancellationInfoRow(String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF64748B),
+          ),
         ),
-      ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF1E293B),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -5549,6 +7063,146 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
               ),
             ),
           ],
+          if (widget.booking.customerRating != null ||
+              widget.booking.customerFeedback.isNotEmpty ||
+              widget.booking.feedbackStatus.toLowerCase() == 'submitted') ...[
+            Container(
+              padding: const EdgeInsets.all(14),
+              margin: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFFBEB),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFFDE68A)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFF59E0B),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.star_rounded,
+                          size: 14,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Customer Rating & Feedback',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF78350F),
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFECFDF5),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: const Color(0xFFA7F3D0)),
+                        ),
+                        child: const Text(
+                          'Read-Only',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF047857),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: List.generate(5, (index) {
+                          final ratingVal =
+                              widget.booking.customerRating ?? 5.0;
+                          return Icon(
+                            index < ratingVal.round()
+                                ? Icons.star_rounded
+                                : Icons.star_outline_rounded,
+                            color: const Color(0xFFF59E0B),
+                            size: 18,
+                          );
+                        }),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '${(widget.booking.customerRating ?? 5.0).toStringAsFixed(1)} ★',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFFB45309),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (widget.booking.customerFeedback.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFFFDE68A)),
+                      ),
+                      child: Text(
+                        '"${widget.booking.customerFeedback}"',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontStyle: FontStyle.italic,
+                          color: Color(0xFF451A03),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ] else if (widget.booking.isCompleted) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              margin: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(
+                    Icons.rate_review_outlined,
+                    size: 14,
+                    color: Color(0xFF64748B),
+                  ),
+                  SizedBox(width: 6),
+                  Text(
+                    'Awaiting customer rating & feedback',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF64748B),
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -5619,6 +7273,96 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
   }
 
   Widget _buildStatusSection() {
+    if (_isHelper) {
+      // Helper has read-only access: Display current status cleanly without editing controls
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFEF3C7),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.lock_rounded,
+                    size: 16,
+                    color: Color(0xFFB45309),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'CURRENT STATUS',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF64748B),
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _currentStatus.isNotEmpty ? _currentStatus : 'Assigned',
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                _buildStatusHeaderChip(_currentStatus),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.info_outline_rounded,
+                    size: 14,
+                    color: Color(0xFF64748B),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Status updates are restricted to Primary Engineer: ${widget.booking.assignedEmployee.isNotEmpty ? widget.booking.assignedEmployee : "Assigned Engineer"}.',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFF64748B),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     final List<String> allowedStatuses;
     if (_isDeliveryTicket) {
       allowedStatuses = ['Delivered', 'Not Delivered'];
@@ -5677,7 +7421,8 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
             items: allowedStatuses.map((String value) {
               return DropdownMenuItem<String>(value: value, child: Text(value));
             }).toList(),
-            onChanged: _isReadOnly || widget.booking.isCanceled
+            onChanged:
+                _isReadOnly || widget.booking.isCanceled || _isLiveCancelled
                 ? null
                 : (String? newValue) {
                     if (newValue != null) {
@@ -5699,13 +7444,17 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
             Color chipColor = const Color(0xFF0284C7);
             if (status == 'Completed' || status == 'Delivered')
               chipColor = const Color(0xFF10B981);
-            if (status == 'Not Delivered') chipColor = const Color(0xFFEF4444);
+            if (status == 'Not Delivered' ||
+                status.toLowerCase().contains('cancel')) {
+              chipColor = const Color(0xFFDC2626);
+            }
             if (status.contains('Pending')) chipColor = const Color(0xFFD97706);
             if (status.contains('Observation'))
               chipColor = const Color(0xFF0D9488);
 
             return InkWell(
-              onTap: (_isReadOnly || widget.booking.isCanceled)
+              onTap:
+                  (_isReadOnly || widget.booking.isCanceled || _isLiveCancelled)
                   ? null
                   : () {
                       setState(() {
@@ -5816,8 +7565,9 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
           minLines: 3,
           enabled: !_isReadOnly,
           decoration: InputDecoration(
-            hintText:
-                'Describe the current status, issues found, or work completed...',
+            hintText: _isHelper
+                ? 'Ticket update description (Read-only for Helper)'
+                : 'Describe the current status, issues found, or work completed...',
             hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
@@ -5825,7 +7575,7 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
             ),
             contentPadding: const EdgeInsets.all(16),
             filled: true,
-            fillColor: Colors.white,
+            fillColor: _isReadOnly ? const Color(0xFFF8FAFC) : Colors.white,
           ),
           style: const TextStyle(fontSize: 14, color: Color(0xFF0F172A)),
           onChanged: (value) {
@@ -5839,6 +7589,80 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
   }
 
   Widget _buildPaymentSection() {
+    if (_isHelper) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFEF3C7),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.lock_rounded,
+                    size: 16,
+                    color: Color(0xFFB45309),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'PAYMENTS & CHARGES',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF64748B),
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'Read-Only Access',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (_payments.isNotEmpty) ...[
+              _buildPaymentsTable(),
+              const SizedBox(height: 12),
+            ],
+            _buildAmountField(),
+            const SizedBox(height: 8),
+            const Text(
+              'Payment entries can only be added or modified by the Primary Engineer.',
+              style: TextStyle(
+                fontSize: 11,
+                fontStyle: FontStyle.italic,
+                color: Color(0xFF64748B),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     final paymentTypes = [
       'Cash',
       'UPI Transaction',

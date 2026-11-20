@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class CustomerTypePage extends StatefulWidget {
@@ -86,18 +87,19 @@ class _CustomerTypePageState extends State<CustomerTypePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        IconButton(
-          onPressed: () {
-            Navigator.pop(context);
-          },
-          icon: Icon(
-            Icons.arrow_back_rounded,
-            color: Theme.of(context).colorScheme.onPrimary,
-            size: 28,
+        if (!kIsWeb)
+          IconButton(
+            onPressed: () {
+              Navigator.pop(context);
+            },
+            icon: Icon(
+              Icons.arrow_back_rounded,
+              color: Theme.of(context).colorScheme.onPrimary,
+              size: 28,
+            ),
           ),
-        ),
 
-        SizedBox(height: 20),
+        const SizedBox(height: 20),
 
         Text(
           "Select Customer Type",

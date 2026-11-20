@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:subscription_rooks_app/backend/attendance_backend.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_attendance_reports.dart';
 import 'package:intl/intl.dart';
@@ -244,16 +245,19 @@ class _AdminAttendancePageState extends State<AdminAttendancePage>
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0.5,
-        leading: Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: CircleAvatar(
-            backgroundColor: const Color(0xFFF1F5F9),
-            child: IconButton(
-              icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF0F172A), size: 18),
-              onPressed: () => Navigator.pop(context),
-            ),
-          ),
-        ),
+        automaticallyImplyLeading: !kIsWeb,
+        leading: kIsWeb
+            ? null
+            : Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: CircleAvatar(
+                  backgroundColor: const Color(0xFFF1F5F9),
+                  child: IconButton(
+                    icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF0F172A), size: 18),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ),
+              ),
         title: const Text(
           'Attendance Workspace',
           style: TextStyle(

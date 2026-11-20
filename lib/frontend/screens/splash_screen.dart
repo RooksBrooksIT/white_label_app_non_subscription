@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:subscription_rooks_app/services/app_update_service.dart';
 import 'package:subscription_rooks_app/services/auth_state_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
+import 'package:subscription_rooks_app/services/notification_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:geolocator/geolocator.dart';
@@ -39,29 +40,26 @@ class _SplashScreenState extends State<SplashScreen>
       duration: const Duration(milliseconds: 900),
     );
 
-    _fadeAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _entranceController,
-      curve: const Interval(0.0, 0.65, curve: Curves.easeOut),
-    ));
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _entranceController,
+        curve: const Interval(0.0, 0.65, curve: Curves.easeOut),
+      ),
+    );
 
-    _scaleAnimation = Tween<double>(
-      begin: 0.85,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _entranceController,
-      curve: const Interval(0.0, 0.75, curve: Curves.easeOutBack),
-    ));
+    _scaleAnimation = Tween<double>(begin: 0.85, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _entranceController,
+        curve: const Interval(0.0, 0.75, curve: Curves.easeOutBack),
+      ),
+    );
 
-    _slideAnimation = Tween<double>(
-      begin: 18.0,
-      end: 0.0,
-    ).animate(CurvedAnimation(
-      parent: _entranceController,
-      curve: const Interval(0.15, 0.85, curve: Curves.easeOutCubic),
-    ));
+    _slideAnimation = Tween<double>(begin: 18.0, end: 0.0).animate(
+      CurvedAnimation(
+        parent: _entranceController,
+        curve: const Interval(0.15, 0.85, curve: Curves.easeOutCubic),
+      ),
+    );
 
     // 2. Continuous subtle breathing / ripple animation
     _rippleController = AnimationController(
@@ -80,7 +78,13 @@ class _SplashScreenState extends State<SplashScreen>
     if (logoUrl != null &&
         logoUrl.isNotEmpty &&
         (logoUrl.startsWith('http://') || logoUrl.startsWith('https://'))) {
-      precacheImage(NetworkImage(logoUrl), context).catchError((_) {});
+      precacheImage(
+        NetworkImage(logoUrl),
+        context,
+        onError: (exception, stackTrace) {
+          // Precache failure (e.g., CORS restrictions on Flutter Web or offline) is safely caught
+        },
+      ).catchError((_) {});
     }
   }
 
@@ -111,6 +115,17 @@ class _SplashScreenState extends State<SplashScreen>
 
     if (!mounted) return;
 
+    // If a mandatory update is required, halt entry and present the non-dismissible modal directly on splash.
+    final updateInfo = AppUpdateService.instance.lastKnownInfo ??
+        await AppUpdateService.instance.checkUpdateInfo();
+    if (updateInfo != null && updateInfo.isMandatory) {
+      if (!mounted) return;
+      AppUpdateService.instance.showUpdateDialog(context, updateInfo);
+      return;
+    }
+
+    if (!mounted) return;
+
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) => target,
@@ -120,6 +135,14 @@ class _SplashScreenState extends State<SplashScreen>
         transitionDuration: const Duration(milliseconds: 400),
       ),
     );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (NotificationService.instance.hasPendingNotification) {
+        NotificationService.instance.consumePendingNotification();
+      }
+      // Check for available optional update once target screen is mounted
+      AppUpdateService.instance.checkForUpdate();
+    });
   }
 
   Future<void> _performBackgroundChecks() async {
@@ -135,12 +158,9 @@ class _SplashScreenState extends State<SplashScreen>
         await prefs.setBool('is_first_launch', false);
       }
 
-      if (mounted) {
-        await AppUpdateService.instance.checkForUpdate(context).timeout(
-          const Duration(milliseconds: 1500),
-          onTimeout: () {},
-        );
-      }
+      await AppUpdateService.instance
+          .checkUpdateInfo()
+          .timeout(const Duration(milliseconds: 1500), onTimeout: () => null);
     } catch (e) {
       debugPrint('SplashScreen background checks: $e');
     }
@@ -270,7 +290,8 @@ class _SplashScreenState extends State<SplashScreen>
                         AnimatedBuilder(
                           animation: _rippleController,
                           builder: (context, child) {
-                            final progress = (_rippleController.value + 0.5) % 1.0;
+                            final progress =
+                                (_rippleController.value + 0.5) % 1.0;
                             return Container(
                               width: logoSize + 30 + (progress * 30),
                               height: logoSize + 30 + (progress * 30),
@@ -298,10 +319,7 @@ class _SplashScreenState extends State<SplashScreen>
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 gradient: const LinearGradient(
-                                  colors: [
-                                    Colors.white,
-                                    Color(0xFFF1F5F9),
-                                  ],
+                                  colors: [Colors.white, Color(0xFFF1F5F9)],
                                   begin: Alignment.topLeft,
                                   end: Alignment.bottomRight,
                                 ),
@@ -443,7 +461,9 @@ class _SplashScreenState extends State<SplashScreen>
                                         ),
                                         boxShadow: [
                                           BoxShadow(
-                                            color: primary.withValues(alpha: 0.8),
+                                            color: primary.withValues(
+                                              alpha: 0.8,
+                                            ),
                                             blurRadius: 10,
                                           ),
                                         ],

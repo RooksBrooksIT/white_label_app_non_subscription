@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
@@ -6,6 +7,7 @@ import 'package:subscription_rooks_app/backend/attendance_backend.dart';
 import 'package:subscription_rooks_app/services/auth_state_service.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class EngineerAttendanceScreen extends StatefulWidget {
   const EngineerAttendanceScreen({super.key});
@@ -495,6 +497,7 @@ class _EngineerAttendanceScreenState extends State<EngineerAttendanceScreen> {
     if (!_attendanceFeatureEnabled) {
       return Scaffold(
         appBar: AppBar(
+          automaticallyImplyLeading: !kIsWeb,
           title: const Text('My Attendance'),
           backgroundColor: Theme.of(context).primaryColor,
           foregroundColor: Colors.white,
@@ -546,6 +549,7 @@ class _EngineerAttendanceScreenState extends State<EngineerAttendanceScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: !kIsWeb,
         title: const Text('My Attendance'),
         backgroundColor: Theme.of(context).primaryColor,
         foregroundColor: Colors.white,
@@ -557,7 +561,9 @@ class _EngineerAttendanceScreenState extends State<EngineerAttendanceScreen> {
           ),
         ],
       ),
-      body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      body: ResponsiveWrapper(
+        maxWidth: 960,
+        child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
         stream: AttendanceBackend.getAttendanceStream(
           engineerId: _engineerId,
           date: _today,
@@ -737,6 +743,7 @@ class _EngineerAttendanceScreenState extends State<EngineerAttendanceScreen> {
             ),
           );
         },
+      ),
       ),
     );
   }

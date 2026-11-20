@@ -260,6 +260,12 @@ h2{color:#1A237E;} p{color:#555;}
                         planName: paymentData.planName || "Subscription",
                         isYearly: paymentData.isYearly || false,
                         isSixMonths: paymentData.isSixMonths || false,
+                        subscriptionYears: paymentData.subscriptionYears || paymentData.billingYears || 1,
+                        billingYears: paymentData.subscriptionYears || paymentData.billingYears || 1,
+                        durationYears: paymentData.subscriptionYears || paymentData.billingYears || 1,
+                        totalAmount: actualAmount,
+                        annualPrice: paymentData.annualPrice || (paymentData.isYearly ? Math.round(actualAmount / (paymentData.subscriptionYears || 1)) : null),
+                        billingType: paymentData.billingType || (paymentData.isYearly ? "Yearly" : (paymentData.isSixMonths ? "6 Months" : "Monthly")),
                         amount: actualAmount,
                     };
                     transaction.set(tenantRef, tenantData, { merge: true });
@@ -355,6 +361,12 @@ exports.verifyPayment = functions
                             merchantTxnNo: paymentData.merchantTxnNo || txnId,
                             paymentMethod: actualPaymentMethod,
                             paymentMode: actualPaymentMethod,
+                            subscriptionYears: paymentData.subscriptionYears || paymentData.billingYears || 1,
+                            billingYears: paymentData.subscriptionYears || paymentData.billingYears || 1,
+                            durationYears: paymentData.subscriptionYears || paymentData.billingYears || 1,
+                            totalAmount: actualAmount,
+                            annualPrice: paymentData.annualPrice || (paymentData.isYearly ? Math.round(actualAmount / (paymentData.subscriptionYears || 1)) : null),
+                            billingType: paymentData.billingType || (paymentData.isYearly ? "Yearly" : (paymentData.isSixMonths ? "6 Months" : "Monthly")),
                             amount: actualAmount,
                         }, { merge: true });
                         console.log(`[VERIFY] Mirrored SUCCESS for ${txnId} to tenant collection.`);

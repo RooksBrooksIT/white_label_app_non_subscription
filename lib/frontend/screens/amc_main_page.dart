@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:lottie/lottie.dart';
@@ -11,6 +12,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:subscription_rooks_app/frontend/screens/customer_createtickets_devicetype.dart';
 import 'package:flutter/services.dart';
 import 'package:subscription_rooks_app/services/notification_service.dart';
+import 'package:subscription_rooks_app/frontend/screens/customer_notifications_page.dart';
+import 'package:subscription_rooks_app/frontend/screens/customer_feedback_screen.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 import 'package:subscription_rooks_app/services/app_tour_service.dart';
@@ -19,11 +23,39 @@ import 'package:subscription_rooks_app/widgets/interactive_tour/tour_step_model.
 class AMCTrackMyService extends StatefulWidget {
   final String customerName;
   final String customerId;
+  final String? customerPhone;
+  final String? customerUid;
+  final String? initialBookingId;
   const AMCTrackMyService({
     super.key,
     required this.customerName,
     required this.customerId,
+    this.customerPhone,
+    this.customerUid,
+    this.initialBookingId,
   });
+
+  /// Safely resolves the display Ticket ID across all possible fields
+  /// for both Admin-created and Customer-created tickets.
+  static String resolveTicketId(Map<String, dynamic> data, [String? docId]) {
+    final candidates = [
+      data['ticketId'],
+      data['bookingId'],
+      data['ticketNumber'],
+      data['ticket_id'],
+      data['ticketNo'],
+      docId,
+    ];
+    for (final c in candidates) {
+      if (c != null) {
+        final s = c.toString().trim();
+        if (s.isNotEmpty && s.toLowerCase() != 'null' && s.toLowerCase() != 'n/a') {
+          return s;
+        }
+      }
+    }
+    return 'N/A';
+  }
 
   @override
   State<AMCTrackMyService> createState() => _AMCTrackMyServiceState();
@@ -36,6 +68,7 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
   StreamSubscription? _notificationSubscription;
   Timer? _timer;
   int _selectedTabIndex = 0; // 0: Live Tracking, 1: Completed & Delivered
+  bool _hasAutoSwitchedTab = false;
 
   @override
   void initState() {
@@ -44,8 +77,10 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
     if (user != null) {
       NotificationService.instance.registerToken(
         role: 'customer',
-        userId: widget.customerId,
+        userId: user.uid,
         email: user.email ?? '',
+        tenantId: ThemeService.instance.databaseName,
+        customerId: widget.customerId,
       );
     }
     _setupNotificationListener();
@@ -89,25 +124,16 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
         .listen((snapshot) {
           for (var change in snapshot.docChanges) {
             if (change.type == DocumentChangeType.added) {
-              final data = change.doc.data() as Map<String, dynamic>;
-              final title = data['title'] ?? 'Update';
-              final body = data['body'] ?? 'Your ticket has been updated.';
+              final data = change.doc.data();
+              if (data == null) continue;
+              final body =
+                  (data['body'] ?? 'Your ticket has been updated.').toString();
 
               if (mounted) {
                 setState(() {
                   showBanner = true;
                   bannerMessage = body;
                 });
-
-                // Show a local push notification for immediate feedback
-                NotificationService.instance.showNotification(
-                  title: title,
-                  body: body,
-                  data: data.map((k, v) => MapEntry(k, v?.toString() ?? '')),
-                );
-
-                // Mark notification as seen so it doesn't trigger again
-                change.doc.reference.update({'seen': true});
               }
             }
           }
@@ -141,21 +167,22 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
             letterSpacing: 1.2,
           ),
         ),
-        leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new_rounded,
-            size: 20,
-            color: Colors.white,
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: !kIsWeb,
+        leading: kIsWeb
+            ? null
+            : IconButton(
+                icon: const Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  size: 20,
+                  color: Colors.white,
+                ),
+                onPressed: () => Navigator.pop(context),
+              ),
       ),
       body: Stack(
         children: [
-          StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-            stream: FirestoreService.instance
-                .collection('Raised_tickets')
-                .snapshots(),
+          StreamBuilder<List<DocumentSnapshot>>(
+            stream: FirestoreService.instance.getAllTicketsCombinedStream(),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return Center(
@@ -170,38 +197,89 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
                 return _buildErrorState();
               }
 
-              final allDocs = (snapshot.data?.docs ?? []).where((doc) {
-                final data = doc.data();
+              final targetName = widget.customerName.trim().toLowerCase();
+              final targetId = widget.customerId.trim().toLowerCase();
+              final targetUid = (widget.customerUid ??
+                      FirebaseAuth.instance.currentUser?.uid ??
+                      '')
+                  .trim()
+                  .toLowerCase();
+              final targetPhone = (widget.customerPhone ?? '')
+                  .trim()
+                  .replaceAll(RegExp(r'[^0-9]'), '');
+
+              final allDocs = (snapshot.data ?? []).where((doc) {
+                final data = (doc.data() as Map<String, dynamic>?) ?? {};
                 final cName =
                     (data['customerName'] ?? data['CustomerName'] ?? '')
                         .toString()
                         .trim()
                         .toLowerCase();
                 final cId =
-                    (data['customerid'] ??
+                    (data['customerId'] ??
+                            data['customerid'] ??
                             data['id'] ??
-                            data['customerId'] ??
                             '')
                         .toString()
                         .trim()
                         .toLowerCase();
-                final targetName = widget.customerName.trim().toLowerCase();
-                final targetId = widget.customerId.trim().toLowerCase();
-                return (targetName.isNotEmpty && cName == targetName) ||
-                    (targetId.isNotEmpty && cId == targetId);
+                final cUid =
+                    (data['customerUid'] ??
+                            data['uid'] ??
+                            data['userId'] ??
+                            '')
+                        .toString()
+                        .trim()
+                        .toLowerCase();
+                final cPhone =
+                    (data['mobileNumber'] ??
+                            data['phoneNumber'] ??
+                            data['Phone Number'] ??
+                            '')
+                        .toString()
+                        .trim()
+                        .replaceAll(RegExp(r'[^0-9]'), '');
+
+                // 1. Direct Customer ID match
+                if (targetId.isNotEmpty && targetId != 'guest' && cId == targetId) {
+                  return true;
+                }
+                // 2. Customer Auth UID match
+                if (targetUid.isNotEmpty && (cUid == targetUid || cId == targetUid)) {
+                  return true;
+                }
+                // 3. Customer Mobile Number match
+                if (targetPhone.isNotEmpty &&
+                    targetPhone.length >= 7 &&
+                    cPhone.isNotEmpty) {
+                  if (cPhone == targetPhone ||
+                      cPhone.endsWith(targetPhone) ||
+                      targetPhone.endsWith(cPhone)) {
+                    return true;
+                  }
+                }
+                // 4. Customer Name match (only for valid non-guest customer)
+                if (targetName.isNotEmpty &&
+                    targetName != 'guest' &&
+                    cName == targetName) {
+                  return true;
+                }
+                return false;
               }).toList();
 
               // Sort by createdAt descending
               allDocs.sort((a, b) {
+                final dataA = (a.data() as Map<String, dynamic>?) ?? {};
+                final dataB = (b.data() as Map<String, dynamic>?) ?? {};
                 final tsA = parseTimestamp(
-                  a.data()['createdAt'] ??
-                      a.data()['timestamp'] ??
-                      a.data()['updatedAt'],
+                  dataA['createdAt'] ??
+                      dataA['timestamp'] ??
+                      dataA['updatedAt'],
                 );
                 final tsB = parseTimestamp(
-                  b.data()['createdAt'] ??
-                      b.data()['timestamp'] ??
-                      b.data()['updatedAt'],
+                  dataB['createdAt'] ??
+                      dataB['timestamp'] ??
+                      dataB['updatedAt'],
                 );
                 if (tsA == null && tsB == null) return 0;
                 if (tsA == null) return 1;
@@ -211,12 +289,36 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
 
               // Separate Live vs Completed
               final liveTickets = allDocs.where((doc) {
-                final data = doc.data();
+                final data = (doc.data() as Map<String, dynamic>?) ?? {};
                 final engStatus = (data['engineerStatus'] ?? '')
                     .toString()
                     .toLowerCase()
                     .trim();
                 final admStatus = (data['adminStatus'] ?? '')
+                    .toString()
+                    .toLowerCase()
+                    .trim();
+                final isCompleted =
+                    engStatus == 'completed' ||
+                    engStatus.contains('complete') ||
+                    admStatus == 'completed' ||
+                    admStatus == 'delivered' ||
+                    data['orderDelivered'] == true ||
+                    data['isDelivered'] == true;
+                return !isCompleted;
+              }).toList();
+
+              final completedTickets = allDocs.where((doc) {
+                final data = (doc.data() as Map<String, dynamic>?) ?? {};
+                final engStatus = (data['engineerStatus'] ?? '')
+                    .toString()
+                    .toLowerCase()
+                    .trim();
+                final admStatus = (data['adminStatus'] ?? '')
+                    .toString()
+                    .toLowerCase()
+                    .trim();
+                final rawStatus = (data['status'] ?? '')
                     .toString()
                     .toLowerCase()
                     .trim();
@@ -228,33 +330,52 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
                     data['orderDelivered'] == true ||
                     data['isDelivered'] == true;
                 final isCanceled =
-                    admStatus == 'canceled' || admStatus == 'cancelled';
-                return !isCompleted && !isCanceled;
+                    admStatus == 'canceled' ||
+                    admStatus == 'cancelled' ||
+                    rawStatus == 'canceled' ||
+                    rawStatus == 'cancelled' ||
+                    data['cancelledAt'] != null ||
+                    data['cancellationReason'] != null;
+                return isCompleted || isCanceled;
               }).toList();
 
-              final completedTickets = allDocs.where((doc) {
-                final data = doc.data();
-                final engStatus = (data['engineerStatus'] ?? '')
-                    .toString()
-                    .toLowerCase()
-                    .trim();
-                final admStatus = (data['adminStatus'] ?? '')
-                    .toString()
-                    .toLowerCase()
-                    .trim();
-                final isCompleted =
-                    engStatus == 'completed' ||
-                    engStatus.contains('complete') ||
-                    admStatus == 'completed' ||
-                    admStatus == 'delivered' ||
-                    data['orderDelivered'] == true ||
-                    data['isDelivered'] == true;
-                return isCompleted;
-              }).toList();
+              // Auto-select tab if initialBookingId was requested
+              if (widget.initialBookingId != null && !_hasAutoSwitchedTab) {
+                final targetId = widget.initialBookingId!.trim().toLowerCase();
+                final isInCompleted = completedTickets.any((d) {
+                  final data = (d.data() as Map<String, dynamic>?) ?? {};
+                  final bid =
+                      AMCTrackMyService.resolveTicketId(data, d.id)
+                          .toLowerCase();
+                  return bid == targetId;
+                });
+                if (isInCompleted) {
+                  _selectedTabIndex = 1;
+                }
+                _hasAutoSwitchedTab = true;
+              }
 
-              final displayedTickets = _selectedTabIndex == 0
-                  ? liveTickets
-                  : completedTickets;
+              final displayedTickets =
+                  List<DocumentSnapshot>.from(
+                    _selectedTabIndex == 0 ? liveTickets : completedTickets,
+                  );
+
+              if (widget.initialBookingId != null) {
+                final targetId = widget.initialBookingId!.trim().toLowerCase();
+                displayedTickets.sort((a, b) {
+                  final dataA = (a.data() as Map<String, dynamic>?) ?? {};
+                  final dataB = (b.data() as Map<String, dynamic>?) ?? {};
+                  final aId =
+                      AMCTrackMyService.resolveTicketId(dataA, a.id)
+                          .toLowerCase();
+                  final bId =
+                      AMCTrackMyService.resolveTicketId(dataB, b.id)
+                          .toLowerCase();
+                  if (aId == targetId) return -1;
+                  if (bId == targetId) return 1;
+                  return 0;
+                });
+              }
 
               return Column(
                 children: [
@@ -275,8 +396,10 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
                             ),
                             itemCount: displayedTickets.length,
                             itemBuilder: (context, index) {
-                              final data = displayedTickets[index].data();
-                              final documentId = displayedTickets[index].id;
+                              final doc = displayedTickets[index];
+                              final data =
+                                  (doc.data() as Map<String, dynamic>?) ?? {};
+                              final documentId = doc.id;
                               return _buildProfessionalTicketCard(
                                 data,
                                 documentId,
@@ -719,6 +842,51 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
     );
   }
 
+  Widget _buildVisitScheduleRow(
+    String label,
+    String value, {
+    bool isHighlight = false,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 125,
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF15803D),
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(
+              fontSize: isHighlight ? 13.5 : 13,
+              fontWeight: isHighlight ? FontWeight.w900 : FontWeight.w700,
+              color: isHighlight
+                  ? const Color(0xFF166534)
+                  : const Color(0xFF0F172A),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _launchDialer(String rawPhone) async {
+    final clean = rawPhone.replaceAll(RegExp(r'[^\d+]'), '');
+    final uri = Uri.parse('tel:$clean');
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+      }
+    } catch (_) {}
+  }
+
   Widget _buildStatusTracker(Map<String, dynamic> data) {
     final primary = Theme.of(context).primaryColor;
     final adminStatus =
@@ -727,6 +895,158 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
         data['engineerStatus']?.toString().toLowerCase().trim() ?? '';
     final customerStatus =
         data['customerStatus']?.toString().toLowerCase().trim() ?? '';
+    final rawTicketStatus =
+        data['status']?.toString().toLowerCase().trim() ?? '';
+    final decision =
+        data['Customer_decision']?.toString().toLowerCase().trim() ?? '';
+
+    final bool isTicketCanceled =
+        adminStatus == 'canceled' ||
+        adminStatus == 'cancelled' ||
+        rawTicketStatus == 'canceled' ||
+        rawTicketStatus == 'cancelled' ||
+        engineerStatus == 'canceled' ||
+        engineerStatus == 'cancelled' ||
+        customerStatus == 'canceled' ||
+        customerStatus == 'cancelled' ||
+        decision == 'canceled' ||
+        decision == 'cancelled';
+
+    if (isTicketCanceled) {
+      final String cancelReason =
+          (data['cancellationReason'] ??
+                  data['cancellation_reason'] ??
+                  data['cancelReason'] ??
+                  data['Reason_cancel'] ??
+                  'Cancelled by administration')
+              .toString();
+
+      return Container(
+        margin: const EdgeInsets.only(top: 8, bottom: 4),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFEF2F2),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFFCA5A5)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEF4444).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.cancel_rounded,
+                    size: 16,
+                    color: Color(0xFFEF4444),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Ticket Cancelled',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFFDC2626),
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        cancelReason,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF7F1D1D),
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEF4444).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text(
+                    'Cancelled',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFFDC2626),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                _buildMilestoneNode(0, 0, primary),
+                _buildConnectingTrack(0, 0, const Color(0xFFEF4444)),
+                Container(
+                  width: 26,
+                  height: 26,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFEF4444),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.close_rounded,
+                    size: 14,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Raised',
+                    textAlign: TextAlign.left,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Text(
+                    'Cancelled (Final State)',
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFFDC2626),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
     final assignedEngineer =
         data['assignedEngineer'] ?? data['assignedEmployee'];
     final bool hasAssignedEngineer =
@@ -793,6 +1113,13 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
     IconData capsuleIcon;
     Color capsuleColor;
 
+    final visitDate = (data['expectedVisitDate'] ?? '').toString().trim();
+    final visitTime = (data['expectedVisitTime'] ?? '').toString().trim();
+    final bool hasVisit = visitDate.isNotEmpty || visitTime.isNotEmpty;
+    final String formattedVisit = (visitDate.isNotEmpty && visitTime.isNotEmpty)
+        ? '$visitDate at $visitTime'
+        : (visitDate.isNotEmpty ? visitDate : visitTime);
+
     switch (currentStep) {
       case 4:
         capsuleTitle = 'Order Delivered';
@@ -817,9 +1144,13 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
         break;
       case 1:
         capsuleTitle = 'Engineer Assigned';
-        capsuleSubtitle = hasAssignedEngineer
-            ? 'Assigned to $assignedEngineer'
-            : 'Technician allocated to your ticket';
+        capsuleSubtitle = hasVisit
+            ? (hasAssignedEngineer
+                  ? 'Assigned to $assignedEngineer · Visit: $formattedVisit'
+                  : 'Service Visit Scheduled: $formattedVisit')
+            : (hasAssignedEngineer
+                  ? 'Assigned to $assignedEngineer'
+                  : 'Technician allocated to your ticket');
         capsuleIcon = Icons.engineering_rounded;
         capsuleColor = const Color(0xFF0284C7);
         break;
@@ -941,6 +1272,39 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
                 ),
             ],
           ),
+          if (hasVisit && !isTicketCanceled) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEFF6FF),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFBFDBFE)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.event_available_rounded,
+                    size: 15,
+                    color: Color(0xFF2563EB),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Expected Visit: $formattedVisit',
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF1D4ED8),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -1162,22 +1526,64 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
           const SizedBox(height: 16),
           _buildStatusBadge("FEEDBACK: $feedback", Colors.blueGrey),
         ],
-        if (isCanceled && data['Reason_cancel'] != null) ...[
+        if (isCanceled) ...[
           const SizedBox(height: 16),
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: Colors.red.withValues(alpha: 0.05),
-              borderRadius: BorderRadius.circular(12),
+              color: const Color(0xFFFEF2F2),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFFCA5A5)),
             ),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.cancel_outlined, color: Colors.red, size: 18),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    "Reason: ${data['Reason_cancel']}",
-                    style: const TextStyle(color: Colors.red, fontSize: 13),
+                const Row(
+                  children: [
+                    Icon(
+                      Icons.cancel_rounded,
+                      color: Color(0xFFDC2626),
+                      size: 18,
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      'TICKET CANCELLED',
+                      style: TextStyle(
+                        color: Color(0xFF991B1B),
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  "Cancellation Reason: ${data['cancellationReason'] ?? data['Reason_cancel'] ?? data['cancellation_reason'] ?? data['cancelReason'] ?? 'Cancelled by Admin'}",
+                  style: const TextStyle(
+                    color: Color(0xFF7F1D1D),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (data['cancelledAt'] != null ||
+                    data['updatedAt'] != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    "Cancelled Date: ${DateFormat('dd MMM yyyy, hh:mm a').format((data['cancelledAt'] is Timestamp ? data['cancelledAt'] as Timestamp : (data['updatedAt'] as Timestamp)).toDate())}",
+                    style: const TextStyle(
+                      color: Color(0xFF991B1B),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 4),
+                Text(
+                  "Cancelled By: ${(data['cancelledByRole'] ?? 'Admin').toString().toUpperCase()}",
+                  style: const TextStyle(
+                    color: Color(0xFF991B1B),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],
@@ -1255,83 +1661,127 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
   }
 
   Widget _buildRatingSection(Map<String, dynamic> data) {
-    final hasRating = data['rating'] != null || _hasSubmittedRating;
+    final hasRating =
+        data['customerRating'] != null ||
+        data['rating'] != null ||
+        (data['feedbackStatus'] ?? '').toString().toLowerCase() ==
+            'submitted' ||
+        _hasSubmittedRating;
     final existingRating =
-        (data['rating'] as num?)?.toDouble() ?? _selectedRating.toDouble();
+        ((data['customerRating'] ?? data['rating']) as num?)?.toDouble() ??
+        _selectedRating.toDouble();
     final existingComment =
-        (data['ratingComment'] ??
+        (data['customerFeedback'] ??
+                data['ratingComment'] ??
                 data['comment'] ??
                 _ratingCommentController.text)
             .toString();
     final assignedEngineer =
         data['assignedEngineer']?.toString() ?? 'our technician';
+    final ticketId =
+        AMCTrackMyService.resolveTicketId(data, widget.documentId);
 
     if (hasRating) {
       return Container(
         margin: const EdgeInsets.only(top: 10),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
           color: const Color(0xFFFFFBEB),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(color: const Color(0xFFFDE68A)),
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              padding: const EdgeInsets.all(4),
-              decoration: const BoxDecoration(
-                color: Color(0xFFF59E0B),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.star_rounded,
-                size: 12,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(width: 8),
             Row(
-              mainAxisSize: MainAxisSize.min,
-              children: List.generate(5, (index) {
-                return Icon(
-                  index < existingRating.round()
-                      ? Icons.star_rounded
-                      : Icons.star_outline_rounded,
-                  color: const Color(0xFFF59E0B),
-                  size: 14,
-                );
-              }),
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFF59E0B),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.star_rounded,
+                    size: 13,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: List.generate(5, (index) {
+                    return Icon(
+                      index < existingRating.round()
+                          ? Icons.star_rounded
+                          : Icons.star_outline_rounded,
+                      color: const Color(0xFFF59E0B),
+                      size: 16,
+                    );
+                  }),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '${existingRating.toStringAsFixed(1)} ★',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFFD97706),
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFECFDF5),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFFA7F3D0)),
+                  ),
+                  child: const Text(
+                    'Feedback Recorded',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF047857),
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                existingComment.isNotEmpty
-                    ? '"$existingComment"'
-                    : 'Rated $existingRating ★',
+            if (existingComment.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                '"$existingComment"',
                 style: const TextStyle(
                   fontSize: 12,
                   fontStyle: FontStyle.italic,
                   color: Color(0xFF78350F),
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w500,
                 ),
-                maxLines: 1,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
-            ),
+            ],
           ],
         ),
       );
     }
 
-    // Rating Input Form
+    // Rating Input Form & Mandatory Feedback Action
     const ratingLabels = [
-      '',
+      'Tap to rate',
       'Poor',
       'Fair',
       'Good',
       'Very Good',
       'Excellent!',
     ];
+
+    final bool isInlineValid =
+        _selectedRating >= 1 && _ratingCommentController.text.trim().isNotEmpty;
 
     return Container(
       margin: const EdgeInsets.only(top: 14),
@@ -1364,7 +1814,7 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      "Rate Your Service Experience",
+                      "Rate Your Service Experience (Required)",
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w800,
@@ -1380,6 +1830,44 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
                       ),
                     ),
                   ],
+                ),
+              ),
+              // Dedicated feedback screen button
+              TextButton.icon(
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                onPressed: () async {
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => CustomerFeedbackScreen(
+                        ticketId: ticketId,
+                        customerId: (widget.data['customerId'] ??
+                                widget.data['customerid'] ??
+                                widget.data['id'] ??
+                                '')
+                            .toString(),
+                        customerName: widget.data['customerName'] ?? '',
+                        deviceBrand: widget.data['deviceBrand'] ?? '',
+                        deviceType: widget.data['deviceType'] ?? '',
+                        engineerName: widget.data['assignedEngineer'] ?? '',
+                      ),
+                    ),
+                  );
+                  if (result == true && mounted) {
+                    setState(() => _hasSubmittedRating = true);
+                  }
+                },
+                icon: const Icon(Icons.open_in_new_rounded, size: 14),
+                label: const Text(
+                  'Open Form',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
                 ),
               ),
             ],
@@ -1422,7 +1910,7 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  ratingLabels[_selectedRating.clamp(1, 5)],
+                  ratingLabels[_selectedRating.clamp(0, 5)],
                   style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w800,
@@ -1438,8 +1926,9 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
           TextField(
             controller: _ratingCommentController,
             maxLines: 2,
+            onChanged: (_) => setState(() {}),
             decoration: InputDecoration(
-              hintText: 'Add comments or feedback (optional)...',
+              hintText: 'Please share your experience with our service...',
               hintStyle: const TextStyle(
                 fontSize: 12,
                 color: Color(0xFF94A3B8),
@@ -1473,16 +1962,11 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: _isSubmittingRating
+              onPressed: (!isInlineValid || _isSubmittingRating)
                   ? null
                   : () async {
                       setState(() => _isSubmittingRating = true);
                       try {
-                        final ticketId =
-                            (widget.data['ticketId'] ??
-                                    widget.data['bookingId'] ??
-                                    widget.documentId)
-                                .toString();
                         final customerName = (widget.data['customerName'] ?? '')
                             .toString();
                         final comment = _ratingCommentController.text.trim();
@@ -1496,13 +1980,15 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
                           'ticketId': ticketId,
                           'bookingId': ticketId,
                           'customerName': customerName,
-                          'customerId':
-                              widget.data['customerId'] ??
-                              widget.data['customerid'] ??
-                              '',
+                          'customerId': (widget.data['customerId'] ??
+                                  widget.data['customerid'] ??
+                                  widget.data['id'] ??
+                                  '')
+                              .toString(),
                           'engineerName': widget.data['assignedEngineer'] ?? '',
                           'rating': _selectedRating,
                           'comment': comment,
+                          'feedback': comment,
                           'deviceBrand': widget.data['deviceBrand'] ?? '',
                           'deviceType': widget.data['deviceType'] ?? '',
                           'jobType': widget.data['jobType'] ?? '',
@@ -1513,9 +1999,15 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
                         await ratingDocRef.set(ratingPayload);
 
                         final ticketUpdate = {
+                          'customerRating': _selectedRating,
                           'rating': _selectedRating,
+                          'customerFeedback': comment,
+                          'comment': comment,
                           'ratingComment': comment,
+                          'feedbackStatus': 'Submitted',
+                          'feedbackSubmittedAt': FieldValue.serverTimestamp(),
                           'ratedAt': FieldValue.serverTimestamp(),
+                          'feedbackSubmittedBy': customerName,
                         };
 
                         try {
@@ -1530,6 +2022,22 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
                               .collection('Admin_ticket_entry')
                               .doc(widget.documentId)
                               .set(ticketUpdate, SetOptions(merge: true));
+                        } catch (_) {}
+
+                        // Mark completion notification as seen
+                        try {
+                          final notifSnap = await FirestoreService.instance
+                              .collection('notifications')
+                              .where('bookingId', isEqualTo: ticketId)
+                              .get();
+                          for (final d in notifSnap.docs) {
+                            final n = d.data() as Map<String, dynamic>? ?? {};
+                            if (n['type'] == 'ticket_completed_feedback' ||
+                                n['notificationType'] ==
+                                    'ticket_completed_feedback') {
+                              await d.reference.update({'seen': true});
+                            }
+                          }
                         } catch (_) {}
 
                         await NotificationService.sendNotificationToFirestore(
@@ -1550,7 +2058,7 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text(
-                                'Thank you! Your rating has been submitted.',
+                                'Thank you! Your rating and feedback have been submitted.',
                               ),
                               backgroundColor: Color(0xFF10B981),
                             ),
@@ -1562,7 +2070,7 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text('Failed to submit rating: $e'),
-                              backgroundColor: Colors.red,
+                              backgroundColor: const Color(0xFFEF4444),
                             ),
                           );
                         }
@@ -1570,35 +2078,27 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
                     },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Theme.of(context).primaryColor,
-                padding: const EdgeInsets.symmetric(vertical: 12),
+                disabledBackgroundColor: const Color(0xFFCBD5E1),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
-                elevation: 0,
               ),
               child: _isSubmittingRating
                   ? const SizedBox(
-                      height: 18,
                       width: 18,
+                      height: 18,
                       child: CircularProgressIndicator(
-                        color: Colors.white,
                         strokeWidth: 2,
+                        color: Colors.white,
                       ),
                     )
-                  : const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.send_rounded, size: 15, color: Colors.white),
-                        SizedBox(width: 6),
-                        Text(
-                          'Submit Rating',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
+                  : const Text(
+                      'Submit Feedback',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
                     ),
             ),
           ),
@@ -1609,15 +2109,67 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
 
   @override
   Widget build(BuildContext context) {
-    final ticketId = widget.data['ticketId'] ?? 'N/A';
-    final jobType = widget.data['jobType'] ?? 'N/A';
-    final deviceBrand = widget.data['deviceBrand'] ?? 'N/A';
-    final deviceType = widget.data['deviceType'] ?? 'N/A';
-    final customerName = widget.data['customerName'] ?? 'N/A';
-    final mobileNumber = widget.data['mobileNumber'] ?? 'N/A';
-    final issueDescription = widget.data['issueDescription'] ?? 'N/A';
-    final address = widget.data['address'] ?? 'N/A';
-    final assignedEngineer = widget.data['assignedEngineer'];
+    final ticketId =
+        AMCTrackMyService.resolveTicketId(widget.data, widget.documentId);
+    final jobType = (widget.data['jobType'] ??
+            widget.data['JobType'] ??
+            'N/A')
+        .toString();
+    final deviceBrand = (widget.data['deviceBrand'] ??
+            widget.data['brand'] ??
+            'N/A')
+        .toString();
+    final deviceType = (widget.data['deviceType'] ??
+            widget.data['DeviceName'] ??
+            widget.data['device'] ??
+            'N/A')
+        .toString();
+    final customerName = (widget.data['customerName'] ??
+            widget.data['CustomerName'] ??
+            'N/A')
+        .toString();
+    final mobileNumber = (widget.data['mobileNumber'] ??
+            widget.data['phoneNumber'] ??
+            widget.data['Phone Number'] ??
+            'N/A')
+        .toString();
+    final issueDescription = (widget.data['issueDescription'] ??
+            widget.data['message'] ??
+            widget.data['problem'] ??
+            widget.data['description'] ??
+            'N/A')
+        .toString();
+    final address = (widget.data['address'] ?? 'N/A').toString();
+    final assignedEngineer =
+        widget.data['assignedEngineer'] ?? widget.data['assignedEmployee'];
+    final expectedVisitDate = (widget.data['expectedVisitDate'] ?? '')
+        .toString()
+        .trim();
+    final expectedVisitTime = (widget.data['expectedVisitTime'] ?? '')
+        .toString()
+        .trim();
+    final visitNotes = (widget.data['visitNotes'] ?? '').toString().trim();
+    final helperName =
+        (widget.data['helperName'] ??
+                widget.data['helper'] ??
+                widget.data['Helper1'] ??
+                '')
+            .toString()
+            .trim();
+    final assignedEngineerPhone =
+        (widget.data['assignedEngineerPhone'] ??
+                widget.data['engineerPhone'] ??
+                '')
+            .toString()
+            .trim();
+    final bool hasVisitSchedule =
+        expectedVisitDate.isNotEmpty || expectedVisitTime.isNotEmpty;
+    final String formattedVisit =
+        (expectedVisitDate.isNotEmpty && expectedVisitTime.isNotEmpty)
+        ? '$expectedVisitDate at $expectedVisitTime'
+        : (expectedVisitDate.isNotEmpty
+              ? expectedVisitDate
+              : expectedVisitTime);
     final assignedTimestamp = widget.data['assignedTimestamp'] as Timestamp?;
     final paymentDetails = widget.data['paymentDetails'];
     final paymentApproved = widget.data['paymentApprovedByAdmin'] ?? false;
@@ -1630,7 +2182,21 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
         widget.data['adminStatus']?.toString().toLowerCase().trim() ?? '';
     final customerStatus =
         widget.data['customerStatus']?.toString().toLowerCase().trim() ?? '';
-    final isCanceled = adminStatus == 'canceled' || adminStatus == 'cancelled';
+    final rawTicketStatus =
+        widget.data['status']?.toString().toLowerCase().trim() ?? '';
+    final decision =
+        widget.data['Customer_decision']?.toString().toLowerCase().trim() ?? '';
+    final isCanceled =
+        adminStatus == 'canceled' ||
+        adminStatus == 'cancelled' ||
+        rawTicketStatus == 'canceled' ||
+        rawTicketStatus == 'cancelled' ||
+        rawStatus.toString().toLowerCase().trim() == 'canceled' ||
+        rawStatus.toString().toLowerCase().trim() == 'cancelled' ||
+        customerStatus == 'canceled' ||
+        customerStatus == 'cancelled' ||
+        decision == 'canceled' ||
+        decision == 'cancelled';
     final isOrderDelivered =
         widget.data['orderDelivered'] == true ||
         widget.data['isDelivered'] == true ||
@@ -1726,9 +2292,11 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
                         ),
                         _buildStatusBadge(
                           isCanceled
-                              ? 'CANCELED'
+                              ? 'CANCELLED'
                               : statusInfo.label.toUpperCase(),
-                          isCanceled ? Colors.red : statusInfo.color,
+                          isCanceled
+                              ? const Color(0xFFEF4444)
+                              : statusInfo.color,
                         ),
                         const SizedBox(width: 8),
                         Icon(
@@ -1737,8 +2305,8 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
                         ),
                       ],
                     ),
-                    // Progress Tracker (Shown in collapsed view ONLY for Live In-Progress tickets)
-                    if (!isCompleted && !isCanceled) ...[
+                    // Progress Tracker (Shown in collapsed view for Live In-Progress tickets OR Cancelled tickets)
+                    if (!isCompleted || isCanceled) ...[
                       const SizedBox(height: 12),
                       _buildStatusTracker(widget.data),
                     ],
@@ -1774,15 +2342,16 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
                         return Column(
                           children: [
                             const SizedBox(height: 10),
-                            SizedBox(
-                              width: double.infinity,
-                              child: _buildInfoItem(
-                                Icons.currency_rupee_rounded,
-                                "Service Amount",
-                                finalAmt <= 0
-                                    ? 'Awaiting admin update'
-                                    : _formatAmount(finalAmt),
-                              ),
+                            Row(
+                              children: [
+                                _buildInfoItem(
+                                  Icons.currency_rupee_rounded,
+                                  "Service Amount",
+                                  finalAmt <= 0
+                                      ? 'Awaiting admin update'
+                                      : _formatAmount(finalAmt),
+                                ),
+                              ],
                             ),
                           ],
                         );
@@ -1912,38 +2481,194 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
                       ],
                     ),
                   ),
-                  if (assignedEngineer != null) ...[
+                  if (assignedEngineer != null || hasVisitSchedule) ...[
                     const SizedBox(height: 16),
                     Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(18),
                       decoration: BoxDecoration(
-                        color: Colors.green.withValues(alpha: 0.05),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: Colors.green.withValues(alpha: 0.1),
-                        ),
+                        color: const Color(0xFFF0FDF4),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: const Color(0xFF86EFAC)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(
+                              0xFF16A34A,
+                            ).withValues(alpha: 0.06),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            "ASSIGNED ENGINEER",
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF16A34A),
-                              letterSpacing: 0.5,
-                            ),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: const Color(
+                                    0xFF16A34A,
+                                  ).withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: const Icon(
+                                  Icons.event_available_rounded,
+                                  color: Color(0xFF16A34A),
+                                  size: 18,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              const Expanded(
+                                child: Text(
+                                  'ENGINEER VISIT SCHEDULE',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w900,
+                                    color: Color(0xFF14532D),
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFDCFCE7),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(
+                                    color: const Color(0xFF86EFAC),
+                                  ),
+                                ),
+                                child: Text(
+                                  isCanceled
+                                      ? 'CANCELLED'
+                                      : statusInfo.label.toUpperCase(),
+                                  style: TextStyle(
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.w800,
+                                    color: isCanceled
+                                        ? const Color(0xFFDC2626)
+                                        : const Color(0xFF15803D),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 6),
-                          Text(
-                            assignedEngineer,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF16A34A),
+                          const SizedBox(height: 14),
+                          const Divider(color: Color(0xFFBBF7D0), height: 1),
+                          const SizedBox(height: 12),
+
+                          // Ticket ID
+                          _buildVisitScheduleRow('Ticket ID', '#$ticketId'),
+                          const SizedBox(height: 8),
+
+                          // Primary Engineer Name & Phone
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              const SizedBox(
+                                width: 125,
+                                child: Text(
+                                  'Primary Engineer',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF15803D),
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                child: Text(
+                                  assignedEngineer?.toString() ??
+                                      'Not Assigned',
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF0F172A),
+                                  ),
+                                ),
+                              ),
+                              if (assignedEngineerPhone.isNotEmpty) ...[
+                                InkWell(
+                                  onTap: () =>
+                                      _launchDialer(assignedEngineerPhone),
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF16A34A),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: const Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.phone_rounded,
+                                          color: Colors.white,
+                                          size: 12,
+                                        ),
+                                        SizedBox(width: 4),
+                                        Text(
+                                          'Call',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w800,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+
+                          if (assignedEngineerPhone.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            _buildVisitScheduleRow(
+                              'Engineer Contact',
+                              assignedEngineerPhone,
                             ),
+                          ],
+
+                          // Helper Engineer
+                          if (helperName.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            _buildVisitScheduleRow(
+                              'Helper Engineer',
+                              helperName,
+                            ),
+                          ],
+
+                          // Expected Visit Date & Time
+                          if (hasVisitSchedule) ...[
+                            const SizedBox(height: 8),
+                            _buildVisitScheduleRow(
+                              'Expected Visit',
+                              formattedVisit,
+                              isHighlight: true,
+                            ),
+                          ],
+
+                          // Visit Notes
+                          if (visitNotes.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            _buildVisitScheduleRow('Visit Notes', visitNotes),
+                          ],
+
+                          // Status
+                          const SizedBox(height: 8),
+                          _buildVisitScheduleRow(
+                            'Current Status',
+                            isCanceled ? 'Cancelled' : statusInfo.label,
                           ),
                         ],
                       ),
@@ -2339,8 +3064,26 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  if (!isCanceled &&
-                      statusInfo.label == 'Completed' &&
+                  if (isCanceled)
+                    const Row(
+                      children: [
+                        Icon(
+                          Icons.lock_outline_rounded,
+                          size: 14,
+                          color: Color(0xFFDC2626),
+                        ),
+                        SizedBox(width: 6),
+                        Text(
+                          'Ticket is Cancelled (Read-Only)',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFFDC2626),
+                          ),
+                        ),
+                      ],
+                    )
+                  else if (statusInfo.label == 'Completed' &&
                       (widget.data['FeedBack'] ?? '').isEmpty)
                     _buildActionIndicator(
                       "Rate Service",
@@ -2355,15 +3098,17 @@ class _ExpandableTicketCardState extends State<_ExpandableTicketCard> {
                         );
                       },
                     )
-                  else if (!isCanceled &&
-                      statusInfo.label != 'Completed' &&
-                      statusInfo.label != 'In Progress')
+                  else if (statusInfo.label != 'Completed' &&
+                      statusInfo.label != 'In Progress' &&
+                      statusInfo.label != 'CANCELLED' &&
+                      !isCanceled)
                     _buildActionIndicator("Cancel", Icons.close_rounded, () {
                       showDialog(
                         context: context,
                         builder: (ctx) => CancelTicketDialog(
                           bookingId: ticketId.toString(),
                           documentId: widget.documentId,
+                          ticketData: widget.data,
                         ),
                       );
                     }, isDanger: true),
@@ -2385,11 +3130,13 @@ class _StatusInfo {
 class CancelTicketDialog extends StatefulWidget {
   final String bookingId;
   final String documentId;
+  final Map<String, dynamic>? ticketData;
 
   const CancelTicketDialog({
     super.key,
     required this.bookingId,
     required this.documentId,
+    this.ticketData,
   });
 
   @override
@@ -2401,7 +3148,8 @@ class _CancelTicketDialogState extends State<CancelTicketDialog> {
   bool _isSubmitting = false;
 
   Future<void> _cancelTicket(BuildContext context) async {
-    if (_reasonController.text.trim().isEmpty) {
+    final reason = _reasonController.text.trim();
+    if (reason.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please enter reason for cancellation'),
@@ -2416,39 +3164,221 @@ class _CancelTicketDialogState extends State<CancelTicketDialog> {
     });
 
     try {
+      final docId = widget.documentId.isNotEmpty
+          ? widget.documentId
+          : widget.bookingId;
+      final bookingId = widget.bookingId.isNotEmpty
+          ? widget.bookingId
+          : widget.documentId;
+      final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+
+      // 1. Fetch current ticket data from either collection to get engineer & customer info
+      Map<String, dynamic> currentTicketData = Map<String, dynamic>.from(
+        widget.ticketData ?? {},
+      );
+      try {
+        final raisedSnap = await FirestoreService.instance
+            .collection('Raised_tickets')
+            .doc(docId)
+            .get();
+        if (raisedSnap.exists && raisedSnap.data() != null) {
+          currentTicketData.addAll(raisedSnap.data() as Map<String, dynamic>);
+        }
+      } catch (_) {}
+
+      try {
+        final adminSnap = await FirestoreService.instance
+            .collection('Admin_ticket_entry')
+            .doc(docId)
+            .get();
+        if (adminSnap.exists && adminSnap.data() != null) {
+          currentTicketData.addAll(adminSnap.data() as Map<String, dynamic>);
+        }
+      } catch (_) {}
+
+      // Validation: Check if already cancelled or completed
+      final existingStatus =
+          (currentTicketData['status'] ??
+                  currentTicketData['adminStatus'] ??
+                  currentTicketData['engineerStatus'] ??
+                  '')
+              .toString()
+              .toLowerCase()
+              .trim();
+      if (existingStatus == 'cancelled' || existingStatus == 'canceled') {
+        throw 'This ticket has already been cancelled.';
+      }
+      if (existingStatus == 'completed' ||
+          existingStatus == 'complete' ||
+          existingStatus == 'delivered') {
+        throw 'Completed tickets cannot be cancelled.';
+      }
+
+      final cancellationPayload = {
+        'status': 'Cancelled',
+        'adminStatus': 'Cancelled',
+        'engineerStatus': 'Cancelled',
+        'customerStatus': 'Cancelled',
+        'Customer_decision': 'Canceled: $reason',
+        'cancellationReason': reason,
+        'Reason_cancel': reason,
+        'cancelledBy': currentUid,
+        'cancelledByRole': 'customer',
+        'cancelledAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      // 2. Synchronize Raised_tickets
       await FirestoreService.instance
           .collection('Raised_tickets')
-          .doc(widget.documentId)
-          .update({
-            'Reason_cancel': _reasonController.text.trim(),
-            'adminStatus': 'Canceled',
-            'engineerStatus': 'Cancelled',
-            'cancelledAt': FieldValue.serverTimestamp(),
-            'updatedAt': FieldValue.serverTimestamp(),
-          });
+          .doc(docId)
+          .set(cancellationPayload, SetOptions(merge: true));
+
+      // 3. Synchronize Admin_ticket_entry
+      await FirestoreService.instance
+          .collection('Admin_ticket_entry')
+          .doc(docId)
+          .set(cancellationPayload, SetOptions(merge: true));
+
+      // If bookingId differs from docId, also sync bookingId doc
+      if (bookingId != docId && bookingId.isNotEmpty) {
+        try {
+          await FirestoreService.instance
+              .collection('Raised_tickets')
+              .doc(bookingId)
+              .set(cancellationPayload, SetOptions(merge: true));
+        } catch (_) {}
+        try {
+          await FirestoreService.instance
+              .collection('Admin_ticket_entry')
+              .doc(bookingId)
+              .set(cancellationPayload, SetOptions(merge: true));
+        } catch (_) {}
+      }
+
+      final customerName =
+          (currentTicketData['customerName'] ??
+                  currentTicketData['CustomerName'] ??
+                  'Customer')
+              .toString()
+              .trim();
+      final customerId =
+          (currentTicketData['customerId'] ??
+                  currentTicketData['customerid'] ??
+                  currentTicketData['id'] ??
+                  currentUid)
+              .toString()
+              .trim();
+      final assignedEngineer =
+          (currentTicketData['assignedEmployee'] ??
+                  currentTicketData['assignedEngineer'] ??
+                  '')
+              .toString()
+              .trim();
+      final helperEngineer =
+          (currentTicketData['helperName'] ??
+                  currentTicketData['Helper1'] ??
+                  currentTicketData['helperEngineer'] ??
+                  '')
+              .toString()
+              .trim();
+
+      // 4. Send push notification to Admin immediately
+      await NotificationService.sendNotificationToFirestore(
+        audience: 'admin',
+        title: 'Customer Cancelled Service Ticket',
+        body:
+            'Customer $customerName has cancelled ticket #$bookingId. Reason: $reason.',
+        type: 'customer_ticket_cancelled',
+        bookingId: bookingId,
+        customerId: customerId,
+        customerName: customerName,
+        additionalData: {
+          'targetRole': 'admin',
+          'notificationType': 'customer_ticket_cancelled',
+          'ticketId': bookingId,
+          'customerId': customerId,
+          'cancellationReason': reason,
+          'cancelledByRole': 'customer',
+          'screen': 'admin_tickets',
+        },
+      );
+
+      // 5. Notify assigned Primary Engineer
+      if (assignedEngineer.isNotEmpty &&
+          assignedEngineer != 'Not Assigned' &&
+          assignedEngineer.toLowerCase() != 'null') {
+        await NotificationService.sendNotificationToFirestore(
+          audience: 'engineer',
+          engineerName: assignedEngineer,
+          title: 'Service Ticket Cancelled by Customer',
+          body:
+              'Ticket #$bookingId for customer $customerName has been cancelled. Reason: $reason.',
+          type: 'ticket_cancelled',
+          bookingId: bookingId,
+          customerId: customerId,
+          customerName: customerName,
+          additionalData: {
+            'notificationType': 'ticket_cancelled',
+            'ticketId': bookingId,
+            'cancellationReason': reason,
+            'cancelledByRole': 'customer',
+            'screen': 'engineer_dashboard',
+          },
+        );
+      }
+
+      // 6. Notify Helper Engineer if assigned
+      if (helperEngineer.isNotEmpty &&
+          helperEngineer != 'Not Assigned' &&
+          helperEngineer != assignedEngineer &&
+          helperEngineer.toLowerCase() != 'null') {
+        await NotificationService.sendNotificationToFirestore(
+          audience: 'engineer',
+          engineerName: helperEngineer,
+          title: 'Service Ticket Cancelled by Customer',
+          body:
+              'Helper assignment for ticket #$bookingId has been cancelled. Reason: $reason.',
+          type: 'ticket_cancelled',
+          bookingId: bookingId,
+          customerId: customerId,
+          customerName: customerName,
+          additionalData: {
+            'notificationType': 'ticket_cancelled',
+            'ticketId': bookingId,
+            'cancellationReason': reason,
+            'cancelledByRole': 'customer',
+            'screen': 'engineer_dashboard',
+          },
+        );
+      }
 
       // Close the dialog
-      Navigator.of(context).pop();
-
-      // Show success message
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Ticket cancelled successfully'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      if (context.mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Ticket cancelled successfully'),
+            backgroundColor: Color(0xFF10B981),
+          ),
+        );
+      }
     } catch (e) {
-      Navigator.of(context).pop(); // Close dialog
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Cancellation failed: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (context.mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Cancellation failed: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } finally {
-      setState(() {
-        _isSubmitting = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
     }
   }
 
@@ -2621,10 +3551,39 @@ class FeedbackDialog extends StatelessWidget {
       await FirestoreService.instance
           .collection('Raised_tickets')
           .doc(documentId)
-          .update({
+          .set({
             'FeedBack': feedback,
             'updatedAt': FieldValue.serverTimestamp(),
-          });
+          }, SetOptions(merge: true));
+
+      try {
+        await FirestoreService.instance
+            .collection('Admin_ticket_entry')
+            .doc(documentId)
+            .set({
+              'FeedBack': feedback,
+              'updatedAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true));
+      } catch (_) {}
+
+      if (bookingId.isNotEmpty && bookingId != documentId) {
+        try {
+          await FirestoreService.instance
+              .collection('Raised_tickets')
+              .doc(bookingId)
+              .set({
+                'FeedBack': feedback,
+                'updatedAt': FieldValue.serverTimestamp(),
+              }, SetOptions(merge: true));
+          await FirestoreService.instance
+              .collection('Admin_ticket_entry')
+              .doc(bookingId)
+              .set({
+                'FeedBack': feedback,
+                'updatedAt': FieldValue.serverTimestamp(),
+              }, SetOptions(merge: true));
+        } catch (_) {}
+      }
 
       // Close the feedback dialog
       Navigator.of(context).pop();
@@ -3048,12 +4007,31 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
                 '';
           });
 
-          // Register FCM token for the customer
+          // Register FCM token and start global notification handling for the customer
+          final currentUser = FirebaseAuth.instance.currentUser;
           await NotificationService.instance.registerToken(
             role: 'customer',
-            userId: customerId,
+            userId: currentUser?.uid ?? customerId,
             email: userEmail!,
+            tenantId: tenantIdFromPrefs,
+            customerId: customerId,
+            phoneNumber: phoneNumber,
+            displayName: userName,
           );
+          NotificationService.instance.startCustomerNotificationListener(
+            customerId: customerId,
+            tenantId: tenantIdFromPrefs,
+          );
+        } else {
+          final currentUser = FirebaseAuth.instance.currentUser;
+          if (currentUser != null) {
+            await NotificationService.instance.registerToken(
+              role: 'customer',
+              userId: currentUser.uid,
+              email: userEmail ?? '',
+              tenantId: tenantIdFromPrefs,
+            );
+          }
         }
       }
     } catch (e) {
@@ -3355,6 +4333,79 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
       actions: [
         Padding(
           padding: const EdgeInsets.only(right: 8.0, top: 4.0),
+          child: StreamBuilder<int>(
+            stream: NotificationService.instance
+                .getCustomerUnreadNotificationsCountStream(
+                  ThemeService.instance.databaseName,
+                  customerId: customerId,
+                ),
+            builder: (context, snapshot) {
+              final unreadCount = snapshot.data ?? 0;
+              return Stack(
+                alignment: Alignment.center,
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.25),
+                      ),
+                    ),
+                    child: IconButton(
+                      icon: const Icon(
+                        Icons.notifications_none_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => CustomerNotificationsPage(
+                              customerId: customerId,
+                              customerName: userName,
+                            ),
+                          ),
+                        );
+                      },
+                      tooltip: 'Notifications',
+                    ),
+                  ),
+                  if (unreadCount > 0)
+                    Positioned(
+                      top: -2,
+                      right: -2,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFEF4444),
+                          shape: BoxShape.circle,
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 16,
+                          minHeight: 16,
+                        ),
+                        child: Text(
+                          unreadCount > 9 ? '9+' : '$unreadCount',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w900,
+                            height: 1.0,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(right: 8.0, top: 4.0),
           child: Container(
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.18),
@@ -3538,6 +4589,8 @@ class _AMCCustomerMainPageState extends State<AMCCustomerMainPage> {
                                     builder: (context) => AMCTrackMyService(
                                       customerName: userName,
                                       customerId: customerId,
+                                      customerPhone: phoneNumber,
+                                      customerUid: FirebaseAuth.instance.currentUser?.uid,
                                     ),
                                   ),
                                 );

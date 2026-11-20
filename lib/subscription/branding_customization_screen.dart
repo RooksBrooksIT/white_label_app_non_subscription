@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
 import 'package:crop_image/crop_image.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
@@ -17,6 +18,7 @@ class BrandingCustomizationScreen extends StatefulWidget {
   final String? planName;
   final bool? isYearly;
   final bool? isSixMonths;
+  final int subscriptionYears;
   final int? price;
   final int? originalPrice;
   final String? paymentMethod;
@@ -34,6 +36,7 @@ class BrandingCustomizationScreen extends StatefulWidget {
     this.planName,
     this.isYearly,
     this.isSixMonths = false,
+    this.subscriptionYears = 1,
     this.price,
     this.originalPrice,
     this.paymentMethod,
@@ -454,6 +457,7 @@ class _BrandingCustomizationScreenState
               planName: widget.planName!.trim(),
               isYearly: widget.isYearly ?? false,
               isSixMonths: widget.isSixMonths ?? false,
+              subscriptionYears: widget.subscriptionYears,
               price: widget.price!,
               originalPrice: widget.originalPrice,
               paymentMethod: widget.paymentMethod!.trim(),
@@ -660,10 +664,13 @@ class _BrandingCustomizationScreenState
     return AppBar(
       backgroundColor: Colors.white,
       elevation: 0.5,
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF0F172A)),
-        onPressed: () => Navigator.pop(context),
-      ),
+      automaticallyImplyLeading: !kIsWeb,
+      leading: kIsWeb
+          ? null
+          : IconButton(
+              icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF0F172A)),
+              onPressed: () => Navigator.pop(context),
+            ),
       title: const Text(
         'Branding',
         style: TextStyle(
@@ -1722,6 +1729,7 @@ class _CustomLogoCropperScreenState extends State<CustomLogoCropperScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
+        automaticallyImplyLeading: !kIsWeb,
         title: const Text('Crop Logo', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.white,
         elevation: 0,

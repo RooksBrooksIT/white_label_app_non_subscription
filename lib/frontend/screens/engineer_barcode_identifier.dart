@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
@@ -462,6 +463,7 @@ class _EngineerBarcodeIdentifierScreenState
       child: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
+        automaticallyImplyLeading: !kIsWeb,
         title: Text(
           'Product Details',
           style: TextStyle(
@@ -471,13 +473,15 @@ class _EngineerBarcodeIdentifierScreenState
           ),
         ),
         centerTitle: true,
-        leading: IconButton(
-          icon: Icon(
-            Icons.arrow_back,
-            color: Theme.of(context).textTheme.bodyLarge?.color,
-          ),
-          onPressed: _navigateBackToScanner,
-        ),
+        leading: kIsWeb
+            ? null
+            : IconButton(
+                icon: Icon(
+                  Icons.arrow_back,
+                  color: Theme.of(context).textTheme.bodyLarge?.color,
+                ),
+                onPressed: _navigateBackToScanner,
+              ),
         actions: [
           IconButton(
             icon: Icon(

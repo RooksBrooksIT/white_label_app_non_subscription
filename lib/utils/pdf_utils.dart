@@ -1,8 +1,41 @@
 import 'package:http/http.dart' as http;
 import 'package:pdf/widgets.dart' as pw;
 import 'package:flutter/services.dart';
+import 'package:printing/printing.dart';
 
 class PdfUtils {
+  static Future<pw.ThemeData> loadReportTheme() async {
+    pw.Font? ttfRegular;
+    pw.Font? ttfBold;
+    try {
+      final regData = await rootBundle.load('assets/fonts/LufgaRegular.ttf');
+      final boldData = await rootBundle.load('assets/fonts/LufgaBold.ttf');
+      ttfRegular = pw.Font.ttf(regData);
+      ttfBold = pw.Font.ttf(boldData);
+    } catch (_) {
+      try {
+        ttfRegular = await PdfGoogleFonts.robotoRegular();
+        ttfBold = await PdfGoogleFonts.robotoBold();
+      } catch (_) {}
+    }
+
+    if (ttfRegular != null) {
+      return pw.ThemeData.withFont(
+        base: ttfRegular,
+        bold: ttfBold ?? ttfRegular,
+      );
+    }
+    return pw.ThemeData.base();
+  }
+
+  static String cleanText(String? input) {
+    if (input == null) return '';
+    var s = input.trim();
+    if (s.isEmpty) return '';
+    s = s.replaceAll('\uFFFD', '');
+    s = s.replaceAll(RegExp(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]'), '');
+    return s.trim();
+  }
   static Future<pw.MemoryImage?> fetchNetworkImage(String? url) async {
     if (url == null || url.isEmpty) return null;
     try {

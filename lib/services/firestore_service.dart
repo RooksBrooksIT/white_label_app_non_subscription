@@ -1,4 +1,4 @@
-  import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
@@ -96,7 +96,6 @@ class FirestoreService {
     DateTime? registrationDate,
   ]) => instance.generateUniqueTenantId(name, registrationDate);
 
-
   /// Returns a collection reference rooted under:
   /// {tenantId} (coll) -> {appId} (doc) -> {collectionName} (coll)
   /// Standardized tenant collection path: {tenantId} (coll) -> data (doc) -> {subCollection} (coll)
@@ -179,15 +178,66 @@ class FirestoreService {
       List<DocumentSnapshot> adminDocs = [];
       List<DocumentSnapshot> raisedDocs = [];
 
+      bool isDocCancelled(Map<String, dynamic> data) {
+        final s = (data['status'] ?? '').toString().toLowerCase().trim();
+        final a = (data['adminStatus'] ?? '').toString().toLowerCase().trim();
+        final e = (data['engineerStatus'] ?? data['statusDescription'] ?? '')
+            .toString()
+            .toLowerCase()
+            .trim();
+        final c = (data['customerStatus'] ?? '')
+            .toString()
+            .toLowerCase()
+            .trim();
+        final d = (data['Customer_decision'] ?? '')
+            .toString()
+            .toLowerCase()
+            .trim();
+        final rc = (data['Reason_cancel'] ?? '')
+            .toString()
+            .toLowerCase()
+            .trim();
+        final cr = (data['cancellationReason'] ?? '')
+            .toString()
+            .toLowerCase()
+            .trim();
+        return s == 'cancelled' ||
+            s == 'canceled' ||
+            s.contains('cancel') ||
+            a == 'cancelled' ||
+            a == 'canceled' ||
+            a.contains('cancel') ||
+            e == 'cancelled' ||
+            e == 'canceled' ||
+            e.contains('cancel') ||
+            c == 'cancelled' ||
+            c == 'canceled' ||
+            c.contains('cancel') ||
+            d.contains('cancel') ||
+            rc.isNotEmpty ||
+            cr.isNotEmpty ||
+            data['cancelledAt'] != null ||
+            data['isCancelled'] == true ||
+            data['isCanceled'] == true;
+      }
+
+      String getTicketKey(DocumentSnapshot doc) {
+        final data = doc.data() as Map<String, dynamic>?;
+        if (data != null) {
+          final bId = data['bookingId']?.toString().trim();
+          if (bId != null && bId.isNotEmpty) return bId.toUpperCase();
+          final tId = data['ticketId']?.toString().trim();
+          if (tId != null && tId.isNotEmpty) return tId.toUpperCase();
+        }
+        return doc.id.trim().toUpperCase();
+      }
+
       void emitCombined() {
         final Map<String, DocumentSnapshot> combinedMap = {};
 
         // 1. Add Raised_tickets docs (Customer raised tickets)
         for (var doc in raisedDocs) {
-          final data = doc.data() as Map<String, dynamic>?;
-          final key = data?['bookingId']?.toString() ??
-              data?['ticketId']?.toString() ??
-              doc.id;
+          final key = getTicketKey(doc);
           if (key.isNotEmpty) {
             combinedMap[key] = doc;
           }
@@ -195,11 +245,22 @@ class FirestoreService {
 
         // 2. Add/Merge Admin_ticket_entry docs
         for (var doc in adminDocs) {
-          final data = doc.data() as Map<String, dynamic>?;
-          final key = data?['bookingId']?.toString() ??
-              data?['ticketId']?.toString() ??
-              doc.id;
+          final key = getTicketKey(doc);
           if (key.isNotEmpty) {
+            final existing = combinedMap[key];
+            if (existing != null) {
+              final existingData =
+                  existing.data() as Map<String, dynamic>? ?? {};
+              final newData = (doc.data() as Map<String, dynamic>?) ?? {};
+              final existingIsCancelled = isDocCancelled(existingData);
+              final newIsCancelled = isDocCancelled(newData);
+
+              // If existing Raised_tickets is cancelled but Admin_ticket_entry is not yet,
+              // prioritize the cancelled state so Admin sees cancellation in real-time.
+              if (existingIsCancelled && !newIsCancelled) {
+                continue;
+              }
+            }
             combinedMap[key] = doc;
           }
         }
@@ -208,10 +269,12 @@ class FirestoreService {
         result.sort((a, b) {
           final dataA = a.data() as Map<String, dynamic>? ?? {};
           final dataB = b.data() as Map<String, dynamic>? ?? {};
-          final keyA = dataA['bookingId']?.toString() ??
+          final keyA =
+              dataA['bookingId']?.toString() ??
               dataA['ticketId']?.toString() ??
               a.id;
-          final keyB = dataB['bookingId']?.toString() ??
+          final keyB =
+              dataB['bookingId']?.toString() ??
               dataB['ticketId']?.toString() ??
               b.id;
           return keyB.compareTo(keyA); // Descending (e.g. T002, T001)
@@ -220,13 +283,10 @@ class FirestoreService {
         controller.add(result);
       }
 
-      final subAdmin = adminStream.listen(
-        (snap) {
-          adminDocs = snap.docs;
-          emitCombined();
-        },
-        onError: controller.addError,
-      );
+      final subAdmin = adminStream.listen((snap) {
+        adminDocs = snap.docs;
+        emitCombined();
+      }, onError: controller.addError);
 
       final subRaised = raisedStream.listen(
         (snap) {
@@ -269,10 +329,10 @@ class FirestoreService {
     };
 
     // 1. Local tenant mapping (for tenant-specific user management)
-    await collection('users', tenantId: tenantId).doc(uid).set(
-      data,
-      SetOptions(merge: true),
-    );
+    await collection(
+      'users',
+      tenantId: tenantId,
+    ).doc(uid).set(data, SetOptions(merge: true));
 
     // 2. Global lookup (for routing during login)
     await _db.collection('global_user_directory').doc(uid).set({
@@ -375,6 +435,7 @@ class FirestoreService {
     required String planName,
     required bool isYearly,
     bool isSixMonths = false,
+    int subscriptionYears = 1,
     required int price,
     int? originalPrice,
     String paymentMethod = 'unknown',
@@ -408,7 +469,8 @@ class FirestoreService {
       // Free Trial is exactly 7 days
       nextBilling = now.add(const Duration(days: 7));
     } else if (isYearly) {
-      nextBilling = DateTime(now.year + 1, now.month, now.day);
+      final yearsToAdd = subscriptionYears > 0 ? subscriptionYears : 1;
+      nextBilling = DateTime(now.year + yearsToAdd, now.month, now.day);
     } else if (isSixMonths) {
       nextBilling = DateTime(now.year, now.month + 6, now.day);
     } else {
@@ -419,13 +481,28 @@ class FirestoreService {
       'planName': normalizedPlanName,
       'isYearly': isYearly,
       'isSixMonths': isSixMonths,
+      'subscriptionYears': subscriptionYears > 0 ? subscriptionYears : 1,
+      'billingYears': subscriptionYears > 0 ? subscriptionYears : 1,
+      'durationYears': subscriptionYears > 0 ? subscriptionYears : 1,
+      'annualPrice': isYearly
+          ? (price / (subscriptionYears > 0 ? subscriptionYears : 1)).round()
+          : null,
+      'totalAmount': price,
+      'billingType': isYearly
+          ? 'Yearly'
+          : (isSixMonths ? '6 Months' : 'Monthly'),
+      'billingCycle': isYearly
+          ? (subscriptionYears > 1 ? '$subscriptionYears Years' : 'Yearly')
+          : (isSixMonths ? '6 Months' : 'Monthly'),
       'price': price,
       'paymentMethod': normalizedPaymentMethod,
       'status': status,
       'startedAt': now.toIso8601String(),
+      'startDate': now.toIso8601String(),
       'nextBillingAt': nextBilling.toIso8601String(),
       'expiresAt':
           nextBilling, // DateTime is converted to Timestamp by Firestore
+      'expiryDate': nextBilling,
       'updatedAt': FieldValue.serverTimestamp(),
       'originalPrice': ?originalPrice,
       'welcomeModalViewed': welcomeModalViewed ?? false,
@@ -584,10 +661,7 @@ class FirestoreService {
     required String tenantId,
     required bool active,
   }) async {
-    await collection(
-      'users',
-      tenantId: tenantId,
-    ).doc(uid).set({
+    await collection('users', tenantId: tenantId).doc(uid).set({
       'active': active,
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
@@ -650,13 +724,10 @@ class FirestoreService {
         await subscriptionsRef(
           tenantId: tenantId,
           appId: appId,
-        ).doc(targetDocId).set(
-          {
-            'welcomeModalViewed': true,
-            'welcomeModalViewedAt': FieldValue.serverTimestamp(),
-          },
-          SetOptions(merge: true),
-        );
+        ).doc(targetDocId).set({
+          'welcomeModalViewed': true,
+          'welcomeModalViewedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
       }
     } catch (e) {
       debugPrint('Error marking subscription welcome modal viewed: $e');
@@ -891,6 +962,7 @@ class FirestoreService {
     required String status,
     bool isYearly = false,
     bool isSixMonths = false,
+    int subscriptionYears = 1,
     String? failureReason,
     bool registrationCompleted = false,
     bool firestoreSynced = false,
@@ -925,6 +997,16 @@ class FirestoreService {
         'status': status,
         'isYearly': isYearly,
         'isSixMonths': isSixMonths,
+        'subscriptionYears': subscriptionYears,
+        'billingYears': subscriptionYears,
+        'durationYears': subscriptionYears,
+        'annualPrice': isYearly
+            ? (amount / (subscriptionYears > 0 ? subscriptionYears : 1)).round()
+            : null,
+        'totalAmount': amount,
+        'billingType': isYearly
+            ? 'Yearly'
+            : (isSixMonths ? '6 Months' : 'Monthly'),
         'queueStatus': queueStatus,
         'failureReason': ?failureReason,
         'timestamp': FieldValue.serverTimestamp(),
@@ -937,7 +1019,7 @@ class FirestoreService {
           'planName': planName,
           'amount': amount,
           'billingCycle': isYearly
-              ? 'Yearly'
+              ? (subscriptionYears > 1 ? '$subscriptionYears Years' : 'Yearly')
               : (isSixMonths ? '6 Months' : 'Monthly'),
           'customerName': ?customerName,
           'customerEmail': ?customerEmail,

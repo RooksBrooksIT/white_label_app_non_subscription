@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:lottie/lottie.dart';
 import 'package:subscription_rooks_app/services/notification_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
+import 'package:subscription_rooks_app/backend/brand_model_backend.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:subscription_rooks_app/services/auth_state_service.dart';
@@ -202,90 +204,50 @@ class _AmcCustomerHomePageState extends State<AmcCustomerHomePage> {
   }
 
   Future<void> _fetchDeviceTypes() async {
-    setState(() {
-      _isDeviceTypesLoading = true;
-    });
+    if (mounted) setState(() => _isDeviceTypesLoading = true);
     try {
-      final snapshot = await FirestoreService.instance
-          .collection('Devices')
-          .orderBy('deviceName')
-          .get();
-      final types = snapshot.docs
-          .map((doc) {
-            final data = doc.data() as Map<String, dynamic>;
-            return (data['deviceName'] ??
-                    doc['deviceType'] ??
-                    '')
-                .toString()
-                .trim();
-          })
-          .where((t) => t.isNotEmpty)
-          .toSet()
-          .toList();
-
-      if (!types.contains('Others')) types.add('Others');
-
-      setState(() {
-        deviceTypes = types;
-      });
+      final types = await BrandModelBackend().fetchAllDeviceTypes();
+      if (mounted) {
+        setState(() {
+          deviceTypes = types.isNotEmpty ? types : ['Others'];
+        });
+      }
     } catch (_) {
-      setState(() {
-        deviceTypes = ['Others'];
-      });
+      if (mounted) {
+        setState(() {
+          deviceTypes = ['Others'];
+        });
+      }
     } finally {
-      setState(() {
-        _isDeviceTypesLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isDeviceTypesLoading = false;
+        });
+      }
     }
   }
 
   Future<void> _fetchDeviceBrands(String deviceType) async {
-    setState(() {
-      _isDeviceBrandsLoading = true;
-      deviceBrands = [];
-    });
-
+    if (mounted) setState(() => _isDeviceBrandsLoading = true);
     try {
-      final normalizedType = deviceType.trim();
-      final snapshot = await FirestoreService.instance
-          .collection('Devices')
-          .where('deviceName', isEqualTo: normalizedType)
-          .get();
-
-      final brands = snapshot.docs
-          .map((doc) {
-            final data = doc.data() as Map<String, dynamic>;
-            return (data['brandName'] ??
-                    data['brand'] ??
-                    data['name'] ??
-                    '')
-                .toString()
-                .trim();
-          })
-          .where((b) => b.isNotEmpty)
-          .toSet()
-          .toList()
-        ..sort();
-
-      if (!brands.contains('Others')) brands.add('Others');
-
-      if (brands.isEmpty) {
+      final brands = await BrandModelBackend().fetchAllDeviceBrands(deviceType);
+      if (mounted) {
         setState(() {
-          deviceBrands = ['Others'];
-        });
-      } else {
-        setState(() {
-          deviceBrands = brands;
+          deviceBrands = brands.isNotEmpty ? brands : ['Others'];
         });
       }
     } catch (_) {
-      setState(() {
-        deviceBrands = ['Others'];
-      });
+      if (mounted) {
+        setState(() {
+          deviceBrands = ['Others'];
+        });
+      }
     } finally {
-      setState(() {
-        _isDeviceBrandsLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isDeviceBrandsLoading = false;
+        });
+      }
     }
   }
 
@@ -339,11 +301,19 @@ class _AmcCustomerHomePageState extends State<AmcCustomerHomePage> {
             ? _customDeviceBrandController.text.trim()
             : deviceBrand;
 
+        final resolvedCustomerId = widget.customerId.isNotEmpty
+            ? widget.customerId
+            : _customerIdController.text.trim();
+
         Map<String, dynamic> ticketData = {
           'ticketId': ticketId,
+          'customerId': resolvedCustomerId,
+          'id': resolvedCustomerId,
+          'userId': FirebaseAuth.instance.currentUser?.uid ?? resolvedCustomerId,
           'customerName': _customerNameController.text,
           'customerType': 'amc',
           'mobileNumber': _mobileNumberController.text,
+          'customerPhone': _mobileNumberController.text,
           'address': _addressController.text,
           'deviceType': jobType == 'Service' ? actualDeviceType : null,
           'deviceBrand': jobType == 'Service' ? actualDeviceBrand : null,
@@ -373,6 +343,18 @@ class _AmcCustomerHomePageState extends State<AmcCustomerHomePage> {
             .doc(ticketId)
             .set(ticketData);
 
+        // If custom Device Type or Brand was entered via "Others", persist to backend device configuration
+        if (deviceType == 'Others' || deviceBrand == 'Others') {
+          try {
+            await BrandModelBackend().saveCustomDeviceConfiguration(
+              deviceType: actualDeviceType,
+              deviceBrand: actualDeviceBrand,
+            );
+          } catch (e) {
+            debugPrint('Error auto-configuring custom device/brand: $e');
+          }
+        }
+
         // Add real-time notification for Admin
         await NotificationService.sendNotificationToFirestore(
           audience: 'admin',
@@ -381,7 +363,11 @@ class _AmcCustomerHomePageState extends State<AmcCustomerHomePage> {
               'A new ticket ($ticketId) has been raised by ${_customerNameController.text}',
           type: 'new_ticket',
           bookingId: ticketId,
+          customerId: resolvedCustomerId,
           customerName: _customerNameController.text,
+          additionalData: {
+            'customerPhone': _mobileNumberController.text,
+          },
         );
 
         if (!mounted) return;
@@ -743,10 +729,13 @@ class _AmcCustomerHomePageState extends State<AmcCustomerHomePage> {
                   ),
                 ),
               ],
-              leading: IconButton(
-                icon: const Icon(Icons.arrow_back, color: Colors.white),
-                onPressed: () => Navigator.pop(context),
-              ),
+              automaticallyImplyLeading: !kIsWeb,
+              leading: kIsWeb
+                  ? null
+                  : IconButton(
+                      icon: const Icon(Icons.arrow_back, color: Colors.white),
+                      onPressed: () => Navigator.pop(context),
+                    ),
               flexibleSpace: FlexibleSpaceBar(
                 title: AnimatedOpacity(
                   duration: ProfessionalAnimations.quick,

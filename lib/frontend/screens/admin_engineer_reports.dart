@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:open_file/open_file.dart';
@@ -11,6 +12,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:subscription_rooks_app/utils/pdf_utils.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class AdminEngineerReports extends StatefulWidget {
   const AdminEngineerReports({super.key});
@@ -374,28 +376,33 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
-      body: RefreshIndicator(
-        color: Theme.of(context).primaryColor,
-        onRefresh: _onRefresh,
-        child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [
-            SliverAppBar(
-              backgroundColor: Colors.white,
-              elevation: 0.5,
-              pinned: true,
-              centerTitle: true,
-              leading: Padding(
-                padding: const EdgeInsets.all(8),
-                child: CircleAvatar(
-                  backgroundColor: const Color(0xFFF1F5F9),
-                  child: IconButton(
-                    icon: const Icon(Icons.arrow_back_rounded,
-                        color: Color(0xFF0F172A), size: 18),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                ),
-              ),
+      body: ResponsiveWrapper(
+        maxWidth: 960,
+        child: RefreshIndicator(
+          color: Theme.of(context).primaryColor,
+          onRefresh: _onRefresh,
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverAppBar(
+                backgroundColor: Colors.white,
+                elevation: 0.5,
+                pinned: true,
+                centerTitle: true,
+                automaticallyImplyLeading: !kIsWeb,
+                leading: kIsWeb
+                    ? null
+                    : Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: CircleAvatar(
+                          backgroundColor: const Color(0xFFF1F5F9),
+                          child: IconButton(
+                            icon: const Icon(Icons.arrow_back_rounded,
+                                color: Color(0xFF0F172A), size: 18),
+                            onPressed: () => Navigator.of(context).pop(),
+                          ),
+                        ),
+                      ),
               title: const Text(
                 'Engineer Reports',
                 style: TextStyle(
@@ -620,7 +627,8 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 
   Widget _buildSearchBar(bool isMobile) {
@@ -1409,13 +1417,31 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
     final hasPdf = assignedEmployee.isNotEmpty;
     final isViewLoading = _loadingPdfId == rowId;
     final isDownloadLoading = _downloadingPdfId == rowId;
+    final helperName = _extractHelperName(data);
 
     return DataRow(
       cells: [
         DataCell(
-          Text(
-            engineerName,
-            style: const TextStyle(fontWeight: FontWeight.w700),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                engineerName,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              if (helperName.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(
+                  'Helper: $helperName',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.amber.shade900,
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
         DataCell(Text(engineerId)),
@@ -1561,6 +1587,26 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                         fontSize: 12,
                       ),
                     ),
+                    if (_extractHelperName(data).isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(Icons.handshake_outlined, size: 13, color: Colors.amber.shade800),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              'Helper: ${_extractHelperName(data)}',
+                              style: TextStyle(
+                                color: Colors.amber.shade900,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                     if (phone.isNotEmpty || email.isNotEmpty)
                       Text(
                         [phone, email].where((v) => v.isNotEmpty).join(' · '),
@@ -2298,6 +2344,44 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
     }
   }
 
+  String _extractHelperName(Map<String, dynamic> data) {
+    if (data['helpers'] is List && (data['helpers'] as List).isNotEmpty) {
+      final list = (data['helpers'] as List)
+          .map((e) => e.toString().trim())
+          .where((e) => e.isNotEmpty && e.toLowerCase() != 'null' && e.toLowerCase() != 'n/a')
+          .toList();
+      if (list.isNotEmpty) return list.join(', ');
+    }
+    final helperName = (data['helperName'] ?? data['helper'] ?? data['Helper1'] ?? '').toString().trim();
+    if (helperName.isNotEmpty &&
+        helperName.toLowerCase() != 'null' &&
+        helperName.toLowerCase() != 'n/a' &&
+        helperName != 'Unknown Helper') {
+      return helperName;
+    }
+    final helperRegex = RegExp(r'^Helper(\d+)$');
+    final helperKeys = data.keys.where((k) => helperRegex.hasMatch(k)).toList()
+      ..sort((a, b) {
+        final aIdx = int.tryParse(helperRegex.firstMatch(a)?.group(1) ?? '0') ?? 0;
+        final bIdx = int.tryParse(helperRegex.firstMatch(b)?.group(1) ?? '0') ?? 0;
+        return aIdx.compareTo(bIdx);
+      });
+    final names = <String>[];
+    for (final key in helperKeys) {
+      final val = data[key]?.toString().trim() ?? '';
+      if (val.isNotEmpty &&
+          val.toLowerCase() != 'null' &&
+          val.toLowerCase() != 'n/a' &&
+          val != 'Unknown Helper') {
+        names.add(val);
+      }
+    }
+    if (names.isNotEmpty) {
+      return names.join(', ');
+    }
+    return '';
+  }
+
   // PDF generation unchanged (preserved functionality)
   Future<pw.Document> _generatePdf(
     String engineerName,
@@ -2465,6 +2549,25 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                           ),
                         ],
                       ),
+                      if (tickets.length == 1 && _extractHelperName(tickets.first).isNotEmpty) ...[
+                        pw.SizedBox(height: 4),
+                        pw.Row(
+                          children: [
+                            pw.Text(
+                              'Helper: ',
+                              style: const pw.TextStyle(fontSize: 10),
+                            ),
+                            pw.Text(
+                              _extractHelperName(tickets.first),
+                              style: pw.TextStyle(
+                                fontSize: 10,
+                                fontWeight: pw.FontWeight.bold,
+                                color: PdfColors.amber900,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                       pw.SizedBox(height: 4),
                       pw.Row(
                         children: [
@@ -2597,19 +2700,21 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                   2: pw.Alignment.centerLeft,
                   3: pw.Alignment.centerLeft,
                   4: pw.Alignment.centerRight,
-                  5: pw.Alignment.center,
+                  5: pw.Alignment.centerLeft,
                   6: pw.Alignment.center,
                   7: pw.Alignment.center,
+                  8: pw.Alignment.center,
                 },
                 columnWidths: {
-                  0: const pw.FlexColumnWidth(1.2),
-                  1: const pw.FlexColumnWidth(1.0),
+                  0: const pw.FlexColumnWidth(1.1),
+                  1: const pw.FlexColumnWidth(0.9),
                   2: const pw.FlexColumnWidth(0.8),
-                  3: const pw.FlexColumnWidth(1.5),
+                  3: const pw.FlexColumnWidth(1.3),
                   4: const pw.FlexColumnWidth(0.7),
-                  5: const pw.FlexColumnWidth(1.0),
-                  6: const pw.FlexColumnWidth(1.0),
+                  5: const pw.FlexColumnWidth(0.9),
+                  6: const pw.FlexColumnWidth(0.8),
                   7: const pw.FlexColumnWidth(0.8),
+                  8: const pw.FlexColumnWidth(0.8),
                 },
                 headers: [
                   'Booking ID',
@@ -2617,20 +2722,23 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                   'Brand',
                   'Issue Description',
                   'Amount',
+                  'Helper',
                   'Eng Status',
                   'Admin Status',
                   'Date',
                 ],
                 data: tickets.map((ticket) {
+                  final helper = _extractHelperName(ticket);
                   return [
                     ticket['bookingId']?.toString() ?? 'N/A',
                     ticket['deviceType']?.toString() ?? 'N/A',
                     ticket['deviceBrand']?.toString() ?? 'N/A',
                     truncateText(
                       ticket['message']?.toString() ?? 'No description',
-                      maxLength: 35,
+                      maxLength: 30,
                     ),
                     '₹${ticket['amount']?.toString() ?? '0'}',
+                    helper.isNotEmpty ? helper : '—',
                     _getStatusAbbr(
                       ticket['engineerStatus']?.toString() ?? 'N/A',
                     ),

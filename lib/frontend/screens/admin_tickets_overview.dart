@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 import 'package:intl/intl.dart';
 import 'dart:math';
 import 'package:subscription_rooks_app/frontend/screens/admin_assign_engineer_page.dart';
@@ -31,6 +34,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
   String searchQuery = "";
   String selectedFilter = 'All';
   String ticketTypeFilter = 'All'; // 'All', 'Service', 'Delivery'
+  bool _hasAutoOpenedNotificationTicket = false;
 
   @override
   void initState() {
@@ -152,107 +156,131 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0.5,
-        leading: Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: CircleAvatar(
-            backgroundColor: const Color(0xFFF1F5F9),
-            child: IconButton(
-              icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF0F172A), size: 18),
-              onPressed: () => Navigator.pop(context),
-            ),
-          ),
-        ),
-        title: const Text(
-          'All Tickets',
-          style: TextStyle(
-            color: Color(0xFF0F172A),
-            fontWeight: FontWeight.w800,
-            fontSize: 18,
-            letterSpacing: -0.4,
-          ),
-        ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 6.0),
-            child: TextButton.icon(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const CreateTickets(
-                      statusFilter: '',
-                      customerId: '',
-                      customerName: '',
-                      mobileNumber: '',
-                      categoryName: '',
-                      loggedInName: '',
-                      name: '',
-                    ),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.add_rounded, size: 18),
-              label: const Text(
-                'Create Ticket',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
-              ),
-              style: TextButton.styleFrom(
-                foregroundColor: Theme.of(context).primaryColor,
-                backgroundColor: Theme.of(context).primaryColor.withValues(alpha: 0.1),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              ),
-            ),
-          ),
-          Stack(
-            alignment: Alignment.center,
+        automaticallyImplyLeading: false,
+        titleSpacing: 0,
+        title: ResponsiveWrapper(
+          maxWidth: 960,
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
             children: [
-              IconButton(
-                icon: Icon(
-                  Icons.tune_rounded,
-                  color: selectedFilter != 'All'
-                      ? Theme.of(context).primaryColor
-                      : const Color(0xFF0F172A),
-                ),
-                onPressed: _showFilterDialog,
-              ),
-              if (selectedFilter != 'All')
-                Positioned(
-                  top: 12,
-                  right: 12,
-                  child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).primaryColor,
-                      shape: BoxShape.circle,
+              if (!kIsWeb) ...[
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8.0),
+                  child: CircleAvatar(
+                    backgroundColor: const Color(0xFFF1F5F9),
+                    child: IconButton(
+                      icon: const Icon(
+                        Icons.arrow_back_rounded,
+                        color: Color(0xFF0F172A),
+                        size: 18,
+                      ),
+                      onPressed: () => Navigator.pop(context),
                     ),
                   ),
                 ),
+                const SizedBox(width: 8),
+              ],
+              const Text(
+                'All Tickets',
+                style: TextStyle(
+                  color: Color(0xFF0F172A),
+                  fontWeight: FontWeight.w800,
+                  fontSize: 18,
+                  letterSpacing: -0.4,
+                ),
+              ),
+              const Spacer(),
+              TextButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const CreateTickets(
+                        statusFilter: '',
+                        customerId: '',
+                        customerName: '',
+                        mobileNumber: '',
+                        categoryName: '',
+                        loggedInName: '',
+                        name: '',
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.add_rounded, size: 18),
+                label: const Text(
+                  'Create Ticket',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                ),
+                style: TextButton.styleFrom(
+                  foregroundColor: Theme.of(context).primaryColor,
+                  backgroundColor: Theme.of(
+                    context,
+                  ).primaryColor.withValues(alpha: 0.1),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      Icons.tune_rounded,
+                      color: selectedFilter != 'All'
+                          ? Theme.of(context).primaryColor
+                          : const Color(0xFF0F172A),
+                    ),
+                    onPressed: _showFilterDialog,
+                  ),
+                  if (selectedFilter != 'All')
+                    Positioned(
+                      top: 12,
+                      right: 12,
+                      child: Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).primaryColor,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ],
           ),
-          const SizedBox(width: 4),
-        ],
+        ),
       ),
       body: SafeArea(
-        child: Column(
-          children: [
-            _buildTopDomainBanner(),
-            const SizedBox(height: 8),
-            _buildSearchBar(screenWidth, getProportionalSize),
-            const SizedBox(height: 12),
-            _buildTicketTypeSegmentedControl(),
-            const SizedBox(height: 12),
-            _buildQuickFilterChips(),
-            const SizedBox(height: 12),
-            Expanded(
-              child: _buildCustomerStreamBuilder(
-                screenWidth,
-                screenHeight,
-                getProportionalSize,
+        child: ResponsiveWrapper(
+          maxWidth: 960,
+          child: Column(
+            children: [
+              _buildTopDomainBanner(),
+              const SizedBox(height: 8),
+              _buildSearchBar(screenWidth, getProportionalSize),
+              const SizedBox(height: 12),
+              _buildTicketTypeSegmentedControl(),
+              const SizedBox(height: 12),
+              _buildQuickFilterChips(),
+              const SizedBox(height: 12),
+              Expanded(
+                child: _buildCustomerStreamBuilder(
+                  screenWidth,
+                  screenHeight,
+                  getProportionalSize,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -339,7 +367,11 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
     final options = [
       {'label': 'All', 'value': 'All', 'icon': null},
       {'label': 'Service', 'value': 'Service', 'icon': Icons.handyman_rounded},
-      {'label': 'Product', 'value': 'Product', 'icon': Icons.inventory_2_rounded},
+      {
+        'label': 'Product',
+        'value': 'Product',
+        'icon': Icons.inventory_2_rounded,
+      },
     ];
 
     return Padding(
@@ -388,7 +420,9 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                           icon,
                           size: 16,
                           color: isSelected
-                              ? (val == 'Product' ? const Color(0xFF059669) : primaryColor)
+                              ? (val == 'Product'
+                                    ? const Color(0xFF059669)
+                                    : primaryColor)
                               : const Color(0xFF64748B),
                         ),
                         const SizedBox(width: 6),
@@ -397,8 +431,12 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                         label,
                         style: TextStyle(
                           fontSize: 13,
-                          fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                          color: isSelected ? const Color(0xFF0F172A) : const Color(0xFF64748B),
+                          fontWeight: isSelected
+                              ? FontWeight.w800
+                              : FontWeight.w600,
+                          color: isSelected
+                              ? const Color(0xFF0F172A)
+                              : const Color(0xFF64748B),
                         ),
                       ),
                     ],
@@ -414,7 +452,14 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
 
   Widget _buildQuickFilterChips() {
     final primaryColor = Theme.of(context).primaryColor;
-    final filterOptions = ['All', 'Not Assigned', 'Assigned', 'Completed', 'Others'];
+    final filterOptions = [
+      'All',
+      'Not Assigned',
+      'Assigned',
+      'Completed',
+      'Cancelled',
+      'Others',
+    ];
 
     return SizedBox(
       height: 38,
@@ -425,7 +470,11 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
         separatorBuilder: (_, _) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
           final option = filterOptions[index];
-          final isSelected = selectedFilter == option;
+          final isSelected =
+              selectedFilter == option ||
+              (option == 'Cancelled' &&
+                  (selectedFilter == 'Canceled' ||
+                      selectedFilter == 'Cancelled'));
 
           return GestureDetector(
             onTap: () {
@@ -514,7 +563,11 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
             ),
             suffixIcon: _searchController.text.isNotEmpty
                 ? IconButton(
-                    icon: const Icon(Icons.clear_rounded, size: 18, color: Color(0xFF94A3B8)),
+                    icon: const Icon(
+                      Icons.clear_rounded,
+                      size: 18,
+                      color: Color(0xFF94A3B8),
+                    ),
                     onPressed: () {
                       _searchController.clear();
                       setState(() {
@@ -556,6 +609,54 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
     return defaultValue;
   }
 
+  String _extractHelperName(Map<String, dynamic> data) {
+    if (data['helpers'] is List && (data['helpers'] as List).isNotEmpty) {
+      final list = (data['helpers'] as List)
+          .map((e) => e.toString().trim())
+          .where(
+            (e) =>
+                e.isNotEmpty &&
+                e.toLowerCase() != 'null' &&
+                e.toLowerCase() != 'n/a',
+          )
+          .toList();
+      if (list.isNotEmpty) return list.join(', ');
+    }
+    final helperName =
+        (data['helperName'] ?? data['helper'] ?? data['Helper1'] ?? '')
+            .toString()
+            .trim();
+    if (helperName.isNotEmpty &&
+        helperName.toLowerCase() != 'null' &&
+        helperName.toLowerCase() != 'n/a' &&
+        helperName != 'Unknown Helper') {
+      return helperName;
+    }
+    final helperRegex = RegExp(r'^Helper(\d+)$');
+    final helperKeys = data.keys.where((k) => helperRegex.hasMatch(k)).toList()
+      ..sort((a, b) {
+        final aIdx =
+            int.tryParse(helperRegex.firstMatch(a)?.group(1) ?? '0') ?? 0;
+        final bIdx =
+            int.tryParse(helperRegex.firstMatch(b)?.group(1) ?? '0') ?? 0;
+        return aIdx.compareTo(bIdx);
+      });
+    final names = <String>[];
+    for (final key in helperKeys) {
+      final val = data[key]?.toString().trim() ?? '';
+      if (val.isNotEmpty &&
+          val.toLowerCase() != 'null' &&
+          val.toLowerCase() != 'n/a' &&
+          val != 'Unknown Helper') {
+        names.add(val);
+      }
+    }
+    if (names.isNotEmpty) {
+      return names.join(', ');
+    }
+    return '';
+  }
+
   Timestamp parseTimestamp(dynamic v) {
     if (v is Timestamp) return v;
     if (v is String) {
@@ -572,6 +673,7 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
       'Not Assigned',
       'Assigned',
       'Completed',
+      'Cancelled',
       'Others',
     ];
 
@@ -600,7 +702,11 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                           color: primaryColor.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Icon(Icons.tune_rounded, color: primaryColor, size: 20),
+                        child: Icon(
+                          Icons.tune_rounded,
+                          color: primaryColor,
+                          size: 20,
+                        ),
                       ),
                       const SizedBox(width: 12),
                       const Text(
@@ -614,7 +720,10 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                       ),
                       const Spacer(),
                       IconButton(
-                        icon: const Icon(Icons.close_rounded, color: Color(0xFF64748B)),
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          color: Color(0xFF64748B),
+                        ),
                         onPressed: () => Navigator.pop(context),
                       ),
                     ],
@@ -626,14 +735,22 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                     spacing: 8,
                     runSpacing: 10,
                     children: filterOptions.map((opt) {
-                      final isSel = selectedFilter == opt;
+                      final isSel =
+                          selectedFilter == opt ||
+                          (opt == 'Cancelled' &&
+                              (selectedFilter == 'Canceled' ||
+                                  selectedFilter == 'Cancelled'));
                       return ChoiceChip(
                         label: Text(
                           opt,
                           style: TextStyle(
                             fontSize: 13,
-                            fontWeight: isSel ? FontWeight.w800 : FontWeight.w600,
-                            color: isSel ? Colors.white : const Color(0xFF475569),
+                            fontWeight: isSel
+                                ? FontWeight.w800
+                                : FontWeight.w600,
+                            color: isSel
+                                ? Colors.white
+                                : const Color(0xFF475569),
                           ),
                         ),
                         selected: isSel,
@@ -642,7 +759,9 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(20),
                           side: BorderSide(
-                            color: isSel ? primaryColor : const Color(0xFFE2E8F0),
+                            color: isSel
+                                ? primaryColor
+                                : const Color(0xFFE2E8F0),
                           ),
                         ),
                         onSelected: (selected) {
@@ -696,7 +815,11 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
       stream: FirestoreService.instance.getAllTicketsCombinedStream(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return Center(child: CircularProgressIndicator(color: Theme.of(context).primaryColor));
+          return Center(
+            child: CircularProgressIndicator(
+              color: Theme.of(context).primaryColor,
+            ),
+          );
         }
         if (snapshot.hasError) {
           return Center(child: Text('Error: ${snapshot.error}'));
@@ -708,19 +831,26 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
           final data = doc.data() as Map<String, dynamic>?;
           if (data == null) return false;
 
-          final bookingIdRaw = getField(data, ['bookingId', 'ticketId'], doc.id);
+          final bookingIdRaw = getField(data, [
+            'bookingId',
+            'ticketId',
+          ], doc.id);
           final jobTypeRaw = getField(data, [
             'jobType',
             'JobType',
           ], '').toLowerCase().trim();
 
-          final bool isProductTicket = jobTypeRaw == 'product' ||
+          final bool isProductTicket =
+              jobTypeRaw == 'product' ||
               jobTypeRaw == 'delivery' ||
               bookingIdRaw.toUpperCase().startsWith('P') ||
               bookingIdRaw.toUpperCase().startsWith('D');
-          final bool isServiceTicket = jobTypeRaw == 'service' ||
+          final bool isServiceTicket =
+              jobTypeRaw == 'service' ||
               bookingIdRaw.toUpperCase().startsWith('S') ||
-              (!isProductTicket && jobTypeRaw != 'product' && jobTypeRaw != 'delivery');
+              (!isProductTicket &&
+                  jobTypeRaw != 'product' &&
+                  jobTypeRaw != 'delivery');
 
           // Ticket Type Segment Filter
           if (ticketTypeFilter == 'Service' && !isServiceTicket) {
@@ -733,77 +863,126 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
           final engineerStatusRaw = getField(data, [
             'engineerStatus',
             'statusDescription',
-          ], '').toLowerCase();
+          ], '').toLowerCase().trim();
           final adminStatusRaw = getField(data, [
             'adminStatus',
-          ], '').toLowerCase();
-          final bookingId = bookingIdRaw.toLowerCase();
+          ], '').toLowerCase().trim();
+          final statusRaw = getField(data, ['status'], '').toLowerCase().trim();
+          final customerStatusRaw = (data['customerStatus'] ?? '')
+              .toString()
+              .toLowerCase()
+              .trim();
+          final customerDecisionRaw = (data['Customer_decision'] ?? '')
+              .toString()
+              .toLowerCase()
+              .trim();
+          final reasonCancelRaw = (data['Reason_cancel'] ?? '')
+              .toString()
+              .toLowerCase()
+              .trim();
+          final cancellationReasonRaw = (data['cancellationReason'] ?? '')
+              .toString()
+              .toLowerCase()
+              .trim();
+          final bookingId = bookingIdRaw.toLowerCase().trim();
           final customerName = getField(data, [
             'customerName',
             'CustomerName',
-          ], '').toLowerCase();
+          ], '').toLowerCase().trim();
           final mobileNumber = getField(data, [
             'mobileNumber',
             'MobileNumber',
-          ], '').toLowerCase();
+          ], '').toLowerCase().trim();
 
           if (searchQuery.isNotEmpty) {
-            final query = searchQuery.toLowerCase();
-            if (!bookingId.contains(query) &&
-                !customerName.contains(query) &&
-                !mobileNumber.contains(query)) {
+            final query = searchQuery.toLowerCase().trim();
+            final matchesSearch =
+                bookingId.contains(query) ||
+                bookingIdRaw.toLowerCase().contains(query) ||
+                customerName.contains(query) ||
+                mobileNumber.contains(query);
+            if (!matchesSearch) {
               return false;
             }
           }
 
           // Check ticket status
-          final isCanceled = adminStatusRaw == 'canceled';
-          final isAppointment = adminStatusRaw == 'appointment';
+          final isCanceled =
+              adminStatusRaw == 'canceled' ||
+              adminStatusRaw == 'cancelled' ||
+              adminStatusRaw.contains('cancel') ||
+              statusRaw == 'canceled' ||
+              statusRaw == 'cancelled' ||
+              statusRaw.contains('cancel') ||
+              engineerStatusRaw == 'canceled' ||
+              engineerStatusRaw == 'cancelled' ||
+              engineerStatusRaw.contains('cancel') ||
+              customerStatusRaw == 'canceled' ||
+              customerStatusRaw == 'cancelled' ||
+              customerStatusRaw.contains('cancel') ||
+              customerDecisionRaw.contains('cancel') ||
+              reasonCancelRaw.isNotEmpty ||
+              cancellationReasonRaw.isNotEmpty ||
+              data['cancelledAt'] != null ||
+              data['isCancelled'] == true ||
+              data['isCanceled'] == true;
+          final isAppointment = adminStatusRaw == 'appointment' && !isCanceled;
           final isnotassigned =
-              adminStatusRaw == 'Not Assigned' ||
-              engineerStatusRaw == 'not assigned' &&
-                  adminStatusRaw != 'canceled';
-          final iscompleted = engineerStatusRaw == 'completed';
-          final isassigned = engineerStatusRaw == 'Assigned'.toLowerCase();
+              (adminStatusRaw == 'not assigned' ||
+                  engineerStatusRaw == 'not assigned') &&
+              !isCanceled;
+          final iscompleted =
+              (engineerStatusRaw == 'completed' ||
+                  data['completedAt'] != null ||
+                  data['orderDelivered'] == true ||
+                  adminStatusRaw == 'delivered') &&
+              !isCanceled;
+          final isassigned =
+              engineerStatusRaw == 'Assigned'.toLowerCase() && !isCanceled;
           final isothers =
-              engineerStatusRaw == 'Pending for Approval'.toLowerCase() ||
-              engineerStatusRaw == 'Pending for Spares'.toLowerCase() ||
-              engineerStatusRaw == 'Under Observation'.toLowerCase();
+              (engineerStatusRaw == 'Pending for Approval'.toLowerCase() ||
+                  engineerStatusRaw == 'Pending for Spares'.toLowerCase() ||
+                  engineerStatusRaw == 'Under Observation'.toLowerCase()) &&
+              !isCanceled;
 
-          switch (selectedFilter) {
-            case 'Assigned':
-              return isassigned;
-            case 'Completed':
-              return iscompleted;
-            case 'Not Assigned':
-              return isnotassigned;
-            case 'Open':
-              return engineerStatusRaw == selectedFilter.toLowerCase();
-            case 'Canceled':
-              return isCanceled;
-            case 'Appointment':
-              return isAppointment;
-            case 'Others':
-              return isothers;
-            case 'All':
-            default:
-              return true;
+          final normFilter = selectedFilter.toLowerCase().trim();
+          if (normFilter == 'canceled' || normFilter == 'cancelled') {
+            return isCanceled;
           }
+          if (normFilter == 'assigned') return isassigned;
+          if (normFilter == 'completed') return iscompleted;
+          if (normFilter == 'not assigned' || normFilter == 'not assinged') {
+            return isnotassigned;
+          }
+          if (normFilter == 'open') {
+            return engineerStatusRaw == 'open';
+          }
+          if (normFilter == 'appointment') return isAppointment;
+          if (normFilter == 'others') return isothers;
+          return true; // 'All' and any fallback
         }).toList();
 
         if (filteredDocs.isEmpty) {
           IconData emptyIcon = Icons.inbox_rounded;
           String emptyTitle = 'No tickets found';
-          String emptySubtitle = 'Service and product tickets will appear here.';
+          String emptySubtitle =
+              'Service and product tickets will appear here.';
 
-          if (ticketTypeFilter == 'Service') {
+          final normFilter = selectedFilter.toLowerCase().trim();
+          if (normFilter == 'canceled' || normFilter == 'cancelled') {
+            emptyIcon = Icons.cancel_outlined;
+            emptyTitle = 'No cancelled tickets found';
+            emptySubtitle =
+                'Cancelled service and product tickets will appear here.';
+          } else if (ticketTypeFilter == 'Service') {
             emptyIcon = Icons.handyman_outlined;
             emptyTitle = 'No service tickets found';
             emptySubtitle = 'Create a service repair ticket to get started.';
           } else if (ticketTypeFilter == 'Product') {
             emptyIcon = Icons.inventory_2_outlined;
             emptyTitle = 'No product tickets found';
-            emptySubtitle = 'Create a product/spare parts request to get started.';
+            emptySubtitle =
+                'Create a product/spare parts request to get started.';
           }
 
           return Center(
@@ -834,6 +1013,35 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
           );
         }
 
+        // Auto-open ticket details if navigated from notification deep-link
+        if (widget.searchQuery != null &&
+            widget.searchQuery!.isNotEmpty &&
+            !_hasAutoOpenedNotificationTicket &&
+            filteredDocs.isNotEmpty) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && !_hasAutoOpenedNotificationTicket) {
+              _hasAutoOpenedNotificationTicket = true;
+              final targetIndex = filteredDocs.indexWhere((doc) {
+                final d = doc.data() as Map<String, dynamic>? ?? {};
+                final bId = (d['bookingId'] ?? d['ticketId'] ?? doc.id)
+                    .toString()
+                    .toLowerCase()
+                    .trim();
+                return bId == widget.searchQuery!.toLowerCase().trim();
+              });
+              final selectedIndex = targetIndex >= 0 ? targetIndex : 0;
+              final selectedDoc = filteredDocs[selectedIndex];
+              final docData = selectedDoc.data() as Map<String, dynamic>? ?? {};
+              _openTicketFromData(
+                context,
+                docData,
+                selectedDoc.id,
+                selectedIndex + 1,
+              );
+            }
+          });
+        }
+
         return ListView.separated(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           physics: const BouncingScrollPhysics(),
@@ -844,19 +1052,37 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
             if (data == null) return const SizedBox.shrink();
 
             final customer = customer_var.Customer(
-              bookingId: getField(data, ['bookingId', 'ticketId'], filteredDocs[index].id),
+              bookingId: getField(data, [
+                'bookingId',
+                'ticketId',
+              ], filteredDocs[index].id),
               customerName: getField(data, ['customerName', 'CustomerName']),
               deviceType: getField(data, ['deviceType', 'description']),
               deviceBrand: getField(data, ['deviceBrand']),
               deviceCondition: getField(data, ['deviceCondition']),
-              message: getField(data, ['issueDescription', 'message', 'Message']),
-              timestamp: parseTimestamp(data['timestamp'] ?? data['createdAt'] ?? data['updatedAt']),
+              message: getField(data, [
+                'issueDescription',
+                'message',
+                'Message',
+              ]),
+              timestamp: parseTimestamp(
+                data['timestamp'] ?? data['createdAt'] ?? data['updatedAt'],
+              ),
               address: getField(data, ['address', 'Address']),
               mobileNumber: getField(data, ['mobileNumber', 'MobileNumber']),
               jobType: getField(data, ['jobType', 'JobType']),
               amount: getField(data, ['amount', 'paymentDetails']),
-              customerid: getField(data, ['customerid', 'id', 'Id', 'customerId']),
-              customerType: getField(data, ['customerType', 'customer_type', 'CustomerType']),
+              customerid: getField(data, [
+                'customerid',
+                'id',
+                'Id',
+                'customerId',
+              ]),
+              customerType: getField(data, [
+                'customerType',
+                'customer_type',
+                'CustomerType',
+              ]),
               customerFileUrl: getField(data, ['customerFileUrl']),
               fileName: getField(data, ['fileName']),
             );
@@ -872,20 +1098,65 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
               isCompleted: inferredCompleted,
               createdTs: customer.timestamp,
             );
-            final adminStatus = getField(data, ['adminStatus'], '');
-            final isCanceled = adminStatus.toLowerCase() == 'canceled';
-            final isAppointment = adminStatus.toLowerCase() == 'appointment';
+            final adminStatus = getField(data, [
+              'adminStatus',
+            ], '').toLowerCase().trim();
+            final rawTicketStatus = getField(data, [
+              'status',
+            ], '').toLowerCase().trim();
+            final engStatus = statusRaw.toLowerCase().trim();
+            final custStatus = (data['customerStatus'] ?? '')
+                .toString()
+                .toLowerCase()
+                .trim();
+            final custDecision = (data['Customer_decision'] ?? '')
+                .toString()
+                .toLowerCase()
+                .trim();
+            final reasonCancel = (data['Reason_cancel'] ?? '')
+                .toString()
+                .toLowerCase()
+                .trim();
+            final cancellationReason = (data['cancellationReason'] ?? '')
+                .toString()
+                .toLowerCase()
+                .trim();
+
+            final isCanceled =
+                adminStatus == 'canceled' ||
+                adminStatus == 'cancelled' ||
+                adminStatus.contains('cancel') ||
+                rawTicketStatus == 'canceled' ||
+                rawTicketStatus == 'cancelled' ||
+                rawTicketStatus.contains('cancel') ||
+                engStatus == 'canceled' ||
+                engStatus == 'cancelled' ||
+                engStatus.contains('cancel') ||
+                custStatus == 'canceled' ||
+                custStatus == 'cancelled' ||
+                custStatus.contains('cancel') ||
+                custDecision.contains('cancel') ||
+                reasonCancel.isNotEmpty ||
+                cancellationReason.isNotEmpty ||
+                data['cancelledAt'] != null ||
+                data['isCancelled'] == true ||
+                data['isCanceled'] == true;
+            final isAppointment = adminStatus == 'appointment' && !isCanceled;
 
             // Check if canceled by customer
-            final customerDecision = getField(data, [
-              'Customer_decision',
-            ], '').toLowerCase();
             final isCanceledByCustomer =
-                isCanceled && customerDecision == 'canceled';
+                isCanceled &&
+                (custDecision.contains('cancel') ||
+                    custStatus.contains('cancel') ||
+                    (data['cancelledByRole'] ?? '')
+                            .toString()
+                            .toLowerCase()
+                            .trim() ==
+                        'customer');
 
             final status = statusRaw.isEmpty ? 'Not Assigned' : statusRaw;
             final displayStatus = isCanceled
-                ? 'Canceled'
+                ? 'Cancelled'
                 : isAppointment
                 ? 'Appointment'
                 : status;
@@ -893,7 +1164,16 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
             final assignedEmployee = getField(data, [
               'assignedEmployee',
             ], 'Not Assigned');
-            final bool isCompleted = status.toLowerCase().contains('complete') ||
+            final helperEngineer = _extractHelperName(data);
+            final expectedVisitDate = (data['expectedVisitDate'] ?? '')
+                .toString()
+                .trim();
+            final expectedVisitTime = (data['expectedVisitTime'] ?? '')
+                .toString()
+                .trim();
+            final visitNotes = (data['visitNotes'] ?? '').toString().trim();
+            final bool isCompleted =
+                status.toLowerCase().contains('complete') ||
                 data['completedAt'] != null ||
                 data['orderDelivered'] == true ||
                 adminStatus.toLowerCase() == 'delivered';
@@ -921,10 +1201,152 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
               durationInfo,
               customerLat,
               customerLng,
+              helperEngineer: helperEngineer,
+              expectedVisitDate: expectedVisitDate,
+              expectedVisitTime: expectedVisitTime,
+              visitNotes: visitNotes,
             );
           },
         );
       },
+    );
+  }
+
+  void _openTicketFromData(
+    BuildContext context,
+    Map<String, dynamic> data,
+    String docId,
+    int serialNumber,
+  ) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    double getProportionalSize(double size) => (size / 375.0) * screenWidth;
+
+    final customer = customer_var.Customer(
+      bookingId: getField(data, ['bookingId', 'ticketId'], docId),
+      customerName: getField(data, ['customerName', 'CustomerName']),
+      deviceType: getField(data, ['deviceType', 'description']),
+      deviceBrand: getField(data, ['deviceBrand']),
+      deviceCondition: getField(data, ['deviceCondition']),
+      message: getField(data, ['issueDescription', 'message', 'Message']),
+      timestamp: parseTimestamp(
+        data['timestamp'] ?? data['createdAt'] ?? data['updatedAt'],
+      ),
+      address: getField(data, ['address', 'Address']),
+      mobileNumber: getField(data, ['mobileNumber', 'MobileNumber']),
+      jobType: getField(data, ['jobType', 'JobType']),
+      amount: getField(data, ['amount', 'paymentDetails']),
+      customerid: getField(data, ['customerid', 'id', 'Id', 'customerId']),
+      customerType: getField(data, [
+        'customerType',
+        'customer_type',
+        'CustomerType',
+      ]),
+      customerFileUrl: getField(data, ['customerFileUrl']),
+      fileName: getField(data, ['fileName']),
+    );
+
+    final statusRaw = getField(data, [
+      'engineerStatus',
+      'statusDescription',
+    ], '');
+    final adminStatus = getField(data, [
+      'adminStatus',
+    ], '').toLowerCase().trim();
+    final rawTicketStatus = getField(data, ['status'], '').toLowerCase().trim();
+    final engStatus = statusRaw.toLowerCase().trim();
+    final custStatus = (data['customerStatus'] ?? '')
+        .toString()
+        .toLowerCase()
+        .trim();
+    final custDecision = (data['Customer_decision'] ?? '')
+        .toString()
+        .toLowerCase()
+        .trim();
+    final reasonCancel = (data['Reason_cancel'] ?? '')
+        .toString()
+        .toLowerCase()
+        .trim();
+    final cancellationReason = (data['cancellationReason'] ?? '')
+        .toString()
+        .toLowerCase()
+        .trim();
+
+    final isCanceled =
+        adminStatus == 'canceled' ||
+        adminStatus == 'cancelled' ||
+        adminStatus.contains('cancel') ||
+        rawTicketStatus == 'canceled' ||
+        rawTicketStatus == 'cancelled' ||
+        rawTicketStatus.contains('cancel') ||
+        engStatus == 'canceled' ||
+        engStatus == 'cancelled' ||
+        engStatus.contains('cancel') ||
+        custStatus == 'canceled' ||
+        custStatus == 'cancelled' ||
+        custStatus.contains('cancel') ||
+        custDecision.contains('cancel') ||
+        reasonCancel.isNotEmpty ||
+        cancellationReason.isNotEmpty ||
+        data['cancelledAt'] != null ||
+        data['isCancelled'] == true ||
+        data['isCanceled'] == true;
+    final isAppointment = adminStatus == 'appointment' && !isCanceled;
+    final isCanceledByCustomer =
+        isCanceled &&
+        (custDecision.contains('cancel') ||
+            custStatus.contains('cancel') ||
+            (data['cancelledByRole'] ?? '').toString().toLowerCase().trim() ==
+                'customer');
+    final status = statusRaw.isEmpty ? 'Not Assigned' : statusRaw;
+    final assignedEmployee = getField(data, [
+      'assignedEmployee',
+    ], 'Not Assigned');
+    final helperEngineer = _extractHelperName(data);
+    final expectedVisitDate = (data['expectedVisitDate'] ?? '')
+        .toString()
+        .trim();
+    final expectedVisitTime = (data['expectedVisitTime'] ?? '')
+        .toString()
+        .trim();
+    final visitNotes = (data['visitNotes'] ?? '').toString().trim();
+    final bool isCompleted =
+        status.toLowerCase().contains('complete') ||
+        data['completedAt'] != null ||
+        data['orderDelivered'] == true ||
+        adminStatus.toLowerCase() == 'delivered';
+    final double? customerLat = data['latitude'] != null
+        ? (data['latitude'] as num).toDouble()
+        : null;
+    final double? customerLng = data['longitude'] != null
+        ? (data['longitude'] as num).toDouble()
+        : null;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _buildTicketDetailSheet(
+        ctx,
+        customer,
+        serialNumber,
+        status,
+        isCompleted,
+        isCanceled,
+        isAppointment,
+        isCanceledByCustomer,
+        assignedEmployee,
+        docId,
+        screenWidth,
+        screenHeight,
+        getProportionalSize,
+        customerLat,
+        customerLng,
+        helperEngineer: helperEngineer,
+        expectedVisitDate: expectedVisitDate,
+        expectedVisitTime: expectedVisitTime,
+        visitNotes: visitNotes,
+      ),
     );
   }
 
@@ -943,28 +1365,36 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
     double Function(double) getProportionalSize,
     Map<String, dynamic> durationInfo,
     double? customerLat,
-    double? customerLng,
-  ) {
+    double? customerLng, {
+    String helperEngineer = '',
+    String expectedVisitDate = '',
+    String expectedVisitTime = '',
+    String visitNotes = '',
+  }) {
     final primaryColor = Theme.of(context).primaryColor;
 
     Color getStatusColor(String status) {
       final s = status.toLowerCase().trim();
       if (s == 'assigned') return const Color(0xFF0984E3);
-      if (s == 'completed' || s == 'complete' || s == 'delivered') return const Color(0xFF10B981);
-      if (s == 'not assigned' || s == 'not assinged') return const Color(0xFFEF4444);
+      if (s == 'completed' || s == 'complete' || s == 'delivered')
+        return const Color(0xFF10B981);
+      if (s == 'not assigned' || s == 'not assinged')
+        return const Color(0xFFEF4444);
       if (s.contains('approval')) return const Color(0xFF8B5CF6);
       if (s.contains('spare')) return const Color(0xFFF59E0B);
       if (s.contains('observation')) return const Color(0xFF06B6D4);
-      if (s == 'canceled' || s == 'cancelled') return const Color(0xFF64748B);
+      if (s == 'canceled' || s == 'cancelled') return const Color(0xFFEF4444);
       if (s == 'appointment') return const Color(0xFFEC4899);
       return const Color(0xFF3B82F6);
     }
 
-    final isAMC = customer.bookingId.toUpperCase().startsWith('AMC') ||
+    final isAMC =
+        customer.bookingId.toUpperCase().startsWith('AMC') ||
         customer.customerType.toLowerCase().trim() == 'amc' ||
         customer.customerid.toUpperCase().startsWith('AMC') ||
         customer.jobType.toLowerCase().trim() == 'amc';
-    final isProduct = customer.jobType.toLowerCase().trim() == 'product' ||
+    final isProduct =
+        customer.jobType.toLowerCase().trim() == 'product' ||
         customer.jobType.toLowerCase().trim() == 'delivery' ||
         customer.bookingId.toUpperCase().startsWith('P') ||
         customer.bookingId.toUpperCase().startsWith('D');
@@ -994,6 +1424,10 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
               getProportionalSize,
               customerLat,
               customerLng,
+              helperEngineer: helperEngineer,
+              expectedVisitDate: expectedVisitDate,
+              expectedVisitTime: expectedVisitTime,
+              visitNotes: visitNotes,
             );
           },
         );
@@ -1062,12 +1496,27 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                             ),
                             const SizedBox(width: 6),
                             Expanded(
-                              child: Text(
-                                '•  ${customer.customerName}',
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  color: Color(0xFF64748B),
-                                  fontWeight: FontWeight.w600,
+                              child: Text.rich(
+                                TextSpan(
+                                  text: customer.customerName.trim().isNotEmpty
+                                      ? '·  '
+                                      : '',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    color: Color(0xFF64748B),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  children: [
+                                    if (customer.customerName.trim().isNotEmpty)
+                                      TextSpan(
+                                        text: customer.customerName,
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          color: Color.fromARGB(255, 0, 0, 0),
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                  ],
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -1080,12 +1529,17 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                           children: [
                             if (isAMC) ...[
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
                                 decoration: BoxDecoration(
                                   color: const Color(0xFFFFFBEB),
                                   borderRadius: BorderRadius.circular(5),
                                   border: Border.all(
-                                    color: const Color(0xFFF59E0B).withValues(alpha: 0.5),
+                                    color: const Color(
+                                      0xFFF59E0B,
+                                    ).withValues(alpha: 0.5),
                                     width: 0.8,
                                   ),
                                 ),
@@ -1112,7 +1566,10 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                               const SizedBox(width: 5),
                             ],
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
                               decoration: BoxDecoration(
                                 color: isProduct
                                     ? const Color(0xFFECFDF5)
@@ -1120,8 +1577,12 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                 borderRadius: BorderRadius.circular(5),
                                 border: Border.all(
                                   color: isProduct
-                                      ? const Color(0xFF10B981).withValues(alpha: 0.4)
-                                      : const Color(0xFF3B82F6).withValues(alpha: 0.4),
+                                      ? const Color(
+                                          0xFF10B981,
+                                        ).withValues(alpha: 0.4)
+                                      : const Color(
+                                          0xFF3B82F6,
+                                        ).withValues(alpha: 0.4),
                                   width: 0.8,
                                 ),
                               ),
@@ -1129,9 +1590,13 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Icon(
-                                    isProduct ? Icons.inventory_2_rounded : Icons.handyman_rounded,
+                                    isProduct
+                                        ? Icons.inventory_2_rounded
+                                        : Icons.handyman_rounded,
                                     size: 10,
-                                    color: isProduct ? const Color(0xFF059669) : const Color(0xFF2563EB),
+                                    color: isProduct
+                                        ? const Color(0xFF059669)
+                                        : const Color(0xFF2563EB),
                                   ),
                                   const SizedBox(width: 3),
                                   Text(
@@ -1139,7 +1604,9 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                     style: TextStyle(
                                       fontSize: 9.5,
                                       fontWeight: FontWeight.w900,
-                                      color: isProduct ? const Color(0xFF059669) : const Color(0xFF2563EB),
+                                      color: isProduct
+                                          ? const Color(0xFF059669)
+                                          : const Color(0xFF2563EB),
                                     ),
                                   ),
                                 ],
@@ -1151,11 +1618,16 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
                     decoration: BoxDecoration(
                       color: statusColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: statusColor.withValues(alpha: 0.2)),
+                      border: Border.all(
+                        color: statusColor.withValues(alpha: 0.2),
+                      ),
                     ),
                     child: Text(
                       status,
@@ -1167,7 +1639,11 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                     ),
                   ),
                   const SizedBox(width: 4),
-                  const Icon(Icons.chevron_right_rounded, size: 18, color: Color(0xFF94A3B8)),
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    size: 18,
+                    color: Color(0xFF94A3B8),
+                  ),
                 ],
               ),
             ),
@@ -1182,26 +1658,31 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                   Row(
                     children: [
                       Icon(
-                        isProduct ? Icons.inventory_2_outlined : Icons.laptop_mac_rounded,
+                        isProduct
+                            ? Icons.inventory_2_outlined
+                            : Icons.laptop_mac_rounded,
                         size: 15,
-                        color: isProduct ? const Color(0xFF059669) : primaryColor,
+                        color: isProduct
+                            ? const Color(0xFF059669)
+                            : primaryColor,
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           isProduct
                               ? (customer.deviceType.isNotEmpty
-                                  ? customer.deviceType
-                                  : (customer.message.isNotEmpty
-                                      ? customer.message
-                                      : 'Product Request'))
-                              : (customer.deviceBrand.isNotEmpty && customer.deviceType.isNotEmpty
-                                  ? '${customer.deviceBrand} - ${customer.deviceType}'
-                                  : (customer.deviceType.isNotEmpty
-                                      ? customer.deviceType
-                                      : (customer.deviceBrand.isNotEmpty
-                                          ? customer.deviceBrand
-                                          : 'General Service'))),
+                                    ? customer.deviceType
+                                    : (customer.message.isNotEmpty
+                                          ? customer.message
+                                          : 'Product Request'))
+                              : (customer.deviceBrand.isNotEmpty &&
+                                        customer.deviceType.isNotEmpty
+                                    ? '${customer.deviceBrand} - ${customer.deviceType}'
+                                    : (customer.deviceType.isNotEmpty
+                                          ? customer.deviceType
+                                          : (customer.deviceBrand.isNotEmpty
+                                                ? customer.deviceBrand
+                                                : 'General Service'))),
                           style: const TextStyle(
                             fontSize: 13.5,
                             color: Color(0xFF0F172A),
@@ -1213,7 +1694,11 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                       ),
                       if (customer.mobileNumber.isNotEmpty) ...[
                         const SizedBox(width: 8),
-                        const Icon(Icons.phone_outlined, size: 13, color: Color(0xFF64748B)),
+                        const Icon(
+                          Icons.phone_outlined,
+                          size: 13,
+                          color: Color(0xFF64748B),
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           customer.mobileNumber,
@@ -1230,11 +1715,17 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.location_on_outlined, size: 15, color: Color(0xFF64748B)),
+                      const Icon(
+                        Icons.location_on_outlined,
+                        size: 15,
+                        color: Color(0xFF64748B),
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          customer.address.isNotEmpty ? customer.address : 'No address provided',
+                          customer.address.isNotEmpty
+                              ? customer.address
+                              : 'No address provided',
                           style: const TextStyle(
                             fontSize: 12,
                             color: Color(0xFF64748B),
@@ -1251,7 +1742,11 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                     const SizedBox(height: 8),
                     Row(
                       children: [
-                        const Icon(Icons.person_outline_rounded, size: 15, color: Color(0xFF0984E3)),
+                        const Icon(
+                          Icons.person_outline_rounded,
+                          size: 15,
+                          color: Color(0xFF0984E3),
+                        ),
                         const SizedBox(width: 8),
                         Text(
                           'Assigned: $assignedEmployee',
@@ -1259,6 +1754,53 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                             fontSize: 12,
                             color: Color(0xFF0984E3),
                             fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                  if (helperEngineer.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.handshake_outlined,
+                          size: 15,
+                          color: Color(0xFFD97706),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Helper: $helperEngineer',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFFD97706),
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                  if (expectedVisitDate.isNotEmpty &&
+                      expectedVisitTime.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.event_available_rounded,
+                          size: 15,
+                          color: Color(0xFF10B981),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Visit: $expectedVisitDate at $expectedVisitTime',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF059669),
+                              fontWeight: FontWeight.w700,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
@@ -1273,17 +1815,25 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: const BoxDecoration(
                 color: Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
+                borderRadius: BorderRadius.vertical(
+                  bottom: Radius.circular(20),
+                ),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.calendar_today_rounded, size: 12, color: Color(0xFF64748B)),
+                      const Icon(
+                        Icons.calendar_today_rounded,
+                        size: 12,
+                        color: Color(0xFF64748B),
+                      ),
                       const SizedBox(width: 4),
                       Text(
-                        DateFormat('dd MMM yyyy').format(customer.timestamp.toDate()),
+                        DateFormat(
+                          'dd MMM yyyy',
+                        ).format(customer.timestamp.toDate()),
                         style: const TextStyle(
                           fontSize: 11,
                           color: Color(0xFF64748B),
@@ -1292,14 +1842,20 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                       ),
                       if (!isCanceled) ...[
                         const SizedBox(width: 8),
-                        const Icon(Icons.schedule_rounded, size: 12, color: Color(0xFF64748B)),
+                        const Icon(
+                          Icons.schedule_rounded,
+                          size: 12,
+                          color: Color(0xFF64748B),
+                        ),
                         const SizedBox(width: 3),
                         Text(
                           durationInfo['text'] ?? '',
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
-                            color: durationInfo['color'] as Color? ?? const Color(0xFF64748B),
+                            color:
+                                durationInfo['color'] as Color? ??
+                                const Color(0xFF64748B),
                           ),
                         ),
                       ],
@@ -1316,7 +1872,11 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                         ),
                       ),
                       const SizedBox(width: 2),
-                      Icon(Icons.arrow_forward_rounded, size: 12, color: primaryColor),
+                      Icon(
+                        Icons.arrow_forward_rounded,
+                        size: 12,
+                        color: primaryColor,
+                      ),
                     ],
                   ),
                 ],
@@ -1325,7 +1885,10 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
             if (isCanceledByCustomer)
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
                 margin: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: Colors.red.shade50,
@@ -1340,6 +1903,36 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                       child: Text(
                         'This ticket was cancelled by ${customer.customerName}',
                         style: const TextStyle(
+                          color: Colors.red,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else if (isCanceled)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                margin: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.red.shade200),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.cancel_outlined, color: Colors.red, size: 16),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'This ticket has been cancelled by Admin',
+                        style: TextStyle(
                           color: Colors.red,
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
@@ -1370,13 +1963,17 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
     double screenHeight,
     double Function(double) getProportionalSize,
     double? customerLat,
-    double? customerLng,
-  ) {
+    double? customerLng, {
+    String helperEngineer = '',
+    String expectedVisitDate = '',
+    String expectedVisitTime = '',
+    String visitNotes = '',
+  }) {
     final dt = customer.timestamp.toDate();
     final dateString = DateFormat('dd MMM yyyy').format(dt);
     final timeString = DateFormat('hh:mm a').format(dt);
     final displayStatus = isCanceled
-        ? 'Canceled'
+        ? 'Cancelled'
         : isAppointment
         ? 'Appointment'
         : isCompleted
@@ -1384,11 +1981,13 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
         : status;
 
     final primaryColor = Theme.of(context).primaryColor;
-    final isAMC = customer.bookingId.toUpperCase().startsWith('AMC') ||
+    final isAMC =
+        customer.bookingId.toUpperCase().startsWith('AMC') ||
         customer.customerType.toLowerCase().trim() == 'amc' ||
         customer.customerid.toUpperCase().startsWith('AMC') ||
         customer.jobType.toLowerCase().trim() == 'amc';
-    final isProduct = customer.jobType.toLowerCase().trim() == 'product' ||
+    final isProduct =
+        customer.jobType.toLowerCase().trim() == 'product' ||
         customer.jobType.toLowerCase().trim() == 'delivery' ||
         customer.bookingId.toUpperCase().startsWith('P') ||
         customer.bookingId.toUpperCase().startsWith('D');
@@ -1396,12 +1995,14 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
     Color getStatusColor(String status) {
       final s = status.toLowerCase().trim();
       if (s == 'assigned') return const Color(0xFF0984E3);
-      if (s == 'completed' || s == 'complete' || s == 'delivered') return const Color(0xFF10B981);
-      if (s == 'not assigned' || s == 'not assinged') return const Color(0xFFEF4444);
+      if (s == 'completed' || s == 'complete' || s == 'delivered')
+        return const Color(0xFF10B981);
+      if (s == 'not assigned' || s == 'not assinged')
+        return const Color(0xFFEF4444);
       if (s.contains('approval')) return const Color(0xFF8B5CF6);
       if (s.contains('spare')) return const Color(0xFFF59E0B);
       if (s.contains('observation')) return const Color(0xFF06B6D4);
-      if (s == 'canceled' || s == 'cancelled') return const Color(0xFF64748B);
+      if (s == 'canceled' || s == 'cancelled') return const Color(0xFFEF4444);
       if (s == 'appointment') return const Color(0xFFEC4899);
       return const Color(0xFF3B82F6);
     }
@@ -1425,7 +2026,10 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
               children: [
                 // Sheet Handle Bar & Close Header
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
                   child: Column(
                     children: [
                       Container(
@@ -1445,7 +2049,11 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                               color: primaryColor.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: Icon(Icons.receipt_long_rounded, color: primaryColor, size: 20),
+                            child: Icon(
+                              Icons.receipt_long_rounded,
+                              color: primaryColor,
+                              size: 20,
+                            ),
                           ),
                           const SizedBox(width: 12),
                           const Text(
@@ -1459,7 +2067,10 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                           ),
                           const Spacer(),
                           IconButton(
-                            icon: const Icon(Icons.close_rounded, color: Color(0xFF64748B)),
+                            icon: const Icon(
+                              Icons.close_rounded,
+                              color: Color(0xFF64748B),
+                            ),
                             onPressed: () => Navigator.pop(context),
                           ),
                         ],
@@ -1474,7 +2085,10 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                 Expanded(
                   child: SingleChildScrollView(
                     controller: controller,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 16,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -1487,7 +2101,9 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                 : const Color(0xFFF8FAFC),
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
-                              color: isAMC ? const Color(0xFFF59E0B) : const Color(0xFFE2E8F0),
+                              color: isAMC
+                                  ? const Color(0xFFF59E0B)
+                                  : const Color(0xFFE2E8F0),
                               width: isAMC ? 1.5 : 1,
                             ),
                           ),
@@ -1535,15 +2151,23 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                         if (isAMC) ...[
                                           const SizedBox(width: 6),
                                           Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 7,
+                                              vertical: 2.5,
+                                            ),
                                             decoration: BoxDecoration(
                                               color: const Color(0xFFF59E0B),
-                                              borderRadius: BorderRadius.circular(6),
+                                              borderRadius:
+                                                  BorderRadius.circular(6),
                                             ),
                                             child: const Row(
                                               mainAxisSize: MainAxisSize.min,
                                               children: [
-                                                Icon(Icons.star_rounded, color: Colors.white, size: 12),
+                                                Icon(
+                                                  Icons.star_rounded,
+                                                  color: Colors.white,
+                                                  size: 12,
+                                                ),
                                                 SizedBox(width: 2),
                                                 Text(
                                                   'AMC',
@@ -1575,11 +2199,16 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                 ),
                               ),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
                                 decoration: BoxDecoration(
                                   color: statusColor.withValues(alpha: 0.12),
                                   borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+                                  border: Border.all(
+                                    color: statusColor.withValues(alpha: 0.3),
+                                  ),
                                 ),
                                 child: Text(
                                   displayStatus,
@@ -1595,22 +2224,31 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                         ),
 
                         // Special Status Banners
-                        if (isCompleted && assignedEmployee.isNotEmpty && assignedEmployee != 'Not Assigned') ...[
+                        if (isCompleted &&
+                            assignedEmployee.isNotEmpty &&
+                            assignedEmployee != 'Not Assigned') ...[
                           const SizedBox(height: 12),
                           Container(
                             padding: const EdgeInsets.all(14),
                             decoration: BoxDecoration(
                               color: const Color(0xFFECFDF5),
                               borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: const Color(0xFFA7F3D0)),
+                              border: Border.all(
+                                color: const Color(0xFFA7F3D0),
+                              ),
                             ),
                             child: Row(
                               children: [
-                                const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 20),
+                                const Icon(
+                                  Icons.check_circle_rounded,
+                                  color: Color(0xFF10B981),
+                                  size: 20,
+                                ),
                                 const SizedBox(width: 10),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       const Text(
                                         'Service Completed',
@@ -1642,11 +2280,17 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                             decoration: BoxDecoration(
                               color: const Color(0xFFFEF2F2),
                               borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: const Color(0xFFFCA5A5)),
+                              border: Border.all(
+                                color: const Color(0xFFFCA5A5),
+                              ),
                             ),
                             child: Row(
                               children: [
-                                const Icon(Icons.info_rounded, color: Color(0xFFEF4444), size: 20),
+                                const Icon(
+                                  Icons.info_rounded,
+                                  color: Color(0xFFEF4444),
+                                  size: 20,
+                                ),
                                 const SizedBox(width: 10),
                                 Expanded(
                                   child: Text(
@@ -1683,7 +2327,10 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                 isHighlight: true,
                               ),
                               if (isProduct) ...[
-                                const Divider(color: Color(0xFFF1F5F9), height: 16),
+                                const Divider(
+                                  color: Color(0xFFF1F5F9),
+                                  height: 16,
+                                ),
                                 _buildDetailGridRow(
                                   'Product Name',
                                   customer.deviceType.isNotEmpty
@@ -1691,14 +2338,20 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                       : 'N/A',
                                 ),
                                 if (customer.message.isNotEmpty) ...[
-                                  const Divider(color: Color(0xFFF1F5F9), height: 16),
+                                  const Divider(
+                                    color: Color(0xFFF1F5F9),
+                                    height: 16,
+                                  ),
                                   _buildDetailGridRow(
                                     'Product Description',
                                     customer.message,
                                   ),
                                 ],
                               ] else ...[
-                                const Divider(color: Color(0xFFF1F5F9), height: 16),
+                                const Divider(
+                                  color: Color(0xFFF1F5F9),
+                                  height: 16,
+                                ),
                                 _buildDetailGridRow(
                                   'Device Type',
                                   customer.deviceType.isNotEmpty
@@ -1706,16 +2359,34 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                       : 'N/A',
                                 ),
                                 if (customer.deviceBrand.isNotEmpty) ...[
-                                  const Divider(color: Color(0xFFF1F5F9), height: 16),
-                                  _buildDetailGridRow('Device Brand', customer.deviceBrand),
+                                  const Divider(
+                                    color: Color(0xFFF1F5F9),
+                                    height: 16,
+                                  ),
+                                  _buildDetailGridRow(
+                                    'Device Brand',
+                                    customer.deviceBrand,
+                                  ),
                                 ],
                                 if (customer.deviceCondition.isNotEmpty) ...[
-                                  const Divider(color: Color(0xFFF1F5F9), height: 16),
-                                  _buildDetailGridRow('Condition', customer.deviceCondition),
+                                  const Divider(
+                                    color: Color(0xFFF1F5F9),
+                                    height: 16,
+                                  ),
+                                  _buildDetailGridRow(
+                                    'Condition',
+                                    customer.deviceCondition,
+                                  ),
                                 ],
                                 if (customer.message.isNotEmpty) ...[
-                                  const Divider(color: Color(0xFFF1F5F9), height: 16),
-                                  _buildDetailGridRow('Issue Description', customer.message),
+                                  const Divider(
+                                    color: Color(0xFFF1F5F9),
+                                    height: 16,
+                                  ),
+                                  _buildDetailGridRow(
+                                    'Issue Description',
+                                    customer.message,
+                                  ),
                                 ],
                               ],
                             ],
@@ -1733,21 +2404,51 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                               StreamBuilder<DocumentSnapshot>(
                                 stream: _getCustomerIdStream(customer),
                                 builder: (context, snapshot) {
-                                  String customerId = customer.customerid.isNotEmpty ? customer.customerid : 'N/A';
-                                  if (snapshot.hasData && snapshot.data!.exists) {
-                                    final customerData = snapshot.data!.data() as Map<String, dynamic>?;
-                                    if (customerData != null && customerData.containsKey('id')) {
-                                      customerId = customerData['id'].toString();
+                                  String customerId =
+                                      customer.customerid.isNotEmpty
+                                      ? customer.customerid
+                                      : 'N/A';
+                                  if (snapshot.hasData &&
+                                      snapshot.data!.exists) {
+                                    final customerData =
+                                        snapshot.data!.data()
+                                            as Map<String, dynamic>?;
+                                    if (customerData != null &&
+                                        customerData.containsKey('id')) {
+                                      customerId = customerData['id']
+                                          .toString();
                                     }
                                   }
-                                  return _buildDetailGridRow('Customer ID', customerId);
+                                  return _buildDetailGridRow(
+                                    'Customer ID',
+                                    customerId,
+                                  );
                                 },
                               ),
-                              const Divider(color: Color(0xFFF1F5F9), height: 16),
-                              _buildDetailGridRow('Contact Number', customer.mobileNumber.isNotEmpty ? customer.mobileNumber : 'N/A'),
-                              const Divider(color: Color(0xFFF1F5F9), height: 16),
-                              _buildDetailGridRow('Full Address', customer.address.isNotEmpty ? customer.address : 'N/A'),
-                              const Divider(color: Color(0xFFF1F5F9), height: 16),
+                              const Divider(
+                                color: Color(0xFFF1F5F9),
+                                height: 16,
+                              ),
+                              _buildDetailGridRow(
+                                'Contact Number',
+                                customer.mobileNumber.isNotEmpty
+                                    ? customer.mobileNumber
+                                    : 'N/A',
+                              ),
+                              const Divider(
+                                color: Color(0xFFF1F5F9),
+                                height: 16,
+                              ),
+                              _buildDetailGridRow(
+                                'Full Address',
+                                customer.address.isNotEmpty
+                                    ? customer.address
+                                    : 'N/A',
+                              ),
+                              const Divider(
+                                color: Color(0xFFF1F5F9),
+                                height: 16,
+                              ),
                               _buildDetailGridRow(
                                 'Assigned Engineer',
                                 assignedEmployee,
@@ -1759,38 +2460,56 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                       style: TextStyle(
                                         fontSize: 13,
                                         fontWeight: FontWeight.w700,
-                                        color: assignedEmployee != 'Not Assigned'
+                                        color:
+                                            assignedEmployee != 'Not Assigned'
                                             ? const Color(0xFF0984E3)
                                             : const Color(0xFF94A3B8),
                                       ),
                                     ),
-                                    if (assignedEmployee.isNotEmpty && assignedEmployee != 'Not Assigned' && assignedEmployee != 'Unassigned') ...[
+                                    if (assignedEmployee.isNotEmpty &&
+                                        assignedEmployee != 'Not Assigned' &&
+                                        assignedEmployee != 'Unassigned') ...[
                                       const SizedBox(width: 8),
                                       GestureDetector(
                                         onTap: () {
                                           Navigator.push(
                                             context,
                                             MaterialPageRoute(
-                                              builder: (context) => AdminGeoLocationScreen(
-                                                engineerId: assignedEmployee,
-                                                engineerName: assignedEmployee,
-                                                bookingDocId: docId,
-                                                customerLat: customerLat,
-                                                customerLng: customerLng,
-                                                customerAddress: customer.address,
-                                              ),
+                                              builder: (context) =>
+                                                  AdminGeoLocationScreen(
+                                                    engineerId:
+                                                        assignedEmployee,
+                                                    engineerName:
+                                                        assignedEmployee,
+                                                    bookingDocId: docId,
+                                                    customerLat: customerLat,
+                                                    customerLng: customerLng,
+                                                    customerAddress:
+                                                        customer.address,
+                                                  ),
                                             ),
                                           );
                                         },
                                         child: Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 4,
+                                          ),
                                           decoration: BoxDecoration(
-                                            color: const Color(0xFF0984E3).withValues(alpha: 0.1),
-                                            borderRadius: BorderRadius.circular(8),
+                                            color: const Color(
+                                              0xFF0984E3,
+                                            ).withValues(alpha: 0.1),
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
                                           ),
                                           child: const Row(
                                             children: [
-                                              Icon(Icons.map_rounded, size: 12, color: Color(0xFF0984E3)),
+                                              Icon(
+                                                Icons.map_rounded,
+                                                size: 12,
+                                                color: Color(0xFF0984E3),
+                                              ),
                                               SizedBox(width: 4),
                                               Text(
                                                 'Live Track',
@@ -1808,6 +2527,64 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                   ],
                                 ),
                               ),
+                              if (helperEngineer.isNotEmpty) ...[
+                                const Divider(
+                                  color: Color(0xFFF1F5F9),
+                                  height: 16,
+                                ),
+                                _buildDetailGridRow(
+                                  'Helper Engineer',
+                                  helperEngineer,
+                                  customValue: Text(
+                                    helperEngineer,
+                                    textAlign: TextAlign.right,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFFD97706),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                              if (expectedVisitDate.isNotEmpty &&
+                                  expectedVisitTime.isNotEmpty) ...[
+                                const Divider(
+                                  color: Color(0xFFF1F5F9),
+                                  height: 16,
+                                ),
+                                _buildDetailGridRow(
+                                  'Scheduled Visit',
+                                  '$expectedVisitDate at $expectedVisitTime',
+                                  customValue: Text(
+                                    '$expectedVisitDate at $expectedVisitTime',
+                                    textAlign: TextAlign.right,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w800,
+                                      color: Color(0xFF059669),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                              if (visitNotes.isNotEmpty) ...[
+                                const Divider(
+                                  color: Color(0xFFF1F5F9),
+                                  height: 16,
+                                ),
+                                _buildDetailGridRow(
+                                  'Visit Notes',
+                                  visitNotes,
+                                  customValue: Text(
+                                    visitNotes,
+                                    textAlign: TextAlign.right,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF475569),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ),
@@ -1827,16 +2604,28 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                     .snapshots(),
                                 builder: (context, snapshot) {
                                   String paymentType = 'N/A';
-                                  if (snapshot.hasData && snapshot.data!.exists) {
-                                    final data = snapshot.data!.data() as Map<String, dynamic>?;
+                                  if (snapshot.hasData &&
+                                      snapshot.data!.exists) {
+                                    final data =
+                                        snapshot.data!.data()
+                                            as Map<String, dynamic>?;
                                     if (data != null) {
-                                      paymentType = getField(data, ['PaymentType', 'paymentType'], 'N/A');
+                                      paymentType = getField(data, [
+                                        'PaymentType',
+                                        'paymentType',
+                                      ], 'N/A');
                                     }
                                   }
-                                  return _buildDetailGridRow('Payment Method', paymentType);
+                                  return _buildDetailGridRow(
+                                    'Payment Method',
+                                    paymentType,
+                                  );
                                 },
                               ),
-                              const Divider(color: Color(0xFFF1F5F9), height: 16),
+                              const Divider(
+                                color: Color(0xFFF1F5F9),
+                                height: 16,
+                              ),
                               _buildDetailGridRow(
                                 'Total Bill Amount',
                                 '₹ ${customer.amount}',
@@ -1850,8 +2639,14 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                                   ),
                                 ),
                               ),
-                              const Divider(color: Color(0xFFF1F5F9), height: 16),
-                              _buildDetailGridRow('Ticket Created', '$dateString at $timeString'),
+                              const Divider(
+                                color: Color(0xFFF1F5F9),
+                                height: 16,
+                              ),
+                              _buildDetailGridRow(
+                                'Ticket Created',
+                                '$dateString at $timeString',
+                              ),
                             ],
                           ),
                         ),
@@ -1866,23 +2661,40 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                             width: double.infinity,
                             child: ElevatedButton.icon(
                               onPressed: () async {
-                                final url = Uri.parse(customer.customerFileUrl!);
+                                final url = Uri.parse(
+                                  customer.customerFileUrl!,
+                                );
                                 if (await canLaunchUrl(url)) {
-                                  await launchUrl(url, mode: LaunchMode.externalApplication);
+                                  await launchUrl(
+                                    url,
+                                    mode: LaunchMode.externalApplication,
+                                  );
                                 } else {
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Could not open file')),
+                                    const SnackBar(
+                                      content: Text('Could not open file'),
+                                    ),
                                   );
                                 }
                               },
-                              icon: const Icon(Icons.file_download_rounded, size: 18, color: Colors.white),
+                              icon: const Icon(
+                                Icons.file_download_rounded,
+                                size: 18,
+                                color: Colors.white,
+                              ),
                               label: const Text(
                                 'View Attachment',
-                                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white),
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                ),
                               ),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFF0984E3),
-                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(16),
                                 ),
@@ -1900,242 +2712,545 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                               .doc(customer.bookingId)
                               .snapshots(),
                           builder: (context, snapshot) {
-                            final ticketData = snapshot.data?.data() as Map<String, dynamic>? ?? {};
-                            final engStatus = (ticketData['engineerStatus'] ?? status).toString().toLowerCase().trim();
-                            final admStatus = (ticketData['adminStatus'] ?? '').toString().toLowerCase().trim();
-                            final bool isCompletedByEngineer = isCompleted ||
+                            final ticketData =
+                                snapshot.data?.data()
+                                    as Map<String, dynamic>? ??
+                                {};
+                            final engStatus =
+                                (ticketData['engineerStatus'] ?? status)
+                                    .toString()
+                                    .toLowerCase()
+                                    .trim();
+                            final admStatus = (ticketData['adminStatus'] ?? '')
+                                .toString()
+                                .toLowerCase()
+                                .trim();
+                            final rawStatus = (ticketData['status'] ?? '')
+                                .toString()
+                                .toLowerCase()
+                                .trim();
+                            final cusStatus =
+                                (ticketData['Customer_decision'] ??
+                                        ticketData['customerStatus'] ??
+                                        '')
+                                    .toString()
+                                    .toLowerCase()
+                                    .trim();
+
+                            final bool isTicketCanceled =
+                                isCanceled ||
+                                admStatus == 'canceled' ||
+                                admStatus == 'cancelled' ||
+                                rawStatus == 'canceled' ||
+                                rawStatus == 'cancelled' ||
+                                engStatus == 'canceled' ||
+                                engStatus == 'cancelled' ||
+                                cusStatus == 'canceled' ||
+                                cusStatus == 'cancelled';
+
+                            final bool isCompletedByEngineer =
+                                isCompleted ||
                                 engStatus == 'completed' ||
                                 engStatus.contains('complete') ||
                                 ticketData['completedAt'] != null;
-                            final bool isOrderDelivered = ticketData['orderDelivered'] == true ||
+                            final bool isOrderDelivered =
+                                ticketData['orderDelivered'] == true ||
                                 ticketData['isDelivered'] == true ||
                                 admStatus == 'delivered';
 
-                            if (isCanceled) {
-                              return SizedBox(
+                            if (isTicketCanceled) {
+                              final cancelReason =
+                                  (ticketData['cancellationReason'] ??
+                                          ticketData['Reason_cancel'] ??
+                                          ticketData['cancellation_reason'] ??
+                                          ticketData['cancelReason'] ??
+                                          'Cancelled by Admin')
+                                      .toString();
+                              final cancelledBy =
+                                  (ticketData['cancelledByRole'] ?? 'Admin')
+                                      .toString()
+                                      .toUpperCase();
+                              final cancelTimestamp =
+                                  ticketData['cancelledAt'] as Timestamp? ??
+                                  ticketData['updatedAt'] as Timestamp?;
+                              final cancelDateStr = cancelTimestamp != null
+                                  ? DateFormat(
+                                      'dd MMM yyyy, hh:mm a',
+                                    ).format(cancelTimestamp.toDate())
+                                  : 'N/A';
+
+                              return Container(
                                 width: double.infinity,
-                                child: ElevatedButton.icon(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF10B981),
-                                    padding: const EdgeInsets.symmetric(vertical: 16),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                    elevation: 0,
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFEF2F2),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: const Color(0xFFFCA5A5),
                                   ),
-                                  onPressed: () async {
-                                    final confirm = await showDialog<bool>(
-                                      context: context,
-                                      builder: (context) => AlertDialog(
-                                        title: const Text('Reactivate Ticket'),
-                                        content: const Text('Are you sure you want to reactivate this cancelled ticket?'),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () => Navigator.of(context).pop(false),
-                                            child: const Text('Keep Cancelled'),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(6),
+                                          decoration: const BoxDecoration(
+                                            color: Color(0xFFEF4444),
+                                            shape: BoxShape.circle,
                                           ),
-                                          TextButton(
-                                            onPressed: () => Navigator.of(context).pop(true),
-                                            child: const Text('Reactivate', style: TextStyle(color: Color(0xFF10B981))),
+                                          child: const Icon(
+                                            Icons.cancel_rounded,
+                                            size: 18,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        const Expanded(
+                                          child: Text(
+                                            'THIS TICKET HAS BEEN CANCELLED',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w900,
+                                              color: Color(0xFF991B1B),
+                                              letterSpacing: 0.2,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 12),
+                                    _buildDetailGridRow(
+                                      'Cancellation Reason',
+                                      cancelReason,
+                                    ),
+                                    const Divider(
+                                      color: Color(0xFFFEE2E2),
+                                      height: 16,
+                                    ),
+                                    _buildDetailGridRow(
+                                      'Cancelled By',
+                                      cancelledBy,
+                                    ),
+                                    const Divider(
+                                      color: Color(0xFFFEE2E2),
+                                      height: 16,
+                                    ),
+                                    _buildDetailGridRow(
+                                      'Cancelled At',
+                                      cancelDateStr,
+                                    ),
+                                    const SizedBox(height: 10),
+                                    Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 8,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFFEE2E2),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: const Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.lock_outline_rounded,
+                                            size: 15,
+                                            color: Color(0xFF991B1B),
+                                          ),
+                                          SizedBox(width: 6),
+                                          Expanded(
+                                            child: Text(
+                                              'Terminal State: No reactivation or further edits permitted',
+                                              style: TextStyle(
+                                                fontSize: 11.5,
+                                                fontWeight: FontWeight.w700,
+                                                color: Color(0xFF991B1B),
+                                              ),
+                                            ),
                                           ),
                                         ],
                                       ),
-                                    );
-
-                                    if (confirm == true) {
-                                      try {
-                                        await FirestoreService.instance
-                                            .collection('Admin_ticket_entry')
-                                            .doc(docId)
-                                            .update({
-                                          'adminStatus': 'Open',
-                                          'Customer_decision': '',
-                                          'engineerStatus': 'Assigned',
-                                        });
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          const SnackBar(
-                                            content: Text('Ticket reactivated successfully!'),
-                                            backgroundColor: Color(0xFF10B981),
-                                          ),
-                                        );
-                                        Navigator.pop(context);
-                                      } catch (e) {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(content: Text('Failed to reactivate ticket: $e'), backgroundColor: Colors.red),
-                                        );
-                                      }
-                                    }
-                                  },
-                                  icon: const Icon(Icons.refresh_rounded, size: 18, color: Colors.white),
-                                  label: const Text(
-                                    'Reactivate Ticket',
-                                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white),
-                                  ),
-                                ),
-                              );
-                            }
-
-                            if (isCompletedByEngineer) {
-                              return SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton.icon(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: isOrderDelivered
-                                        ? const Color(0xFF059669)
-                                        : const Color(0xFF10B981),
-                                    padding: const EdgeInsets.symmetric(vertical: 16),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(16),
                                     ),
-                                    elevation: 0,
-                                  ),
-                                  onPressed: isOrderDelivered
-                                      ? null
-                                      : () async {
-                                          try {
-                                            final updateData = {
-                                              'orderDelivered': true,
-                                              'isDelivered': true,
-                                              'deliveredAt': FieldValue.serverTimestamp(),
-                                              'adminStatus': 'Delivered',
-                                              'customerStatus': 'Delivered',
-                                              'engineerStatus': 'Completed',
-                                              'lastUpdated': FieldValue.serverTimestamp(),
-                                            };
-
-                                            await FirestoreService.instance
-                                                .collection('Admin_ticket_entry')
-                                                .doc(customer.bookingId)
-                                                .set(updateData, SetOptions(merge: true));
-
-                                            try {
-                                              await FirestoreService.instance
-                                                  .collection('Raised_tickets')
-                                                  .doc(customer.bookingId)
-                                                  .set(updateData, SetOptions(merge: true));
-                                            } catch (_) {}
-
-                                            await NotificationService.sendNotificationToFirestore(
-                                              audience: 'customer',
-                                              customerName: customer.customerName,
-                                              type: 'order_delivered',
-                                              bookingId: customer.bookingId,
-                                              title: 'Service Order Delivered!',
-                                              body: 'Your service for ticket #${customer.bookingId} has been delivered. Please rate your experience!',
-                                            );
-
-                                            if (context.mounted) {
-                                              ScaffoldMessenger.of(context).showSnackBar(
-                                                const SnackBar(
-                                                  content: Text('Order marked as Delivered! Admin status updated to Delivered.'),
-                                                  backgroundColor: Color(0xFF10B981),
-                                                ),
-                                              );
-                                            }
-                                          } catch (e) {
-                                            if (context.mounted) {
-                                              ScaffoldMessenger.of(context).showSnackBar(
-                                                SnackBar(content: Text('Failed to update status: $e'), backgroundColor: Colors.red),
-                                              );
-                                            }
-                                          }
-                                        },
-                                  icon: Icon(
-                                    isOrderDelivered ? Icons.verified_rounded : Icons.local_shipping_rounded,
-                                    size: 20,
-                                    color: Colors.white,
-                                  ),
-                                  label: Text(
-                                    isOrderDelivered ? 'Order Delivered' : 'Order Delivered',
-                                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white),
-                                  ),
+                                  ],
                                 ),
                               );
                             }
 
-                            // Default (Assigned / Open)
-                            return Row(
+                            return Column(
                               children: [
-                                Expanded(
-                                  child: ElevatedButton.icon(
-                                    onPressed: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) => AdminGeoLocationScreen(
-                                            engineerId: assignedEmployee != 'Not Assigned' ? assignedEmployee : 'N/A',
-                                            engineerName: assignedEmployee != 'Not Assigned' ? assignedEmployee : 'N/A',
-                                            bookingDocId: docId,
-                                            customerLat: customerLat,
-                                            customerLng: customerLng,
-                                            customerAddress: customer.address,
-                                            bookingId: customer.bookingId,
-                                            customerName: customer.customerName,
-                                            jobType: customer.jobType,
-                                            deviceType: customer.deviceType,
-                                            deviceBrand: customer.deviceBrand,
-                                            assignedEmployee: assignedEmployee != 'Not Assigned' ? assignedEmployee : null,
-                                            customerStatus: displayStatus,
-                                          ),
+                                Builder(
+                                  builder: (context) {
+                                    final cRating =
+                                        (ticketData['customerRating'] ??
+                                                ticketData['rating'] as num?)
+                                            ?.toDouble() ??
+                                        customer.customerRating;
+                                    final cFeedback =
+                                        (ticketData['customerFeedback'] ??
+                                                ticketData['ratingComment'] ??
+                                                ticketData['comment'] ??
+                                                customer.customerFeedback)
+                                            .toString()
+                                            .trim();
+                                    final fStatus =
+                                        (ticketData['feedbackStatus'] ??
+                                                customer.feedbackStatus)
+                                            .toString()
+                                            .trim();
+                                    final fTimestamp =
+                                        ticketData['feedbackSubmittedAt']
+                                            as Timestamp? ??
+                                        ticketData['ratedAt'] as Timestamp? ??
+                                        customer.feedbackSubmittedAt;
+
+                                    if (cRating != null ||
+                                        cFeedback.isNotEmpty ||
+                                        fStatus.toLowerCase() == 'submitted') {
+                                      return Padding(
+                                        padding: const EdgeInsets.only(
+                                          bottom: 14,
+                                        ),
+                                        child: _buildCustomerFeedbackCard(
+                                          cRating ?? 5.0,
+                                          cFeedback,
+                                          fTimestamp,
+                                          customer.customerName,
                                         ),
                                       );
-                                    },
-                                    icon: const Icon(Icons.location_on_rounded, size: 18, color: Colors.white),
-                                    label: const Text(
-                                      'Customer Location',
-                                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white),
-                                    ),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFFEF4444),
-                                      padding: const EdgeInsets.symmetric(vertical: 16),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(16),
-                                      ),
-                                      elevation: 0,
-                                    ),
-                                  ),
+                                    } else if (isCompletedByEngineer ||
+                                        isOrderDelivered) {
+                                      return Padding(
+                                        padding: const EdgeInsets.only(
+                                          bottom: 14,
+                                        ),
+                                        child: _buildFeedbackPendingNotice(),
+                                      );
+                                    }
+                                    return const SizedBox.shrink();
+                                  },
                                 ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: ElevatedButton.icon(
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: primaryColor,
-                                      padding: const EdgeInsets.symmetric(vertical: 16),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(16),
+                                if (isCompletedByEngineer)
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: ElevatedButton.icon(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: isOrderDelivered
+                                            ? const Color(0xFF059669)
+                                            : const Color(0xFF10B981),
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 16,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
+                                        ),
+                                        elevation: 0,
                                       ),
-                                      elevation: 0,
+                                      onPressed: isOrderDelivered
+                                          ? null
+                                          : () async {
+                                              try {
+                                                final updateData = {
+                                                  'orderDelivered': true,
+                                                  'isDelivered': true,
+                                                  'deliveredAt':
+                                                      FieldValue.serverTimestamp(),
+                                                  'adminStatus': 'Delivered',
+                                                  'customerStatus': 'Delivered',
+                                                  'engineerStatus': 'Completed',
+                                                  'completionFeedbackNotificationSent':
+                                                      true,
+                                                  'lastUpdated':
+                                                      FieldValue.serverTimestamp(),
+                                                };
+
+                                                await FirestoreService.instance
+                                                    .collection(
+                                                      'Admin_ticket_entry',
+                                                    )
+                                                    .doc(customer.bookingId)
+                                                    .set(
+                                                      updateData,
+                                                      SetOptions(merge: true),
+                                                    );
+
+                                                try {
+                                                  await FirestoreService
+                                                      .instance
+                                                      .collection(
+                                                        'Raised_tickets',
+                                                      )
+                                                      .doc(customer.bookingId)
+                                                      .set(
+                                                        updateData,
+                                                        SetOptions(merge: true),
+                                                      );
+                                                } catch (_) {}
+
+                                                await NotificationService.sendNotificationToFirestore(
+                                                  audience: 'customer',
+                                                  customerName:
+                                                      customer.customerName,
+                                                  customerId:
+                                                      customer.customerid,
+                                                  type:
+                                                      'ticket_completed_feedback',
+                                                  bookingId: customer.bookingId,
+                                                  title:
+                                                      'Service Completed – Share Your Feedback',
+                                                  body:
+                                                      'Your service ticket ${customer.bookingId} has been completed successfully. Please share your rating and feedback about our service.',
+                                                );
+
+                                                if (context.mounted) {
+                                                  ScaffoldMessenger.of(
+                                                    context,
+                                                  ).showSnackBar(
+                                                    const SnackBar(
+                                                      content: Text(
+                                                        'Order marked as Delivered! Admin status updated to Delivered.',
+                                                      ),
+                                                      backgroundColor: Color(
+                                                        0xFF10B981,
+                                                      ),
+                                                    ),
+                                                  );
+                                                }
+                                              } catch (e) {
+                                                if (context.mounted) {
+                                                  ScaffoldMessenger.of(
+                                                    context,
+                                                  ).showSnackBar(
+                                                    SnackBar(
+                                                      content: Text(
+                                                        'Failed to update status: $e',
+                                                      ),
+                                                      backgroundColor:
+                                                          Colors.red,
+                                                    ),
+                                                  );
+                                                }
+                                              }
+                                            },
+                                      icon: Icon(
+                                        isOrderDelivered
+                                            ? Icons.verified_rounded
+                                            : Icons.local_shipping_rounded,
+                                        size: 20,
+                                        color: Colors.white,
+                                      ),
+                                      label: Text(
+                                        isOrderDelivered
+                                            ? 'Order Delivered'
+                                            : 'Order Delivered',
+                                        style: const TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w800,
+                                          color: Colors.white,
+                                        ),
+                                      ),
                                     ),
-                                    onPressed: () async {
-                                      try {
-                                        final docRef = FirestoreService.instance.collection('Admin_ticket_entry').doc(customer.bookingId);
-                                        final docSnapshot = await docRef.get();
-                                        if (docSnapshot.exists) {
-                                          final data = docSnapshot.data() ?? {};
-                                          Map<String, dynamic> updateData = {'adminStatus': 'Assigned'};
-                                          if (!data.containsKey('engineerStatus')) {
-                                            updateData['engineerStatus'] = 'Open';
-                                          }
-                                          await docRef.update(updateData);
-                                        } else {
-                                          await docRef.set({'adminStatus': 'Assigned', 'engineerStatus': 'Open'});
-                                        }
-                                      } catch (e) {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(content: Text('Failed to update status: $e')),
+                                  )
+                                else
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: ElevatedButton.icon(
+                                          onPressed: () {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (context) =>
+                                                    AdminGeoLocationScreen(
+                                                      engineerId:
+                                                          assignedEmployee !=
+                                                              'Not Assigned'
+                                                          ? assignedEmployee
+                                                          : 'N/A',
+                                                      engineerName:
+                                                          assignedEmployee !=
+                                                              'Not Assigned'
+                                                          ? assignedEmployee
+                                                          : 'N/A',
+                                                      bookingDocId: docId,
+                                                      customerLat: customerLat,
+                                                      customerLng: customerLng,
+                                                      customerAddress:
+                                                          customer.address,
+                                                      bookingId:
+                                                          customer.bookingId,
+                                                      customerName:
+                                                          customer.customerName,
+                                                      jobType: customer.jobType,
+                                                      deviceType:
+                                                          customer.deviceType,
+                                                      deviceBrand:
+                                                          customer.deviceBrand,
+                                                      assignedEmployee:
+                                                          assignedEmployee !=
+                                                              'Not Assigned'
+                                                          ? assignedEmployee
+                                                          : null,
+                                                      customerStatus:
+                                                          displayStatus,
+                                                    ),
+                                              ),
+                                            );
+                                          },
+                                          icon: const Icon(
+                                            Icons.location_on_rounded,
+                                            size: 18,
+                                            color: Colors.white,
+                                          ),
+                                          label: const Text(
+                                            'Customer Location',
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w800,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: const Color(
+                                              0xFFEF4444,
+                                            ),
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 16,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(16),
+                                            ),
+                                            elevation: 0,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: ElevatedButton.icon(
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: primaryColor,
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 16,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(16),
+                                            ),
+                                            elevation: 0,
+                                          ),
+                                          onPressed: () async {
+                                            try {
+                                              final docRef = FirestoreService
+                                                  .instance
+                                                  .collection(
+                                                    'Admin_ticket_entry',
+                                                  )
+                                                  .doc(customer.bookingId);
+                                              final docSnapshot = await docRef
+                                                  .get();
+                                              if (docSnapshot.exists) {
+                                                final data =
+                                                    docSnapshot.data() ?? {};
+                                                Map<String, dynamic>
+                                                updateData = {
+                                                  'adminStatus': 'Assigned',
+                                                };
+                                                if (!data.containsKey(
+                                                  'engineerStatus',
+                                                )) {
+                                                  updateData['engineerStatus'] =
+                                                      'Open';
+                                                }
+                                                await docRef.update(updateData);
+                                              } else {
+                                                await docRef.set({
+                                                  'adminStatus': 'Assigned',
+                                                  'engineerStatus': 'Open',
+                                                });
+                                              }
+                                            } catch (e) {
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                SnackBar(
+                                                  content: Text(
+                                                    'Failed to update status: $e',
+                                                  ),
+                                                ),
+                                              );
+                                              return;
+                                            }
+                                            Navigator.pop(context);
+                                            _navigateToAssignPage(customer);
+                                          },
+                                          icon: const Icon(
+                                            Icons.person_add_rounded,
+                                            size: 18,
+                                            color: Colors.white,
+                                          ),
+                                          label: const Text(
+                                            'Assign Ticket',
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w800,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                if (!isOrderDelivered) ...[
+                                  const SizedBox(height: 12),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: OutlinedButton.icon(
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: const Color(
+                                          0xFFEF4444,
+                                        ),
+                                        side: const BorderSide(
+                                          color: Color(0xFFEF4444),
+                                          width: 1.5,
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 14,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
+                                        ),
+                                      ),
+                                      onPressed: () {
+                                        _showCancelTicketDialog(
+                                          context,
+                                          customer,
+                                          assignedEmployee,
+                                          ticketData,
                                         );
-                                        return;
-                                      }
-                                      Navigator.pop(context);
-                                      _navigateToAssignPage(customer);
-                                    },
-                                    icon: const Icon(Icons.person_add_rounded, size: 18, color: Colors.white),
-                                    label: const Text(
-                                      'Assign Ticket',
-                                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white),
+                                      },
+                                      icon: const Icon(
+                                        Icons.cancel_outlined,
+                                        size: 18,
+                                        color: Color(0xFFEF4444),
+                                      ),
+                                      label: const Text(
+                                        'Cancel Ticket',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w800,
+                                          color: Color(0xFFEF4444),
+                                        ),
+                                      ),
                                     ),
                                   ),
-                                ),
+                                ],
                               ],
                             );
                           },
@@ -2150,6 +3265,477 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
           );
         },
       ),
+    );
+  }
+
+  Future<void> _showCancelTicketDialog(
+    BuildContext parentContext,
+    customer_var.Customer customer,
+    String assignedEmployee,
+    Map<String, dynamic> ticketData,
+  ) async {
+    final reasonController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    bool isSubmitting = false;
+
+    await showDialog<void>(
+      context: parentContext,
+      barrierDismissible: !isSubmitting,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 24),
+              actionsPadding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              title: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEE2E2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.warning_amber_rounded,
+                      color: Color(0xFFEF4444),
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      'Cancel Service Ticket',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              content: Form(
+                key: formKey,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: Column(
+                          children: [
+                            _buildDialogInfoRow(
+                              'Ticket ID',
+                              customer.bookingId,
+                            ),
+                            const Divider(color: Color(0xFFE2E8F0), height: 12),
+                            _buildDialogInfoRow(
+                              'Customer Name',
+                              customer.customerName,
+                            ),
+                            const Divider(color: Color(0xFFE2E8F0), height: 12),
+                            _buildDialogInfoRow(
+                              'Assigned Engineer',
+                              assignedEmployee.isNotEmpty &&
+                                      assignedEmployee != 'Not Assigned'
+                                  ? assignedEmployee
+                                  : 'Not Assigned',
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Cancellation Reason *',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF334155),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      TextFormField(
+                        controller: reasonController,
+                        maxLines: 3,
+                        enabled: !isSubmitting,
+                        decoration: InputDecoration(
+                          hintText: 'Enter mandatory cancellation reason...',
+                          hintStyle: const TextStyle(
+                            fontSize: 13,
+                            color: Color(0xFF94A3B8),
+                          ),
+                          filled: true,
+                          fillColor: const Color(0xFFF8FAFC),
+                          contentPadding: const EdgeInsets.all(12),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFCBD5E1),
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFCBD5E1),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFEF4444),
+                              width: 1.5,
+                            ),
+                          ),
+                          errorBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFEF4444),
+                            ),
+                          ),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Please enter a cancellation reason';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFFBEB),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFFFDE68A)),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              size: 14,
+                              color: Color(0xFFD97706),
+                            ),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Cancellation is permanent. Both customer and assigned engineer will be immediately notified.',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF92400E),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSubmitting
+                      ? null
+                      : () => Navigator.pop(dialogContext),
+                  child: const Text(
+                    'Go Back',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFEF4444),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 0,
+                  ),
+                  onPressed: isSubmitting
+                      ? null
+                      : () async {
+                          if (!formKey.currentState!.validate()) return;
+                          setDialogState(() => isSubmitting = true);
+
+                          final reason = reasonController.text.trim();
+                          final adminUid =
+                              FirebaseAuth.instance.currentUser?.uid ?? 'admin';
+                          final bookingId = customer.bookingId.trim();
+
+                          try {
+                            // 1. Atomic Firestore check: Ensure ticket is not already cancelled
+                            final ticketRef = FirestoreService.instance
+                                .collection('Admin_ticket_entry')
+                                .doc(bookingId);
+
+                            final freshDoc = await ticketRef.get();
+                            if (freshDoc.exists) {
+                              final freshData = freshDoc.data() ?? {};
+                              final existingStatus =
+                                  (freshData['status'] ??
+                                          freshData['adminStatus'] ??
+                                          '')
+                                      .toString()
+                                      .toLowerCase();
+                              if (existingStatus == 'cancelled' ||
+                                  existingStatus == 'canceled') {
+                                if (dialogContext.mounted)
+                                  Navigator.pop(dialogContext);
+                                if (parentContext.mounted) {
+                                  ScaffoldMessenger.of(
+                                    parentContext,
+                                  ).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Ticket is already cancelled.',
+                                      ),
+                                      backgroundColor: Colors.orange,
+                                    ),
+                                  );
+                                }
+                                return;
+                              }
+                            }
+
+                            // 2. Prepare cancellation payload
+                            final cancelUpdate = {
+                              'status': 'Cancelled',
+                              'adminStatus': 'Cancelled',
+                              'engineerStatus': 'Cancelled',
+                              'customerStatus': 'Cancelled',
+                              'cancellationReason': reason,
+                              'cancelledBy': adminUid,
+                              'cancelledByRole': 'admin',
+                              'cancelledAt': FieldValue.serverTimestamp(),
+                              'updatedAt': FieldValue.serverTimestamp(),
+                              'lastUpdated': FieldValue.serverTimestamp(),
+                            };
+
+                            // 3. Update Admin_ticket_entry
+                            await ticketRef.set(
+                              cancelUpdate,
+                              SetOptions(merge: true),
+                            );
+
+                            // 4. Update Raised_tickets if present
+                            try {
+                              await FirestoreService.instance
+                                  .collection('Raised_tickets')
+                                  .doc(bookingId)
+                                  .set(cancelUpdate, SetOptions(merge: true));
+                            } catch (_) {}
+
+                            // 5. Send FCM push notification to Customer
+                            final customerId =
+                                (ticketData['id'] ??
+                                        ticketData['customerId'] ??
+                                        customer.customerid)
+                                    .toString()
+                                    .trim();
+                            await NotificationService.sendNotificationToFirestore(
+                              audience: 'customer',
+                              customerId: customerId.isNotEmpty
+                                  ? customerId
+                                  : null,
+                              customerName: customer.customerName,
+                              bookingId: bookingId,
+                              type: 'ticket_cancelled',
+                              title: 'Service Ticket Cancelled',
+                              body:
+                                  'Your service ticket $bookingId has been cancelled by Admin. Reason: $reason',
+                              additionalData: {
+                                'role': 'customer',
+                                'cancellationReason': reason,
+                                'ticketId': bookingId,
+                                'cancelledByRole': 'admin',
+                              },
+                            );
+
+                            // 6. Send FCM push notification to Primary Assigned Engineer
+                            final effectivePrimary =
+                                (ticketData['assignedEmployee'] ??
+                                        ticketData['assignedEngineer'] ??
+                                        assignedEmployee)
+                                    .toString()
+                                    .trim();
+                            if (effectivePrimary.isNotEmpty &&
+                                effectivePrimary != 'Not Assigned' &&
+                                effectivePrimary.toLowerCase() != 'null') {
+                              await NotificationService.sendNotificationToFirestore(
+                                audience: 'engineer',
+                                engineerName: effectivePrimary,
+                                bookingId: bookingId,
+                                type: 'ticket_cancelled',
+                                title: 'Assigned Ticket Cancelled',
+                                body:
+                                    'Ticket $bookingId assigned to you has been cancelled by Admin. Reason: $reason',
+                                additionalData: {
+                                  'role': 'engineer',
+                                  'processed': false,
+                                  'cancellationReason': reason,
+                                  'ticketId': bookingId,
+                                  'cancelledByRole': 'admin',
+                                },
+                              );
+                            }
+
+                            // 7. Send FCM push notification to Helper Engineers
+                            final Set<String> notifiedEngineers = {
+                              effectivePrimary.toLowerCase(),
+                              'not assigned',
+                              '',
+                              'null',
+                            };
+
+                            final rawHelpers = ticketData['helpers'];
+                            if (rawHelpers is List) {
+                              for (var h in rawHelpers) {
+                                final hStr = h.toString().trim();
+                                if (hStr.isNotEmpty &&
+                                    !notifiedEngineers.contains(
+                                      hStr.toLowerCase(),
+                                    )) {
+                                  notifiedEngineers.add(hStr.toLowerCase());
+                                  await NotificationService.sendNotificationToFirestore(
+                                    audience: 'engineer',
+                                    engineerName: hStr,
+                                    bookingId: bookingId,
+                                    type: 'ticket_cancelled',
+                                    title: 'Assigned Ticket Cancelled',
+                                    body:
+                                        'Ticket $bookingId assigned to you has been cancelled by Admin. Reason: $reason',
+                                    additionalData: {
+                                      'role': 'engineer',
+                                      'processed': false,
+                                      'cancellationReason': reason,
+                                      'ticketId': bookingId,
+                                      'cancelledByRole': 'admin',
+                                    },
+                                  );
+                                }
+                              }
+                            }
+
+                            final singleHelper =
+                                (ticketData['helperName'] ??
+                                        ticketData['helper'] ??
+                                        ticketData['Helper1'] ??
+                                        '')
+                                    .toString()
+                                    .trim();
+                            if (singleHelper.isNotEmpty &&
+                                !notifiedEngineers.contains(
+                                  singleHelper.toLowerCase(),
+                                )) {
+                              notifiedEngineers.add(singleHelper.toLowerCase());
+                              await NotificationService.sendNotificationToFirestore(
+                                audience: 'engineer',
+                                engineerName: singleHelper,
+                                bookingId: bookingId,
+                                type: 'ticket_cancelled',
+                                title: 'Assigned Ticket Cancelled',
+                                body:
+                                    'Ticket $bookingId assigned to you has been cancelled by Admin. Reason: $reason',
+                                additionalData: {
+                                  'role': 'engineer',
+                                  'processed': false,
+                                  'cancellationReason': reason,
+                                  'ticketId': bookingId,
+                                  'cancelledByRole': 'admin',
+                                },
+                              );
+                            }
+
+                            if (dialogContext.mounted)
+                              Navigator.pop(dialogContext);
+                            if (parentContext.mounted) {
+                              Navigator.pop(
+                                parentContext,
+                              ); // Close ticket detail bottom sheet
+                              ScaffoldMessenger.of(parentContext).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Ticket #$bookingId cancelled successfully.',
+                                  ),
+                                  backgroundColor: const Color(0xFFEF4444),
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            if (dialogContext.mounted) {
+                              setDialogState(() => isSubmitting = false);
+                              ScaffoldMessenger.of(dialogContext).showSnackBar(
+                                SnackBar(
+                                  content: Text('Failed to cancel ticket: $e'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          }
+                        },
+                  child: isSubmitting
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text(
+                          'Confirm Cancellation',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildDialogInfoRow(String label, String value) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 12,
+            color: Color(0xFF64748B),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 12,
+            color: Color(0xFF0F172A),
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
     );
   }
 
@@ -2193,9 +3779,179 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
             ),
           ),
           const Divider(color: Color(0xFFF1F5F9), height: 1),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: child,
+          Padding(padding: const EdgeInsets.all(16), child: child),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCustomerFeedbackCard(
+    double rating,
+    String comment,
+    Timestamp? submittedAt,
+    String customerName,
+  ) {
+    final dateStr = submittedAt != null
+        ? DateFormat('dd MMM yyyy, hh:mm a').format(submittedAt.toDate())
+        : 'Recently Submitted';
+
+    const ratingLabels = ['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent'];
+    final rounded = rating.round().clamp(1, 5);
+    final label = ratingLabels[rounded];
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFBEB),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFDE68A)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.amber.withValues(alpha: 0.06),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF59E0B),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.star_rounded,
+                  size: 16,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  'Customer Rating & Feedback',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF78350F),
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFECFDF5),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFA7F3D0)),
+                ),
+                child: const Text(
+                  'Verified Feedback',
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF047857),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: List.generate(5, (index) {
+                  return Icon(
+                    index < rounded
+                        ? Icons.star_rounded
+                        : Icons.star_outline_rounded,
+                    color: const Color(0xFFF59E0B),
+                    size: 20,
+                  );
+                }),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '${rating.toStringAsFixed(1)} / 5.0 ($label)',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFFB45309),
+                ),
+              ),
+            ],
+          ),
+          if (comment.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFFDE68A)),
+              ),
+              child: Text(
+                '"$comment"',
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  fontStyle: FontStyle.italic,
+                  color: Color(0xFF451A03),
+                  height: 1.35,
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Text(
+                'Submitted by $customerName',
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF92400E),
+                ),
+              ),
+              const Spacer(),
+              Text(
+                dateStr,
+                style: const TextStyle(fontSize: 11, color: Color(0xFFB45309)),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFeedbackPendingNotice() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFBEB),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFFDE68A)),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.rate_review_outlined, size: 16, color: Color(0xFFD97706)),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Awaiting Customer Rating & Feedback (notification sent)',
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF92400E),
+              ),
+            ),
           ),
         ],
       ),
@@ -2228,7 +3984,9 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: isHighlight ? FontWeight.w800 : FontWeight.w600,
-                  color: isHighlight ? Theme.of(context).primaryColor : const Color(0xFF0F172A),
+                  color: isHighlight
+                      ? Theme.of(context).primaryColor
+                      : const Color(0xFF0F172A),
                   height: 1.4,
                 ),
               ),
@@ -2252,14 +4010,17 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
         ),
         const SizedBox(width: 10),
         Expanded(
-          child: customValue ??
+          child:
+              customValue ??
               Text(
                 value,
                 textAlign: TextAlign.right,
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: isHighlight ? FontWeight.w800 : FontWeight.w600,
-                  color: isHighlight ? Theme.of(context).primaryColor : const Color(0xFF0F172A),
+                  color: isHighlight
+                      ? Theme.of(context).primaryColor
+                      : const Color(0xFF0F172A),
                   height: 1.35,
                 ),
               ),
@@ -2651,7 +4412,9 @@ class _AdminPage_CusDetailsState extends State<AdminPage_CusDetails> {
   }
 
   void _navigateToAssignPage(customer_var.Customer customer) {
-    final isDelivery = customer.jobType.toLowerCase().trim() == 'delivery' || customer.bookingId.toUpperCase().startsWith('D');
+    final isDelivery =
+        customer.jobType.toLowerCase().trim() == 'delivery' ||
+        customer.bookingId.toUpperCase().startsWith('D');
     if (isDelivery) {
       Navigator.push(
         context,

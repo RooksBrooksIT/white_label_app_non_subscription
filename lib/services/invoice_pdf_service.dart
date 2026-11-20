@@ -27,6 +27,7 @@ class InvoicePdfService {
     required String planName,
     required bool isYearly,
     required bool isSixMonths,
+    int subscriptionYears = 1,
     required int amountPaid,
     required DateTime paymentDate,
     String? gstNumber,
@@ -35,7 +36,7 @@ class InvoicePdfService {
     final pdf = pw.Document();
 
     final duration = isYearly
-        ? '1 Year'
+        ? (subscriptionYears > 1 ? '$subscriptionYears Years' : '1 Year')
         : isSixMonths
         ? '6 Months'
         : '1 Month';

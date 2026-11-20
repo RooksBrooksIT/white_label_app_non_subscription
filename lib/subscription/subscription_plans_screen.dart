@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -492,8 +493,9 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
 
   bool _isCurrentPlan(Map<String, dynamic> plan) {
     if (_fetchedPlanName == null) return false;
-    if (plan['name'].toString().toLowerCase() !=
-        _fetchedPlanName!.toLowerCase()) {
+    final planLower = plan['name'].toString().toLowerCase();
+    final fetchedLower = _fetchedPlanName!.toLowerCase();
+    if (!fetchedLower.contains(planLower) && planLower != fetchedLower) {
       return false;
     }
     if (_fetchedBillingCycle == null) return true;
@@ -504,7 +506,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
               : (_billingDuration == BillingDuration.freeTrial
                     ? '7 Days'
                     : 'Monthly'));
-    return selectedCycle == _fetchedBillingCycle;
+    return _fetchedBillingCycle!.toLowerCase().contains(selectedCycle.toLowerCase());
   }
 
   // ── Enterprise Contact Actions ─────────────────────────────────────────────
@@ -896,14 +898,35 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
     }
 
     final isYearly = _billingDuration == BillingDuration.yearly;
+    final isPlatinum =
+        (selectedPlan['name']?.toString().toLowerCase() ?? '') == 'platinum';
+
+    // When clicking Subscribe to Platinum on Yearly billing, show duration selection modal
+    if (isYearly && isPlatinum) {
+      _showPlatinumDurationModal(selectedPlan);
+      return;
+    }
+
+    _proceedToPayment(selectedPlan, 1);
+  }
+
+  void _proceedToPayment(Map<String, dynamic> selectedPlan, int selectedYears) {
+    final isYearly = _billingDuration == BillingDuration.yearly;
     final isSixMonths = _billingDuration == BillingDuration.sixMonths;
+    final isPlatinum =
+        (selectedPlan['name']?.toString().toLowerCase() ?? '') == 'platinum';
 
     int price;
     int? originalPrice;
 
     if (isYearly) {
-      price = (selectedPlan['yearlyPrice'] as num?)?.toInt() ?? 0;
-      originalPrice = (selectedPlan['yearlyOriginalPrice'] as num?)?.toInt();
+      final baseYearly = (selectedPlan['yearlyPrice'] as num?)?.toInt() ?? 0;
+      final baseOriginal =
+          (selectedPlan['yearlyOriginalPrice'] as num?)?.toInt();
+      price = isPlatinum ? baseYearly * selectedYears : baseYearly;
+      originalPrice = baseOriginal != null
+          ? (isPlatinum ? baseOriginal * selectedYears : baseOriginal)
+          : null;
     } else if (isSixMonths) {
       price = (selectedPlan['sixMonthPrice'] as num?)?.toInt() ?? 0;
       originalPrice = (selectedPlan['sixMonthOriginalPrice'] as num?)?.toInt();
@@ -911,6 +934,10 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
       price = (selectedPlan['monthlyPrice'] as num?)?.toInt() ?? 0;
       originalPrice = (selectedPlan['monthlyOriginalPrice'] as num?)?.toInt();
     }
+
+    final effectivePlanName = (isYearly && isPlatinum && selectedYears > 1)
+        ? '${selectedPlan['name']} – $selectedYears Years'
+        : (selectedPlan['name']?.toString() ?? 'Plan');
 
     final effectiveCurrentPlan = widget.currentPlanName ?? _fetchedPlanName;
     final effectiveRemainingDays =
@@ -923,11 +950,12 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
         context,
         MaterialPageRoute(
           builder: (context) => PaymentScreen(
-            planName: selectedPlan['name']?.toString() ?? 'Plan',
+            planName: effectivePlanName,
             price: price,
             originalPrice: originalPrice,
             isYearly: isYearly,
             isSixMonths: isSixMonths,
+            subscriptionYears: selectedYears,
             isFirstTimeRegistration: widget.pendingUserData != null,
             limits: selectedPlan['limits'] as Map<String, dynamic>?,
             geoLocation: selectedPlan['geoLocation'] as bool?,
@@ -1056,25 +1084,28 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              IconButton(
-                onPressed: () => Navigator.pop(context),
-                icon: const Icon(
-                  Icons.arrow_back_rounded,
-                  color: Color(0xFF0F172A),
-                  size: 20,
-                ),
-                style: IconButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  shadowColor: Colors.black.withValues(alpha: 0.05),
-                  elevation: 2,
-                  padding: const EdgeInsets.all(8),
-                  minimumSize: const Size(38, 38),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: const BorderSide(color: Color(0xFFE2E8F0)),
+              if (!kIsWeb)
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(
+                    Icons.arrow_back_rounded,
+                    color: Color(0xFF0F172A),
+                    size: 20,
                   ),
-                ),
-              ),
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    shadowColor: Colors.black.withValues(alpha: 0.05),
+                    elevation: 2,
+                    padding: const EdgeInsets.all(8),
+                    minimumSize: const Size(38, 38),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: const BorderSide(color: Color(0xFFE2E8F0)),
+                    ),
+                  ),
+                )
+              else
+                const SizedBox(width: 38, height: 38),
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
@@ -2045,6 +2076,457 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
     );
   }
 
+  // ── PLATINUM SUBSCRIPTION DURATION SELECTION MODAL ─────────────────────────
+  void _showPlatinumDurationModal(Map<String, dynamic> selectedPlan) {
+    final int annualPrice =
+        (selectedPlan['yearlyPrice'] as num?)?.toInt() ?? 2990;
+    final int? annualOriginal =
+        (selectedPlan['yearlyOriginalPrice'] as num?)?.toInt();
+    int selectedDuration = 1; // Default selection: 1 Year
+
+    const brandBlue = Color(0xFF1A237E);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (modalContext) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final double monthlyEq = annualPrice / 12.0;
+            final int totalPayable = annualPrice * selectedDuration;
+            final int? totalOriginal = annualOriginal != null
+                ? annualOriginal * selectedDuration
+                : null;
+            final int totalSavings =
+                (totalOriginal != null && totalOriginal > totalPayable)
+                    ? totalOriginal - totalPayable
+                    : 0;
+
+            final isDesktop = MediaQuery.of(context).size.width > 768;
+
+            return Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: isDesktop ? 540 : double.infinity,
+                ),
+                child: Container(
+                  margin: isDesktop
+                      ? const EdgeInsets.symmetric(horizontal: 20, vertical: 30)
+                      : EdgeInsets.zero,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: isDesktop
+                        ? BorderRadius.circular(24)
+                        : const BorderRadius.vertical(top: Radius.circular(24)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.15),
+                        blurRadius: 20,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: SafeArea(
+                    top: false,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Drag handle
+                          Center(
+                            child: Container(
+                              width: 44,
+                              height: 4,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFCBD5E1),
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+
+                          // Header Row
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: const [
+                                    Text(
+                                      'Select Subscription Duration',
+                                      style: TextStyle(
+                                        fontSize: 19,
+                                        fontWeight: FontWeight.w900,
+                                        color: Color(0xFF0F172A),
+                                        letterSpacing: -0.3,
+                                      ),
+                                    ),
+                                    SizedBox(height: 4),
+                                    Text(
+                                      'Choose your preferred Platinum subscription period.',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500,
+                                        color: Color(0xFF64748B),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.close_rounded, size: 22),
+                                color: const Color(0xFF64748B),
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                onPressed: () => Navigator.pop(modalContext),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                          const SizedBox(height: 16),
+
+                          // Option 1 – 1 Year
+                          _buildModalDurationOption(
+                            years: 1,
+                            title: '1 Year',
+                            subtitle: 'Annual subscription',
+                            totalAmount: annualPrice * 1,
+                            monthlyEquivalent: monthlyEq,
+                            savings: annualOriginal != null && annualOriginal > annualPrice
+                                ? (annualOriginal - annualPrice) * 1
+                                : null,
+                            isSelected: selectedDuration == 1,
+                            onTap: () {
+                              setModalState(() {
+                                selectedDuration = 1;
+                              });
+                            },
+                          ),
+
+                          // Option 2 – 2 Years
+                          _buildModalDurationOption(
+                            years: 2,
+                            title: '2 Years',
+                            subtitle: 'Two-year subscription',
+                            totalAmount: annualPrice * 2,
+                            monthlyEquivalent: monthlyEq,
+                            badge: 'Popular',
+                            savings: annualOriginal != null && annualOriginal > annualPrice
+                                ? (annualOriginal - annualPrice) * 2
+                                : null,
+                            isSelected: selectedDuration == 2,
+                            onTap: () {
+                              setModalState(() {
+                                selectedDuration = 2;
+                              });
+                            },
+                          ),
+
+                          // Option 3 – 3 Years
+                          _buildModalDurationOption(
+                            years: 3,
+                            title: '3 Years',
+                            subtitle: 'Three-year subscription',
+                            totalAmount: annualPrice * 3,
+                            monthlyEquivalent: monthlyEq,
+                            badge: 'Best Value',
+                            savings: annualOriginal != null && annualOriginal > annualPrice
+                                ? (annualOriginal - annualPrice) * 3
+                                : null,
+                            isSelected: selectedDuration == 3,
+                            onTap: () {
+                              setModalState(() {
+                                selectedDuration = 3;
+                              });
+                            },
+                          ),
+
+                          const SizedBox(height: 10),
+
+                          // Selected Duration & Final Payable Amount Box
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: const Color(0xFFE2E8F0)),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Selected: ${selectedDuration == 1 ? '1 Year' : '$selectedDuration Years'}',
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF334155),
+                                      ),
+                                    ),
+                                    if (totalSavings > 0)
+                                      Text(
+                                        'Total Savings: ₹$totalSavings',
+                                        style: const TextStyle(
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w700,
+                                          color: Color(0xFF16A34A),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    const Text(
+                                      'Final Payable Amount',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF64748B),
+                                      ),
+                                    ),
+                                    Text(
+                                      '₹$totalPayable',
+                                      style: const TextStyle(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.w900,
+                                        color: brandBlue,
+                                        letterSpacing: -0.4,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(height: 16),
+
+                          // Action Buttons: Continue to Payment & Cancel
+                          Row(
+                            children: [
+                              Expanded(
+                                flex: 2,
+                                child: OutlinedButton(
+                                  onPressed: () => Navigator.pop(modalContext),
+                                  style: OutlinedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(vertical: 13),
+                                    side: const BorderSide(color: Color(0xFFCBD5E1)),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  child: const Text(
+                                    'Cancel',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF475569),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                flex: 3,
+                                child: ElevatedButton(
+                                  onPressed: () {
+                                    Navigator.pop(modalContext);
+                                    _proceedToPayment(
+                                      selectedPlan,
+                                      selectedDuration,
+                                    );
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: brandBlue,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(vertical: 13),
+                                    elevation: 2,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  child: const Text(
+                                    'Continue to Payment',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildModalDurationOption({
+    required int years,
+    required String title,
+    required String subtitle,
+    required int totalAmount,
+    required double monthlyEquivalent,
+    int? savings,
+    String? badge,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    const brandBlue = Color(0xFF1A237E);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: isSelected ? const Color(0xFFF0F4FF) : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isSelected ? brandBlue : const Color(0xFFE2E8F0),
+              width: isSelected ? 2 : 1,
+            ),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: brandBlue.withValues(alpha: 0.10),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ]
+                : [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.02),
+                      blurRadius: 4,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
+          ),
+          child: Row(
+            children: [
+              Icon(
+                isSelected
+                    ? Icons.radio_button_checked_rounded
+                    : Icons.radio_button_off_rounded,
+                color: isSelected ? brandBlue : const Color(0xFF94A3B8),
+                size: 22,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          title,
+                          style: TextStyle(
+                            fontSize: 15.5,
+                            fontWeight: FontWeight.w800,
+                            color: isSelected ? brandBlue : const Color(0xFF0F172A),
+                          ),
+                        ),
+                        if (badge != null) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? const Color(0xFFFEF3C7)
+                                  : const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              badge,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                color: isSelected
+                                    ? const Color(0xFFB45309)
+                                    : const Color(0xFF475569),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF64748B),
+                      ),
+                    ),
+                    if (savings != null && savings > 0) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        'Save ₹$savings vs original price',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF16A34A),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    '₹$totalAmount',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                      color: isSelected ? brandBlue : const Color(0xFF0F172A),
+                      letterSpacing: -0.3,
+                    ),
+                  ),
+                  Text(
+                    '₹${monthlyEquivalent.toStringAsFixed(2)}/mo',
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   // ── PRICING CARD COMPONENT ─────────────────────────────────────────────────
   Widget _buildPricingCard(Map<String, dynamic> plan) {
     final isYearly = _billingDuration == BillingDuration.yearly;
@@ -2100,32 +2582,45 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
 
     final planFeatures = (plan['features'] as List?) ?? [];
 
-    return Container(
-      decoration: BoxDecoration(
-        color: isEnterprise ? const Color(0xFF0F172A) : Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: isPopular
-              ? const Color(0xFFF59E0B)
-              : (isEnterprise
-                    ? const Color(0xFF0284C7)
-                    : (isCurrent
-                          ? const Color(0xFF22C55E)
-                          : const Color(0xFFE2E8F0))),
-          width: isPopular ? 2.2 : (isCurrent ? 2 : 1),
-        ),
-        boxShadow: [
-          BoxShadow(
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        final idx = plans.indexOf(plan);
+        if (idx != -1 && idx != _selectedPlanIndex) {
+          setState(() {
+            _selectedPlanIndex = idx;
+          });
+          if (_pageController.hasClients) {
+            _pageController.animateToPage(
+              idx,
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeInOut,
+            );
+          }
+        }
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
             color: isPopular
-                ? const Color(0xFFF59E0B).withValues(alpha: 0.15)
-                : (isEnterprise
-                      ? Colors.black.withValues(alpha: 0.22)
-                      : Colors.black.withValues(alpha: 0.05)),
-            blurRadius: isPopular ? 18 : 12,
-            offset: const Offset(0, 6),
+                ? const Color(0xFFF59E0B)
+                : (isCurrent
+                      ? const Color(0xFF22C55E)
+                      : const Color(0xFFE2E8F0)),
+            width: isPopular ? 2.2 : (isCurrent ? 2 : 1),
           ),
-        ],
-      ),
+          boxShadow: [
+            BoxShadow(
+              color: isPopular
+                  ? const Color(0xFFF59E0B).withValues(alpha: 0.15)
+                  : Colors.black.withValues(alpha: 0.05),
+              blurRadius: isPopular ? 18 : 12,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(24),
         child: SingleChildScrollView(
@@ -2189,12 +2684,10 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
                       children: [
                         Text(
                           plan['name']?.toString() ?? '',
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.w900,
-                            color: isEnterprise
-                                ? Colors.white
-                                : const Color(0xFF0F172A),
+                            color: Color(0xFF0F172A),
                             letterSpacing: -0.4,
                           ),
                         ),
@@ -2205,14 +2698,14 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
                           ),
                           decoration: BoxDecoration(
                             color: isEnterprise
-                                ? const Color(0xFF1E293B)
+                                ? const Color(0xFFEFF6FF)
                                 : (isPopular
                                       ? const Color(0xFFFEF3C7)
                                       : const Color(0xFFF1F5F9)),
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
                               color: isEnterprise
-                                  ? const Color(0xFF334155)
+                                  ? const Color(0xFFBFDBFE)
                                   : (isPopular
                                         ? const Color(0xFFFCD34D)
                                         : const Color(0xFFE2E8F0)),
@@ -2224,7 +2717,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
                               fontSize: 11,
                               fontWeight: FontWeight.w800,
                               color: isEnterprise
-                                  ? const Color(0xFF38BDF8)
+                                  ? const Color(0xFF0284C7)
                                   : (isPopular
                                         ? const Color(0xFFB45309)
                                         : const Color(0xFF475569)),
@@ -2236,11 +2729,9 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
                     const SizedBox(height: 3),
                     Text(
                       plan['tagline']?.toString() ?? '',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 12.5,
-                        color: isEnterprise
-                            ? const Color(0xFF94A3B8)
-                            : const Color(0xFF64748B),
+                        color: Color(0xFF64748B),
                         height: 1.25,
                         fontWeight: FontWeight.w500,
                       ),
@@ -2257,7 +2748,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
                         style: TextStyle(
                           fontSize: 28,
                           fontWeight: FontWeight.w900,
-                          color: Colors.white,
+                          color: Color(0xFF0F172A),
                           letterSpacing: -0.5,
                         ),
                       ),
@@ -2266,7 +2757,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
                         'Custom quotation based on your organization\'s size',
                         style: TextStyle(
                           fontSize: 12,
-                          color: Color(0xFF94A3B8),
+                          color: Color(0xFF64748B),
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -2332,14 +2823,10 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
                         vertical: 8,
                       ),
                       decoration: BoxDecoration(
-                        color: isEnterprise
-                            ? const Color(0xFF1E293B)
-                            : const Color(0xFFF8FAFC),
+                        color: const Color(0xFFF8FAFC),
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(
-                          color: isEnterprise
-                              ? const Color(0xFF334155)
-                              : const Color(0xFFE2E8F0),
+                          color: const Color(0xFFE2E8F0),
                         ),
                       ),
                       child: Row(
@@ -2354,9 +2841,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
                           Container(
                             width: 1,
                             height: 24,
-                            color: isEnterprise
-                                ? const Color(0xFF334155)
-                                : const Color(0xFFE2E8F0),
+                            color: const Color(0xFFE2E8F0),
                           ),
                           _buildQuotaPill(
                             Icons.engineering_rounded,
@@ -2367,9 +2852,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
                           Container(
                             width: 1,
                             height: 24,
-                            color: isEnterprise
-                                ? const Color(0xFF334155)
-                                : const Color(0xFFE2E8F0),
+                            color: const Color(0xFFE2E8F0),
                           ),
                           _buildQuotaPill(
                             Icons.cloud_done_rounded,
@@ -2393,9 +2876,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
                             : () => _handlePlanAction(plan),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: isCurrent
-                              ? (isEnterprise
-                                    ? const Color(0xFF334155)
-                                    : const Color(0xFFE2E8F0))
+                              ? const Color(0xFFE2E8F0)
                               : (isEnterprise
                                     ? const Color(0xFF0284C7)
                                     : (isPopular
@@ -2407,7 +2888,9 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
                           elevation: isCurrent ? 0 : 2,
                           shadowColor: isPopular
                               ? const Color(0xFFD97706).withValues(alpha: 0.3)
-                              : Colors.black.withValues(alpha: 0.15),
+                              : (isEnterprise
+                                    ? const Color(0xFF0284C7).withValues(alpha: 0.3)
+                                    : Colors.black.withValues(alpha: 0.15)),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -2448,9 +2931,9 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
                           vertical: 7,
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF1E293B),
+                          color: const Color(0xFFF0F7FF),
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: const Color(0xFF334155)),
+                          border: Border.all(color: const Color(0xFFBFDBFE)),
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -2462,14 +2945,14 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
                                   Icon(
                                     Icons.phone,
                                     size: 13,
-                                    color: Color(0xFF38BDF8),
+                                    color: Color(0xFF0284C7),
                                   ),
                                   SizedBox(width: 4),
                                   Text(
                                     _businessPhone,
                                     style: TextStyle(
                                       fontSize: 11,
-                                      color: Color(0xFF38BDF8),
+                                      color: Color(0xFF0284C7),
                                       fontWeight: FontWeight.w700,
                                     ),
                                   ),
@@ -2479,7 +2962,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
                             Container(
                               width: 1,
                               height: 12,
-                              color: const Color(0xFF475569),
+                              color: const Color(0xFFCBD5E1),
                             ),
                             GestureDetector(
                               onTap: _sendEmail,
@@ -2488,14 +2971,14 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
                                   Icon(
                                     Icons.email,
                                     size: 13,
-                                    color: Color(0xFF38BDF8),
+                                    color: Color(0xFF0284C7),
                                   ),
                                   SizedBox(width: 4),
                                   Text(
                                     'Email Us',
                                     style: TextStyle(
                                       fontSize: 11,
-                                      color: Color(0xFF38BDF8),
+                                      color: Color(0xFF0284C7),
                                       fontWeight: FontWeight.w700,
                                     ),
                                   ),
@@ -2510,14 +2993,12 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
                     const SizedBox(height: 14),
 
                     // Features Checklist (Increased font size & high readability)
-                    Text(
+                    const Text(
                       'What\'s Included:',
                       style: TextStyle(
                         fontSize: 13.5,
                         fontWeight: FontWeight.w800,
-                        color: isEnterprise
-                            ? Colors.white
-                            : const Color(0xFF0F172A),
+                        color: Color(0xFF0F172A),
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -2534,9 +3015,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
                               padding: const EdgeInsets.all(2),
                               decoration: BoxDecoration(
                                 color: isEnterprise
-                                    ? const Color(
-                                        0xFF0284C7,
-                                      ).withValues(alpha: 0.2)
+                                    ? const Color(0xFFEFF6FF)
                                     : (isPopular
                                           ? const Color(0xFFFEF3C7)
                                           : const Color(0xFFF1F5F9)),
@@ -2546,7 +3025,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
                                 Icons.check_rounded,
                                 size: 13,
                                 color: isEnterprise
-                                    ? const Color(0xFF38BDF8)
+                                    ? const Color(0xFF0284C7)
                                     : (isPopular
                                           ? const Color(0xFFD97706)
                                           : const Color(0xFF16A34A)),
@@ -2556,12 +3035,10 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
                             Expanded(
                               child: Text(
                                 feature,
-                                style: TextStyle(
+                                style: const TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
-                                  color: isEnterprise
-                                      ? const Color(0xFFCBD5E1)
-                                      : const Color(0xFF334155),
+                                  color: Color(0xFF334155),
                                   height: 1.25,
                                 ),
                               ),
@@ -2577,6 +3054,7 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
           ),
         ),
       ),
+    ),
     );
   }
 
@@ -2592,26 +3070,24 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
           icon,
           size: 16,
           color: isEnterprise
-              ? const Color(0xFF38BDF8)
+              ? const Color(0xFF0284C7)
               : const Color(0xFF0F172A),
         ),
         const SizedBox(height: 2),
         Text(
           value,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 12.5,
             fontWeight: FontWeight.w800,
-            color: isEnterprise ? Colors.white : const Color(0xFF0F172A),
+            color: Color(0xFF0F172A),
           ),
         ),
         Text(
           label,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 10,
             fontWeight: FontWeight.w500,
-            color: isEnterprise
-                ? const Color(0xFF94A3B8)
-                : const Color(0xFF64748B),
+            color: Color(0xFF64748B),
           ),
         ),
       ],

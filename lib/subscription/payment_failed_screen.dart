@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 import 'subscription_plans_screen.dart';
 
 class PaymentFailedScreen extends StatelessWidget {
@@ -30,14 +31,17 @@ class PaymentFailedScreen extends StatelessWidget {
       child: Scaffold(
         backgroundColor: const Color(0xFFF8F9FA),
         body: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 24.0,
-              vertical: 40.0,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: kMaxCardWidth),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24.0,
+                  vertical: 40.0,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
                 const SizedBox(height: 20),
                 // Failure Icon
                 Container(
@@ -211,7 +215,9 @@ class PaymentFailedScreen extends StatelessWidget {
           ),
         ),
       ),
-    );
+    ),
+  ),
+);
   }
 
   Widget _buildDetailRow(String label, String value) {

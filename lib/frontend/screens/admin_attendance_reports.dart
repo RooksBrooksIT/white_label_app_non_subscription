@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:subscription_rooks_app/backend/attendance_backend.dart';
 import 'package:pdf/pdf.dart';
@@ -7,6 +8,7 @@ import 'package:printing/printing.dart';
 import 'package:intl/intl.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:subscription_rooks_app/utils/pdf_utils.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class AdminAttendanceReportsPage extends StatefulWidget {
   const AdminAttendanceReportsPage({super.key});
@@ -116,10 +118,13 @@ class _AdminAttendanceReportsPageState
           preferredSize: const Size.fromHeight(1),
           child: Container(color: const Color(0xFFE2E8F0), height: 1),
         ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF0F172A), size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: !kIsWeb,
+        leading: kIsWeb
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF0F172A), size: 20),
+                onPressed: () => Navigator.pop(context),
+              ),
         title: const Text(
           'Attendance Reports',
           style: TextStyle(
@@ -130,11 +135,14 @@ class _AdminAttendanceReportsPageState
         ),
       ),
       body: SafeArea(
-        child: Column(
-          children: [
-            _buildFilterSection(primaryColor),
-            Expanded(child: _buildAttendanceList()),
-          ],
+        child: ResponsiveWrapper(
+          maxWidth: 960,
+          child: Column(
+            children: [
+              _buildFilterSection(primaryColor),
+              Expanded(child: _buildAttendanceList()),
+            ],
+          ),
         ),
       ),
     );
@@ -596,6 +604,7 @@ class _AdminAttendanceReportsPageState
                       presentCount,
                       absentCount,
                       halfDayCount,
+                      leaveCount,
                       otCount,
                       uniqueEngineerIds.length,
                       displayDate,
@@ -867,6 +876,7 @@ class _AdminAttendanceReportsPageState
     int present,
     int absent,
     int halfDay,
+    int leave,
     int ot,
     int totalEngineers,
     String displayDate,
@@ -880,7 +890,8 @@ class _AdminAttendanceReportsPageState
         ),
       );
 
-      final pdf = pw.Document();
+      final theme = await PdfUtils.loadReportTheme();
+      final pdf = pw.Document(theme: theme);
 
       // Load logo
       pw.MemoryImage? logoImage;
@@ -889,195 +900,149 @@ class _AdminAttendanceReportsPageState
         logoImage = await PdfUtils.fetchNetworkImage(logoUrl);
       }
 
+      final appName = ThemeService.instance.appName;
+      String engineerFilterName = 'All Engineers';
+      String filenameEngPart = 'All';
+      if (_selectedEngineerId != null) {
+        final found = _engineers.firstWhere(
+          (e) => e['uid'] == _selectedEngineerId,
+          orElse: () => {},
+        );
+        if (found['username'] != null &&
+            found['username'].toString().isNotEmpty) {
+          engineerFilterName = found['username'].toString().toUpperCase();
+          filenameEngPart = found['username'].toString().replaceAll(' ', '_');
+        }
+      }
+
       pdf.addPage(
         pw.MultiPage(
-          pageFormat: PdfPageFormat.a4.landscape,
-          margin: const pw.EdgeInsets.all(32),
-          header: (context) => pw.Column(
-            children: [
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      if (logoImage != null)
-                        pw.Image(logoImage, width: 80)
-                      else
-                        pw.Text(
-                          ThemeService.instance.appName.toUpperCase(),
-                          style: pw.TextStyle(
-                            fontSize: 20,
-                            fontWeight: pw.FontWeight.bold,
-                            color: PdfColors.blue900,
-                          ),
-                        ),
-                      pw.SizedBox(height: 4),
-                      pw.Text(
-                        'Attendance Performance Report',
-                        style: pw.TextStyle(
-                          fontSize: 14,
-                          fontWeight: pw.FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                  pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.end,
-                    children: [
-                      pw.Text(
-                        'Date: ${DateFormat('dd MMM yyyy').format(DateTime.now())}',
-                        style: const pw.TextStyle(fontSize: 10),
-                      ),
-                      pw.Text(
-                        'Engineer: ${_selectedEngineerId != null ? _engineers.firstWhere((e) => e['uid'] == _selectedEngineerId)['username']?.toString().toUpperCase() : "All Engineers"}',
-                        style: const pw.TextStyle(fontSize: 10),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              pw.Divider(thickness: 1, color: PdfColors.blue900, height: 20),
-            ],
-          ),
-          build: (context) {
-            List<pw.Widget> content = [];
-
-            // Summary Stats - First Row (Present, Absent, Half Day, OT)
-            content.add(pw.SizedBox(height: 10));
-            content.add(
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceEvenly,
-                children: [
-                  _pdfSummaryBox(
-                    'Present',
-                    present.toString(),
-                    PdfColors.green700,
-                  ),
-                  _pdfSummaryBox('Absent', absent.toString(), PdfColors.red700),
-                  _pdfSummaryBox(
-                    'Half Day',
-                    halfDay.toString(),
-                    PdfColors.orange700,
-                  ),
-                  _pdfSummaryBox('OT', ot.toString(), PdfColors.blue700),
-                ],
-              ),
-            );
-
-            // Summary Stats - Second Row (Total Engineers, Current Date)
-            content.add(pw.SizedBox(height: 12));
-            content.add(
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceEvenly,
-                children: [
-                  _pdfSummaryBox(
-                    'Total Engineers',
-                    totalEngineers.toString(),
-                    PdfColors.blueGrey700,
-                    isWide: true,
-                  ),
-                  _pdfSummaryBox(
-                    'Current Date',
-                    displayDate,
-                    PdfColors.indigo700,
-                    isWide: true,
-                  ),
-                ],
-              ),
-            );
-            content.add(pw.SizedBox(height: 24));
-
-            if (list.isEmpty) {
-              // Empty state
-              content.add(
-                pw.Center(
-                  child: pw.Text(
-                    'No attendance records found for the selected filters.',
-                    style: pw.TextStyle(fontSize: 14, color: PdfColors.grey600),
-                  ),
-                ),
-              );
-            } else {
-              // Attendance Table
-              final tableData = list.map((d) {
-                try {
-                  final username =
-                      d['engineerUsername']?.toString().toUpperCase() ?? 'N/A';
-
-                  String dateStr = '-';
-                  if (d['date'] != null) {
-                    dateStr = DateFormat(
-                      'dd/MM/yyyy',
-                    ).format(_parseTimestamp(d['date']).toDate());
-                  }
-
-                  return [
-                    dateStr,
-                    username,
-                    d['status']?.toString() ?? 'N/A',
-                    d['comment']?.toString() ?? '-',
-                  ];
-                } catch (e) {
-                  return ['-', 'Error', '-', '-'];
-                }
-              }).toList();
-
-              content.add(
-                pw.Table.fromTextArray(
-                  context: context,
-                  border: pw.TableBorder.all(
-                    color: PdfColors.grey300,
-                    width: 1,
-                  ),
-                  headerStyle: pw.TextStyle(
-                    fontWeight: pw.FontWeight.bold,
-                    color: PdfColors.white,
-                  ),
-                  headerDecoration: const pw.BoxDecoration(
-                    color: PdfColors.blue900,
-                  ),
-                  cellHeight: 30,
-                  cellAlignment: pw.Alignment.centerLeft,
-                  cellAlignments: {
-                    0: pw.Alignment.centerLeft,
-                    1: pw.Alignment.centerLeft,
-                    2: pw.Alignment.center,
-                    3: pw.Alignment.centerLeft,
-                  },
-                  columnWidths: const {
-                    0: pw.FixedColumnWidth(80),
-                    1: pw.FlexColumnWidth(),
-                    2: pw.FixedColumnWidth(80),
-                    3: pw.FlexColumnWidth(),
-                  },
-                  headers: ['Date', 'Engineer Name', 'Status', 'Remarks'],
-                  data: tableData,
-                ),
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+          header: (context) {
+            if (context.pageNumber == 1) {
+              return _buildPdfHeader(
+                logoImage: logoImage,
+                appName: appName,
+                displayDate: displayDate,
+                engineerFilter: engineerFilterName,
               );
             }
+            return pw.Container(
+              margin: const pw.EdgeInsets.only(bottom: 10),
+              padding: const pw.EdgeInsets.only(bottom: 6),
+              decoration: const pw.BoxDecoration(
+                border: pw.Border(
+                  bottom: pw.BorderSide(
+                    color: PdfColor.fromInt(0xFFE2E8F0),
+                    width: 0.8,
+                  ),
+                ),
+              ),
+              child: pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text(
+                    '$appName - Engineer Attendance Report',
+                    style: pw.TextStyle(
+                      fontSize: 8.5,
+                      fontWeight: pw.FontWeight.bold,
+                      color: const PdfColor.fromInt(0xFF0F172A),
+                    ),
+                  ),
+                  pw.Text(
+                    displayDate,
+                    style: const pw.TextStyle(
+                      fontSize: 8,
+                      color: PdfColor.fromInt(0xFF64748B),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+          build: (context) {
+            return [
+              // Summary Section
+              _buildPdfSummaryRow(
+                present: present,
+                absent: absent,
+                halfDay: halfDay,
+                leave: leave,
+                totalEngineers: totalEngineers,
+                ot: ot,
+              ),
+              pw.SizedBox(height: 14),
 
-            return content;
+              // Table Title & Counter Bar
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: pw.CrossAxisAlignment.center,
+                children: [
+                  pw.Text(
+                    'ATTENDANCE LOGS',
+                    style: pw.TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: pw.FontWeight.bold,
+                      color: const PdfColor.fromInt(0xFF0F172A),
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  pw.Container(
+                    padding: const pw.EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: pw.BoxDecoration(
+                      color: const PdfColor.fromInt(0xFFF1F5F9),
+                      borderRadius: const pw.BorderRadius.all(
+                        pw.Radius.circular(4),
+                      ),
+                      border: pw.Border.all(
+                        color: const PdfColor.fromInt(0xFFE2E8F0),
+                        width: 0.6,
+                      ),
+                    ),
+                    child: pw.Text(
+                      '${list.length} ${list.length == 1 ? "Record" : "Records"}',
+                      style: pw.TextStyle(
+                        fontSize: 7.5,
+                        fontWeight: pw.FontWeight.bold,
+                        color: const PdfColor.fromInt(0xFF475569),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              pw.SizedBox(height: 6),
+
+              // Attendance Details Table
+              _buildAttendanceTable(list),
+            ];
           },
           footer: (context) => pw.Column(
             children: [
-              pw.Divider(thickness: 0.5, color: PdfColors.grey400),
-              pw.SizedBox(height: 8),
+              pw.Divider(
+                thickness: 0.5,
+                color: const PdfColor.fromInt(0xFFCBD5E1),
+              ),
+              pw.SizedBox(height: 4),
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
                   pw.Text(
-                    'System Generated Official Document',
+                    '$appName - Confidential Internal Report',
                     style: const pw.TextStyle(
                       fontSize: 7,
-                      color: PdfColors.grey600,
+                      color: PdfColor.fromInt(0xFF64748B),
                     ),
                   ),
                   pw.Text(
                     'Page ${context.pageNumber} of ${context.pagesCount}',
-                    style: const pw.TextStyle(
+                    style: pw.TextStyle(
                       fontSize: 7,
-                      color: PdfColors.grey600,
+                      fontWeight: pw.FontWeight.bold,
+                      color: const PdfColor.fromInt(0xFF64748B),
                     ),
                   ),
                 ],
@@ -1087,7 +1052,6 @@ class _AdminAttendanceReportsPageState
         ),
       );
 
-      // Pre-calculate the bytes to ensure it's built successfully
       final bytes = await pdf.save();
 
       if (mounted) {
@@ -1099,10 +1063,15 @@ class _AdminAttendanceReportsPageState
         );
       }
 
+      final cleanDate = displayDate
+          .replaceAll(' ', '_')
+          .replaceAll(',', '')
+          .replaceAll('-', '_');
+      final pdfName = 'Attendance_Report_${filenameEngPart}_$cleanDate.pdf';
+
       await Printing.layoutPdf(
         onLayout: (PdfPageFormat format) async => bytes,
-        name:
-            'Attendance_Report_${_selectedEngineerId != null ? _engineers.firstWhere((e) => e['uid'] == _selectedEngineerId, orElse: () => {})['username'] ?? "Unknown" : "All"}.pdf',
+        name: pdfName,
       );
     } catch (e) {
       debugPrint('CRITICAL PDF ERROR: $e');
@@ -1118,44 +1087,486 @@ class _AdminAttendanceReportsPageState
     }
   }
 
-  pw.Widget _pdfSummaryBox(
-    String title,
-    String value,
-    PdfColor color, {
-    bool isWide = false,
+  pw.Widget _buildPdfHeader({
+    required pw.MemoryImage? logoImage,
+    required String appName,
+    required String displayDate,
+    required String engineerFilter,
+  }) {
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                if (logoImage != null)
+                  pw.Container(
+                    height: 36,
+                    margin: const pw.EdgeInsets.only(bottom: 4),
+                    child: pw.Image(logoImage, fit: pw.BoxFit.contain),
+                  )
+                else
+                  pw.Text(
+                    appName.toUpperCase(),
+                    style: pw.TextStyle(
+                      fontSize: 18,
+                      fontWeight: pw.FontWeight.bold,
+                      color: const PdfColor.fromInt(0xFF1E3A8A),
+                    ),
+                  ),
+                pw.Text(
+                  'Engineer Attendance Report',
+                  style: pw.TextStyle(
+                    fontSize: 15,
+                    fontWeight: pw.FontWeight.bold,
+                    color: const PdfColor.fromInt(0xFF0F172A),
+                  ),
+                ),
+                pw.SizedBox(height: 2),
+                pw.Text(
+                  'Attendance and performance log summary',
+                  style: const pw.TextStyle(
+                    fontSize: 8,
+                    color: PdfColor.fromInt(0xFF64748B),
+                  ),
+                ),
+              ],
+            ),
+            pw.Container(
+              padding: const pw.EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: 7,
+              ),
+              decoration: pw.BoxDecoration(
+                color: const PdfColor.fromInt(0xFFF8FAFC),
+                borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
+                border: pw.Border.all(
+                  color: const PdfColor.fromInt(0xFFE2E8F0),
+                  width: 0.8,
+                ),
+              ),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.end,
+                children: [
+                  pw.Row(
+                    mainAxisSize: pw.MainAxisSize.min,
+                    children: [
+                      pw.Text(
+                        'Period: ',
+                        style: pw.TextStyle(
+                          fontSize: 8,
+                          fontWeight: pw.FontWeight.bold,
+                          color: const PdfColor.fromInt(0xFF475569),
+                        ),
+                      ),
+                      pw.Text(
+                        displayDate,
+                        style: pw.TextStyle(
+                          fontSize: 8,
+                          fontWeight: pw.FontWeight.bold,
+                          color: const PdfColor.fromInt(0xFF0F172A),
+                        ),
+                      ),
+                    ],
+                  ),
+                  pw.SizedBox(height: 3),
+                  pw.Row(
+                    mainAxisSize: pw.MainAxisSize.min,
+                    children: [
+                      pw.Text(
+                        'Engineer: ',
+                        style: pw.TextStyle(
+                          fontSize: 8,
+                          fontWeight: pw.FontWeight.bold,
+                          color: const PdfColor.fromInt(0xFF475569),
+                        ),
+                      ),
+                      pw.Text(
+                        engineerFilter,
+                        style: const pw.TextStyle(
+                          fontSize: 8,
+                          color: PdfColor.fromInt(0xFF0F172A),
+                        ),
+                      ),
+                    ],
+                  ),
+                  pw.SizedBox(height: 3),
+                  pw.Row(
+                    mainAxisSize: pw.MainAxisSize.min,
+                    children: [
+                      pw.Text(
+                        'Generated: ',
+                        style: const pw.TextStyle(
+                          fontSize: 7.5,
+                          color: PdfColor.fromInt(0xFF64748B),
+                        ),
+                      ),
+                      pw.Text(
+                        DateFormat(
+                          'dd MMM yyyy, hh:mm a',
+                        ).format(DateTime.now()),
+                        style: const pw.TextStyle(
+                          fontSize: 7.5,
+                          color: PdfColor.fromInt(0xFF64748B),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        pw.SizedBox(height: 8),
+        pw.Container(
+          height: 1.5,
+          color: const PdfColor.fromInt(0xFF2563EB),
+        ),
+        pw.SizedBox(height: 10),
+      ],
+    );
+  }
+
+  pw.Widget _buildPdfSummaryRow({
+    required int present,
+    required int absent,
+    required int halfDay,
+    required int leave,
+    required int totalEngineers,
+    required int ot,
+  }) {
+    final cards = <pw.Widget>[
+      _buildPdfSummaryCard(
+        label: 'Present',
+        value: present.toString(),
+        textColor: const PdfColor.fromInt(0xFF15803D),
+        bgColor: const PdfColor.fromInt(0xFFF0FDF4),
+        borderColor: const PdfColor.fromInt(0xFFBBF7D0),
+      ),
+      pw.SizedBox(width: 6),
+      _buildPdfSummaryCard(
+        label: 'Absent',
+        value: absent.toString(),
+        textColor: const PdfColor.fromInt(0xFFB91C1C),
+        bgColor: const PdfColor.fromInt(0xFFFEF2F2),
+        borderColor: const PdfColor.fromInt(0xFFFECACA),
+      ),
+      pw.SizedBox(width: 6),
+      _buildPdfSummaryCard(
+        label: 'Half Day',
+        value: halfDay.toString(),
+        textColor: const PdfColor.fromInt(0xFFB45309),
+        bgColor: const PdfColor.fromInt(0xFFFFFBEB),
+        borderColor: const PdfColor.fromInt(0xFFFDE68A),
+      ),
+      pw.SizedBox(width: 6),
+      _buildPdfSummaryCard(
+        label: 'On Leave',
+        value: leave.toString(),
+        textColor: const PdfColor.fromInt(0xFF1D4ED8),
+        bgColor: const PdfColor.fromInt(0xFFEFF6FF),
+        borderColor: const PdfColor.fromInt(0xFFBFDBFE),
+      ),
+      pw.SizedBox(width: 6),
+      _buildPdfSummaryCard(
+        label: 'Total Engineers',
+        value: totalEngineers.toString(),
+        textColor: const PdfColor.fromInt(0xFF0F172A),
+        bgColor: const PdfColor.fromInt(0xFFF8FAFC),
+        borderColor: const PdfColor.fromInt(0xFFCBD5E1),
+      ),
+    ];
+
+    if (ot > 0) {
+      cards.add(pw.SizedBox(width: 6));
+      cards.add(
+        _buildPdfSummaryCard(
+          label: 'Overtime',
+          value: ot.toString(),
+          textColor: const PdfColor.fromInt(0xFF7C3AED),
+          bgColor: const PdfColor.fromInt(0xFFFAF5FF),
+          borderColor: const PdfColor.fromInt(0xFFE9D5FF),
+        ),
+      );
+    }
+
+    return pw.Row(children: cards);
+  }
+
+  pw.Widget _buildPdfSummaryCard({
+    required String label,
+    required String value,
+    required PdfColor textColor,
+    required PdfColor bgColor,
+    required PdfColor borderColor,
+  }) {
+    return pw.Expanded(
+      child: pw.Container(
+        padding: const pw.EdgeInsets.symmetric(vertical: 7, horizontal: 4),
+        decoration: pw.BoxDecoration(
+          color: bgColor,
+          borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
+          border: pw.Border.all(color: borderColor, width: 0.8),
+        ),
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.center,
+          mainAxisAlignment: pw.MainAxisAlignment.center,
+          children: [
+            pw.Text(
+              value,
+              style: pw.TextStyle(
+                fontSize: 16,
+                fontWeight: pw.FontWeight.bold,
+                color: textColor,
+              ),
+            ),
+            pw.SizedBox(height: 2),
+            pw.Text(
+              label.toUpperCase(),
+              style: pw.TextStyle(
+                fontSize: 6.8,
+                fontWeight: pw.FontWeight.bold,
+                color: const PdfColor.fromInt(0xFF64748B),
+              ),
+              textAlign: pw.TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  pw.Widget _buildAttendanceTable(List<dynamic> list) {
+    if (list.isEmpty) {
+      return pw.Container(
+        margin: const pw.EdgeInsets.symmetric(vertical: 24),
+        padding: const pw.EdgeInsets.all(20),
+        alignment: pw.Alignment.center,
+        decoration: pw.BoxDecoration(
+          color: const PdfColor.fromInt(0xFFF8FAFC),
+          borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
+          border: pw.Border.all(color: const PdfColor.fromInt(0xFFE2E8F0)),
+        ),
+        child: pw.Column(
+          children: [
+            pw.Text(
+              'No Attendance Records Found',
+              style: pw.TextStyle(
+                fontSize: 11,
+                fontWeight: pw.FontWeight.bold,
+                color: const PdfColor.fromInt(0xFF475569),
+              ),
+            ),
+            pw.SizedBox(height: 3),
+            pw.Text(
+              'There are no attendance records for the selected period and filter.',
+              style: const pw.TextStyle(
+                fontSize: 8.5,
+                color: PdfColor.fromInt(0xFF94A3B8),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final rows = <pw.TableRow>[
+      pw.TableRow(
+        repeat: true,
+        decoration: const pw.BoxDecoration(
+          color: PdfColor.fromInt(0xFF0F172A),
+        ),
+        children: [
+          _pdfTableHeaderCell('Date'),
+          _pdfTableHeaderCell('Engineer Name'),
+          _pdfTableHeaderCell('Status', align: pw.TextAlign.center),
+          _pdfTableHeaderCell('Remarks'),
+        ],
+      ),
+    ];
+
+    for (int i = 0; i < list.length; i++) {
+      final d = list[i];
+      String dateStr = '-';
+      if (d['date'] != null) {
+        try {
+          final dt = _parseTimestamp(d['date']).toDate();
+          dateStr = DateFormat('dd MMM yyyy').format(dt);
+        } catch (_) {
+          dateStr = d['date'].toString();
+        }
+      }
+
+      final username = d['engineerUsername']?.toString().toUpperCase() ?? 'N/A';
+      final status = d['status']?.toString() ?? 'N/A';
+      final rawComment = d['comment']?.toString();
+      String remarks = '';
+      if (rawComment != null) {
+        final trimmed = rawComment.trim();
+        if (trimmed.isNotEmpty &&
+            trimmed != '-' &&
+            trimmed != '—' &&
+            trimmed != '–' &&
+            trimmed.toLowerCase() != 'null' &&
+            trimmed.toLowerCase() != 'n/a') {
+          // Normalize common unicode characters for reliable PDF font rendering
+          remarks = trimmed
+              .replaceAll('\u2014', '-')
+              .replaceAll('\u2013', '-')
+              .replaceAll('\u2018', "'")
+              .replaceAll('\u2019', "'")
+              .replaceAll('\u201C', '"')
+              .replaceAll('\u201D', '"')
+              .replaceAll('\u2026', '...')
+              .replaceAll('\u00A0', ' ');
+        }
+      }
+
+      final isEven = i % 2 == 0;
+      final rowBg = isEven
+          ? const PdfColor.fromInt(0xFFFFFFFF)
+          : const PdfColor.fromInt(0xFFF8FAFC);
+
+      rows.add(
+        pw.TableRow(
+          decoration: pw.BoxDecoration(color: rowBg),
+          children: [
+            _pdfTableCell(
+              child: pw.Text(
+                dateStr,
+                style: const pw.TextStyle(
+                  fontSize: 8,
+                  color: PdfColor.fromInt(0xFF334155),
+                ),
+              ),
+            ),
+            _pdfTableCell(
+              child: pw.Text(
+                username,
+                style: pw.TextStyle(
+                  fontSize: 8,
+                  fontWeight: pw.FontWeight.bold,
+                  color: const PdfColor.fromInt(0xFF0F172A),
+                ),
+              ),
+            ),
+            _pdfTableCell(
+              alignment: pw.Alignment.center,
+              child: _pdfStatusBadge(status),
+            ),
+            _pdfTableCell(
+              child: remarks.isNotEmpty
+                  ? pw.Text(
+                      remarks,
+                      style: const pw.TextStyle(
+                        fontSize: 8,
+                        color: PdfColor.fromInt(0xFF475569),
+                      ),
+                    )
+                  : pw.SizedBox(),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return pw.Table(
+      border: pw.TableBorder(
+        bottom: const pw.BorderSide(
+          color: PdfColor.fromInt(0xFFE2E8F0),
+          width: 0.8,
+        ),
+        horizontalInside: const pw.BorderSide(
+          color: PdfColor.fromInt(0xFFE2E8F0),
+          width: 0.6,
+        ),
+      ),
+      columnWidths: const {
+        0: pw.FixedColumnWidth(80),
+        1: pw.FlexColumnWidth(2.2),
+        2: pw.FixedColumnWidth(90),
+        3: pw.FlexColumnWidth(2.8),
+      },
+      defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
+      children: rows,
+    );
+  }
+
+  pw.Widget _pdfTableHeaderCell(
+    String text, {
+    pw.TextAlign align = pw.TextAlign.left,
+  }) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+      child: pw.Text(
+        text,
+        textAlign: align,
+        style: pw.TextStyle(
+          color: const PdfColor.fromInt(0xFFFFFFFF),
+          fontSize: 8.5,
+          fontWeight: pw.FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  pw.Widget _pdfTableCell({
+    required pw.Widget child,
+    pw.Alignment alignment = pw.Alignment.centerLeft,
   }) {
     return pw.Container(
-      width: isWide ? 180 : 130,
-      height: 80,
-      padding: const pw.EdgeInsets.all(12),
+      alignment: alignment,
+      padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      child: child,
+    );
+  }
+
+  pw.Widget _pdfStatusBadge(String status) {
+    final clean = status.trim().toLowerCase();
+    PdfColor bg;
+    PdfColor text;
+    PdfColor border;
+
+    if (clean == 'present') {
+      bg = const PdfColor.fromInt(0xFFDCFCE7);
+      text = const PdfColor.fromInt(0xFF15803D);
+      border = const PdfColor.fromInt(0xFF86EFAC);
+    } else if (clean == 'absent') {
+      bg = const PdfColor.fromInt(0xFFFEE2E2);
+      text = const PdfColor.fromInt(0xFFB91C1C);
+      border = const PdfColor.fromInt(0xFFFCA5A5);
+    } else if (clean.contains('half')) {
+      bg = const PdfColor.fromInt(0xFFFEF3C7);
+      text = const PdfColor.fromInt(0xFFB45309);
+      border = const PdfColor.fromInt(0xFFFCD34D);
+    } else if (clean.contains('leave')) {
+      bg = const PdfColor.fromInt(0xFFDBEAFE);
+      text = const PdfColor.fromInt(0xFF1D4ED8);
+      border = const PdfColor.fromInt(0xFF93C5FD);
+    } else {
+      bg = const PdfColor.fromInt(0xFFF1F5F9);
+      text = const PdfColor.fromInt(0xFF475569);
+      border = const PdfColor.fromInt(0xFFCBD5E1);
+    }
+
+    return pw.Container(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
       decoration: pw.BoxDecoration(
-        border: pw.Border.all(color: color, width: 2),
-        borderRadius: const pw.BorderRadius.all(pw.Radius.circular(12)),
+        color: bg,
+        border: pw.Border.all(color: border, width: 0.6),
+        borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
       ),
-      child: pw.Column(
-        mainAxisAlignment: pw.MainAxisAlignment.center,
-        children: [
-          pw.Text(
-            value,
-            style: pw.TextStyle(
-              fontSize: isWide ? 16 : 20,
-              fontWeight: pw.FontWeight.bold,
-              color: color,
-            ),
-            textAlign: pw.TextAlign.center,
-            overflow: pw.TextOverflow.clip,
-          ),
-          pw.SizedBox(height: 4),
-          pw.Text(
-            title,
-            style: pw.TextStyle(
-              fontSize: 10,
-              fontWeight: pw.FontWeight.bold,
-              color: PdfColors.grey700,
-            ),
-            textAlign: pw.TextAlign.center,
-          ),
-        ],
+      child: pw.Text(
+        status.toUpperCase(),
+        style: pw.TextStyle(
+          fontSize: 7.5,
+          fontWeight: pw.FontWeight.bold,
+          color: text,
+        ),
       ),
     );
   }

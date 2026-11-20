@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class AMCCreatePage extends StatefulWidget {
   const AMCCreatePage({super.key});
@@ -17,6 +19,8 @@ class _AMCCreatePageState extends State<AMCCreatePage>
   final TextEditingController _searchController = TextEditingController();
   List<Map<String, dynamic>> _customers = [];
   List<Map<String, dynamic>> _filteredCustomers = [];
+  int _currentPage = 1;
+  static const int _pageSize = 10;
 
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _usernameController = TextEditingController();
@@ -81,7 +85,31 @@ class _AMCCreatePageState extends State<AMCCreatePage>
             final data = doc.data();
             return {...data, 'id': doc.id};
           }).toList();
-          _filteredCustomers = _customers;
+
+          final query = _searchController.text.trim();
+          if (query.isEmpty) {
+            _filteredCustomers = _customers;
+          } else {
+            final q = query.toLowerCase();
+            _filteredCustomers = _customers
+                .where(
+                  (customer) =>
+                      (customer['name'] ?? '').toString().toLowerCase().contains(q) ||
+                      (customer['email'] ?? '').toString().toLowerCase().contains(q) ||
+                      (customer['Id'] ?? '').toString().toLowerCase().contains(q),
+                )
+                .toList();
+          }
+
+          final totalPages = _filteredCustomers.isEmpty
+              ? 1
+              : (_filteredCustomers.length / _pageSize).ceil();
+          if (_currentPage > totalPages) {
+            _currentPage = totalPages;
+          }
+          if (_currentPage < 1) {
+            _currentPage = 1;
+          }
         });
       }
     });
@@ -89,21 +117,17 @@ class _AMCCreatePageState extends State<AMCCreatePage>
 
   void _filterCustomers(String query) {
     setState(() {
-      if (query.isEmpty) {
+      _currentPage = 1;
+      final q = query.trim().toLowerCase();
+      if (q.isEmpty) {
         _filteredCustomers = _customers;
       } else {
         _filteredCustomers = _customers
             .where(
               (customer) =>
-                  (customer['name'] ?? '').toLowerCase().contains(
-                    query.toLowerCase(),
-                  ) ||
-                  (customer['email'] ?? '').toLowerCase().contains(
-                    query.toLowerCase(),
-                  ) ||
-                  (customer['Id'] ?? '').toLowerCase().contains(
-                    query.toLowerCase(),
-                  ),
+                  (customer['name'] ?? '').toString().toLowerCase().contains(q) ||
+                  (customer['email'] ?? '').toString().toLowerCase().contains(q) ||
+                  (customer['Id'] ?? '').toString().toLowerCase().contains(q),
             )
             .toList();
       }
@@ -890,20 +914,23 @@ class _AMCCreatePageState extends State<AMCCreatePage>
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0.5,
-        leading: Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: CircleAvatar(
-            backgroundColor: const Color(0xFFF1F5F9),
-            child: IconButton(
-              icon: const Icon(
-                Icons.arrow_back_rounded,
-                color: Color(0xFF0F172A),
-                size: 18,
+        automaticallyImplyLeading: !kIsWeb,
+        leading: kIsWeb
+            ? null
+            : Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: CircleAvatar(
+                  backgroundColor: const Color(0xFFF1F5F9),
+                  child: IconButton(
+                    icon: const Icon(
+                      Icons.arrow_back_rounded,
+                      color: Color(0xFF0F172A),
+                      size: 18,
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ),
               ),
-              onPressed: () => Navigator.pop(context),
-            ),
-          ),
-        ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -928,9 +955,12 @@ class _AMCCreatePageState extends State<AMCCreatePage>
         ),
         centerTitle: false,
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [_buildCustomerForm(), _buildCustomerDirectory()],
+      body: ResponsiveWrapper(
+        maxWidth: 960,
+        child: TabBarView(
+          controller: _tabController,
+          children: [_buildCustomerForm(), _buildCustomerDirectory()],
+        ),
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
@@ -1486,6 +1516,27 @@ class _AMCCreatePageState extends State<AMCCreatePage>
   }
 
   Widget _buildCustomerDirectory() {
+    final totalCount = _filteredCustomers.length;
+    final totalPages = totalCount == 0 ? 1 : (totalCount / _pageSize).ceil();
+    if (_currentPage > totalPages) {
+      _currentPage = totalPages;
+    }
+    if (_currentPage < 1) {
+      _currentPage = 1;
+    }
+
+    final int startIndex = (_currentPage - 1) * _pageSize;
+    final int endIndex = (startIndex + _pageSize > totalCount)
+        ? totalCount
+        : (startIndex + _pageSize);
+
+    final List<Map<String, dynamic>> pagedCustomers = _filteredCustomers.isEmpty
+        ? []
+        : _filteredCustomers.sublist(
+            startIndex,
+            endIndex.clamp(startIndex, totalCount),
+          );
+
     return Column(
       children: [
         // Top Domain Hero Banner Card
@@ -1677,10 +1728,10 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                   ),
                 )
               : ListView.builder(
-                  padding: const EdgeInsets.all(20),
-                  itemCount: _filteredCustomers.length,
+                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
+                  itemCount: pagedCustomers.length,
                   itemBuilder: (context, index) {
-                    final customer = _filteredCustomers[index];
+                    final customer = pagedCustomers[index];
                     final String name = customer['name'] ?? 'No Name';
                     final String id = customer['Id'] ?? 'No ID';
                     final String email = customer['email'] ?? 'No Email';
@@ -1955,7 +2006,187 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                   },
                 ),
         ),
+
+        // ── Fixed bottom pagination footer ──────
+        if (_filteredCustomers.isNotEmpty)
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
+              child: _buildPaginationFooter(
+                totalCount: totalCount,
+                totalPages: totalPages,
+                startIndex: startIndex,
+                endIndex: endIndex,
+              ),
+            ),
+          ),
       ],
     );
+  }
+
+  Widget _buildPaginationFooter({
+    required int totalCount,
+    required int totalPages,
+    required int startIndex,
+    required int endIndex,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Text(
+            'Showing ${startIndex + 1}–$endIndex of $totalCount customers',
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF64748B),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Previous button
+                OutlinedButton.icon(
+                  onPressed: _currentPage > 1
+                      ? () => setState(() => _currentPage--)
+                      : null,
+                  icon: const Icon(Icons.chevron_left_rounded, size: 18),
+                  label: const Text('Previous'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: primaryColor,
+                    disabledForegroundColor: const Color(0xFF94A3B8),
+                    side: BorderSide(
+                      color: _currentPage > 1
+                          ? const Color(0xFFCBD5E1)
+                          : const Color(0xFFE2E8F0),
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+
+                // Page numbers
+                ..._buildPageNumbers(totalPages),
+
+                const SizedBox(width: 8),
+                // Next button
+                OutlinedButton.icon(
+                  onPressed: _currentPage < totalPages
+                      ? () => setState(() => _currentPage++)
+                      : null,
+                  icon: const Icon(Icons.chevron_right_rounded, size: 18),
+                  label: const Text('Next'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: primaryColor,
+                    disabledForegroundColor: const Color(0xFF94A3B8),
+                    side: BorderSide(
+                      color: _currentPage < totalPages
+                          ? const Color(0xFFCBD5E1)
+                          : const Color(0xFFE2E8F0),
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildPageNumbers(int totalPages) {
+    final List<Widget> buttons = [];
+    final List<int> pages = [];
+
+    if (totalPages <= 7) {
+      for (int i = 1; i <= totalPages; i++) {
+        pages.add(i);
+      }
+    } else {
+      pages.add(1);
+      int start = (_currentPage - 1).clamp(2, totalPages - 3);
+      int end = (_currentPage + 1).clamp(4, totalPages - 1);
+      for (int i = start; i <= end; i++) {
+        if (!pages.contains(i)) pages.add(i);
+      }
+      if (!pages.contains(totalPages)) pages.add(totalPages);
+    }
+
+    int lastPage = 0;
+    for (int p in pages) {
+      if (lastPage != 0 && p - lastPage > 1) {
+        buttons.add(
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              '...',
+              style: TextStyle(
+                color: Color(0xFF94A3B8),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        );
+      }
+      final isSelected = p == _currentPage;
+      buttons.add(
+        InkWell(
+          onTap: () => setState(() => _currentPage = p),
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            width: 36,
+            height: 36,
+            margin: const EdgeInsets.symmetric(horizontal: 3),
+            decoration: BoxDecoration(
+              color: isSelected ? primaryColor : const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isSelected ? primaryColor : const Color(0xFFE2E8F0),
+              ),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              '$p',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                color: isSelected ? Colors.white : const Color(0xFF334155),
+              ),
+            ),
+          ),
+        ),
+      );
+      lastPage = p;
+    }
+    return buttons;
   }
 }

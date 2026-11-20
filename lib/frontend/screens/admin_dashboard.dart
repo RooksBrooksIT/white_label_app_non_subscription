@@ -1,8 +1,10 @@
 import 'dart:io';
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'package:subscription_rooks_app/frontend/screens/admin_Engineer_reports.dart';
@@ -58,7 +60,6 @@ class _admindashboardState extends State<admindashboard> {
   String adminName = 'Loading...';
   String adminEmail = '';
   String referralCode = '';
-  DateTime? _lastBackPressed;
   bool _isUploadingQR = false;
   String? currentPlanName;
   String? subscriptionStatus;
@@ -117,7 +118,9 @@ class _admindashboardState extends State<admindashboard> {
         forceRefresh: forceRefresh,
       );
       if (mounted && file != null) {
-        if (_cachedLogoFile == null || _cachedLogoFile!.path != file.path || forceRefresh) {
+        if (_cachedLogoFile == null ||
+            _cachedLogoFile!.path != file.path ||
+            forceRefresh) {
           setState(() {
             _cachedLogoFile = file;
           });
@@ -174,12 +177,16 @@ class _admindashboardState extends State<admindashboard> {
               final data = change.doc.data();
 
               if (data != null) {
+                final type = data['type']?.toString().toLowerCase();
+                final title = data['title'] ?? 'New Notification';
+                if (type == 'test' || title.toString().toLowerCase().contains('test notification')) {
+                  continue;
+                }
+
                 // Skip if notification has already been shown on this device
                 if (shownSet.contains(docId)) {
                   continue;
                 }
-
-                final title = data['title'] ?? 'New Notification';
                 final body = data['body'] ?? '';
 
                 NotificationService.instance.showNotification(
@@ -225,19 +232,21 @@ class _admindashboardState extends State<admindashboard> {
       });
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        NotificationService.instance.registerToken(
-          role: 'admin',
-          userId: user.uid,
-          email: adminEmail,
-        );
-
         final prefs = await SharedPreferences.getInstance();
         final tenantId = ThemeService.instance.databaseName.isNotEmpty
             ? ThemeService.instance.databaseName
             : (prefs.getString('tenantId') ??
-                prefs.getString('admin_org_collection') ??
-                prefs.getString('databaseName') ??
-                '');
+                  prefs.getString('admin_org_collection') ??
+                  prefs.getString('databaseName') ??
+                  '');
+
+        NotificationService.instance.registerToken(
+          role: 'admin',
+          userId: user.uid,
+          email: adminEmail,
+          tenantId: tenantId,
+          displayName: adminName,
+        );
         final appId = ThemeService.instance.appName;
         final isSubscribed = await FirestoreService.instance.isTenantActive(
           tenantId: tenantId,
@@ -389,11 +398,8 @@ class _admindashboardState extends State<admindashboard> {
         width: radius * 2,
         height: radius * 2,
         fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => Icon(
-          Icons.person_rounded,
-          color: Colors.white,
-          size: iconSize,
-        ),
+        errorBuilder: (_, _, _) =>
+            Icon(Icons.person_rounded, color: Colors.white, size: iconSize),
       );
     }
 
@@ -405,11 +411,8 @@ class _admindashboardState extends State<admindashboard> {
         width: radius * 2,
         height: radius * 2,
         fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => Icon(
-          Icons.person_rounded,
-          color: Colors.white,
-          size: iconSize,
-        ),
+        errorBuilder: (_, _, _) =>
+            Icon(Icons.person_rounded, color: Colors.white, size: iconSize),
       );
     }
 
@@ -421,20 +424,13 @@ class _admindashboardState extends State<admindashboard> {
         width: radius * 2,
         height: radius * 2,
         fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => Icon(
-          Icons.person_rounded,
-          color: Colors.white,
-          size: iconSize,
-        ),
+        errorBuilder: (_, _, _) =>
+            Icon(Icons.person_rounded, color: Colors.white, size: iconSize),
       );
     }
 
     // 4. Default fallback icon
-    return Icon(
-      Icons.person_rounded,
-      color: Colors.white,
-      size: iconSize,
-    );
+    return Icon(Icons.person_rounded, color: Colors.white, size: iconSize);
   }
 
   void _navigateToCreateTicket() {
@@ -816,17 +812,17 @@ class _admindashboardState extends State<admindashboard> {
         backgroundColor: const Color(0xFFCCFBF1), // Soft teal
         iconColor: const Color(0xFF0D9488),
         textColor: const Color(0xFF0F766E),
-        badgeText: '5 modules',
+        badgeText: '4 modules',
         items: [
           DomainSubItem(
             title: 'Device Configuration',
-            subtitle: 'Manage equipment catalog items',
-            icon: Icons.branding_watermark_rounded,
+            subtitle: 'Configure device types & parameters',
+            icon: Icons.devices_other_rounded,
             iconColor: const Color(0xFFD63031),
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => BrandModelPage()),
+                MaterialPageRoute(builder: (context) => const BrandModelPage()),
               );
             },
           ),
@@ -898,6 +894,80 @@ class _admindashboardState extends State<admindashboard> {
                 context,
                 MaterialPageRoute(
                   builder: (context) => const AdminTransactionsScreen(),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+      DomainModel(
+        id: 'contact_us',
+        title: 'Contact Us',
+        description: 'Get help and support',
+        icon: Icons.headset_mic_rounded,
+        backgroundColor: primaryColor.withValues(alpha: 0.1),
+        iconColor: primaryColor,
+        textColor: primaryColor,
+        badgeText: 'Support',
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const ContactUsScreen()),
+          );
+        },
+        items: [
+          DomainSubItem(
+            title: 'Contact & Support',
+            subtitle: 'Email, Call & WhatsApp help desk',
+            icon: Icons.support_agent_rounded,
+            iconColor: primaryColor,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ContactUsScreen(),
+                ),
+              );
+            },
+          ),
+          DomainSubItem(
+            title: 'Email Support',
+            subtitle: 'rookstechnologies@gmail.com',
+            icon: Icons.email_rounded,
+            iconColor: const Color(0xFF0284C7),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ContactUsScreen(),
+                ),
+              );
+            },
+          ),
+          DomainSubItem(
+            title: 'Call Support',
+            subtitle: '+91 73586 77670',
+            icon: Icons.phone_rounded,
+            iconColor: const Color(0xFF0D9488),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ContactUsScreen(),
+                ),
+              );
+            },
+          ),
+          DomainSubItem(
+            title: 'WhatsApp Support',
+            subtitle: '+91 73586 77670',
+            icon: Icons.chat_rounded,
+            iconColor: const Color(0xFF16A34A),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ContactUsScreen(),
                 ),
               );
             },
@@ -1033,7 +1103,13 @@ class _admindashboardState extends State<admindashboard> {
         color: Colors.transparent,
         child: InkWell(
           key: tourKey,
-          onTap: () => _openDomainDetailPage(domain),
+          onTap: () {
+            if (domain.onTap != null) {
+              domain.onTap!();
+            } else {
+              _openDomainDetailPage(domain);
+            }
+          },
           borderRadius: BorderRadius.circular(24),
           splashColor: domain.iconColor.withValues(alpha: 0.12),
           highlightColor: domain.iconColor.withValues(alpha: 0.05),
@@ -1214,10 +1290,7 @@ class _admindashboardState extends State<admindashboard> {
                   radius: 24,
                   backgroundColor: Colors.white.withValues(alpha: 0.2),
                   child: ClipOval(
-                    child: _buildBrandingLogoAvatar(
-                      radius: 24,
-                      iconSize: 26,
-                    ),
+                    child: _buildBrandingLogoAvatar(radius: 24, iconSize: 26),
                   ),
                 ),
               ),
@@ -1792,10 +1865,7 @@ class _admindashboardState extends State<admindashboard> {
                   radius: 30,
                   backgroundColor: Colors.white.withValues(alpha: 0.2),
                   child: ClipOval(
-                    child: _buildBrandingLogoAvatar(
-                      radius: 30,
-                      iconSize: 32,
-                    ),
+                    child: _buildBrandingLogoAvatar(radius: 30, iconSize: 32),
                   ),
                 ),
               ),
@@ -2424,13 +2494,13 @@ class _admindashboardState extends State<admindashboard> {
               StorageService.instance
                   .getCachedQRCodeFile(forceRefresh: false)
                   .then((file) {
-                if (ctx.mounted) {
-                  setDialogState(() {
-                    cachedQRFile = file;
-                    isLoadingQR = false;
+                    if (ctx.mounted) {
+                      setDialogState(() {
+                        cachedQRFile = file;
+                        isLoadingQR = false;
+                      });
+                    }
                   });
-                }
-              });
             }
 
             return Dialog(
@@ -2892,6 +2962,7 @@ class DomainModel {
   final Color textColor;
   final String badgeText;
   final List<DomainSubItem> items;
+  final VoidCallback? onTap;
 
   DomainModel({
     required this.id,
@@ -2903,6 +2974,7 @@ class DomainModel {
     required this.textColor,
     required this.badgeText,
     required this.items,
+    this.onTap,
   });
 }
 
@@ -3099,19 +3171,22 @@ class _DomainDetailPageState extends State<DomainDetailPage> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: CircleAvatar(
-            backgroundColor: Colors.white,
-            child: IconButton(
-              icon: const Icon(
-                Icons.arrow_back_rounded,
-                color: Color(0xFF0F172A),
+        automaticallyImplyLeading: !kIsWeb,
+        leading: kIsWeb
+            ? null
+            : Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: CircleAvatar(
+                  backgroundColor: Colors.white,
+                  child: IconButton(
+                    icon: const Icon(
+                      Icons.arrow_back_rounded,
+                      color: Color(0xFF0F172A),
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ),
               ),
-              onPressed: () => Navigator.pop(context),
-            ),
-          ),
-        ),
         title: Text(
           domain.title,
           style: const TextStyle(
@@ -3130,248 +3205,253 @@ class _DomainDetailPageState extends State<DomainDetailPage> {
         ],
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                key: _domainHeaderKey,
-                width: double.infinity,
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: domain.backgroundColor,
-                  borderRadius: BorderRadius.circular(28),
-                  border: Border.all(
-                    color: domain.iconColor.withValues(alpha: 0.2),
-                    width: 1.5,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: domain.iconColor.withValues(alpha: 0.1),
-                      blurRadius: 20,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: domain.iconColor.withValues(alpha: 0.15),
-                            blurRadius: 10,
-                          ),
-                        ],
-                      ),
-                      child: Icon(
-                        domain.icon,
-                        color: domain.iconColor,
-                        size: 32,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            domain.title,
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w900,
-                              color: domain.textColor,
-                              letterSpacing: -0.4,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            domain.description,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: domain.textColor.withValues(alpha: 0.8),
-                              fontWeight: FontWeight.w500,
-                              height: 1.3,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              if (domain.id == 'tickets' && _showLifecycleGuide) ...[
-                const SizedBox(height: 20),
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 250),
+        child: ResponsiveWrapper(
+          maxWidth: 960,
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  key: _domainHeaderKey,
                   width: double.infinity,
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(22),
+                    color: domain.backgroundColor,
+                    borderRadius: BorderRadius.circular(28),
                     border: Border.all(
-                      color: const Color(0xFF0284C7).withValues(alpha: 0.25),
+                      color: domain.iconColor.withValues(alpha: 0.2),
                       width: 1.5,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF0284C7).withValues(alpha: 0.08),
-                        blurRadius: 18,
-                        offset: const Offset(0, 6),
+                        color: domain.iconColor.withValues(alpha: 0.1),
+                        blurRadius: 20,
+                        offset: const Offset(0, 8),
                       ),
                     ],
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Row(
                     children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFE0F2FE),
-                              borderRadius: BorderRadius.circular(12),
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: domain.iconColor.withValues(alpha: 0.15),
+                              blurRadius: 10,
                             ),
-                            child: const Icon(
-                              Icons.alt_route_rounded,
-                              color: Color(0xFF0284C7),
-                              size: 20,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          const Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Complete Ticket Lifecycle',
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w800,
-                                    color: Color(0xFF0F172A),
-                                  ),
-                                ),
-                                SizedBox(height: 2),
-                                Text(
-                                  'How customer requests flow through ServNex',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Color(0xFF64748B),
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.close_rounded,
-                              size: 20,
-                              color: Color(0xFF94A3B8),
-                            ),
-                            onPressed: _dismissGuide,
-                            tooltip: 'Dismiss guide',
-                          ),
-                        ],
+                          ],
+                        ),
+                        child: Icon(
+                          domain.icon,
+                          color: domain.iconColor,
+                          size: 32,
+                        ),
                       ),
-                      const SizedBox(height: 16),
-                      _buildWorkflowStepRow(
-                        stepNum: '1',
-                        title: 'Create Ticket',
-                        description:
-                            'Capture customer contact, problem symptoms & hardware category.',
-                        color: const Color(0xFF0284C7),
-                      ),
-                      _buildWorkflowStepRow(
-                        stepNum: '2',
-                        title: 'Overview & Assign',
-                        description:
-                            'Track real-time queue & assign Lead Engineer / Helper.',
-                        color: const Color(0xFF0984E3),
-                      ),
-                      _buildWorkflowStepRow(
-                        stepNum: '3',
-                        title: 'Engineer Updates',
-                        description:
-                            'Technician attends onsite, adds notes & submits live photo proof.',
-                        color: const Color(0xFFE17055),
-                      ),
-                      _buildWorkflowStepRow(
-                        stepNum: '4',
-                        title: 'Completion & Invoicing',
-                        description:
-                            'Mark solved, record payment receipts & generate PDF invoice.',
-                        color: const Color(0xFF059669),
-                        isLast: true,
-                      ),
-                      const SizedBox(height: 14),
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: _dismissGuide,
-                          icon: const Icon(Icons.check_rounded, size: 16),
-                          label: const Text(
-                            'Got It, Hide Guide',
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w700,
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              domain.title,
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w900,
+                                color: domain.textColor,
+                                letterSpacing: -0.4,
+                              ),
                             ),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFF0284C7),
-                            side: const BorderSide(color: Color(0xFFBAE6FD)),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                            const SizedBox(height: 4),
+                            Text(
+                              domain.description,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: domain.textColor.withValues(alpha: 0.8),
+                                fontWeight: FontWeight.w500,
+                                height: 1.3,
+                              ),
                             ),
-                          ),
+                          ],
                         ),
                       ),
                     ],
                   ),
                 ),
+
+                if (domain.id == 'tickets' && _showLifecycleGuide) ...[
+                  const SizedBox(height: 20),
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 250),
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(
+                        color: const Color(0xFF0284C7).withValues(alpha: 0.25),
+                        width: 1.5,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(
+                            0xFF0284C7,
+                          ).withValues(alpha: 0.08),
+                          blurRadius: 18,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFE0F2FE),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(
+                                Icons.alt_route_rounded,
+                                color: Color(0xFF0284C7),
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            const Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Complete Ticket Lifecycle',
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w800,
+                                      color: Color(0xFF0F172A),
+                                    ),
+                                  ),
+                                  SizedBox(height: 2),
+                                  Text(
+                                    'How customer requests flow through ServNex',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Color(0xFF64748B),
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.close_rounded,
+                                size: 20,
+                                color: Color(0xFF94A3B8),
+                              ),
+                              onPressed: _dismissGuide,
+                              tooltip: 'Dismiss guide',
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        _buildWorkflowStepRow(
+                          stepNum: '1',
+                          title: 'Create Ticket',
+                          description:
+                              'Capture customer contact, problem symptoms & hardware category.',
+                          color: const Color(0xFF0284C7),
+                        ),
+                        _buildWorkflowStepRow(
+                          stepNum: '2',
+                          title: 'Overview & Assign',
+                          description:
+                              'Track real-time queue & assign Lead Engineer / Helper.',
+                          color: const Color(0xFF0984E3),
+                        ),
+                        _buildWorkflowStepRow(
+                          stepNum: '3',
+                          title: 'Engineer Updates',
+                          description:
+                              'Technician attends onsite, adds notes & submits live photo proof.',
+                          color: const Color(0xFFE17055),
+                        ),
+                        _buildWorkflowStepRow(
+                          stepNum: '4',
+                          title: 'Completion & Invoicing',
+                          description:
+                              'Mark solved, record payment receipts & generate PDF invoice.',
+                          color: const Color(0xFF059669),
+                          isLast: true,
+                        ),
+                        const SizedBox(height: 14),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: _dismissGuide,
+                            icon: const Icon(Icons.check_rounded, size: 16),
+                            label: const Text(
+                              'Got It, Hide Guide',
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF0284C7),
+                              side: const BorderSide(color: Color(0xFFBAE6FD)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+
+                const SizedBox(height: 28),
+
+                Text(
+                  domain.id == 'tickets'
+                      ? 'Ticket Management Actions'
+                      : 'Available Actions & Details',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF0F172A),
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: domain.items.length,
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 14,
+                    mainAxisSpacing: 14,
+                    mainAxisExtent: 175,
+                  ),
+                  itemBuilder: (context, idx) {
+                    final item = domain.items[idx];
+                    final key = idx < _itemKeys.length ? _itemKeys[idx] : null;
+                    return KeyedSubtree(
+                      key: key ?? ValueKey('item_$idx'),
+                      child: _buildModernGridActionCard(item),
+                    );
+                  },
+                ),
               ],
-
-              const SizedBox(height: 28),
-
-              Text(
-                domain.id == 'tickets'
-                    ? 'Ticket Management Actions'
-                    : 'Available Actions & Details',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF0F172A),
-                  letterSpacing: -0.3,
-                ),
-              ),
-              const SizedBox(height: 14),
-
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: domain.items.length,
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 14,
-                  mainAxisSpacing: 14,
-                  mainAxisExtent: 175,
-                ),
-                itemBuilder: (context, idx) {
-                  final item = domain.items[idx];
-                  final key = idx < _itemKeys.length ? _itemKeys[idx] : null;
-                  return KeyedSubtree(
-                    key: key ?? ValueKey('item_$idx'),
-                    child: _buildModernGridActionCard(item),
-                  );
-                },
-              ),
-            ],
+            ),
           ),
         ),
       ),

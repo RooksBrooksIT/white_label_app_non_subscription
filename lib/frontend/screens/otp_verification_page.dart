@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'reset_password_page.dart';
 import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
@@ -53,10 +54,13 @@ class _OTPVerificationPageState extends State<OTPVerificationPage> {
         title: const Text('Verify OTP'),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: !kIsWeb,
+        leading: kIsWeb
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black),
+                onPressed: () => Navigator.pop(context),
+              ),
       ),
       body: Center(
         child: ConstrainedBox(

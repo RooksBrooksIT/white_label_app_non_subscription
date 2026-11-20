@@ -38,6 +38,288 @@ function numberToWords(num) {
 }
 
 /**
+ * Safely converts an integer or string color into a 6-digit hex code with '#'
+ */
+function toHexColor(colorVal, defaultHex = "#1A237E") {
+    if (!colorVal) return defaultHex;
+    if (typeof colorVal === "string") {
+        const clean = colorVal.trim();
+        if (clean.startsWith("#")) return clean;
+        return "#" + clean;
+    }
+    if (typeof colorVal === "number") {
+        const rgb = (colorVal & 0x00FFFFFF).toString(16).padStart(6, "0");
+        return "#" + rgb;
+    }
+    return defaultHex;
+}
+
+/**
+ * Dynamically resolves tenant branding (appName, logoUrl, primaryColor, etc.)
+ * Priority:
+ *  1. {tenantId}/{appId}/branding/config
+ *  2. {tenantId}/data/branding/config
+ *  3. {tenantId}/{tenantId}/branding/config
+ *  4. global_user_directory/data/branding/config
+ *  5. Fallback defaults (appName: 'ServNex', primaryColor: '#1A237E')
+ */
+async function getTenantBranding(tenantId, appId, uid) {
+    const defaultBranding = {
+        appName: "ServNex",
+        logoUrl: "",
+        primaryColor: "#1A237E",
+        secondaryColor: "#0284C7",
+        tagline: "Service Management Platform",
+        companyName: "Rooks & Brooks Technologies Pvt. Ltd.",
+        supportEmail: process.env.SMTP_USER || "support@rookstechnologies.com",
+    };
+
+    try {
+        let resolvedTenant = tenantId;
+        let resolvedApp = appId || "data";
+
+        if (!resolvedTenant && uid) {
+            try {
+                const userDoc = await admin.firestore().collection("users").doc(uid).get();
+                if (userDoc.exists && userDoc.data().tenantId) {
+                    resolvedTenant = userDoc.data().tenantId;
+                } else {
+                    const snap = await admin.firestore().collectionGroup("users")
+                        .where(admin.firestore.FieldPath.documentId(), "==", uid)
+                        .limit(1)
+                        .get();
+                    if (!snap.empty) {
+                        resolvedTenant = snap.docs[0].ref.path.split("/")[0];
+                    }
+                }
+            } catch (err) {
+                console.warn("[BRANDING] Could not resolve tenant from uid:", err.message);
+            }
+        }
+
+        const candidates = [];
+        if (resolvedTenant) {
+            if (resolvedApp) candidates.push(`${resolvedTenant}/${resolvedApp}/branding/config`);
+            if (resolvedApp !== "data") candidates.push(`${resolvedTenant}/data/branding/config`);
+            candidates.push(`${resolvedTenant}/${resolvedTenant}/branding/config`);
+        }
+        candidates.push("global_user_directory/data/branding/config");
+
+        for (const docPath of candidates) {
+            const snap = await admin.firestore().doc(docPath).get();
+            if (snap.exists) {
+                const data = snap.data();
+                if (data) {
+                    return {
+                        appName: data.appName || data.app_name || defaultBranding.appName,
+                        logoUrl: data.logoUrl || data.logo_url || "",
+                        primaryColor: toHexColor(data.primaryColor, defaultBranding.primaryColor),
+                        secondaryColor: toHexColor(data.secondaryColor, defaultBranding.secondaryColor),
+                        tagline: data.tagline || defaultBranding.tagline,
+                        companyName: defaultBranding.companyName,
+                        supportEmail: defaultBranding.supportEmail,
+                    };
+                }
+            }
+        }
+    } catch (e) {
+        console.warn("[BRANDING] Error fetching tenant branding, falling back:", e.message);
+    }
+
+    return defaultBranding;
+}
+
+/**
+ * Universal responsive HTML email template builder with dynamic branding
+ */
+function buildBrandedEmailHtml({
+    branding,
+    title,
+    subtitle,
+    recipientName,
+    bodyHtml,
+    detailsTableHtml,
+    actionButtonText,
+    actionButtonUrl,
+    actionBadgeText,
+    attachmentNote,
+    additionalFooterNote
+}) {
+    const appName = branding?.appName || "ServNex";
+    const logoUrl = branding?.logoUrl || "";
+    const primaryColor = branding?.primaryColor || "#1A237E";
+    const tagline = branding?.tagline || "Service Management Platform";
+    const companyName = branding?.companyName || "Rooks & Brooks Technologies Pvt. Ltd.";
+    const supportEmail = branding?.supportEmail || process.env.SMTP_USER || "support@rookstechnologies.com";
+    const currentYear = new Date().getFullYear();
+
+    let logoHtml = "";
+    if (logoUrl && (logoUrl.startsWith("http://") || logoUrl.startsWith("https://"))) {
+        logoHtml = `<img src="${logoUrl}" alt="${appName}" height="48" style="max-height:48px; max-width:200px; height:auto; object-fit:contain; display:inline-block; margin-bottom:12px; border:0;" />`;
+    } else {
+        const initial = (appName || "S").trim().charAt(0).toUpperCase();
+        logoHtml = `
+            <table cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 12px auto;">
+                <tr>
+                    <td align="center" style="width:48px; height:48px; background-color:${primaryColor}; border-radius:10px; color:#ffffff; font-size:24px; font-weight:800; line-height:48px; text-align:center;">
+                        ${initial}
+                    </td>
+                </tr>
+            </table>
+        `;
+    }
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>${title || appName}</title>
+</head>
+<body style="margin:0; padding:0; background-color:#F4F6F9; font-family:'Segoe UI', Arial, Helvetica, sans-serif; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; color:#334155;">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F4F6F9; padding:32px 16px;">
+        <tr>
+            <td align="center">
+                <!-- Main Card Container -->
+                <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px; background-color:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 4px 20px rgba(0,0,0,0.06); border:1px solid #E2E8F0;">
+                    
+                    <!-- Top Accent Bar -->
+                    <tr>
+                        <td style="height:4px; background-color:${primaryColor};"></td>
+                    </tr>
+
+                    <!-- Application Branding Header -->
+                    <tr>
+                        <td style="padding:32px 36px 24px; text-align:center; background-color:#FAFCFE; border-bottom:1px solid #EEF2F6;">
+                            ${logoHtml}
+                            <div style="font-size:22px; font-weight:800; color:#0F172A; letter-spacing:0.8px; text-transform:uppercase; margin:0; line-height:1.2;">
+                                ${appName}
+                            </div>
+                            <div style="font-size:11px; font-weight:600; color:#64748B; letter-spacing:1.2px; text-transform:uppercase; margin-top:4px;">
+                                ${tagline}
+                            </div>
+                            ${title ? `
+                            <div style="margin-top:18px; padding-top:14px; border-top:1px dashed #E2E8F0;">
+                                <h1 style="font-size:20px; font-weight:700; color:${primaryColor}; margin:0; line-height:1.3;">
+                                    ${title}
+                                </h1>
+                                ${subtitle ? `<p style="font-size:13px; color:#64748B; margin:4px 0 0 0;">${subtitle}</p>` : ''}
+                            </div>
+                            ` : ''}
+                        </td>
+                    </tr>
+
+                    <!-- Body Content -->
+                    <tr>
+                        <td style="padding:28px 36px;">
+                            ${recipientName ? `
+                            <p style="font-size:15px; color:#1E293B; margin:0 0 16px 0; font-weight:600;">
+                                Hello, ${recipientName}!
+                            </p>
+                            ` : ''}
+
+                            ${bodyHtml || ''}
+
+                            ${detailsTableHtml ? `
+                            <div style="margin:20px 0;">
+                                ${detailsTableHtml}
+                            </div>
+                            ` : ''}
+
+                            ${attachmentNote ? `
+                            <div style="background-color:#F8FAFC; border:1px solid #E2E8F0; border-radius:8px; padding:12px 16px; margin:20px 0;">
+                                <p style="font-size:13px; color:#475569; margin:0; line-height:1.5;">
+                                    ${attachmentNote}
+                                </p>
+                            </div>
+                            ` : ''}
+
+                            ${actionButtonText && actionButtonUrl ? `
+                            <div style="text-align:center; margin:28px 0 10px 0;">
+                                <a href="${actionButtonUrl}" style="background-color:${primaryColor}; color:#ffffff; font-size:14px; font-weight:700; padding:13px 32px; border-radius:6px; text-decoration:none; display:inline-block; box-shadow:0 2px 8px rgba(0,0,0,0.12);">
+                                    ${actionButtonText}
+                                </a>
+                            </div>
+                            ` : ''}
+
+                            ${actionBadgeText ? `
+                            <div style="text-align:center; margin:26px 0 10px 0;">
+                                <span style="display:inline-block; background-color:${primaryColor}; color:#ffffff; font-size:13px; font-weight:700; padding:10px 28px; border-radius:6px;">
+                                    ${actionBadgeText}
+                                </span>
+                            </div>
+                            ` : ''}
+
+                            ${additionalFooterNote ? `
+                            <p style="font-size:13px; color:#64748B; margin:24px 0 0 0; line-height:1.5;">
+                                ${additionalFooterNote}
+                            </p>
+                            ` : ''}
+                        </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                        <td style="padding:24px 36px; background-color:#F8FAFC; border-top:1px solid #EEF2F6; text-align:center;">
+                            <p style="font-size:13px; font-weight:700; color:#334155; margin:0 0 6px 0;">
+                                Powered by ${appName}
+                            </p>
+                            <p style="font-size:12px; color:#64748B; margin:0 0 6px 0;">
+                                ${companyName}
+                            </p>
+                            <p style="font-size:11px; color:#94A3B8; margin:0 0 12px 0;">
+                                Support: <a href="mailto:${supportEmail}" style="color:${primaryColor}; text-decoration:none;">${supportEmail}</a> &nbsp;|&nbsp; +91 7598707071
+                            </p>
+                            <p style="font-size:11px; color:#94A3B8; margin:0; line-height:1.4;">
+                                This is an automated email notification. Please do not reply directly to this message.<br>
+                                &copy; ${currentYear} ${appName} &nbsp;|&nbsp; ${companyName}. All rights reserved.
+                            </p>
+                        </td>
+                    </tr>
+
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>`;
+}
+
+/**
+ * Resolves Admin token documents across candidate tenant and app scopes.
+ */
+async function getAdminTokenDocs(tenantId, appId) {
+    const candidates = [
+        { tenant: tenantId, app: appId },
+        { tenant: tenantId, app: "data" },
+        { tenant: "global_user_directory", app: "data" },
+        { tenant: "global_user_directory", app: appId }
+    ];
+    let adminDocs = [];
+    for (const c of candidates) {
+        if (!c.tenant || !c.app) continue;
+        if (adminDocs.length > 0) break;
+        try {
+            const snap = await admin.firestore()
+                .collection(c.tenant)
+                .doc(c.app)
+                .collection("notifications_tokens")
+                .doc("admin")
+                .collection("tokens")
+                .get();
+            if (!snap.empty) {
+                adminDocs = snap.docs;
+                console.log(`[DEBUG] Found ${adminDocs.length} admin token docs in ${c.tenant}/${c.app}`);
+            }
+        } catch (err) {
+            console.warn(`[WARN] Admin token lookup failed in ${c.tenant}/${c.app}:`, err.message);
+        }
+    }
+    return adminDocs;
+}
+
+/**
  * Sends a notification to a specific user based on their role and ID.
  **/
 
@@ -48,64 +330,215 @@ async function sendNotification(tenantId, appId, role, userId, payload) {
     }
 
     try {
-        const path = `${tenantId}/${appId}/notifications_tokens/${role}/tokens/${userId}`;
-        console.log(`[DEBUG] Token lookup for ${role}: ${path}`);
+        let tokens = [];
+        let tokenDocRef = null;
 
-        const tokenDoc = await admin.firestore()
-            .collection(tenantId)
-            .doc(appId)
-            .collection("notifications_tokens")
-            .doc(role)
-            .collection("tokens")
-            .doc(userId)
-            .get();
+        const appIdsToTry = Array.from(new Set([appId, "data"])).filter(Boolean);
+        const tenantsToTry = Array.from(new Set([tenantId, "global_user_directory"])).filter(Boolean);
 
-        if (!tokenDoc.exists) {
-            console.warn(`[WARN] No token found at path: ${path}`);
+        for (const currentTenant of tenantsToTry) {
+            if (tokens.length > 0) break;
+
+            for (const currentAppId of appIdsToTry) {
+                if (tokens.length > 0) break;
+
+                const path = `${currentTenant}/${currentAppId}/notifications_tokens/${role}/tokens/${userId}`;
+                console.log(`[DEBUG] Token lookup for ${role}: ${path}`);
+
+                const tokenDoc = await admin.firestore()
+                    .collection(currentTenant)
+                    .doc(currentAppId)
+                    .collection("notifications_tokens")
+                    .doc(role)
+                    .collection("tokens")
+                    .doc(userId)
+                    .get();
+
+                if (tokenDoc.exists) {
+                    tokenDocRef = tokenDoc.ref;
+                    const data = tokenDoc.data();
+                    if (data) {
+                        if (Array.isArray(data.tokens) && data.tokens.length > 0) {
+                            tokens.push(...data.tokens);
+                        }
+                        if (data.token) {
+                            tokens.push(data.token);
+                        }
+                    }
+                }
+
+                // Query by identifiers across standard fields
+                const identifiers = [
+                    userId,
+                    payload.data?.customerId,
+                    payload.data?.customerPhone,
+                    payload.data?.mobileNumber,
+                    payload.data?.phone,
+                    payload.data?.engineerName,
+                    payload.data?.username,
+                    payload.data?.userName,
+                    payload.data?.email
+                ].filter(Boolean);
+
+                const fieldsToQuery = [
+                    "userId", "customerId", "customerid", "email",
+                    "mobileNumber", "phone", "customerPhone",
+                    "username", "userName", "engineerName", "name", "displayName"
+                ];
+
+                for (const idToSearch of identifiers) {
+                    if (tokens.length > 0) break;
+
+                    for (const field of fieldsToQuery) {
+                        if (tokens.length > 0) break;
+
+                        const querySnap = await admin.firestore()
+                            .collection(currentTenant)
+                            .doc(currentAppId)
+                            .collection("notifications_tokens")
+                            .doc(role)
+                            .collection("tokens")
+                            .where(field, "==", idToSearch)
+                            .limit(5)
+                            .get();
+
+                        for (const doc of querySnap.docs) {
+                            tokenDocRef = doc.ref;
+                            const d = doc.data();
+                            if (Array.isArray(d.tokens)) tokens.push(...d.tokens);
+                            if (d.token) tokens.push(d.token);
+                        }
+                    }
+                }
+
+                // Fallback: scan active tokens if still empty
+                if (tokens.length === 0) {
+                    const allSnap = await admin.firestore()
+                        .collection(currentTenant)
+                        .doc(currentAppId)
+                        .collection("notifications_tokens")
+                        .doc(role)
+                        .collection("tokens")
+                        .limit(50)
+                        .get();
+
+                    const uLower = String(userId).toLowerCase().trim();
+                    for (const doc of allSnap.docs) {
+                        const d = doc.data() || {};
+                        const docIdLower = doc.id.toLowerCase().trim();
+                        const dUid = String(d.userId || d.uid || "").toLowerCase().trim();
+                        const dCustId = String(d.customerId || d.customerid || "").toLowerCase().trim();
+                        const dEmail = String(d.email || "").toLowerCase().trim();
+                        const dPhone = String(d.mobileNumber || d.phone || d.customerPhone || "").trim();
+                        const dName = String(d.username || d.userName || d.engineerName || d.name || d.displayName || "").toLowerCase().trim();
+
+                        const matchPhone = dPhone && (dPhone === userId || (userId.length >= 7 && dPhone.endsWith(userId)) || (dPhone.length >= 7 && userId.endsWith(dPhone)));
+                        const matchName = dName && (dName === uLower || dName.includes(uLower) || uLower.includes(dName));
+
+                        if (docIdLower === uLower || dUid === uLower || dCustId === uLower || (dEmail && dEmail === uLower) || matchPhone || matchName) {
+                            tokenDocRef = doc.ref;
+                            if (Array.isArray(d.tokens)) tokens.push(...d.tokens);
+                            if (d.token) tokens.push(d.token);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Deduplicate tokens
+        tokens = Array.from(new Set(tokens)).filter(Boolean);
+
+        if (tokens.length === 0) {
+            console.warn(`[WARN] No FCM tokens found for ${userId} (${role}) in ${tenantId}/${appId}`);
             return;
         }
 
-        const data = tokenDoc.data();
-        if (!data || !data.token) {
-            console.warn(`[WARN] Token field missing in doc for ${userId}`);
-            return;
-        }
+        console.log(`[DEBUG] Found ${tokens.length} token(s) for ${userId} (${role})`);
 
-        const registrationToken = data.token;
-        console.log(`[DEBUG] Found token for ${userId}: ${registrationToken.substring(0, 10)}...`);
+        const title = payload.notification?.title || payload.title || "ServNex Alert";
+        const body = payload.notification?.body || payload.body || "";
+        const ticketId = String(payload.data?.ticketId || payload.data?.bookingId || payload.bookingId || "");
+        const notificationType = String(payload.data?.notificationType || payload.data?.type || payload.type || "general");
+        const screen = String(payload.data?.screen || (role === "engineer" ? "engineer_dashboard" : role === "customer" ? "amc_main" : "admin_tickets"));
 
-        const message = {
-            token: registrationToken,
-            notification: payload.notification,
-            data: payload.data || {},
-            android: {
-                priority: "high",
-                notification: {
-                    channelId: (payload.data && (payload.data.type === "subscription_expiry" || payload.data.type === "plan_expired" || payload.data.type === "invoice")) ? "subscription_channel" : "high_importance_channel",
-                    icon: "ic_stat_notification",
-                    priority: "high",
-                    defaultSound: true,
-                    clickAction: "FLUTTER_NOTIFICATION_CLICK",
-                },
-            },
-            apns: {
-                payload: {
-                    aps: {
-                        contentAvailable: true,
-                        sound: "default",
-                    },
-                },
-            },
+        const fcmData = {
+            ticketId: ticketId,
+            bookingId: ticketId,
+            tenantId: String(tenantId),
+            notificationType: notificationType,
+            type: notificationType,
+            screen: screen,
+            role: String(role),
+            title: title,
+            body: body,
+            click_action: "FLUTTER_NOTIFICATION_CLICK",
         };
 
-        try {
-            const response = await admin.messaging().send(message);
-            console.log(`[SUCCESS] Notification sent to ${userId} (${role}). Response: ${response}`);
-        } catch (fcmError) {
-            console.error(`[FCM ERROR] Failed to send to ${userId}:`, fcmError);
+        if (payload.data) {
+            for (const [k, v] of Object.entries(payload.data)) {
+                if (v !== undefined && v !== null) {
+                    fcmData[k] = typeof v === "object" ? JSON.stringify(v) : String(v);
+                }
+            }
         }
+
+        const channelId = (payload.data && (payload.data.type === "subscription_expiry" || payload.data.type === "plan_expired" || payload.data.type === "invoice"))
+            ? "subscription_channel"
+            : "servnex_channel";
+
+        const sendPromises = tokens.map(async (regToken) => {
+            const message = {
+                token: regToken,
+                notification: {
+                    title: title,
+                    body: body,
+                },
+                data: fcmData,
+                android: {
+                    priority: "high",
+                    notification: {
+                        channelId: channelId,
+                        icon: "ic_stat_notification",
+                        priority: "max",
+                        visibility: "public",
+                        defaultSound: true,
+                        defaultVibrateTimings: true,
+                        clickAction: "FLUTTER_NOTIFICATION_CLICK",
+                    },
+                },
+                apns: {
+                    payload: {
+                        aps: {
+                            contentAvailable: true,
+                            sound: "default",
+                            badge: 1,
+                        },
+                    },
+                },
+            };
+
+            try {
+                const response = await admin.messaging().send(message);
+                console.log(`[FCM SUCCESS] Notification sent to ${userId} (${role}). Message ID: ${response}`);
+                return response;
+            } catch (fcmError) {
+                console.error(`[FCM ERROR] Failed sending to token ${regToken.substring(0, 10)}... for ${userId}:`, fcmError.message, `(code: ${fcmError.code})`);
+                if (fcmError.code === "messaging/registration-token-not-registered" ||
+                    fcmError.code === "messaging/invalid-registration-token") {
+                    console.log(`[FCM CLEANUP] Removing dead/expired token for ${userId}`);
+                    if (tokenDocRef) {
+                        await tokenDocRef.update({
+                            tokens: admin.firestore.FieldValue.arrayRemove(regToken)
+                        }).catch(() => {});
+                    }
+                }
+                return null;
+            }
+        });
+
+        await Promise.all(sendPromises);
     } catch (error) {
-        console.error(`[SYSTEM ERROR] sendNotification failed:`, error);
+        console.error(`[SYSTEM ERROR] sendNotification failed for ${userId}:`, error);
     }
 }
 
@@ -129,30 +562,6 @@ async function createPersistentNotification(tenantId, appId, payload) {
     }
 }
 
-// 1. HTTP Test Function: Send notification to any user
-// Usage: https://<region>-<project>.cloudfunctions.net/testNotify?tenantId=white-label-app-33300&appId=data&role=engineer&userId=JohnDoe
-const testNotify = functions.region("us-central1").https.onRequest(async (req, res) => {
-    const { tenantId, appId, role, userId } = req.query;
-    if (!tenantId || !appId || !role || !userId) {
-        return res.status(400).send("Missing query params: tenantId, appId, role, userId");
-    }
-
-    const payload = {
-        notification: {
-            title: "Test Notification",
-            body: `This is a test notification from Cloud Functions for ${userId}`,
-        },
-        data: {
-            type: "test",
-            sender: "system",
-        },
-    };
-
-    console.log(`[HTTP TEST] Triggered for ${userId} in ${tenantId}/${appId}`);
-    await sendNotification(tenantId, appId, role, userId, payload);
-    res.send(`Attempted to send notification to ${userId}. Check functions logs for results.`);
-});
-
 
 // 3. Notify Admin when a new ticket is raised
 const handleTicketCreation = functions
@@ -164,16 +573,10 @@ const handleTicketCreation = functions
     console.log(`[DEBUG] New ticket raised in ${tenantId}/${appId}: ${bookingId}`);
 
     try {
-        const adminsSnapshot = await admin.firestore()
-            .collection(tenantId)
-            .doc(appId)
-            .collection("notifications_tokens")
-            .doc("admin")
-            .collection("tokens")
-            .get();
+        const adminDocs = await getAdminTokenDocs(tenantId, appId);
 
-        if (adminsSnapshot.empty) {
-            console.log("[DEBUG] No admins found to notify");
+        if (adminDocs.length === 0) {
+            console.log(`[DEBUG] No admin token documents found to notify in ${tenantId}/${appId}`);
             return;
         }
 
@@ -184,45 +587,21 @@ const handleTicketCreation = functions
             },
             data: {
                 type: "new_ticket",
+                notificationType: "new_ticket",
                 bookingId: bookingId || "",
+                ticketId: bookingId || "",
+                tenantId: String(tenantId),
+                role: "admin",
+                screen: "admin_tickets"
             },
         };
 
-        const promises = adminsSnapshot.docs.map((doc) => {
-            const data = doc.data();
-            if (!data || !data.token) return Promise.resolve();
-
-            const message = {
-                token: data.token,
-                notification: payload.notification,
-                data: payload.data,
-                android: {
-                    priority: "high",
-                    notification: {
-                        channelId: "high_importance_channel",
-                        icon: "ic_stat_notification",
-                        priority: "high",
-                        defaultSound: true,
-                        clickAction: "FLUTTER_NOTIFICATION_CLICK",
-                    },
-                },
-                apns: {
-                    payload: {
-                        aps: {
-                            contentAvailable: true,
-                            sound: "default",
-                        },
-                    },
-                },
-            };
-            return admin.messaging().send(message).catch(error => {
-                console.error(`[FCM ERROR] Failed to notify admin ${doc.id}:`, error);
-                return null;
-            });
+        const promises = adminDocs.map((doc) => {
+            return sendNotification(tenantId, appId, "admin", doc.id, payload);
         });
 
         await Promise.all(promises);
-        console.log(`[SUCCESS] Notified ${adminsSnapshot.size} admin devices`);
+        console.log(`[SUCCESS] Notified ${adminDocs.length} admin accounts for #${bookingId}`);
 
         // 2. Create persistent notification for admins
         await createPersistentNotification(tenantId, appId, {
@@ -238,7 +617,261 @@ const handleTicketCreation = functions
     }
 });
 
-// 4. Notify Customer when ticket status is updated
+// 4. Unified Processor for Ticket Status Changes and Assignments
+async function processTicketStatusUpdate(tenantId, appId, bookingId, newData, oldData, change) {
+    if (!newData || !oldData) return;
+
+    const oldStatusRaw = (oldData.status || oldData.adminStatus || oldData.engineerStatus || oldData.customerStatus || "").trim();
+    const newStatusRaw = (newData.status || newData.adminStatus || newData.engineerStatus || newData.customerStatus || "").trim();
+    const oldStatus = oldStatusRaw.toLowerCase();
+    const newStatus = newStatusRaw.toLowerCase();
+
+    // ── 1. Engineer Assignment Notification ──────────────────────────────
+    const oldEng = (oldData.assignedEmployee || oldData.assignedEngineer || "").trim();
+    const newEng = (newData.assignedEmployee || newData.assignedEngineer || "").trim();
+    const isNewAssignment = newEng && newEng !== oldEng && newEng !== "Not Assigned" && newEng.toLowerCase() !== "null";
+
+    if (isNewAssignment) {
+        console.log(`[ASSIGNMENT] Assignment detected in ${tenantId}/${appId} for #${bookingId}. Engineer: ${newEng}`);
+        const assignEventId = `assign_${bookingId}_${newEng.toLowerCase().replace(/[^a-z0-9]/g, "_")}`;
+        const assignNotifRef = admin.firestore()
+            .collection(tenantId)
+            .doc(appId)
+            .collection("notifications")
+            .doc(assignEventId);
+
+        const existingAssign = await assignNotifRef.get();
+        if (!existingAssign.exists) {
+            // Notify Engineer
+            const engineerPayload = {
+                notification: {
+                    title: "New Assignment",
+                    body: `You have been assigned a new task: ${bookingId}`,
+                },
+                data: {
+                    type: "new_assignment",
+                    notificationType: "new_assignment",
+                    bookingId: String(bookingId),
+                    ticketId: String(bookingId),
+                    tenantId: String(tenantId),
+                    role: "engineer",
+                    screen: "engineer_dashboard"
+                },
+            };
+            await sendNotification(tenantId, appId, "engineer", newEng, engineerPayload);
+
+            // Notify Helper if present and distinct
+            const helperEng = (newData.Helper1 || newData.helperEngineer || newData.helperName || "").trim();
+            if (helperEng && helperEng !== "Not Assigned" && helperEng.toLowerCase() !== "null" && helperEng !== newEng) {
+                const helperPayload = {
+                    notification: {
+                        title: "New Helper Assignment",
+                        body: `You have been assigned as helper for ticket: ${bookingId}`,
+                    },
+                    data: {
+                        type: "new_assignment",
+                        notificationType: "new_assignment",
+                        bookingId: String(bookingId),
+                        ticketId: String(bookingId),
+                        tenantId: String(tenantId),
+                        role: "engineer",
+                        screen: "engineer_dashboard",
+                        isHelper: "true"
+                    },
+                };
+                await sendNotification(tenantId, appId, "engineer", helperEng, helperPayload);
+            }
+
+            // Notify Customer
+            const custId = (newData.id || newData.Id || newData.customerId || newData.customerid || newData.userId || newData.mobileNumber || newData.customerPhone || "").toString().trim();
+            if (custId) {
+                const customerPayload = {
+                    notification: {
+                        title: "Ticket Assigned",
+                        body: `Your ticket (${bookingId}) has been assigned to ${newEng}`,
+                    },
+                    data: {
+                        type: "ticket_assigned",
+                        notificationType: "ticket_assigned",
+                        bookingId: String(bookingId),
+                        ticketId: String(bookingId),
+                        tenantId: String(tenantId),
+                        engineerName: String(newEng),
+                        customerId: String(custId),
+                        customerPhone: String(newData.mobileNumber || newData.customerPhone || ""),
+                        customerName: String(newData.customerName || ""),
+                        role: "customer",
+                        screen: "amc_main"
+                    },
+                };
+                await sendNotification(tenantId, appId, "customer", custId, customerPayload);
+
+                await assignNotifRef.set({
+                    audience: "customer",
+                    customerId: String(custId),
+                    customerPhone: String(newData.mobileNumber || newData.customerPhone || ""),
+                    customerName: String(newData.customerName || ""),
+                    bookingId: String(bookingId),
+                    ticketId: String(bookingId),
+                    title: "Ticket Assigned",
+                    body: `Your ticket (${bookingId}) has been assigned to ${newEng}`,
+                    type: "ticket_assigned",
+                    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                    seen: false,
+                    fcmProcessed: true,
+                    fcmProcessedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    additionalData: customerPayload.data
+                }).catch(() => {});
+            }
+        }
+    }
+
+    // ── 2. Genuine Status Change Check ──────────────────────────────────
+    if (!newStatus || oldStatus === newStatus) {
+        // Status did not change (e.g. notes only, amount only, photo uploads, unchanged status saves)
+        return;
+    }
+
+    // Cancellation handling
+    const isCancelled = newStatus === "cancelled" || newStatus === "canceled";
+    const wasCancelled = oldStatus === "cancelled" || oldStatus === "canceled";
+    if (isCancelled && !wasCancelled) {
+        console.log(`[DEBUG] Cancellation detected for ${bookingId}`);
+        await processTicketCancellation(tenantId, appId, bookingId, newData, change);
+        return;
+    } else if (wasCancelled && !isCancelled) {
+        console.log(`[SECURITY] Prevented attempt to modify or reopen cancelled ticket ${bookingId}`);
+        await change.after.ref.update({
+            status: "Cancelled",
+            adminStatus: "Cancelled",
+            engineerStatus: "Cancelled",
+            fcmLastUpdateSentMillis: Date.now()
+        }).catch(() => {});
+        return;
+    }
+
+    // Identify Customer
+    const customerId = (newData.id || newData.Id || newData.customerId || newData.customerid || newData.userId || newData.customerPhone || newData.mobileNumber || "").toString().trim();
+    if (!customerId) {
+        console.warn(`[WARN] Skipping status notification for #${bookingId}: No customerId found.`);
+        return;
+    }
+
+    // ── 3. Idempotency Check ────────────────────────────────────────────
+    const normalizedKey = newStatus.replace(/[^a-z0-9]/g, "_");
+    const statusEventDocId = `status_${bookingId}_${normalizedKey}`;
+    const statusNotifRef = admin.firestore()
+        .collection(tenantId)
+        .doc(appId)
+        .collection("notifications")
+        .doc(statusEventDocId);
+
+    const existingDoc = await statusNotifRef.get();
+    if (existingDoc.exists) {
+        console.log(`[IDEMPOTENT] Status notification ${statusEventDocId} already exists. Skipping duplicate.`);
+        return;
+    }
+
+    if (newData.lastNotifiedStatus && newData.lastNotifiedStatus.toLowerCase() === newStatus) {
+        console.log(`[IDEMPOTENT] Ticket #${bookingId} already notified for status ${newStatus}. Skipping.`);
+        return;
+    }
+
+    // ── 4. Dynamic Notification Content (Section 7 Specifications) ──────
+    let title = "Service Ticket Update";
+    let body = `Your service ticket ${bookingId} status is now: ${newStatusRaw}.`;
+    let type = "status_update";
+
+    if (newStatus === "in progress" || newStatus.includes("progress")) {
+        title = "Service Work Started";
+        body = `Your service ticket ${bookingId} is now In Progress.`;
+        type = "service_in_progress";
+    } else if (newStatus === "completed" || newStatus === "complete") {
+        title = "Service Completed";
+        body = `Your service ticket ${bookingId} has been completed successfully. Please share your rating and feedback.`;
+        type = "ticket_completed_feedback";
+    } else if (newStatus === "delivered") {
+        title = "Service Delivered";
+        body = `Your service ticket ${bookingId} has been marked as Delivered.`;
+        type = "service_delivered";
+    } else if (newStatus === "ready for delivery" || newStatus.includes("ready")) {
+        title = "Service Ready";
+        body = `Your service ticket ${bookingId} is ready for delivery.`;
+        type = "ready_for_delivery";
+    } else if (newStatus === "open") {
+        title = "Service Ticket Open";
+        body = `Your service ticket ${bookingId} is now Open.`;
+        type = "status_update";
+    } else if (newStatus === "assigned") {
+        const engName = newData.assignedEmployee || newData.assignedEngineer || "an engineer";
+        title = "Ticket Assigned";
+        body = `Your ticket (${bookingId}) has been assigned to ${engName}.`;
+        type = "ticket_assigned";
+    }
+
+    const payload = {
+        notification: { title, body },
+        data: {
+            ticketId: String(bookingId),
+            bookingId: String(bookingId),
+            tenantId: String(tenantId),
+            customerId: String(customerId),
+            customerPhone: String(newData.mobileNumber || newData.customerPhone || ""),
+            customerName: String(newData.customerName || ""),
+            status: String(newStatusRaw),
+            type: String(type),
+            notificationType: String(type),
+            role: "customer",
+            targetRole: "customer",
+            screen: type === "ticket_completed_feedback" ? "customer_feedback" : "amc_main",
+            deviceBrand: String(newData.deviceBrand || ""),
+            deviceType: String(newData.deviceType || ""),
+            engineerName: String(newData.assignedEmployee || newData.assignedEngineer || "")
+        }
+    };
+
+    // ── 5. Create Persistent Notification in History ────────────────────
+    await statusNotifRef.set({
+        audience: "customer",
+        customerId: String(customerId),
+        customerName: String(newData.customerName || ""),
+        bookingId: String(bookingId),
+        ticketId: String(bookingId),
+        title: title,
+        body: body,
+        type: type,
+        status: String(newStatusRaw),
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        seen: false,
+        fcmProcessed: true,
+        fcmProcessedAt: admin.firestore.FieldValue.serverTimestamp(),
+        additionalData: payload.data
+    }).catch(err => console.error("[NOTIF] Error creating notification history:", err));
+
+    // ── 6. Send FCM Push Notification ──────────────────────────────────
+    try {
+        await sendNotification(tenantId, appId, "customer", customerId, payload);
+        console.log(`[SUCCESS] FCM status notification sent to customer ${customerId} for #${bookingId} -> ${newStatusRaw}`);
+    } catch (e) {
+        console.error(`[ERROR] Failed to send FCM push for status update to ${customerId}:`, e);
+    }
+
+    // ── 7. Mandatory Feedback & Ticket Flags ────────────────────────────
+    const isCompleted = newStatus === "completed" || newStatus === "complete";
+    const updatePayload = {
+        lastNotifiedStatus: newStatusRaw,
+        fcmLastUpdateSentMillis: Date.now()
+    };
+    if (isCompleted) {
+        updatePayload.completionFeedbackNotificationSent = true;
+        updatePayload.isFeedbackMandatory = true;
+        updatePayload.feedbackSubmitted = false;
+    }
+
+    await change.after.ref.update(updatePayload).catch(() => {});
+}
+
+// 4. Notify Customer when ticket status is updated (Admin_details compatibility)
 const handleTicketStatusUpdate = functions
     .region("us-central1")
     .firestore.document("{tenantId}/{appId}/Admin_details/{bookingId}")
@@ -246,139 +879,334 @@ const handleTicketStatusUpdate = functions
         const newData = change.after.data();
         const oldData = change.before.data();
         const { tenantId, appId, bookingId } = context.params;
+        await processTicketStatusUpdate(tenantId, appId, bookingId, newData, oldData, change);
+    });
 
-    // ── Engineer Assignment Notification ────────────────────────────────
-    const isNewAssignment = newData.assignedEmployee &&
-        newData.assignedEmployee !== oldData.assignedEmployee;
+/**
+ * 5. Trigger FCM Push Notification whenever an in-app notification document is created in Firestore
+ * Handles all notification types dispatched by the app: Ticket Assignment, Visit Scheduling,
+ * Helper Assignment, Ticket Cancellation, Reassignment, and System Alerts.
+ */
+const handleNotificationDocument = functions
+    .region("us-central1")
+    .firestore.document("{tenantId}/{appId}/notifications/{notificationId}")
+    .onCreate(async (snap, context) => {
+        const data = snap.data();
+        const { tenantId, appId, notificationId } = context.params;
 
-    if (isNewAssignment) {
-        console.log(`[DEBUG] Assignment detected in ${tenantId}/${appId} for ${bookingId}. Engineer: ${newData.assignedEmployee}`);
-
-        // 1. Notify Engineer via FCM push
-        const engineerPayload = {
-            notification: {
-                title: "New Assignment",
-                body: `You have been assigned a new task: ${bookingId}`,
-            },
-            data: {
-                type: "new_assignment",
-                bookingId: bookingId,
-            },
-        };
-        const engineerId = newData.assignedEmployee.trim();
-        await sendNotification(tenantId, appId, "engineer", engineerId, engineerPayload);
-
-        // 2. Notify Customer
-        if (newData.id) {
-            const customerPayload = {
-                notification: {
-                    title: "Ticket Assigned",
-                    body: `Your ticket (${bookingId}) has been assigned to ${newData.assignedEmployee}`,
-                },
-                data: {
-                    type: "ticket_assigned",
-                    bookingId: bookingId,
-                    engineerName: newData.assignedEmployee,
-                },
-            };
-            await sendNotification(tenantId, appId, "customer", newData.id, customerPayload);
-
-            // Also create an in-app notification document for the customer banner
-            await createPersistentNotification(tenantId, appId, {
-                audience: "customer",
-                customerId: newData.id,
-                customerName: newData.customerName || "",
-                bookingId: bookingId,
-                title: "Ticket Assigned",
-                body: `Your ticket (${bookingId}) has been assigned to ${newData.assignedEmployee}`,
-                type: "ticket_assigned"
-            });
+        if (!data || data.fcmProcessed === true) {
+            return;
         }
-    }
 
-    // ── Status Change Notification ──────────────────────────────────────
-    const statusChanged = (newData.engineerStatus !== oldData.engineerStatus) ||
-        (newData.adminStatus !== oldData.adminStatus);
+        const audience = (data.audience || "admin").toLowerCase().trim();
+        const title = data.title || "ServNex Alert";
+        const body = data.body || "";
+        const bookingId = data.bookingId || data.ticketId || "";
+        const type = data.type || "general";
 
-    if (statusChanged) {
-        const currentStatus = newData.engineerStatus || newData.adminStatus || "Updated";
-        console.log(`[DEBUG] Status update in ${tenantId}/${appId} for ${bookingId}: ${currentStatus}`);
+        console.log(`[NOTIF TRIGGER] Processing notification ${notificationId} in ${tenantId}/${appId} for audience: ${audience} (type: ${type})`);
 
         const payload = {
-            notification: {
-                title: "Ticket Update",
-                body: `Your ticket (${bookingId}) status is now: ${currentStatus}`,
-            },
+            notification: { title, body },
             data: {
-                type: "status_update",
-                bookingId: bookingId,
-                status: currentStatus,
-            },
+                ticketId: String(bookingId),
+                bookingId: String(bookingId),
+                tenantId: String(tenantId),
+                notificationType: String(type),
+                type: String(type),
+                role: String(audience),
+                screen: String(data.screen || (audience === "engineer" ? "engineer_dashboard" : audience === "customer" ? "amc_main" : "admin_tickets")),
+                ...(data.additionalData || {})
+            }
         };
 
-        // 1. Notify Customer
-        if (newData.id) {
-            await sendNotification(tenantId, appId, "customer", newData.id, payload);
+        try {
+            if (audience === "engineer") {
+                // Primary engineer
+                const primaryName = (data.engineerName || data.assignedEmployee || data.userId || "").trim();
+                if (primaryName) {
+                    console.log(`[NOTIF TRIGGER] Sending FCM push to primary engineer: ${primaryName}`);
+                    await sendNotification(tenantId, appId, "engineer", primaryName, payload);
+                }
 
-            // Also create an in-app notification document for the banner
-            await createPersistentNotification(tenantId, appId, {
-                audience: "customer",
-                customerId: newData.id,
-                customerName: newData.customerName || "",
-                bookingId: bookingId,
-                title: "Ticket Update",
-                body: `Your ticket (${bookingId}) status is now: ${currentStatus}`,
-                type: "status_update"
+                // Helper engineer if assigned
+                const helperName = (data.additionalData?.helperEngineer || data.helperName || data.Helper1 || "").trim();
+                if (helperName && helperName !== primaryName) {
+                    console.log(`[NOTIF TRIGGER] Sending FCM push to helper engineer: ${helperName}`);
+                    await sendNotification(tenantId, appId, "engineer", helperName, payload);
+                }
+            } else if (audience === "customer") {
+                const customerId = (data.customerId || data.id || data.userId || data.customerPhone || data.mobileNumber || "").trim();
+                if (customerId) {
+                    console.log(`[NOTIF TRIGGER] Sending FCM push to customer: ${customerId}`);
+                    if (data.customerPhone || data.mobileNumber) {
+                        payload.data.customerPhone = String(data.customerPhone || data.mobileNumber);
+                    }
+                    await sendNotification(tenantId, appId, "customer", customerId, payload);
+                }
+            } else if (audience === "admin") {
+                console.log(`[NOTIF TRIGGER] Sending FCM push to admins in ${tenantId}/${appId}`);
+                const adminDocs = await getAdminTokenDocs(tenantId, appId);
+
+                if (adminDocs.length > 0) {
+                    const promises = adminDocs.map(doc => {
+                        return sendNotification(tenantId, appId, "admin", doc.id, payload);
+                    });
+                    await Promise.all(promises);
+                }
+            }
+
+            await snap.ref.update({
+                fcmProcessed: true,
+                fcmProcessedAt: admin.firestore.FieldValue.serverTimestamp()
             });
+        } catch (err) {
+            console.error(`[NOTIF TRIGGER ERROR] Failed processing notification ${notificationId}:`, err);
         }
+    });
 
-        // 2. Notify Admins if engineerStatus changed
-        if (newData.engineerStatus !== oldData.engineerStatus) {
-            console.log(`[DEBUG] Engineer status update detected for ${bookingId}. Notifying admins.`);
-            const adminPayload = {
+/**
+ * 6. Notify Admin when a customer raises a ticket directly in Raised_tickets
+ */
+const handleRaisedTicketCreation = functions
+    .region("us-central1")
+    .firestore.document("{tenantId}/{appId}/Raised_tickets/{bookingId}")
+    .onCreate(async (snap, context) => {
+        const ticketData = snap.data();
+        const { tenantId, appId, bookingId } = context.params;
+        console.log(`[DEBUG] New raised ticket in ${tenantId}/${appId}: ${bookingId}`);
+
+        try {
+            const adminDocs = await getAdminTokenDocs(tenantId, appId);
+
+            if (adminDocs.length === 0) {
+                console.log(`[DEBUG] No admin tokens found to notify for raised ticket #${bookingId}`);
+                return;
+            }
+
+            const payload = {
                 notification: {
-                    title: "Engineer Job Update",
-                    body: `Engineer ${newData.assignedEmployee || "An engineer"} updated ticket ${bookingId} to: ${newData.engineerStatus}`,
+                    title: "New Ticket Raised",
+                    body: `A new ticket (${bookingId}) has been raised by ${ticketData.customerName || "a customer"}`,
                 },
                 data: {
-                    type: "engineer_status_update",
-                    bookingId: bookingId,
-                    status: newData.engineerStatus,
-                    engineerName: newData.assignedEmployee || "",
+                    type: "new_ticket",
+                    notificationType: "new_ticket",
+                    bookingId: bookingId || "",
+                    ticketId: bookingId || "",
+                    tenantId: String(tenantId),
+                    role: "admin",
+                    screen: "admin_tickets"
                 },
             };
 
-            const adminsSnapshot = await admin.firestore()
-                .collection(tenantId)
-                .doc(appId)
-                .collection("notifications_tokens")
-                .doc("admin")
-                .collection("tokens")
-                .get();
+            const promises = adminDocs.map((doc) => {
+                return sendNotification(tenantId, appId, "admin", doc.id, payload);
+            });
+            await Promise.all(promises);
+        } catch (e) {
+            console.error("[SYSTEM ERROR] handleRaisedTicketCreation failed:", e);
+        }
+    });
 
-            if (!adminsSnapshot.empty) {
-                const adminPromises = adminsSnapshot.docs.map(doc => {
-                    const data = doc.data();
-                    if (!data || !data.token) return null;
-                    return sendNotification(tenantId, appId, "admin", doc.id, adminPayload);
-                });
-                await Promise.all(adminPromises);
-                console.log(`[SUCCESS] Notified ${adminsSnapshot.size} admins about engineer status update.`);
-            }
+/**
+ * Helper to process ticket cancellations across Admin_ticket_entry and Raised_tickets
+ */
+async function processTicketCancellation(tenantId, appId, bookingId, newData, change) {
+    const reason = newData.cancellationReason || newData.Reason_cancel || "Cancelled";
+    const isCustomerCancellation = (newData.cancelledByRole || "").toLowerCase() === "customer";
+    const now = Date.now();
 
-            // Also create a persistent notification for admins
-            await createPersistentNotification(tenantId, appId, {
-                audience: "admin",
-                title: adminPayload.notification.title,
-                body: adminPayload.notification.body,
-                type: adminPayload.data.type,
-                bookingId: adminPayload.data.bookingId,
-                status: adminPayload.data.status,
-                engineerName: adminPayload.data.engineerName
+    if (isCustomerCancellation) {
+        console.log(`[DEBUG] Customer cancelled ticket ${bookingId}, notifying Admin`);
+        const adminDocs = await getAdminTokenDocs(tenantId, appId);
+
+        if (adminDocs.length > 0) {
+            const adminPayload = {
+                notification: {
+                    title: "Customer Cancelled Service Ticket",
+                    body: `Customer ${newData.customerName || "Customer"} has cancelled ticket #${bookingId}. Reason: ${reason}`
+                },
+                data: {
+                    notificationType: "customer_ticket_cancelled",
+                    type: "customer_ticket_cancelled",
+                    bookingId: String(bookingId),
+                    ticketId: String(bookingId),
+                    tenantId: String(tenantId),
+                    customerId: String(newData.customerId || newData.customerid || newData.id || ""),
+                    customerPhone: String(newData.mobileNumber || newData.customerPhone || ""),
+                    cancelledAt: String(now),
+                    targetRole: "admin",
+                    role: "admin",
+                    screen: "admin_tickets"
+                }
+            };
+            const promises = adminDocs.map(doc => sendNotification(tenantId, appId, "admin", doc.id, adminPayload));
+            await Promise.all(promises);
+        }
+    } else {
+        // Cancelled by Admin: notify customer
+        const customerId = (newData.id || newData.Id || newData.customerId || newData.customerid || newData.userId || newData.mobileNumber || newData.customerPhone || "").toString().trim();
+        if (customerId) {
+            await sendNotification(tenantId, appId, "customer", customerId, {
+                notification: {
+                    title: "Service Ticket Cancelled",
+                    body: `Your service ticket ${bookingId} has been cancelled by the administration. Reason: ${reason}`
+                },
+                data: {
+                    type: "ticket_cancelled",
+                    notificationType: "ticket_cancelled",
+                    bookingId: String(bookingId),
+                    ticketId: String(bookingId),
+                    tenantId: String(tenantId),
+                    customerId: String(customerId),
+                    customerPhone: String(newData.mobileNumber || newData.customerPhone || ""),
+                    role: "customer",
+                    cancellationReason: String(reason)
+                }
             });
         }
     }
-});
+
+    // In both cases, notify primary engineer and helper engineer if assigned
+    const primaryEngineer = (newData.assignedEmployee || newData.assignedEngineer || "").trim();
+    if (primaryEngineer && primaryEngineer !== "Not Assigned" && primaryEngineer.toLowerCase() !== "null") {
+        const engTitle = isCustomerCancellation ? "Ticket Cancelled by Customer" : "Ticket Cancelled";
+        const engBody = isCustomerCancellation
+            ? `Ticket #${bookingId} for customer ${newData.customerName || "Customer"} has been cancelled. Reason: ${reason}. This ticket is now read-only.`
+            : `Ticket ${bookingId} has been cancelled. This ticket is now read-only.`;
+
+        await sendNotification(tenantId, appId, "engineer", primaryEngineer, {
+            notification: {
+                title: engTitle,
+                body: engBody
+            },
+            data: {
+                type: "ticket_cancelled",
+                bookingId: String(bookingId),
+                ticketId: String(bookingId),
+                role: "engineer",
+                cancellationReason: String(reason),
+                cancelledByRole: String(newData.cancelledByRole || (isCustomerCancellation ? "customer" : "admin"))
+            }
+        });
+    }
+
+    const helperEngineer = (newData.Helper1 || newData.helperEngineer || newData.helperName || "").trim();
+    if (helperEngineer && helperEngineer !== "Not Assigned" && helperEngineer !== primaryEngineer) {
+        const helperTitle = isCustomerCancellation ? "Ticket Cancelled by Customer" : "Ticket Cancelled";
+        const helperBody = isCustomerCancellation
+            ? `Helper assignment for ticket #${bookingId} has been cancelled by customer.`
+            : `Helper assignment for ticket ${bookingId} has been cancelled.`;
+
+        await sendNotification(tenantId, appId, "engineer", helperEngineer, {
+            notification: {
+                title: helperTitle,
+                body: helperBody
+            },
+            data: {
+                type: "ticket_cancelled",
+                bookingId: String(bookingId),
+                ticketId: String(bookingId),
+                role: "engineer",
+                cancellationReason: String(reason),
+                cancelledByRole: String(newData.cancelledByRole || (isCustomerCancellation ? "customer" : "admin"))
+            }
+        });
+    }
+
+    await change.after.ref.update({ fcmLastUpdateSentMillis: now }).catch(() => {});
+}
+
+async function processTicketCompletionFeedback(tenantId, appId, bookingId, newData, change) {
+    if (newData.completionFeedbackNotificationSent === true) {
+        return;
+    }
+
+    const customerId = (newData.id || newData.customerId || newData.customerid || "").toString().trim();
+    const customerName = (newData.customerName || "").toString().trim();
+
+    if (!customerId) {
+        console.log(`[DEBUG] Cannot send completion feedback notification for ${bookingId}: missing customerId`);
+        return;
+    }
+
+    console.log(`[DEBUG] Sending completion feedback push notification for ${bookingId} to customer ${customerId}`);
+
+    const payload = {
+        notification: {
+            title: "Service Completed – Share Your Feedback",
+            body: `Your service ticket ${bookingId} has been completed successfully. Please share your rating and feedback about our service.`,
+        },
+        data: {
+            ticketId: String(bookingId),
+            bookingId: String(bookingId),
+            tenantId: String(tenantId),
+            customerId: String(customerId),
+            customerName: String(customerName),
+            notificationType: "ticket_completed_feedback",
+            type: "ticket_completed_feedback",
+            role: "customer",
+            targetRole: "customer",
+        },
+    };
+
+    try {
+        await sendNotification(tenantId, appId, "customer", customerId, payload);
+    } catch (e) {
+        console.error(`[ERROR] Failed to send push notification for completion feedback: ${e}`);
+    }
+
+    try {
+        await createPersistentNotification(tenantId, appId, {
+            audience: "customer",
+            customerId: customerId,
+            customerName: customerName,
+            bookingId: bookingId,
+            title: "Service Completed – Share Your Feedback",
+            body: `Your service ticket ${bookingId} has been completed successfully. Please share your rating and feedback about our service.`,
+            type: "ticket_completed_feedback",
+        });
+    } catch (e) {
+        console.error(`[ERROR] Failed to create persistent completion notification: ${e}`);
+    }
+
+    try {
+        await change.after.ref.update({
+            completionFeedbackNotificationSent: true,
+        });
+    } catch (e) {
+        console.error(`[ERROR] Failed to update completionFeedbackNotificationSent on ticket: ${e}`);
+    }
+}
+
+/**
+ * 7. Monitor Admin_ticket_entry updates (status changes, assignments, cancellations, completion)
+ */
+const handleAdminTicketEntryUpdate = functions
+    .region("us-central1")
+    .firestore.document("{tenantId}/{appId}/Admin_ticket_entry/{bookingId}")
+    .onUpdate(async (change, context) => {
+        const newData = change.after.data();
+        const oldData = change.before.data();
+        const { tenantId, appId, bookingId } = context.params;
+
+        await processTicketStatusUpdate(tenantId, appId, bookingId, newData, oldData, change);
+    });
+
+/**
+ * 8. Monitor Raised_tickets updates for status changes, assignments and cancellations
+ */
+const handleRaisedTicketUpdate = functions
+    .region("us-central1")
+    .firestore.document("{tenantId}/{appId}/Raised_tickets/{bookingId}")
+    .onUpdate(async (change, context) => {
+        const newData = change.after.data();
+        const oldData = change.before.data();
+        const { tenantId, appId, bookingId } = context.params;
+
+        await processTicketStatusUpdate(tenantId, appId, bookingId, newData, oldData, change);
+    });
 
 // 4. Send Email via Nodemailer when a document is created or updated in the "mail" collection
 const processMailDocument = functions
@@ -406,8 +1234,9 @@ const processMailDocument = functions
             },
         });
 
+        const fromAppName = data.appName || data.fromName || process.env.COMPANY_NAME || "ServNex";
         const mailOptions = {
-            from: `"${process.env.COMPANY_NAME || "Rooks And Brooks"}" <${process.env.SMTP_USER || "support@rookstechnologies.com"}>`,
+            from: `"${fromAppName}" <${process.env.SMTP_USER || "support@rookstechnologies.com"}>`,
             to: data.to,
             subject: data.message.subject,
             html: data.message.html,
@@ -552,7 +1381,10 @@ const processPaymentSuccess = functions
             const baseAmount = parseFloat((totalAmount / (1 + GST_RATE)).toFixed(2));
             const gstAmount = parseFloat((totalAmount - baseAmount).toFixed(2));
             const planName = newData.planName || "Subscription Plan";
-            const billingCycle = newData.isYearly ? "Yearly" : "Monthly";
+            const subscriptionYears = parseInt(newData.subscriptionYears || newData.billingYears || 1, 10) || 1;
+            const billingCycle = newData.isYearly
+                ? (subscriptionYears > 1 ? `${subscriptionYears} Years` : "Yearly")
+                : (newData.isSixMonths ? "6 Months" : "Monthly");
             const paymentMethod = newData.paymentMethod || "Online";
             const transactionId = newData.merchantTxnNo || newData.paymentId || txnId;
 
@@ -560,7 +1392,7 @@ const processPaymentSuccess = functions
             const startD = new Date();
             const endD = new Date();
             if (newData.isYearly) {
-                endD.setFullYear(endD.getFullYear() + 1);
+                endD.setFullYear(endD.getFullYear() + subscriptionYears);
             } else if (newData.isSixMonths) {
                 endD.setMonth(endD.getMonth() + 6);
             } else {
@@ -711,126 +1543,68 @@ const processPaymentSuccess = functions
             const pdfBuffer = await generatePdfBuffer();
             const pdfBase64 = pdfBuffer.toString("base64");
 
-            // ── 5. Build Branded HTML Email ────────────────────────────────
-            const htmlEmail = `
-<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Payment Receipt</title></head>
-<body style="margin:0;padding:0;background-color:#F4F6F9;font-family:Arial,Helvetica,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F4F6F9;padding:30px 0;">
-    <tr><td align="center">
-      <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);">
+            // ── 5. Fetch Tenant Branding & Build Responsive HTML Email ────
+            const branding = await getTenantBranding(tenantId, "data", uid);
 
-        <!-- Header -->
-        <tr>
-          <td style="background:#1A237E;padding:32px 40px;">
-            <table width="100%" cellpadding="0" cellspacing="0">
-              <tr>
-                <td><span style="font-size:22px;font-weight:700;color:#ffffff;">${COMPANY_NAME}</span></td>
-                <td align="right"><span style="font-size:28px;font-weight:800;color:#ffffff;letter-spacing:2px;">RECEIPT</span></td>
-              </tr>
-              <tr>
-                <td><span style="font-size:12px;color:#BBDEFB;">${COMPANY_EMAIL}</span></td>
-                <td align="right"><span style="font-size:11px;color:#BBDEFB;">${invoiceNo}</span></td>
-              </tr>
-            </table>
-          </td>
-        </tr>
+            const detailsTableHtml = `
+              <table width="100%" cellpadding="10" cellspacing="0" border="0" style="background-color:#F8FAFC; border-radius:8px; border:1px solid #E2E8F0; font-size:13px; color:#334155;">
+                <tr style="border-bottom:1px solid #E2E8F0;">
+                  <td style="padding:10px 14px; color:#64748B;"><strong>Invoice No</strong></td>
+                  <td align="right" style="padding:10px 14px; font-weight:700; color:#0F172A;">${invoiceNo}</td>
+                </tr>
+                <tr style="border-bottom:1px solid #E2E8F0;">
+                  <td style="padding:10px 14px; color:#64748B;"><strong>Date</strong></td>
+                  <td align="right" style="padding:10px 14px;">${formattedDate} at ${formattedTime}</td>
+                </tr>
+                <tr style="border-bottom:1px solid #E2E8F0;">
+                  <td style="padding:10px 14px; color:#64748B;"><strong>Plan</strong></td>
+                  <td align="right" style="padding:10px 14px; font-weight:600; color:${branding.primaryColor};">${planName} (${billingCycle})</td>
+                </tr>
+                <tr style="border-bottom:1px solid #E2E8F0;">
+                  <td style="padding:10px 14px; color:#64748B;"><strong>Transaction ID</strong></td>
+                  <td align="right" style="padding:10px 14px; font-size:11px; font-family:monospace; color:#64748B;">${transactionId}</td>
+                </tr>
+                <tr style="border-bottom:1px solid #E2E8F0;">
+                  <td style="padding:10px 14px; color:#64748B;"><strong>Payment Method</strong></td>
+                  <td align="right" style="padding:10px 14px;">${paymentMethod}</td>
+                </tr>
+                <tr style="border-bottom:0.5px solid #E2E8F0;">
+                  <td style="padding:10px 14px; color:#64748B;"><strong>Subtotal (ex-GST)</strong></td>
+                  <td align="right" style="padding:10px 14px;">₹${baseAmount}</td>
+                </tr>
+                <tr style="border-bottom:0.5px solid #E2E8F0;">
+                  <td style="padding:10px 14px; color:#64748B;"><strong>GST (18%)</strong></td>
+                  <td align="right" style="padding:10px 14px;">₹${gstAmount}</td>
+                </tr>
+                <tr style="background-color:${branding.primaryColor}; border-radius:0 0 8px 8px;">
+                  <td style="padding:12px 14px; color:#ffffff; font-size:14px; font-weight:700; border-radius:0 0 0 6px;">Total Paid</td>
+                  <td align="right" style="padding:12px 14px; color:#ffffff; font-size:16px; font-weight:800; border-radius:0 0 6px 0;">₹${totalAmount}</td>
+                </tr>
+              </table>
+            `;
 
-        <!-- Greeting -->
-        <tr>
-          <td style="padding:32px 40px 0;">
-            <p style="font-size:16px;color:#212121;margin:0 0 8px;">Hello, <strong>${userName}</strong>!</p>
-            <p style="font-size:14px;color:#616161;margin:0 0 24px;line-height:1.6;">
-              Your subscription payment was <strong style="color:${BRAND_BLUE};">successful</strong>.
-              Please find your official invoice attached to this email as a PDF.
-            </p>
-          </td>
-        </tr>
+            const bodyHtml = `
+              <p style="font-size:14px; color:#475569; margin:0 0 16px 0; line-height:1.6;">
+                Your subscription payment was <strong style="color:#16A34A;">successful</strong>.
+                Your official invoice has been generated and is attached to this email as a PDF.
+              </p>
+            `;
 
-        <!-- Summary Card -->
-        <tr>
-          <td style="padding:0 40px;">
-            <table width="100%" cellpadding="12" cellspacing="0"
-              style="background:#F5F5F5;border-radius:8px;font-size:13px;color:#424242;">
-              <tr style="border-bottom:1px solid #E0E0E0;">
-                <td><strong>Invoice No</strong></td>
-                <td align="right">${invoiceNo}</td>
-              </tr>
-              <tr style="border-bottom:1px solid #E0E0E0;">
-                <td><strong>Date</strong></td>
-                <td align="right">${formattedDate} at ${formattedTime}</td>
-              </tr>
-              <tr style="border-bottom:1px solid #E0E0E0;">
-                <td><strong>Plan</strong></td>
-                <td align="right">${planName} (${billingCycle})</td>
-              </tr>
-              <tr style="border-bottom:1px solid #E0E0E0;">
-                <td><strong>Transaction ID</strong></td>
-                <td align="right" style="font-size:11px;word-break:break-all;">${transactionId}</td>
-              </tr>
-              <tr style="border-bottom:1px solid #E0E0E0;">
-                <td><strong>Payment Method</strong></td>
-                <td align="right">${paymentMethod}</td>
-              </tr>
-              <tr style="border-bottom:0.5px solid #E0E0E0;">
-                <td><strong>Subtotal (ex-GST)</strong></td>
-                <td align="right">₹${baseAmount}</td>
-              </tr>
-              <tr style="border-bottom:0.5px solid #E0E0E0;">
-                <td><strong>GST (18%)</strong></td>
-                <td align="right">₹${gstAmount}</td>
-              </tr>
-              <tr style="background:#1A237E;border-radius:4px;">
-                <td style="color:#fff;font-size:15px;border-radius:4px 0 0 4px;"><strong>Total Paid</strong></td>
-                <td align="right" style="color:#fff;font-size:17px;font-weight:700;border-radius:0 4px 4px 0;">
-                  ₹${totalAmount}
-                </td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-
-        <!-- Attachment note -->
-        <tr>
-          <td style="padding:24px 40px 0;">
-            <p style="font-size:13px;color:#616161;margin:0;">
-              📎 A detailed <strong>PDF invoice</strong> is attached to this email for your records.
-            </p>
-          </td>
-        </tr>
-
-        <!-- CTA -->
-        <tr>
-          <td style="padding:28px 40px 0;" align="center">
-            <span style="display:inline-block;background:#1A237E;color:#fff;font-size:14px;font-weight:600;
-              padding:12px 32px;border-radius:6px;text-decoration:none;">
-              ✓ &nbsp; Subscription Active
-            </span>
-          </td>
-        </tr>
-
-        <!-- Footer -->
-        <tr>
-          <td style="padding:32px 40px;border-top:1px solid #E0E0E0;margin-top:28px;">
-            <p style="font-size:12px;color:#9E9E9E;text-align:center;margin:0;">
-              ${COMPANY_NAME} &nbsp;|&nbsp; ${COMPANY_EMAIL}<br>
-              This is an automatically generated email. Please do not reply to this message.<br>
-              © ${now.getFullYear()} ${COMPANY_NAME}. All rights reserved.
-            </p>
-          </td>
-        </tr>
-
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`;
+            const htmlEmail = buildBrandedEmailHtml({
+                branding,
+                title: "Payment Confirmed — Receipt & Invoice",
+                subtitle: `Invoice #${invoiceNo}`,
+                recipientName: userName,
+                bodyHtml,
+                detailsTableHtml,
+                attachmentNote: "📎 A detailed <strong>PDF invoice</strong> is attached to this email for your records.",
+                actionBadgeText: "✓ &nbsp; Subscription Active"
+            });
 
             // ── 6. Write to 'mail' collection → triggers processMailDocument ──
             await admin.firestore().collection("mail").add({
                 to: recipientEmail,
+                appName: branding.appName,
                 message: {
                     subject: `Payment Confirmed — ${planName} | ${invoiceNo}`,
                     html: htmlEmail,
@@ -866,7 +1640,7 @@ const processPaymentSuccess = functions
             // Calculate expiry based on billing cycle
             const expiryDate = new Date();
             if (newData.isYearly) {
-                expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+                expiryDate.setFullYear(expiryDate.getFullYear() + subscriptionYears);
             } else if (newData.isSixMonths) {
                 expiryDate.setMonth(expiryDate.getMonth() + 6);
             } else {
@@ -884,9 +1658,18 @@ const processPaymentSuccess = functions
                 planName: planName,
                 isYearly: newData.isYearly || false,
                 isSixMonths: newData.isSixMonths || false,
+                subscriptionYears: subscriptionYears,
+                billingYears: subscriptionYears,
+                durationYears: subscriptionYears,
+                annualPrice: newData.isYearly ? Math.round(totalAmount / subscriptionYears) : null,
+                totalAmount: totalAmount,
+                billingType: newData.isYearly ? "Yearly" : (newData.isSixMonths ? "6 Months" : "Monthly"),
+                billingCycle: billingCycle,
                 price: totalAmount,
                 startedAt: admin.firestore.FieldValue.serverTimestamp(),
+                startDate: admin.firestore.FieldValue.serverTimestamp(),
                 expiresAt: admin.firestore.Timestamp.fromDate(expiryDate),
+                expiryDate: admin.firestore.Timestamp.fromDate(expiryDate),
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                 reminderSent: false, // Legacy field
                 remindersSent: {
@@ -1063,89 +1846,52 @@ async function sendExpiryReminder(docRef, data, expiresAt, type) {
 
     console.log(`[REMINDER] Sending ${type} reminder to ${recipientEmail} for plan ${planName}`);
 
-    // 2. Generate Email Content
+    // 2. Fetch Tenant Branding & Generate Email Content
+    const branding = await getTenantBranding(tenantId, "data", uid);
     const daysLeft = type === "twoDay" ? 2 : 1;
     const subject = `Urgent: Your ${planName} expires in ${daysLeft} day${daysLeft > 1 ? "s" : ""}!`;
 
-    const htmlContent = `
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Subscription Expiry Reminder</title>
-</head>
-<body style="margin: 0; padding: 0; background-color: #F4F6F9; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
-    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #F4F6F9; padding: 40px 0;">
-        <tr>
-            <td align="center">
-                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
-                    <!-- Header -->
-                    <tr>
-                        <td style="background-color: #1A237E; padding: 40px; text-align: center;">
-                            <h1 style="color: #ffffff; margin: 0; font-size: 24px;">Subscription Expiring Soon</h1>
-                        </td>
-                    </tr>
-                    <!-- Body -->
-                    <tr>
-                        <td style="padding: 40px;">
-                            <p style="font-size: 16px; color: #333; line-height: 1.6; margin-top: 0;">
-                                Hello,
-                            </p>
-                            <p style="font-size: 16px; color: #333; line-height: 1.6;">
-                                This is a friendly reminder that your <strong>${planName}</strong> is set to expire in <strong>${daysLeft} day${daysLeft > 1 ? "s" : ""}</strong> on <strong>${formattedExpiry}</strong>.
-                            </p>
-                            <p style="font-size: 16px; color: #333; line-height: 1.6;">
-                                To ensure uninterrupted access to all our professional tools and features, we recommend renewing your plan today.
-                            </p>
-
-                            <!-- Plan Details Box -->
-                            <div style="background-color: #F8F9FA; border-radius: 8px; padding: 20px; margin: 30px 0; border-left: 4px solid #1A237E;">
-                                <table width="100%">
-                                    <tr>
-                                        <td style="color: #666; font-size: 14px; padding-bottom: 5px;">Plan Name:</td>
-                                        <td align="right" style="color: #1A237E; font-weight: bold;">${planName}</td>
-                                    </tr>
-                                    <tr>
-                                        <td style="color: #666; font-size: 14px;">Expiry Date:</td>
-                                        <td align="right" style="color: #1A237E; font-weight: bold;">${formattedExpiry}</td>
-                                    </tr>
-                                </table>
-                            </div>
-
-                            <p style="font-size: 16px; color: #333; line-height: 1.6; text-align: center;">
-                                Click the button below to renew your subscription:
-                            </p>
-
-                            <div style="text-align: center; margin-top: 30px;">
-                                <a href="https://rookstechnologies.com/renew" style="background-color: #1A237E; color: #ffffff; padding: 15px 35px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
-                                    Renew Subscription Now
-                                </a>
-                            </div>
-                        </td>
-                    </tr>
-                    <!-- Footer -->
-                    <tr>
-                        <td style="padding: 30px; border-top: 1px solid #EEEEEE; text-align: center;">
-                            <p style="font-size: 12px; color: #999; margin: 0;">
-                                &copy; ${new Date().getFullYear()} Rooks & Brooks Technologies. All rights reserved.
-                            </p>
-                            <p style="font-size: 12px; color: #999; margin: 10px 0 0;">
-                                Support: support@rookstechnologies.com
-                            </p>
-                        </td>
-                    </tr>
-                </table>
-            </td>
+    const detailsTableHtml = `
+      <table width="100%" cellpadding="12" cellspacing="0" border="0" style="background-color:#F8FAFC; border-left:4px solid ${branding.primaryColor}; border-radius:6px; font-size:14px; border:1px solid #E2E8F0; border-left-width:4px;">
+        <tr style="border-bottom:1px solid #E2E8F0;">
+          <td style="padding:10px 16px; color:#64748B; font-size:13px;">Plan Name:</td>
+          <td align="right" style="padding:10px 16px; font-weight:700; color:${branding.primaryColor};">${planName}</td>
         </tr>
-    </table>
-</body>
-</html>
+        <tr style="border-bottom:1px solid #E2E8F0;">
+          <td style="padding:10px 16px; color:#64748B; font-size:13px;">Expiry Date:</td>
+          <td align="right" style="padding:10px 16px; font-weight:700; color:#DC2626;">${formattedExpiry}</td>
+        </tr>
+        <tr>
+          <td style="padding:10px 16px; color:#64748B; font-size:13px;">Time Remaining:</td>
+          <td align="right" style="padding:10px 16px; font-weight:800; color:#DC2626;">${daysLeft} day${daysLeft > 1 ? "s" : ""}</td>
+        </tr>
+      </table>
     `;
+
+    const bodyHtml = `
+      <p style="font-size:14px; color:#334155; line-height:1.6; margin:0 0 14px 0;">
+        This is a friendly reminder that your <strong>${planName}</strong> subscription is set to expire in <strong>${daysLeft} day${daysLeft > 1 ? "s" : ""}</strong> on <strong>${formattedExpiry}</strong>.
+      </p>
+      <p style="font-size:14px; color:#334155; line-height:1.6; margin:0 0 14px 0;">
+        To ensure uninterrupted access to all your professional tools, data and workflows, we recommend renewing your plan today.
+      </p>
+    `;
+
+    const htmlContent = buildBrandedEmailHtml({
+        branding,
+        title: "Subscription Expiring Soon",
+        subtitle: `Urgent Reminder — ${daysLeft} day${daysLeft > 1 ? "s" : ""} remaining`,
+        bodyHtml,
+        detailsTableHtml,
+        actionButtonText: "Renew Subscription Now",
+        actionButtonUrl: "https://rookstechnologies.com/renew",
+        additionalFooterNote: "If you have already renewed, please disregard this notice."
+    });
 
     // 3. Queue Email
     await db.collection("mail").add({
         to: recipientEmail,
+        appName: branding.appName,
         message: {
             subject: subject,
             html: htmlContent,
@@ -1165,58 +1911,6 @@ async function sendExpiryReminder(docRef, data, expiresAt, type) {
     await docRef.update(updateData);
     console.log(`[REMINDER] ✅ ${type} reminder queued and recorded for ${recipientEmail}`);
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 11. HTTP Test Function: Manually trigger expiry checks
-// ─────────────────────────────────────────────────────────────────────────────
-const testExpiryReminders = functions
-    .region("us-central1")
-    .https.onRequest(async (req, res) => {
-    console.log("[HTTP TEST] Manually triggering expiry reminders...");
-    const now = new Date();
-    const db = admin.firestore();
-
-    try {
-        const subscriptionsSnapshot = await db.collectionGroup("subscription")
-            .where("status", "==", "active")
-            .get();
-
-        const results = [];
-
-        for (const doc of subscriptionsSnapshot.docs) {
-            const data = doc.data();
-            const expiresAt = data.expiresAt ? data.expiresAt.toDate() : null;
-
-            if (!expiresAt) continue;
-
-            const diffTime = expiresAt.getTime() - now.getTime();
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-            let reminderType = null;
-            const remindersSent = data.remindersSent || { twoDay: false, oneDay: false };
-
-            if (diffDays === 2 && !remindersSent.twoDay) {
-                reminderType = "twoDay";
-            } else if (diffDays === 1 && !remindersSent.oneDay) {
-                reminderType = "oneDay";
-            }
-
-            if (reminderType) {
-                await sendExpiryReminder(doc.ref, data, expiresAt, reminderType);
-                results.push({ uid: doc.id, type: reminderType, email: data.corporateEmail || "unknown" });
-            }
-        }
-
-        res.send({
-            success: true,
-            message: `Processed ${results.length} reminders.`,
-            details: results
-        });
-    } catch (error) {
-        console.error("[HTTP TEST ERROR]", error);
-        res.status(500).send({ success: false, error: error.message });
-    }
-});
 
 // 7. Send OTP for Forgot Password
 const sendOTP = functions
@@ -1248,7 +1942,30 @@ const sendOTP = functions
             createdAt: admin.firestore.FieldValue.serverTimestamp()
         });
 
-        // Send Email
+        // Send Branded Email
+        const branding = await getTenantBranding(data.tenantId, data.appId);
+        const otpHtml = buildBrandedEmailHtml({
+            branding,
+            title: "Password Reset Request",
+            subtitle: "One-Time Password (OTP)",
+            bodyHtml: `
+              <p style="font-size:14px; line-height:1.6; color:#334155; margin:0 0 16px 0;">
+                You requested to reset your password for your <strong>${branding.appName}</strong> account. Use the verification code below to proceed:
+              </p>
+              <div style="text-align:center; margin:26px 0;">
+                <div style="display:inline-block; background-color:#F8FAFC; border:2px dashed ${branding.primaryColor}; border-radius:8px; padding:12px 28px; font-size:28px; font-weight:800; letter-spacing:6px; color:${branding.primaryColor}; font-family:monospace;">
+                  ${otp}
+                </div>
+                <p style="font-size:12px; color:#DC2626; margin:8px 0 0 0; font-weight:600;">
+                  This code will expire in 10 minutes.
+                </p>
+              </div>
+              <p style="font-size:13px; color:#64748B; line-height:1.5; margin:16px 0 0 0;">
+                If you did not request a password reset, please ignore this email or contact support if you suspect unauthorized activity.
+              </p>
+            `
+        });
+
         const nodemailer = require("nodemailer");
         const transporter = nodemailer.createTransport({
             host: process.env.SMTP_HOST || "smtp.hostinger.com",
@@ -1261,22 +1978,10 @@ const sendOTP = functions
         });
 
         const mailOptions = {
-            from: `"${process.env.COMPANY_NAME || "Rooks And Brooks"}" <${process.env.SMTP_USER || "support@rookstechnologies.com"}>`,
+            from: `"${branding.appName}" <${process.env.SMTP_USER || "support@rookstechnologies.com"}>`,
             to: email,
-            subject: "Your Password Reset OTP",
-            html: `
-                <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
-                    <h2>Password Reset Request</h2>
-                    <p>You requested to reset your password. Use the following OTP to proceed:</p>
-                    <div style="font-size: 24px; font-weight: bold; padding: 10px; background: #f4f4f4; display: inline-block; letter-spacing: 5px;">
-                        ${otp}
-                    </div>
-                    <p>This code will expire in 10 minutes.</p>
-                    <p>If you didn't request this, please ignore this email.</p>
-                    <br>
-                    <p>Regards,<br>${process.env.COMPANY_NAME || "Rooks And Brooks"}</p>
-                </div>
-            `
+            subject: `Your Password Reset OTP — ${branding.appName}`,
+            html: otpHtml
         };
 
         await transporter.sendMail(mailOptions);
@@ -1435,38 +2140,49 @@ const checkSubscriptionExpiryReminders = functions
                 const title = `Subscription Expiring in ${dayLabel}`;
                 const body = `Your ${planName} subscription will expire in ${dayLabel} (${formattedExpiry}). Please renew to avoid service loss.`;
 
-                // 1. Email Template
-                const emailHtml = `
-                    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
-                        <div style="background-color: ${BRAND_BLUE}; padding: 20px; text-align: center;">
-                            <h1 style="color: white; margin: 0; font-size: 24px;">Subscription Reminder</h1>
-                        </div>
-                        <div style="padding: 30px; color: #333; line-height: 1.6;">
-                            <p>Hello,</p>
-                            <p>This is a reminder that your <strong>${planName}</strong> subscription is about to expire.</p>
-                            
-                            <div style="background-color: ${BRAND_BLUE_LIGHT}; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${BRAND_BLUE};">
-                                <p style="margin: 0;"><strong>Expiry Date:</strong> ${formattedExpiry}</p>
-                                <p style="margin: 5px 0 0 0;"><strong>Time Remaining:</strong> ${dayLabel}</p>
-                            </div>
-
-                            <p>To ensure uninterrupted access to your features and data, please renew or upgrade your plan.</p>
-                            
-                            <div style="text-align: center; margin: 30px 0;">
-                                <a href="https://rookstechnologies.com/renew" style="background-color: ${BRAND_BLUE}; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Renew Subscription</a>
-                            </div>
-
-                            <p style="font-size: 14px; color: #666;">If you have already renewed, please ignore this email. Thank you for choosing ${process.env.COMPANY_NAME || "Rooks And Brooks"}.</p>
-                        </div>
-                        <div style="background-color: #f9f9f9; padding: 20px; text-align: center; font-size: 12px; color: #999; border-top: 1px solid #eeeeee;">
-                            <p style="margin: 0;">&copy; ${new Date().getFullYear()} ${process.env.COMPANY_NAME || "Rooks And Brooks"}. All rights reserved.</p>
-                        </div>
-                    </div>
+                // 1. Fetch Tenant Branding & Build Email Template
+                const branding = await getTenantBranding(tenantId, appId, uid);
+                const detailsTableHtml = `
+                  <table width="100%" cellpadding="12" cellspacing="0" border="0" style="background-color:#F8FAFC; border-left:4px solid ${branding.primaryColor}; border-radius:6px; font-size:14px; border:1px solid #E2E8F0; border-left-width:4px;">
+                    <tr style="border-bottom:1px solid #E2E8F0;">
+                      <td style="padding:10px 16px; color:#64748B; font-size:13px;">Plan Name:</td>
+                      <td align="right" style="padding:10px 16px; font-weight:700; color:${branding.primaryColor};">${planName}</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid #E2E8F0;">
+                      <td style="padding:10px 16px; color:#64748B; font-size:13px;">Expiry Date:</td>
+                      <td align="right" style="padding:10px 16px; font-weight:700; color:#DC2626;">${formattedExpiry}</td>
+                    </tr>
+                    <tr>
+                      <td style="padding:10px 16px; color:#64748B; font-size:13px;">Time Remaining:</td>
+                      <td align="right" style="padding:10px 16px; font-weight:800; color:#DC2626;">${dayLabel}</td>
+                    </tr>
+                  </table>
                 `;
+
+                const bodyHtml = `
+                  <p style="font-size:14px; color:#334155; line-height:1.6; margin:0 0 14px 0;">
+                    This is an urgent reminder that your <strong>${planName}</strong> subscription will expire in <strong>${dayLabel}</strong> on <strong>${formattedExpiry}</strong>.
+                  </p>
+                  <p style="font-size:14px; color:#334155; line-height:1.6; margin:0 0 14px 0;">
+                    To ensure uninterrupted access to your features and business data, please renew or upgrade your plan.
+                  </p>
+                `;
+
+                const emailHtml = buildBrandedEmailHtml({
+                    branding,
+                    title: "Subscription Expiry Reminder",
+                    subtitle: `Action Required — ${dayLabel} Remaining`,
+                    bodyHtml,
+                    detailsTableHtml,
+                    actionButtonText: "Renew Subscription",
+                    actionButtonUrl: "https://rookstechnologies.com/renew",
+                    additionalFooterNote: `If you have already renewed, please ignore this email. Thank you for choosing ${branding.appName}.`
+                });
 
                 if (recipientEmail) {
                     await admin.firestore().collection("mail").add({
                         to: recipientEmail,
+                        appName: branding.appName,
                         message: {
                             subject: `Urgent: ${dayLabel} Remaining for Your Subscription`,
                             html: emailHtml,
@@ -1513,13 +2229,51 @@ const checkSubscriptionExpiryReminders = functions
                         const title = "Monthly Subscription Status";
                         const body = `Your ${planName} is active and running smoothly. Thank you for being with us!`;
 
-                        // 1. Email
+                        // 1. Fetch Tenant Branding & Build Email Template
+                        const branding = await getTenantBranding(tenantId, appId, uid);
+                        const detailsTableHtml = `
+                          <table width="100%" cellpadding="12" cellspacing="0" border="0" style="background-color:#F8FAFC; border-left:4px solid ${branding.primaryColor}; border-radius:6px; font-size:14px; border:1px solid #E2E8F0; border-left-width:4px;">
+                            <tr style="border-bottom:1px solid #E2E8F0;">
+                              <td style="padding:10px 16px; color:#64748B; font-size:13px;">Plan Name:</td>
+                              <td align="right" style="padding:10px 16px; font-weight:700; color:${branding.primaryColor};">${planName}</td>
+                            </tr>
+                            <tr style="border-bottom:1px solid #E2E8F0;">
+                              <td style="padding:10px 16px; color:#64748B; font-size:13px;">Status:</td>
+                              <td align="right" style="padding:10px 16px; font-weight:700; color:#16A34A;">Active &amp; Healthy</td>
+                            </tr>
+                            <tr>
+                              <td style="padding:10px 16px; color:#64748B; font-size:13px;">Next Renewal Date:</td>
+                              <td align="right" style="padding:10px 16px; font-weight:700; color:#0F172A;">${expiryDate.toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" })}</td>
+                            </tr>
+                          </table>
+                        `;
+
+                        const bodyHtml = `
+                          <p style="font-size:14px; color:#334155; line-height:1.6; margin:0 0 14px 0;">
+                            Hello, your <strong>${planName}</strong> subscription is currently active and running smoothly.
+                          </p>
+                          <p style="font-size:14px; color:#334155; line-height:1.6; margin:0 0 14px 0;">
+                            Thank you for being a valued customer with <strong>${branding.appName}</strong>. We are committed to empowering your service operations.
+                          </p>
+                        `;
+
+                        const monthlyHtml = buildBrandedEmailHtml({
+                            branding,
+                            title: "Monthly Subscription Status",
+                            subtitle: "Account Active & Healthy",
+                            bodyHtml,
+                            detailsTableHtml,
+                            actionButtonText: "Manage Subscription",
+                            actionButtonUrl: "https://rookstechnologies.com/renew",
+                        });
+
                         if (recipientEmail) {
                             await admin.firestore().collection("mail").add({
                                 to: recipientEmail,
+                                appName: branding.appName,
                                 message: {
-                                    subject: 'Your Monthly Subscription Status',
-                                    html: `<p>Hello, your <strong>${planName}</strong> is currently active.</p><p>Next renewal date: ${expiryDate.toLocaleDateString("en-IN")}</p>`,
+                                    subject: `Your Monthly Subscription Status — ${planName}`,
+                                    html: monthlyHtml,
                                 },
                                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
                                 type: "monthly_status"
@@ -1549,75 +2303,6 @@ const checkSubscriptionExpiryReminders = functions
     }
 });
 
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 6. Temporary HTTP Trigger for Testing Subscription Expiry (Manual)
-// ─────────────────────────────────────────────────────────────────────────────
-const testExpiryReminder = functions
-    .region("us-central1")
-    .https.onRequest(async (req, res) => {
-    console.log("[TEST] Manually triggering subscription reminders check...");
-
-    const now = new Date();
-    const threeDaysFromNow = new Date();
-    threeDaysFromNow.setDate(now.getDate() + 3);
-
-    try {
-        const subscriptionsSnapshot = await admin.firestore()
-            .collectionGroup("subscription")
-            .where("status", "==", "active")
-            .get();
-
-        if (subscriptionsSnapshot.empty) {
-            return res.send("No active subscriptions found to test.");
-        }
-
-        let results = [];
-        for (const doc of subscriptionsSnapshot.docs) {
-            const subData = doc.data();
-            const uid = doc.id;
-            const recipientEmail = subData.corporateEmail;
-            const planName = subData.planName || "Subscription";
-
-            let expiryDate = null;
-            if (subData.expiresAt && subData.expiresAt.toDate) {
-                expiryDate = subData.expiresAt.toDate();
-            } else if (subData.nextBillingAt) {
-                expiryDate = new Date(subData.nextBillingAt);
-            }
-
-            if (!expiryDate || isNaN(expiryDate.getTime())) continue;
-
-            const pathSegments = doc.ref.path.split('/');
-            const tenantId = pathSegments[0];
-            const appId = pathSegments[1];
-
-            const diffDays = Math.ceil((expiryDate - now) / (1000 * 60 * 60 * 24));
-
-            if (diffDays === 3 || diffDays === 2 || diffDays === 1) {
-                results.push(`${diffDays}-DAY TRIGGER: ${uid} in ${tenantId}`);
-                // In test mode, we don't check for sentAt flags to allow repeated tests
-                await admin.firestore().collection("mail").add({
-                    to: recipientEmail || "support@rookstechnologies.com",
-                    message: { 
-                        subject: `[TEST] ${diffDays}-Day Warning`, 
-                        html: `<p>Expiring on ${expiryDate.toLocaleDateString()}</p>` 
-                    },
-                    createdAt: admin.firestore.FieldValue.serverTimestamp()
-                });
-            }
-
-            if (subData.isSixMonths || subData.isYearly) {
-                results.push(`MONTHLY CHECK: ${uid} in ${tenantId}`);
-            }
-        }
-
-        res.send(`Test results: ${results.length ? results.join(", ") : "Matched no specific conditions but analyzed " + subscriptionsSnapshot.size + " docs."}`);
-    } catch (error) {
-        console.error("[TEST ERROR]", error);
-        res.status(500).send("Error: " + error.message);
-    }
-});
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -1705,12 +2390,15 @@ const iciciFunctions = require("./src/iciciPaymentFunctions");
 // Primary payment initiation endpoint — handles CARD, NETBANKING, UPI
 const { createPaymentSession } = require("./src/createPaymentSession");
 
-// ===== EXPORTS (ALL 19 FUNCTIONS) =====
-exports.testNotify = testNotify;
+// ===== EXPORTS (ALL PRODUCTION FUNCTIONS) =====
 
 // Firestore Triggers
 exports.handleTicketCreation = handleTicketCreation;
 exports.handleTicketStatusUpdate = handleTicketStatusUpdate;
+exports.handleNotificationDocument = handleNotificationDocument;
+exports.handleRaisedTicketCreation = handleRaisedTicketCreation;
+exports.handleRaisedTicketUpdate = handleRaisedTicketUpdate;
+exports.handleAdminTicketEntryUpdate = handleAdminTicketEntryUpdate;
 exports.processMailDocument = processMailDocument;
 exports.processPaymentSuccess = processPaymentSuccess;
 exports.logPaymentActivity = logPaymentActivity;
@@ -1718,9 +2406,7 @@ exports.logPaymentActivity = logPaymentActivity;
 // Schedulers & Expiry Reminders
 exports.scheduledEmailRetry = scheduledEmailRetry;
 exports.scheduledSubscriptionReminders = scheduledSubscriptionReminders;
-exports.testExpiryReminders = testExpiryReminders;
 exports.checkSubscriptionExpiryReminders = checkSubscriptionExpiryReminders;
-exports.testExpiryReminder = testExpiryReminder;
 exports.reconcileStuckPayments = reconcileStuckPayments;
 
 // OTP & Account

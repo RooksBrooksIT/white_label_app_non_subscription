@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -49,6 +50,12 @@ class ThemeService extends ChangeNotifier {
             : Colors.black,
         elevation: 0,
       ),
+      actionIconTheme: kIsWeb
+          ? ActionIconThemeData(
+              backButtonIconBuilder: (BuildContext context) =>
+                  const SizedBox.shrink(),
+            )
+          : null,
     );
   }
 
@@ -77,6 +84,12 @@ class ThemeService extends ChangeNotifier {
         foregroundColor: Colors.black,
         elevation: 0,
       ),
+      actionIconTheme: kIsWeb
+          ? ActionIconThemeData(
+              backButtonIconBuilder: (BuildContext context) =>
+                  const SizedBox.shrink(),
+            )
+          : null,
     );
   }
 

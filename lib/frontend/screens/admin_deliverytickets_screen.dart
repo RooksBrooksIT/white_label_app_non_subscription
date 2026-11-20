@@ -1,7 +1,9 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_assigndelivery_page.dart';
@@ -252,10 +254,13 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0.5,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF0F172A)),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: !kIsWeb,
+        leading: kIsWeb
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF0F172A)),
+                onPressed: () => Navigator.pop(context),
+              ),
         title: const Text(
           'Delivery Tickets',
           style: TextStyle(
@@ -297,17 +302,20 @@ class _AdminDeliveryTicketsState extends State<AdminDeliveryTickets> {
         ],
       ),
       body: SafeArea(
-        child: Column(
-          children: [
-            const SizedBox(height: 16),
-            _buildSearchBar(),
-            const SizedBox(height: 12),
-            _buildQuickFilterChips(),
-            const SizedBox(height: 12),
-            Expanded(
-              child: _buildDeliveryStreamBuilder(),
-            ),
-          ],
+        child: ResponsiveWrapper(
+          maxWidth: 960,
+          child: Column(
+            children: [
+              const SizedBox(height: 16),
+              _buildSearchBar(),
+              const SizedBox(height: 12),
+              _buildQuickFilterChips(),
+              const SizedBox(height: 12),
+              Expanded(
+                child: _buildDeliveryStreamBuilder(),
+              ),
+            ],
+          ),
         ),
       ),
     );

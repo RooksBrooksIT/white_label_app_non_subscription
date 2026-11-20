@@ -19,6 +19,11 @@ class Customer {
   final Timestamp timestamp; // Add timestamp field
   final String? customerFileUrl; // New field
   final String? fileName; // New field
+  final double? customerRating;
+  final String customerFeedback;
+  final String feedbackStatus;
+  final Timestamp? feedbackSubmittedAt;
+  final bool completionFeedbackNotificationSent;
 
   static const String unassigned = 'Unassigned';
   static const String assigned = 'Assigned';
@@ -47,8 +52,13 @@ class Customer {
     required this.timestamp,
     this.customerFileUrl,
     this.fileName,
-  })  : ticketId = ticketId ?? bookingId ?? '',
-        issueDescription = issueDescription ?? message ?? '';
+    this.customerRating,
+    this.customerFeedback = '',
+    this.feedbackStatus = '',
+    this.feedbackSubmittedAt,
+    this.completionFeedbackNotificationSent = false,
+  }) : ticketId = ticketId ?? bookingId ?? '',
+       issueDescription = issueDescription ?? message ?? '';
 
   // CopyWith method
   Customer copyWith({
@@ -142,10 +152,33 @@ class Customer {
       assignedEngineer:
           data?['assignedEngineer'] ?? data?['AssignedEngineer'] ?? '',
       timestamp: _parseTimestamp(data?['createdAt'] ?? data?['timestamp']),
-      customerid: data?['id'] ?? data?['customerId'] ?? data?['customerid'] ?? '',
-      customerType: data?['customerType']?.toString() ?? data?['customer_type']?.toString() ?? '',
+      customerid:
+          data?['id'] ?? data?['customerId'] ?? data?['customerid'] ?? '',
+      customerType:
+          data?['customerType']?.toString() ??
+          data?['customer_type']?.toString() ??
+          '',
       customerFileUrl: data?['customerFileUrl'],
       fileName: data?['fileName'],
+      customerRating:
+          (data?['customerRating'] as num?)?.toDouble() ??
+          (data?['rating'] as num?)?.toDouble(),
+      customerFeedback:
+          (data?['customerFeedback'] ??
+                  data?['ratingComment'] ??
+                  data?['comment'] ??
+                  '')
+              .toString()
+              .trim(),
+      feedbackStatus: (data?['feedbackStatus'] ?? '').toString().trim(),
+      feedbackSubmittedAt:
+          (data != null && data['feedbackSubmittedAt'] is Timestamp)
+          ? data['feedbackSubmittedAt'] as Timestamp
+          : ((data != null && data['ratedAt'] is Timestamp)
+                ? data['ratedAt'] as Timestamp
+                : null),
+      completionFeedbackNotificationSent:
+          data?['completionFeedbackNotificationSent'] == true,
     );
   }
 

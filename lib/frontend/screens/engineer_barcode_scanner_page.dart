@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -222,6 +223,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
     if (!_barcodeFeatureEnabled) {
       return Scaffold(
         appBar: AppBar(
+          automaticallyImplyLeading: !kIsWeb,
           title: const Text('Barcode Scanner'),
           centerTitle: true,
         ),
@@ -282,6 +284,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
           slivers: [
             // App Bar with Glass Effect
             SliverAppBar(
+              automaticallyImplyLeading: !kIsWeb,
               backgroundColor: Colors.transparent,
               elevation: 0,
               pinned: true,
@@ -334,6 +337,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
         ],
       ),
       child: AppBar(
+        automaticallyImplyLeading: !kIsWeb,
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: Text(

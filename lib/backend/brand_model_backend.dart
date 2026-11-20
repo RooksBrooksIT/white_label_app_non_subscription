@@ -159,56 +159,71 @@ class BrandModelBackend {
     required String description,
     String? editingDocumentId,
   }) async {
+    final cleanDeviceName = deviceName.trim();
+    final cleanBrandName = brandName.trim();
+    final cleanModel = model.trim();
+    final cleanSpec = specification.trim();
+    final cleanDesc = description.trim();
+
     if (editingDocumentId != null) {
-      // Update existing document
-      await _firestore.collection('Devices').doc(editingDocumentId).update({
-        'deviceName': deviceName,
-        'brandName': brandName,
-        'model': model,
-        'specification': specification,
-        'description': description,
+      // Update existing document without overwriting fields with empty values
+      final Map<String, dynamic> updateData = {
+        if (cleanDeviceName.isNotEmpty) 'deviceName': cleanDeviceName,
+        if (cleanBrandName.isNotEmpty) 'brandName': cleanBrandName,
+        if (cleanModel.isNotEmpty) 'model': cleanModel,
         'updatedAt': FieldValue.serverTimestamp(),
-      });
+      };
+      if (cleanSpec.isNotEmpty) {
+        updateData['specification'] = cleanSpec;
+      }
+      if (cleanDesc.isNotEmpty) {
+        updateData['description'] = cleanDesc;
+      }
+      await _firestore
+          .collection('Devices')
+          .doc(editingDocumentId)
+          .update(updateData);
     } else {
       // Generate document ID: "deviceName_YYYY-MM-DD"
       final now = DateTime.now();
       final dateStr =
           '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
-      final safeDeviceName =
-          deviceName.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_');
+      final safeDeviceName = cleanDeviceName.toLowerCase().replaceAll(
+        RegExp(r'[^a-z0-9]'),
+        '_',
+      );
       final documentId = '${safeDeviceName}_$dateStr';
 
+      final Map<String, dynamic> docData = {
+        'deviceName': cleanDeviceName,
+        'brandName': cleanBrandName,
+        'model': cleanModel,
+        'specification': cleanSpec,
+        'description': cleanDesc,
+        'createdAt': FieldValue.serverTimestamp(),
+      };
+
       // Check for duplicates
-      final existing =
-          await _firestore.collection('Devices').doc(documentId).get();
+      final existing = await _firestore
+          .collection('Devices')
+          .doc(documentId)
+          .get();
       if (existing.exists) {
         // Append a counter suffix to make it unique
         int counter = 1;
         String uniqueId = '${documentId}_$counter';
         while (true) {
-          final check =
-              await _firestore.collection('Devices').doc(uniqueId).get();
+          final check = await _firestore
+              .collection('Devices')
+              .doc(uniqueId)
+              .get();
           if (!check.exists) break;
           counter++;
           uniqueId = '${documentId}_$counter';
         }
-        await _firestore.collection('Devices').doc(uniqueId).set({
-          'deviceName': deviceName,
-          'brandName': brandName,
-          'model': model,
-          'specification': specification,
-          'description': description,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
+        await _firestore.collection('Devices').doc(uniqueId).set(docData);
       } else {
-        await _firestore.collection('Devices').doc(documentId).set({
-          'deviceName': deviceName,
-          'brandName': brandName,
-          'model': model,
-          'specification': specification,
-          'description': description,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
+        await _firestore.collection('Devices').doc(documentId).set(docData);
       }
     }
   }
@@ -249,41 +264,300 @@ class BrandModelBackend {
     return _firestore.collection(collectionName).snapshots();
   }
 
-  /// Fetches all device brands from the 'devicebrands' or 'devicesbrands' collection.
-  Future<List<String>> fetchAllDeviceBrands() async {
-    try {
-      // Try 'devicebrands' as requested by user
-      var snapshot = await _firestore.collection('devicebrands').get();
-      var brands = snapshot.docs
-          .map((doc) => doc.data()['devicebrand']?.toString().trim())
-          .where((brand) => brand != null && brand.isNotEmpty)
-          .cast<String>()
-          .toSet()
-          .toList();
+  /// Fetches paginated devices from Firestore using document snapshot cursor.
+  Future<QuerySnapshot> fetchDevicesPaginated({
+    String collectionName = 'Devices',
+    int limit = 10,
+    DocumentSnapshot? startAfter,
+    String? orderByField,
+    bool descending = false,
+  }) async {
+    Query query = _firestore.collection(collectionName);
+    if (orderByField != null) {
+      query = query.orderBy(orderByField, descending: descending);
+    }
+    if (startAfter != null) {
+      query = query.startAfterDocument(startAfter);
+    }
+    return query.limit(limit).get();
+  }
 
-      if (brands.isEmpty) {
-        // Fallback to 'devicesbrands' (plural s) if empty
-        snapshot = await _firestore.collection('devicesbrands').get();
-        brands = snapshot.docs
-            .map((doc) {
-              final data = doc.data();
-              return (data['devicesbrand'] ??
-                      data['devicebrand'] ??
-                      data['brand'])
-                  ?.toString()
-                  .trim();
-            })
-            .where((brand) => brand != null && brand.isNotEmpty)
-            .cast<String>()
-            .toSet()
-            .toList();
+  /// Fetches all unique device types from 'Devices', 'deviceDetails', and 'devicesbrands' collections.
+  /// Eliminates duplicates (case-insensitive), sorts alphabetically, and appends 'Others'.
+  Future<List<String>> fetchAllDeviceTypes() async {
+    try {
+      final Map<String, String> normalizedMap =
+          {}; // lower -> canonical display
+
+      // 1. From 'Devices' (Admin equipment catalog)
+      try {
+        final snapshot = await _firestore.collection('Devices').get();
+        for (var doc in snapshot.docs) {
+          final data = doc.data();
+          final name = (data['deviceName'] ?? data['deviceType'] ?? '')
+              .toString()
+              .trim();
+          if (name.isNotEmpty && name.toLowerCase() != 'others') {
+            final lower = name.toLowerCase();
+            normalizedMap.putIfAbsent(lower, () => name);
+          }
+        }
+      } catch (e) {
+        // Continue
       }
 
-      brands.sort();
-      return brands;
+      // 2. From 'deviceDetails' (Admin Device Configuration module)
+      try {
+        final snapshot = await _firestore.collection('deviceDetails').get();
+        for (var doc in snapshot.docs) {
+          final data = doc.data();
+          final name = (data['deviceType'] ?? doc.id).toString().trim();
+          if (name.isNotEmpty && name.toLowerCase() != 'others') {
+            final lower = name.toLowerCase();
+            normalizedMap.putIfAbsent(lower, () => name);
+          }
+        }
+      } catch (e) {
+        // Continue
+      }
+
+      // 3. From 'devicesbrands' (BrandModelBackend dynamic master types)
+      try {
+        final snapshot = await _firestore
+            .collection(devicesbrandsCollection)
+            .get();
+        for (var doc in snapshot.docs) {
+          final data = doc.data();
+          final name = (data['devicesbrand'] ?? '').toString().trim();
+          if (name.isNotEmpty && name.toLowerCase() != 'others') {
+            final lower = name.toLowerCase();
+            normalizedMap.putIfAbsent(lower, () => name);
+          }
+        }
+      } catch (e) {
+        // Continue
+      }
+
+      final list = normalizedMap.values.toList();
+      list.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+      list.add('Others');
+      return list;
     } catch (e) {
-      print('Error fetching device brands: $e');
-      return [];
+      return ['Others'];
+    }
+  }
+
+  /// Fetches all device brands dynamically from 'Devices', 'devicebrands', and 'devicesbrands'.
+  /// If [deviceType] is provided, prioritizes brands configured for that device type in 'Devices'.
+  /// Eliminates duplicates (case-insensitive), sorts alphabetically, and appends 'Others'.
+  Future<List<String>> fetchAllDeviceBrands([String? deviceType]) async {
+    try {
+      final Map<String, String> normalizedMap =
+          {}; // lower -> canonical display
+
+      // If a specific device type is provided (and not 'Others'), first try to find brands linked to that type
+      if (deviceType != null &&
+          deviceType.trim().isNotEmpty &&
+          deviceType.trim().toLowerCase() != 'others') {
+        final targetType = deviceType.trim().toLowerCase();
+        try {
+          final snapshot = await _firestore.collection('Devices').get();
+          for (var doc in snapshot.docs) {
+            final data = doc.data();
+            final dName = (data['deviceName'] ?? data['deviceType'] ?? '')
+                .toString()
+                .trim()
+                .toLowerCase();
+            if (dName == targetType) {
+              final b = (data['brandName'] ?? data['brand'] ?? '')
+                  .toString()
+                  .trim();
+              if (b.isNotEmpty &&
+                  b.toLowerCase() != 'others' &&
+                  b.toLowerCase() != 'general') {
+                normalizedMap.putIfAbsent(b.toLowerCase(), () => b);
+              }
+            }
+          }
+        } catch (_) {}
+      }
+
+      // If no specific brands were found for that type, or if no deviceType was specified,
+      // load all configured brands from backend configuration collections
+      if (normalizedMap.isEmpty) {
+        // 1. From 'Devices'
+        try {
+          final snapshot = await _firestore.collection('Devices').get();
+          for (var doc in snapshot.docs) {
+            final data = doc.data();
+            final b = (data['brandName'] ?? data['brand'] ?? '')
+                .toString()
+                .trim();
+            if (b.isNotEmpty &&
+                b.toLowerCase() != 'others' &&
+                b.toLowerCase() != 'general') {
+              normalizedMap.putIfAbsent(b.toLowerCase(), () => b);
+            }
+          }
+        } catch (_) {}
+
+        // 2. From 'devicebrands'
+        try {
+          final snapshot = await _firestore.collection('devicebrands').get();
+          for (var doc in snapshot.docs) {
+            final data = doc.data();
+            final b =
+                (data['devicebrand'] ??
+                        data['brand'] ??
+                        data['brandName'] ??
+                        '')
+                    .toString()
+                    .trim();
+            if (b.isNotEmpty &&
+                b.toLowerCase() != 'others' &&
+                b.toLowerCase() != 'general') {
+              normalizedMap.putIfAbsent(b.toLowerCase(), () => b);
+            }
+          }
+        } catch (_) {}
+
+        // 3. From 'devicesbrands'
+        try {
+          final snapshot = await _firestore
+              .collection(devicesbrandsCollection)
+              .get();
+          for (var doc in snapshot.docs) {
+            final data = doc.data();
+            final b =
+                (data['devicesbrand'] ?? data['devicebrand'] ?? data['brand'])
+                    ?.toString()
+                    .trim();
+            if (b != null &&
+                b.isNotEmpty &&
+                b.toLowerCase() != 'others' &&
+                b.toLowerCase() != 'general') {
+              normalizedMap.putIfAbsent(b.toLowerCase(), () => b);
+            }
+          }
+        } catch (_) {}
+      }
+
+      final list = normalizedMap.values.toList();
+      list.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+      list.add('Others');
+      return list;
+    } catch (e) {
+      return ['Others'];
+    }
+  }
+
+  /// Persists newly entered custom Device Type and/or Device Brand (from "Others")
+  /// to the backend configuration collections ('Devices', 'deviceDetails', 'devicebrands').
+  /// Prevents duplicates (case-insensitive check) and ensures they become available for future ticket creation.
+  Future<void> saveCustomDeviceConfiguration({
+    required String deviceType,
+    required String deviceBrand,
+  }) async {
+    final cleanType = deviceType.trim();
+    final cleanBrand = deviceBrand.trim();
+
+    final isCustomType =
+        cleanType.isNotEmpty && cleanType.toLowerCase() != 'others';
+    final isCustomBrand =
+        cleanBrand.isNotEmpty && cleanBrand.toLowerCase() != 'others';
+
+    if (!isCustomType && !isCustomBrand) return;
+
+    try {
+      // 1. If custom device type, ensure it exists in 'deviceDetails' (Admin Device Config)
+      if (isCustomType) {
+        final existingTypeSnapshot = await _firestore
+            .collection('deviceDetails')
+            .get();
+        final alreadyInDetails = existingTypeSnapshot.docs.any((doc) {
+          final data = doc.data();
+          final t = (data['deviceType'] ?? doc.id).toString().trim();
+          return t.toLowerCase() == cleanType.toLowerCase();
+        });
+
+        if (!alreadyInDetails) {
+          // Generate next device ID (DE001, DE002, etc.) matching admin_device_config_page
+          int maxNumber = 0;
+          for (var doc in existingTypeSnapshot.docs) {
+            final data = doc.data();
+            final deviceId = data['deviceId'] as String?;
+            if (deviceId != null && deviceId.startsWith('DE')) {
+              final numberPart = deviceId.substring(2);
+              final num = int.tryParse(numberPart) ?? 0;
+              if (num > maxNumber) maxNumber = num;
+            }
+          }
+          final nextDeviceId =
+              'DE${(maxNumber + 1).toString().padLeft(3, '0')}';
+
+          await _firestore.collection('deviceDetails').doc(cleanType).set({
+            'deviceType': cleanType,
+            'description': 'Auto-configured from ticket creation',
+            'deviceId': nextDeviceId,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+        }
+      }
+
+      // 2. If custom brand, ensure it exists in 'devicebrands'
+      if (isCustomBrand) {
+        final existingBrandSnapshot = await _firestore
+            .collection('devicebrands')
+            .get();
+        final alreadyInBrands = existingBrandSnapshot.docs.any((doc) {
+          final data = doc.data();
+          final b =
+              (data['devicebrand'] ?? data['brand'] ?? data['brandName'] ?? '')
+                  .toString()
+                  .trim();
+          return b.toLowerCase() == cleanBrand.toLowerCase();
+        });
+
+        if (!alreadyInBrands) {
+          await _firestore.collection('devicebrands').add({
+            'devicebrand': cleanBrand,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+        }
+      }
+
+      // 3. Ensure representation in 'Devices' collection (Admin Device Catalog)
+      final targetType = isCustomType
+          ? cleanType
+          : (cleanType.isNotEmpty ? cleanType : 'General');
+      final targetBrand = isCustomBrand
+          ? cleanBrand
+          : (cleanBrand.isNotEmpty ? cleanBrand : 'General');
+
+      final devicesSnapshot = await _firestore.collection('Devices').get();
+      final alreadyInDevices = devicesSnapshot.docs.any((doc) {
+        final data = doc.data();
+        final dName = (data['deviceName'] ?? data['deviceType'] ?? '')
+            .toString()
+            .trim();
+        final bName = (data['brandName'] ?? data['brand'] ?? '')
+            .toString()
+            .trim();
+        return dName.toLowerCase() == targetType.toLowerCase() &&
+            bName.toLowerCase() == targetBrand.toLowerCase();
+      });
+
+      if (!alreadyInDevices) {
+        await saveDeviceEntry(
+          deviceName: targetType,
+          brandName: targetBrand,
+          model: 'Standard',
+          specification: 'Auto-configured from ticket creation',
+          description: 'Added via Others option',
+        );
+      }
+    } catch (_) {
+      // Graceful error recovery
     }
   }
 }

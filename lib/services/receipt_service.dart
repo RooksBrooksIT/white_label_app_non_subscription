@@ -10,6 +10,7 @@ class ReceiptService {
     required String planName,
     required bool isYearly,
     required bool isSixMonths,
+    int subscriptionYears = 1,
     required int amount,
     required String transactionId,
     required String paymentMethod,
@@ -29,7 +30,7 @@ class ReceiptService {
 
     final dateStr = DateFormat('dd MMM yyyy, HH:mm').format(DateTime.now());
     final duration = isYearly
-        ? '12 Months'
+        ? (subscriptionYears > 1 ? '$subscriptionYears Years' : '12 Months')
         : (isSixMonths ? '6 Months' : '1 Month');
 
     // Calculate GST (18%)

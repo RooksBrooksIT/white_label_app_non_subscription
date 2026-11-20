@@ -9,19 +9,20 @@ console.log("FIREBASE CLOUD FUNCTIONS v1 VERIFICATION CHECK");
 console.log("=================================================");
 
 const expectedExports = [
-  "testNotify",
   "handleTicketCreation",
   "handleTicketStatusUpdate",
+  "handleNotificationDocument",
+  "handleRaisedTicketCreation",
+  "handleRaisedTicketUpdate",
+  "handleAdminTicketEntryUpdate",
   "processMailDocument",
   "scheduledEmailRetry",
   "processPaymentSuccess",
   "logPaymentActivity",
   "scheduledSubscriptionReminders",
-  "testExpiryReminders",
   "sendOTP",
   "verifyOTPAndResetPassword",
   "checkSubscriptionExpiryReminders",
-  "testExpiryReminder",
   "reconcileStuckPayments",
   "processRefund",
   "adminProcessRefund",

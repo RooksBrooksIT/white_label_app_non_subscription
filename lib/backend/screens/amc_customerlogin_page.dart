@@ -91,13 +91,19 @@ class AMCLoginBackend {
         // Sync branding configuration immediately
         await FirestoreService.instance.syncBranding(tenantId);
 
-        // Register FCM token for the customer immediately upon login
-        final userId = userDocs.first.data()['Id'] ?? '';
+        // Register FCM token and start global notification handling immediately upon login
+        final userId = (userDocs.first.data()['Id'] ?? userDocs.first.id).toString();
         if (userId.isNotEmpty) {
-          NotificationService.instance.registerToken(
+          await NotificationService.instance.registerToken(
             role: 'customer',
             userId: userId,
             email: cleanEmail,
+            tenantId: tenantId,
+            customerId: userId,
+          );
+          NotificationService.instance.startCustomerNotificationListener(
+            customerId: userId,
+            tenantId: tenantId,
           );
         }
 

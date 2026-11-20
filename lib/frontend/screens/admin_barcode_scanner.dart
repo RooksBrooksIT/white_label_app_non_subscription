@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
+import '../../utils/responsive_wrapper.dart';
 
 class AdminBarcodeScanner extends StatefulWidget {
   const AdminBarcodeScanner({super.key});
@@ -183,17 +185,20 @@ class _AdminBarcodeScannerState extends State<AdminBarcodeScanner> {
         backgroundColor: Colors.white,
         elevation: 0.5,
         centerTitle: true,
-        leading: Padding(
-          padding: const EdgeInsets.all(8),
-          child: CircleAvatar(
-            backgroundColor: const Color(0xFFF1F5F9),
-            child: IconButton(
-              icon: const Icon(Icons.arrow_back_rounded,
-                  color: Color(0xFF0F172A), size: 18),
-              onPressed: () => Navigator.pop(context),
-            ),
-          ),
-        ),
+        automaticallyImplyLeading: !kIsWeb,
+        leading: kIsWeb
+            ? null
+            : Padding(
+                padding: const EdgeInsets.all(8),
+                child: CircleAvatar(
+                  backgroundColor: const Color(0xFFF1F5F9),
+                  child: IconButton(
+                    icon: const Icon(Icons.arrow_back_rounded,
+                        color: Color(0xFF0F172A), size: 18),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ),
+              ),
         title: const Text(
           'Barcode Scanner',
           style: TextStyle(
@@ -218,8 +223,10 @@ class _AdminBarcodeScannerState extends State<AdminBarcodeScanner> {
         ],
       ),
 
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+      body: ResponsiveWrapper(
+        maxWidth: 960,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -353,7 +360,8 @@ class _AdminBarcodeScannerState extends State<AdminBarcodeScanner> {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 
   // ── Scanner camera card ──────────────────────

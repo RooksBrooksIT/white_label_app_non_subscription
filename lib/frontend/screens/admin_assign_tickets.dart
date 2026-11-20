@@ -1,9 +1,15 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:flutter/services.dart';
+import 'package:subscription_rooks_app/backend/brand_model_backend.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_tickets_overview.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_deliverytickets_screen.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
+import 'package:subscription_rooks_app/services/notification_service.dart';
 
 class CreateTickets extends StatefulWidget {
   final String customerId;
@@ -42,7 +48,8 @@ class _CreateTicketsState extends State<CreateTickets> {
   final TextEditingController _addressController = TextEditingController();
 
   // Search Controllers for Existing Customer
-  final TextEditingController _existingSearchController = TextEditingController();
+  final TextEditingController _existingSearchController =
+      TextEditingController();
   List<Map<String, dynamic>> _searchResults = [];
   bool _isSearchingCustomers = false;
 
@@ -63,12 +70,14 @@ class _CreateTicketsState extends State<CreateTickets> {
   String deviceCondition = '';
   final TextEditingController _messageController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
-  final TextEditingController _customDeviceTypeController = TextEditingController();
-  final TextEditingController _customDeviceBrandController = TextEditingController();
+  final TextEditingController _customDeviceTypeController =
+      TextEditingController();
+  final TextEditingController _customDeviceBrandController =
+      TextEditingController();
 
-  // Lists
-  List<String> deviceTypes = ['Laptop', 'Desktop', 'Printer', 'CCTV', 'Server', 'Others'];
-  List<String> deviceBrands = ['DELL', 'HP', 'MAC', 'LENOVO', 'ASUS', 'Others'];
+  // Dynamic Lists fetched from backend configuration
+  List<String> deviceTypes = [];
+  List<String> deviceBrands = [];
   final List<String> currentDeviceConditions = [
     'Working',
     'Partially working',
@@ -77,9 +86,27 @@ class _CreateTicketsState extends State<CreateTickets> {
   ];
   final List<String> jobTypes = ['Service', 'Delivery'];
 
-  bool _isDeviceTypesLoading = false;
-  bool _isDeviceBrandsLoading = false;
+  bool _isDeviceTypesLoading = true;
+  bool _isDeviceBrandsLoading = true;
   bool _isSubmitting = false;
+
+  // Real-time synchronization subscriptions
+  StreamSubscription? _devicesSubscription;
+  StreamSubscription? _deviceDetailsSubscription;
+
+  // Staff Assignment State
+  List<Map<String, dynamic>> _registeredStaff = [];
+  bool _isLoadingStaff = false;
+  String? _selectedEngineer;
+  String? _selectedEngineerId;
+  String? _selectedHelper;
+  String? _selectedHelperId;
+  final TextEditingController _helperReasonController = TextEditingController();
+
+  // Visit Scheduling State
+  DateTime? _expectedVisitDate;
+  TimeOfDay? _expectedVisitTime;
+  final TextEditingController _visitNotesController = TextEditingController();
 
   // Success step results
   String _createdTicketId = '';
@@ -90,6 +117,30 @@ class _CreateTicketsState extends State<CreateTickets> {
     super.initState();
     _fetchDeviceTypes();
     _fetchGlobalDeviceBrands();
+    _fetchRegisteredStaff();
+
+    // Real-time synchronization: listen for admin changes to device configurations
+    _devicesSubscription = FirestoreService.instance
+        .collection('Devices')
+        .snapshots()
+        .listen((_) {
+          if (mounted) {
+            _fetchDeviceTypes();
+            if (deviceType.isNotEmpty && deviceType != 'Others') {
+              _fetchGlobalDeviceBrands(deviceType);
+            } else {
+              _fetchGlobalDeviceBrands();
+            }
+          }
+        });
+    _deviceDetailsSubscription = FirestoreService.instance
+        .collection('deviceDetails')
+        .snapshots()
+        .listen((_) {
+          if (mounted) {
+            _fetchDeviceTypes();
+          }
+        });
 
     if (widget.customerId.isNotEmpty) {
       _customerType = 'existing';
@@ -107,6 +158,8 @@ class _CreateTicketsState extends State<CreateTickets> {
 
   @override
   void dispose() {
+    _devicesSubscription?.cancel();
+    _deviceDetailsSubscription?.cancel();
     _customerIdController.dispose();
     _customerNameController.dispose();
     _mobileNumberController.dispose();
@@ -116,6 +169,8 @@ class _CreateTicketsState extends State<CreateTickets> {
     _descriptionController.dispose();
     _customDeviceTypeController.dispose();
     _customDeviceBrandController.dispose();
+    _helperReasonController.dispose();
+    _visitNotesController.dispose();
     _mobileNumberFocusNode.dispose();
     super.dispose();
   }
@@ -123,16 +178,24 @@ class _CreateTicketsState extends State<CreateTickets> {
   // --- ATOMIC FIRESTORE COUNTERS ---
 
   Future<String> _generateNextCustomerId() async {
-    final counterRef = FirestoreService.instance.collection('counters').doc('customerId');
+    final counterRef = FirestoreService.instance
+        .collection('counters')
+        .doc('customerId');
     return FirestoreService.instance.runTransaction((transaction) async {
       final snapshot = await transaction.get(counterRef);
       int lastId = 0;
-      if (snapshot.exists && snapshot.data() != null && snapshot.data()!['lastId'] != null) {
+      if (snapshot.exists &&
+          snapshot.data() != null &&
+          snapshot.data()!['lastId'] != null) {
         lastId = snapshot.data()!['lastId'] as int;
       } else {
         // Scan fallback if counter doc is fresh
-        final customersSnapshot = await FirestoreService.instance.collection('customers').get();
-        final loginSnapshot = await FirestoreService.instance.collection('CustomerLogindetails').get();
+        final customersSnapshot = await FirestoreService.instance
+            .collection('customers')
+            .get();
+        final loginSnapshot = await FirestoreService.instance
+            .collection('CustomerLogindetails')
+            .get();
         final RegExp cPattern = RegExp(r'^C(\d+)$');
         int highest = 0;
 
@@ -162,14 +225,20 @@ class _CreateTicketsState extends State<CreateTickets> {
   }
 
   Future<String> _generateNextServiceTicketId() async {
-    final counterRef = FirestoreService.instance.collection('counters').doc('serviceTicketId');
+    final counterRef = FirestoreService.instance
+        .collection('counters')
+        .doc('serviceTicketId');
     return FirestoreService.instance.runTransaction((transaction) async {
       final snapshot = await transaction.get(counterRef);
       int lastId = 0;
-      if (snapshot.exists && snapshot.data() != null && snapshot.data()!['lastId'] != null) {
+      if (snapshot.exists &&
+          snapshot.data() != null &&
+          snapshot.data()!['lastId'] != null) {
         lastId = snapshot.data()!['lastId'] as int;
       } else {
-        final adminSnapshot = await FirestoreService.instance.collection('Admin_ticket_entry').get();
+        final adminSnapshot = await FirestoreService.instance
+            .collection('Admin_ticket_entry')
+            .get();
         final RegExp sPattern = RegExp(r'^S(\d+)$');
         int highest = 0;
         for (var doc in adminSnapshot.docs) {
@@ -189,14 +258,20 @@ class _CreateTicketsState extends State<CreateTickets> {
   }
 
   Future<String> _generateNextDeliveryTicketId() async {
-    final counterRef = FirestoreService.instance.collection('counters').doc('deliveryTicketId');
+    final counterRef = FirestoreService.instance
+        .collection('counters')
+        .doc('deliveryTicketId');
     return FirestoreService.instance.runTransaction((transaction) async {
       final snapshot = await transaction.get(counterRef);
       int lastId = 0;
-      if (snapshot.exists && snapshot.data() != null && snapshot.data()!['lastId'] != null) {
+      if (snapshot.exists &&
+          snapshot.data() != null &&
+          snapshot.data()!['lastId'] != null) {
         lastId = snapshot.data()!['lastId'] as int;
       } else {
-        final adminSnapshot = await FirestoreService.instance.collection('Admin_ticket_entry').get();
+        final adminSnapshot = await FirestoreService.instance
+            .collection('Admin_ticket_entry')
+            .get();
         final RegExp dPattern = RegExp(r'^D(\d+)$');
         int highest = 0;
         for (var doc in adminSnapshot.docs) {
@@ -235,7 +310,9 @@ class _CreateTicketsState extends State<CreateTickets> {
 
     try {
       // 1. Search customers collection
-      final customersSnap = await FirestoreService.instance.collection('customers').get();
+      final customersSnap = await FirestoreService.instance
+          .collection('customers')
+          .get();
       for (var doc in customersSnap.docs) {
         final data = doc.data();
         final id = (data['id'] ?? doc.id).toString();
@@ -260,7 +337,9 @@ class _CreateTicketsState extends State<CreateTickets> {
       }
 
       // 2. Search CustomerLogindetails collection
-      final loginSnap = await FirestoreService.instance.collection('CustomerLogindetails').get();
+      final loginSnap = await FirestoreService.instance
+          .collection('CustomerLogindetails')
+          .get();
       for (var doc in loginSnap.docs) {
         final data = doc.data();
         final id = (data['id'] ?? doc.id).toString();
@@ -285,7 +364,9 @@ class _CreateTicketsState extends State<CreateTickets> {
       }
 
       // 3. Search AMC_user collection
-      final amcSnap = await FirestoreService.instance.collection('AMC_user').get();
+      final amcSnap = await FirestoreService.instance
+          .collection('AMC_user')
+          .get();
       for (var doc in amcSnap.docs) {
         final data = doc.data();
         final id = (data['Id'] ?? doc.id).toString();
@@ -360,46 +441,97 @@ class _CreateTicketsState extends State<CreateTickets> {
   }
 
   Future<void> _fetchDeviceTypes() async {
-    setState(() => _isDeviceTypesLoading = true);
+    if (mounted) setState(() => _isDeviceTypesLoading = true);
     try {
-      final snapshot =
-          await FirestoreService.instance.collection('Devices').get();
-      final types = snapshot.docs
-          .map((doc) => doc['deviceName']?.toString().trim())
-          .where((t) => t != null && t.isNotEmpty)
-          .cast<String>()
-          .toSet()   // ← removes duplicates (e.g. multiple "Laptop" docs)
-          .toList();
-      types.sort();
-      if (!types.contains('Others')) types.add('Others');
-      setState(() => deviceTypes = types);
+      final types = await BrandModelBackend().fetchAllDeviceTypes();
+      if (mounted) {
+        setState(() {
+          deviceTypes = types.isNotEmpty ? types : ['Others'];
+          if (deviceType.isNotEmpty && !deviceTypes.contains(deviceType)) {
+            if (deviceType != 'Others') {
+              deviceTypes.insert(deviceTypes.length - 1, deviceType);
+            }
+          }
+        });
+      }
     } catch (e) {
-      setState(() =>
-          deviceTypes = ['Laptop', 'Desktop', 'Printer', 'CCTV', 'Server', 'Others']);
+      if (mounted) {
+        setState(() => deviceTypes = ['Others']);
+      }
     } finally {
-      setState(() => _isDeviceTypesLoading = false);
+      if (mounted) {
+        setState(() => _isDeviceTypesLoading = false);
+      }
     }
   }
 
-  Future<void> _fetchGlobalDeviceBrands() async {
-    setState(() => _isDeviceBrandsLoading = true);
+  Future<void> _fetchGlobalDeviceBrands([String? forDeviceType]) async {
+    if (mounted) setState(() => _isDeviceBrandsLoading = true);
     try {
-      final snapshot =
-          await FirestoreService.instance.collection('Devices').get();
-      final brands = snapshot.docs
-          .map((doc) => doc['brandName']?.toString().trim())
-          .where((b) => b != null && b.isNotEmpty)
-          .cast<String>()
-          .toSet() // removes duplicates (multiple Lenovo docs → one "Lenovo")
-          .toList();
-      brands.sort();
-      if (!brands.contains('Others')) brands.add('Others');
-      setState(() => deviceBrands = brands);
+      final brands = await BrandModelBackend().fetchAllDeviceBrands(
+        forDeviceType,
+      );
+      if (mounted) {
+        setState(() {
+          deviceBrands = brands.isNotEmpty ? brands : ['Others'];
+          if (deviceBrand.isNotEmpty && !deviceBrands.contains(deviceBrand)) {
+            if (deviceBrand != 'Others') {
+              deviceBrands.insert(deviceBrands.length - 1, deviceBrand);
+            }
+          }
+        });
+      }
     } catch (e) {
-      setState(() =>
-          deviceBrands = ['DELL', 'HP', 'MAC', 'LENOVO', 'ASUS', 'Others']);
+      if (mounted) {
+        setState(() => deviceBrands = ['Others']);
+      }
     } finally {
-      setState(() => _isDeviceBrandsLoading = false);
+      if (mounted) {
+        setState(() => _isDeviceBrandsLoading = false);
+      }
+    }
+  }
+
+  Future<void> _fetchRegisteredStaff() async {
+    setState(() => _isLoadingStaff = true);
+    try {
+      final snapshot = await FirestoreService.instance
+          .collection('EngineerLogin')
+          .get();
+
+      final staff = <Map<String, dynamic>>[];
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final username = (data['Username'] ?? '').toString().trim();
+        // Prevent assigning invalid or inactive users
+        final isActive =
+            data['isActive'] != false && data['status'] != 'inactive';
+        if (username.isNotEmpty && isActive) {
+          staff.add({
+            'id': doc.id,
+            'username': username,
+            'email': (data['Email'] ?? '').toString(),
+            'phone': (data['Phone'] ?? '').toString(),
+            'specialization': (data['Specialization'] ?? '').toString(),
+          });
+        }
+      }
+
+      staff.sort(
+        (a, b) => (a['username'] as String).toLowerCase().compareTo(
+          (b['username'] as String).toLowerCase(),
+        ),
+      );
+
+      setState(() {
+        _registeredStaff = staff;
+      });
+    } catch (e) {
+      debugPrint('Error fetching registered staff from EngineerLogin: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingStaff = false);
+      }
     }
   }
 
@@ -411,6 +543,38 @@ class _CreateTicketsState extends State<CreateTickets> {
     });
 
     try {
+      String customerIdToUse = _customerIdController.text.trim();
+
+      // If New Customer, generate ID and persist customer record to Firestore now
+      if (_customerType == 'new') {
+        if (customerIdToUse.isEmpty) {
+          customerIdToUse = await _generateNextCustomerId();
+          _customerIdController.text = customerIdToUse;
+        }
+
+        final custData = {
+          'id': customerIdToUse,
+          'customerName': _customerNameController.text.trim(),
+          'mobileNumber': _mobileNumberController.text.trim(),
+          'address': _addressController.text.trim(),
+          'timestamp': Timestamp.now(),
+          'createdAt': FieldValue.serverTimestamp(),
+        };
+
+        await FirestoreService.instance
+            .collection('customers')
+            .doc(customerIdToUse)
+            .set(custData);
+
+        _selectedCustomer = custData;
+      } else {
+        if (customerIdToUse.isEmpty) {
+          customerIdToUse = (_selectedCustomer?['id'] ?? 'C0001')
+              .toString()
+              .trim();
+        }
+      }
+
       String generatedTicketId = '';
       if (jobType == 'Service') {
         generatedTicketId = await _generateNextServiceTicketId();
@@ -419,41 +583,261 @@ class _CreateTicketsState extends State<CreateTickets> {
       }
 
       final actualDeviceType = deviceType == 'Others'
-          ? _customDeviceTypeController.text.trim()
+          ? (_customDeviceTypeController.text.trim().isNotEmpty
+                ? _customDeviceTypeController.text.trim()
+                : 'Others')
           : deviceType;
       final actualDeviceBrand = deviceBrand == 'Others'
-          ? _customDeviceBrandController.text.trim()
+          ? (_customDeviceBrandController.text.trim().isNotEmpty
+                ? _customDeviceBrandController.text.trim()
+                : 'Others')
           : deviceBrand;
 
-      final customerIdToUse = _customerIdController.text.isNotEmpty
-          ? _customerIdController.text
-          : (_selectedCustomer?['id'] ?? 'C0001');
+      final hasEngineer =
+          _selectedEngineer != null && _selectedEngineer!.trim().isNotEmpty;
+      final hasHelper =
+          _selectedHelper != null && _selectedHelper!.trim().isNotEmpty;
+
+      final assignedEngineerName = hasEngineer
+          ? _selectedEngineer!.trim()
+          : 'Not Assigned';
+      final assignedStatus = (hasEngineer || hasHelper) ? 'Assigned' : 'Open';
+      final engineerStatus = (hasEngineer || hasHelper)
+          ? 'Assigned'
+          : 'Not Assigned';
+      final customerDisplayName = _customerNameController.text.trim().isNotEmpty
+          ? _customerNameController.text.trim()
+          : (_selectedCustomer?['customerName'] ?? 'Customer');
+
+      final customerUid = (_selectedCustomer?['uid'] ??
+              _selectedCustomer?['customerUid'] ??
+              _selectedCustomer?['userId'] ??
+              '')
+          .toString()
+          .trim();
+      final issueDescriptionText = jobType == 'Delivery'
+          ? _descriptionController.text.trim()
+          : _messageController.text.trim();
 
       Map<String, dynamic> ticketData = {
         'id': customerIdToUse,
+        'customerId': customerIdToUse,
+        'customerid': customerIdToUse,
+        if (customerUid.isNotEmpty) 'customerUid': customerUid,
+        if (customerUid.isNotEmpty) 'uid': customerUid,
         'bookingId': generatedTicketId,
-        'customerName': _customerNameController.text,
-        'mobileNumber': _mobileNumberController.text,
-        'address': _addressController.text,
+        'ticketId': generatedTicketId,
+        'ticket_id': generatedTicketId,
+        'ticketNumber': generatedTicketId,
+        'customerName': customerDisplayName,
+        'mobileNumber': _mobileNumberController.text.trim().isNotEmpty
+            ? _mobileNumberController.text.trim()
+            : (_selectedCustomer?['mobileNumber'] ?? ''),
+        'address': _addressController.text.trim().isNotEmpty
+            ? _addressController.text.trim()
+            : (_selectedCustomer?['address'] ?? ''),
         'categoryName': widget.categoryName,
         'timestamp': Timestamp.now(),
+        'createdAt': Timestamp.now(),
+        'updatedAt': Timestamp.now(),
         'JobType': jobType,
+        'jobType': jobType,
         'customerType': _customerType,
         'deviceType': actualDeviceType,
+        'DeviceName': actualDeviceType,
         'deviceBrand': actualDeviceBrand,
         'deviceCondition': jobType == 'Service' ? deviceCondition : 'N/A',
-        'message': jobType == 'Delivery' ? _descriptionController.text : _messageController.text,
-        'adminStatus': 'Open',
+        'message': issueDescriptionText,
+        'issueDescription': issueDescriptionText,
+        'adminStatus': assignedStatus,
         'customerStatus': 'Ticket Created',
-        'engineerStatus': 'Not Assigned',
-        'assignedEmployee': 'Not Assigned',
+        'engineerStatus': engineerStatus,
+        'assignedEmployee': assignedEngineerName,
+        'assignedEngineer': assignedEngineerName,
+        'assignedEngineerId': _selectedEngineerId ?? '',
       };
 
-      // Save ticket exclusively to Admin_details collection
+      if (hasEngineer) {
+        ticketData['AssignedTimestamp'] = FieldValue.serverTimestamp();
+      }
+
+      // Store Helper assignment separately without overwriting primary Engineer
+      if (hasHelper) {
+        final helperName = _selectedHelper!.trim();
+        ticketData['helper'] = helperName;
+        ticketData['helperName'] = helperName;
+        ticketData['helperId'] = _selectedHelperId ?? '';
+        ticketData['Helper1'] = helperName;
+        final reason = _helperReasonController.text.trim();
+        if (reason.isNotEmpty) {
+          ticketData['Helper1_Reason'] = reason;
+          ticketData['helperReason'] = reason;
+        }
+        ticketData['helpers'] = [helperName];
+        ticketData['helperAssignedTimestamp'] = FieldValue.serverTimestamp();
+      }
+
+      // Store combined list for unified query support
+      final assignedUsersList = <String>{
+        if (hasEngineer) _selectedEngineer!.trim(),
+        if (hasHelper) _selectedHelper!.trim(),
+      }.toList();
+
+      if (assignedUsersList.isNotEmpty) {
+        ticketData['assignedUsers'] = assignedUsersList;
+      }
+
+      final assignedUserIdsList = <String>{
+        if (hasEngineer &&
+            (_selectedEngineerId != null && _selectedEngineerId!.isNotEmpty))
+          _selectedEngineerId!.trim(),
+        if (hasHelper &&
+            (_selectedHelperId != null && _selectedHelperId!.isNotEmpty))
+          _selectedHelperId!.trim(),
+      }.toList();
+
+      if (assignedUserIdsList.isNotEmpty) {
+        ticketData['assignedUserIds'] = assignedUserIdsList;
+      }
+
+      String visitDateStr = '';
+      String visitTimeStr = '';
+      if (_expectedVisitDate != null && _expectedVisitTime != null) {
+        visitDateStr = DateFormat('dd MMMM yyyy').format(_expectedVisitDate!);
+        final dtTime = DateTime(
+          _expectedVisitDate!.year,
+          _expectedVisitDate!.month,
+          _expectedVisitDate!.day,
+          _expectedVisitTime!.hour,
+          _expectedVisitTime!.minute,
+        );
+        visitTimeStr = DateFormat('h:mm a').format(dtTime);
+        ticketData['expectedVisitDate'] = visitDateStr;
+        ticketData['expectedVisitTime'] = visitTimeStr;
+        ticketData['expectedVisitAt'] = Timestamp.fromDate(dtTime);
+        ticketData['visitNotes'] = _visitNotesController.text.trim();
+        ticketData['assignedAt'] = FieldValue.serverTimestamp();
+        ticketData['assignmentNotificationStatus'] = {
+          'lastNotifiedPrimary': hasEngineer ? _selectedEngineer!.trim() : '',
+          'lastNotifiedHelper': hasHelper ? _selectedHelper!.trim() : '',
+          'lastNotifiedVisitDate': visitDateStr,
+          'lastNotifiedVisitTime': visitTimeStr,
+          'lastNotifiedAt': FieldValue.serverTimestamp(),
+        };
+      }
+
+      // Save ticket to Admin_ticket_entry
       await FirestoreService.instance
           .collection('Admin_ticket_entry')
           .doc(generatedTicketId)
           .set(ticketData);
+
+      try {
+        await FirestoreService.instance
+            .collection('Raised_tickets')
+            .doc(generatedTicketId)
+            .set(ticketData, SetOptions(merge: true));
+      } catch (_) {}
+
+      // If custom Device Type or Brand was entered via "Others", persist to backend device configuration
+      if (deviceType == 'Others' || deviceBrand == 'Others') {
+        try {
+          await BrandModelBackend().saveCustomDeviceConfiguration(
+            deviceType: actualDeviceType,
+            deviceBrand: actualDeviceBrand,
+          );
+        } catch (e) {
+          debugPrint('Error auto-configuring custom device/brand: $e');
+        }
+      }
+
+      // Notifications:
+      // 1. Primary Engineer Assignment Notification
+      if (hasEngineer) {
+        final visitScheduleText =
+            (visitDateStr.isNotEmpty && visitTimeStr.isNotEmpty)
+            ? ' Expected customer visit: $visitDateStr at $visitTimeStr.'
+            : '';
+        await NotificationService.sendNotificationToFirestore(
+          audience: 'engineer',
+          engineerName: _selectedEngineer!.trim(),
+          type: 'new_assignment',
+          bookingId: generatedTicketId,
+          body:
+              'Ticket $generatedTicketId has been assigned to you.$visitScheduleText',
+          customerName: customerDisplayName,
+          customerId: customerIdToUse,
+          additionalData: {
+            'processed': false,
+            'status': 'pending',
+            'expectedVisitDate': visitDateStr,
+            'expectedVisitTime': visitTimeStr,
+            'visitNotes': _visitNotesController.text.trim(),
+          },
+          title: 'New Service Ticket Assigned',
+        );
+
+        // Customer Notification
+        if (visitDateStr.isNotEmpty && visitTimeStr.isNotEmpty) {
+          await NotificationService.sendNotificationToFirestore(
+            audience: 'customer',
+            customerId: customerIdToUse,
+            bookingId: generatedTicketId,
+            title: 'Engineer Assigned – Service Visit Scheduled',
+            body:
+                'Your service ticket $generatedTicketId has been assigned to Engineer ${_selectedEngineer!.trim()}. Our engineer is expected to visit you on $visitDateStr at $visitTimeStr for your service request.',
+            customerName: customerDisplayName,
+            engineerName: _selectedEngineer!.trim(),
+            type: 'visit_scheduled',
+            additionalData: {
+              'expectedVisitDate': visitDateStr,
+              'expectedVisitTime': visitTimeStr,
+              'visitNotes': _visitNotesController.text.trim(),
+              'primaryEngineer': _selectedEngineer!.trim(),
+              'helperEngineer': hasHelper ? _selectedHelper!.trim() : '',
+            },
+          );
+        }
+      }
+
+      // 2. Helper Notification (identifies ticket and communicates responsibility)
+      // If the same person is selected as both Engineer and Helper, prevent duplicate notification
+      if (hasHelper) {
+        final isSamePerson =
+            hasEngineer &&
+            (_selectedEngineer!.trim().toLowerCase() ==
+                _selectedHelper!.trim().toLowerCase());
+        if (!isSamePerson) {
+          final visitScheduleText =
+              (visitDateStr.isNotEmpty && visitTimeStr.isNotEmpty)
+              ? ' Expected customer visit: $visitDateStr at $visitTimeStr. Primary Engineer: ${_selectedEngineer!.trim()}.'
+              : (hasEngineer
+                    ? ' Primary Engineer: ${_selectedEngineer!.trim()}.'
+                    : '');
+          await NotificationService.sendNotificationToFirestore(
+            audience: 'engineer',
+            engineerName: _selectedHelper!.trim(),
+            type: 'new_assignment',
+            bookingId: generatedTicketId,
+            body:
+                'You have been assigned as a helper for ticket $generatedTicketId.$visitScheduleText',
+            customerName: customerDisplayName,
+            customerId: customerIdToUse,
+            additionalData: {
+              'processed': false,
+              'status': 'pending',
+              'role': 'helper',
+              'isHelper': true,
+              'helperReason': _helperReasonController.text.trim(),
+              'expectedVisitDate': visitDateStr,
+              'expectedVisitTime': visitTimeStr,
+              'visitNotes': _visitNotesController.text.trim(),
+              'primaryEngineer': hasEngineer ? _selectedEngineer!.trim() : '',
+            },
+            title: 'New Helper Assignment',
+          );
+        }
+      }
 
       setState(() {
         _createdTicketId = generatedTicketId;
@@ -476,25 +860,29 @@ class _CreateTicketsState extends State<CreateTickets> {
 
   @override
   Widget build(BuildContext context) {
-    final primaryColor = Theme.of(context).primaryColor;
-
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0.5,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF0F172A)),
-          onPressed: () {
-            if (_currentStep > 0 && _currentStep < 4) {
-              setState(() {
-                _currentStep--;
-              });
-            } else {
-              Navigator.pop(context);
-            }
-          },
-        ),
+        automaticallyImplyLeading: !kIsWeb,
+        leading: kIsWeb
+            ? null
+            : IconButton(
+                icon: const Icon(
+                  Icons.arrow_back_rounded,
+                  color: Color(0xFF0F172A),
+                ),
+                onPressed: () {
+                  if (_currentStep > 0 && _currentStep < 4) {
+                    setState(() {
+                      _currentStep--;
+                    });
+                  } else {
+                    Navigator.pop(context);
+                  }
+                },
+              ),
         title: const Text(
           'Create Ticket',
           style: TextStyle(
@@ -506,19 +894,22 @@ class _CreateTicketsState extends State<CreateTickets> {
         ),
       ),
       body: SafeArea(
-        child: Column(
-          children: [
-            const SizedBox(height: 12),
-            _buildStepProgressBar(),
-            const SizedBox(height: 12),
-            Expanded(
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.all(20),
-                child: _buildCurrentStepContent(),
+        child: ResponsiveWrapper(
+          maxWidth: 960,
+          child: Column(
+            children: [
+              const SizedBox(height: 12),
+              _buildStepProgressBar(),
+              const SizedBox(height: 12),
+              Expanded(
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.all(20),
+                  child: _buildCurrentStepContent(),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -538,10 +929,7 @@ class _CreateTicketsState extends State<CreateTickets> {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 8,
-          ),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8),
         ],
       ),
       child: Row(
@@ -561,19 +949,25 @@ class _CreateTicketsState extends State<CreateTickets> {
                     color: isCompleted
                         ? const Color(0xFF10B981)
                         : isActive
-                            ? primaryColor
-                            : const Color(0xFFF1F5F9),
+                        ? primaryColor
+                        : const Color(0xFFF1F5F9),
                     shape: BoxShape.circle,
                   ),
                   child: Center(
                     child: isCompleted
-                        ? const Icon(Icons.check_rounded, color: Colors.white, size: 14)
+                        ? const Icon(
+                            Icons.check_rounded,
+                            color: Colors.white,
+                            size: 14,
+                          )
                         : Text(
                             '${index + 1}',
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w800,
-                              color: isActive ? Colors.white : const Color(0xFF64748B),
+                              color: isActive
+                                  ? Colors.white
+                                  : const Color(0xFF64748B),
                             ),
                           ),
                   ),
@@ -712,7 +1106,11 @@ class _CreateTicketsState extends State<CreateTickets> {
                         color: primaryColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Icon(Icons.person_add_rounded, color: primaryColor, size: 20),
+                      child: Icon(
+                        Icons.person_add_rounded,
+                        color: primaryColor,
+                        size: 20,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     const Text(
@@ -766,12 +1164,25 @@ class _CreateTicketsState extends State<CreateTickets> {
                   ? const SizedBox(
                       width: 18,
                       height: 18,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
                     )
-                  : const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 20),
+                  : const Icon(
+                      Icons.arrow_forward_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
               label: Text(
-                _isSubmitting ? 'Registering Customer...' : 'Continue to Ticket Type →',
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white),
+                _isSubmitting
+                    ? 'Checking Details...'
+                    : 'Continue to Ticket Type →',
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                ),
               ),
             ),
           ),
@@ -808,17 +1219,28 @@ class _CreateTicketsState extends State<CreateTickets> {
                   onChanged: (val) => _searchExistingCustomers(val),
                   decoration: InputDecoration(
                     hintText: 'Search by Customer ID, Name, or Mobile...',
-                    hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+                    hintStyle: const TextStyle(
+                      color: Color(0xFF94A3B8),
+                      fontSize: 13,
+                    ),
                     filled: true,
                     fillColor: const Color(0xFFF8FAFC),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
                       borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
                     ),
-                    prefixIcon: Icon(Icons.search_rounded, color: primaryColor, size: 20),
+                    prefixIcon: Icon(
+                      Icons.search_rounded,
+                      color: primaryColor,
+                      size: 20,
+                    ),
                     suffixIcon: _existingSearchController.text.isNotEmpty
                         ? IconButton(
-                            icon: const Icon(Icons.clear_rounded, size: 18, color: Color(0xFF94A3B8)),
+                            icon: const Icon(
+                              Icons.clear_rounded,
+                              size: 18,
+                              color: Color(0xFF94A3B8),
+                            ),
                             onPressed: () {
                               _existingSearchController.clear();
                               _searchExistingCustomers('');
@@ -842,7 +1264,8 @@ class _CreateTicketsState extends State<CreateTickets> {
                     child: ListView.separated(
                       shrinkWrap: true,
                       itemCount: _searchResults.length,
-                      separatorBuilder: (_, _) => const Divider(color: Color(0xFFF1F5F9), height: 1),
+                      separatorBuilder: (_, _) =>
+                          const Divider(color: Color(0xFFF1F5F9), height: 1),
                       itemBuilder: (context, idx) {
                         final item = _searchResults[idx];
                         final isSel = _selectedCustomer?['id'] == item['id'];
@@ -850,30 +1273,57 @@ class _CreateTicketsState extends State<CreateTickets> {
                         return Material(
                           color: Colors.transparent,
                           child: ListTile(
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            tileColor: isSel ? primaryColor.withValues(alpha: 0.1) : null,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 4,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            tileColor: isSel
+                                ? primaryColor.withValues(alpha: 0.1)
+                                : null,
                             leading: CircleAvatar(
-                              backgroundColor: primaryColor.withValues(alpha: 0.1),
-                              child: Icon(Icons.person_rounded, color: primaryColor, size: 20),
+                              backgroundColor: primaryColor.withValues(
+                                alpha: 0.1,
+                              ),
+                              child: Icon(
+                                Icons.person_rounded,
+                                color: primaryColor,
+                                size: 20,
+                              ),
                             ),
                             title: Text(
                               item['customerName'],
-                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                              ),
                             ),
                             subtitle: Text(
                               'ID: ${item['id']} • Mobile: ${item['mobileNumber']}',
-                              style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF64748B),
+                              ),
                             ),
                             trailing: isSel
-                                ? Icon(Icons.check_circle_rounded, color: primaryColor)
-                                : const Icon(Icons.chevron_right_rounded, color: Color(0xFF94A3B8)),
+                                ? Icon(
+                                    Icons.check_circle_rounded,
+                                    color: primaryColor,
+                                  )
+                                : const Icon(
+                                    Icons.chevron_right_rounded,
+                                    color: Color(0xFF94A3B8),
+                                  ),
                             onTap: () {
                               setState(() {
                                 _selectedCustomer = item;
                                 _customerIdController.text = item['id'] ?? '';
-                                _customerNameController.text = item['customerName'] ?? '';
-                                _mobileNumberController.text = item['mobileNumber'] ?? '';
+                                _customerNameController.text =
+                                    item['customerName'] ?? '';
+                                _mobileNumberController.text =
+                                    item['mobileNumber'] ?? '';
                                 _addressController.text = item['address'] ?? '';
                               });
                             },
@@ -888,7 +1338,11 @@ class _CreateTicketsState extends State<CreateTickets> {
                     child: Center(
                       child: Text(
                         'No matching customer profiles found',
-                        style: TextStyle(color: Color(0xFF64748B), fontSize: 13, fontWeight: FontWeight.w500),
+                        style: TextStyle(
+                          color: Color(0xFF64748B),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                   ),
@@ -902,11 +1356,17 @@ class _CreateTicketsState extends State<CreateTickets> {
                     decoration: BoxDecoration(
                       color: primaryColor.withValues(alpha: 0.05),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: primaryColor.withValues(alpha: 0.3)),
+                      border: Border.all(
+                        color: primaryColor.withValues(alpha: 0.3),
+                      ),
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.check_circle_rounded, color: primaryColor, size: 24),
+                        Icon(
+                          Icons.check_circle_rounded,
+                          color: primaryColor,
+                          size: 24,
+                        ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(
@@ -914,12 +1374,20 @@ class _CreateTicketsState extends State<CreateTickets> {
                             children: [
                               Text(
                                 _selectedCustomer!['customerName'],
-                                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: Color(0xFF0F172A)),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 15,
+                                  color: Color(0xFF0F172A),
+                                ),
                               ),
                               const SizedBox(height: 2),
                               Text(
                                 'Customer ID: ${_selectedCustomer!['id']} • Mobile: ${_selectedCustomer!['mobileNumber']}',
-                                style: const TextStyle(fontSize: 12, color: Color(0xFF475569), fontWeight: FontWeight.w600),
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF475569),
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ],
                           ),
@@ -952,10 +1420,18 @@ class _CreateTicketsState extends State<CreateTickets> {
                 ),
                 elevation: 0,
               ),
-              icon: const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 20),
+              icon: const Icon(
+                Icons.arrow_forward_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
               label: const Text(
                 'Continue to Ticket Type →',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white),
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                ),
               ),
             ),
           ),
@@ -973,7 +1449,9 @@ class _CreateTicketsState extends State<CreateTickets> {
     }
     if (_mobileNumberController.text.trim().length != 10) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid 10-digit mobile number')),
+        const SnackBar(
+          content: Text('Please enter a valid 10-digit mobile number'),
+        ),
       );
       return;
     }
@@ -984,32 +1462,28 @@ class _CreateTicketsState extends State<CreateTickets> {
       return;
     }
 
-    final mobileErr = await _checkMobileNumberExists(_mobileNumberController.text.trim());
-    if (mobileErr != null) {
-      setState(() {
-        _mobileNumberError = mobileErr;
-      });
-      return;
-    }
-
     setState(() {
       _isSubmitting = true;
     });
 
     try {
-      final generatedId = await _generateNextCustomerId();
-      _customerIdController.text = generatedId;
+      final mobileErr = await _checkMobileNumberExists(
+        _mobileNumberController.text.trim(),
+      );
+      if (mobileErr != null) {
+        setState(() {
+          _mobileNumberError = mobileErr;
+        });
+        return;
+      }
 
+      // Store entered customer details in temporary state without persisting to Firestore yet
       final custData = {
-        'id': generatedId,
+        'id': '',
         'customerName': _customerNameController.text.trim(),
         'mobileNumber': _mobileNumberController.text.trim(),
         'address': _addressController.text.trim(),
-        'timestamp': Timestamp.now(),
-        'createdAt': FieldValue.serverTimestamp(),
       };
-
-      await FirestoreService.instance.collection('customers').doc(generatedId).set(custData);
 
       setState(() {
         _selectedCustomer = custData;
@@ -1017,7 +1491,7 @@ class _CreateTicketsState extends State<CreateTickets> {
       });
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to save customer: $e')),
+        SnackBar(content: Text('Error validating customer details: $e')),
       );
     } finally {
       setState(() {
@@ -1096,6 +1570,13 @@ class _CreateTicketsState extends State<CreateTickets> {
           width: double.infinity,
           child: ElevatedButton.icon(
             onPressed: () {
+              // Refresh dynamic device types and brands to reflect any recent admin configuration changes
+              _fetchDeviceTypes();
+              if (deviceType.isNotEmpty && deviceType != 'Others') {
+                _fetchGlobalDeviceBrands(deviceType);
+              } else {
+                _fetchGlobalDeviceBrands();
+              }
               setState(() {
                 _currentStep = 2;
               });
@@ -1108,10 +1589,18 @@ class _CreateTicketsState extends State<CreateTickets> {
               ),
               elevation: 0,
             ),
-            icon: const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 20),
+            icon: const Icon(
+              Icons.arrow_forward_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
             label: const Text(
               'Continue to Ticket Details →',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white),
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+              ),
             ),
           ),
         ),
@@ -1135,7 +1624,9 @@ class _CreateTicketsState extends State<CreateTickets> {
         height: 180,
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: isSelected ? accentColor.withValues(alpha: 0.08) : Colors.white,
+          color: isSelected
+              ? accentColor.withValues(alpha: 0.08)
+              : Colors.white,
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
             color: isSelected ? accentColor : const Color(0xFFE2E8F0),
@@ -1172,7 +1663,11 @@ class _CreateTicketsState extends State<CreateTickets> {
                   child: Icon(icon, color: accentColor, size: 28),
                 ),
                 if (isSelected)
-                  Icon(Icons.check_circle_rounded, color: accentColor, size: 24),
+                  Icon(
+                    Icons.check_circle_rounded,
+                    color: accentColor,
+                    size: 24,
+                  ),
               ],
             ),
             Column(
@@ -1225,8 +1720,12 @@ class _CreateTicketsState extends State<CreateTickets> {
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Icon(
-                  jobType == 'Service' ? Icons.build_circle_rounded : Icons.local_shipping_rounded,
-                  color: jobType == 'Service' ? primaryColor : const Color(0xFF10B981),
+                  jobType == 'Service'
+                      ? Icons.build_circle_rounded
+                      : Icons.local_shipping_rounded,
+                  color: jobType == 'Service'
+                      ? primaryColor
+                      : const Color(0xFF10B981),
                   size: 24,
                 ),
               ),
@@ -1280,13 +1779,18 @@ class _CreateTicketsState extends State<CreateTickets> {
                     'Device Type',
                     deviceTypes,
                     Icons.devices_rounded,
-                    (value) {
+                    (value) async {
                       setState(() {
                         deviceType = value ?? '';
                         if (deviceType != 'Others') {
                           _customDeviceTypeController.clear();
                         }
                       });
+                      if (deviceType.isNotEmpty && deviceType != 'Others') {
+                        await _fetchGlobalDeviceBrands(deviceType);
+                      } else {
+                        await _fetchGlobalDeviceBrands();
+                      }
                     },
                     value: deviceType.isNotEmpty ? deviceType : null,
                   ),
@@ -1308,7 +1812,7 @@ class _CreateTicketsState extends State<CreateTickets> {
                 else ...[
                   _buildDropdownField(
                     'Device Brand',
-                    deviceBrands.isNotEmpty ? deviceBrands : ['DELL', 'HP', 'MAC', 'LENOVO', 'ASUS', 'Others'],
+                    deviceBrands.isNotEmpty ? deviceBrands : ['Others'],
                     Icons.branding_watermark_rounded,
                     (value) {
                       setState(() {
@@ -1392,19 +1896,43 @@ class _CreateTicketsState extends State<CreateTickets> {
                 if (_formKey.currentState!.validate()) {
                   if (deviceType.isEmpty) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Please select a Device Type')),
+                      const SnackBar(
+                        content: Text('Please select a Device Type'),
+                      ),
+                    );
+                    return;
+                  }
+                  if (deviceType == 'Others' &&
+                      _customDeviceTypeController.text.trim().isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Please enter custom Device Type'),
+                      ),
                     );
                     return;
                   }
                   if (deviceBrand.isEmpty) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Please select a Device Brand')),
+                      const SnackBar(
+                        content: Text('Please select a Device Brand'),
+                      ),
+                    );
+                    return;
+                  }
+                  if (deviceBrand == 'Others' &&
+                      _customDeviceBrandController.text.trim().isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Please enter custom Device Brand'),
+                      ),
                     );
                     return;
                   }
                   if (jobType == 'Service' && deviceCondition.isEmpty) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Please select a Device Condition')),
+                      const SnackBar(
+                        content: Text('Please select a Device Condition'),
+                      ),
                     );
                     return;
                   }
@@ -1422,10 +1950,18 @@ class _CreateTicketsState extends State<CreateTickets> {
                 ),
                 elevation: 0,
               ),
-              icon: const Icon(Icons.rate_review_rounded, color: Colors.white, size: 20),
+              icon: const Icon(
+                Icons.rate_review_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
               label: const Text(
                 'Review Ticket Details →',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white),
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                ),
               ),
             ),
           ),
@@ -1448,8 +1984,16 @@ class _CreateTicketsState extends State<CreateTickets> {
         ? _customerIdController.text
         : (_selectedCustomer?['id'] ?? '');
 
-    final displayDeviceType = deviceType == 'Others' ? _customDeviceTypeController.text : deviceType;
-    final displayDeviceBrand = deviceBrand == 'Others' ? _customDeviceBrandController.text : deviceBrand;
+    final displayDeviceType = deviceType == 'Others'
+        ? (_customDeviceTypeController.text.trim().isNotEmpty
+              ? _customDeviceTypeController.text.trim()
+              : 'Others')
+        : deviceType;
+    final displayDeviceBrand = deviceBrand == 'Others'
+        ? (_customDeviceBrandController.text.trim().isNotEmpty
+              ? _customDeviceBrandController.text.trim()
+              : 'Others')
+        : deviceBrand;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1479,7 +2023,15 @@ class _CreateTicketsState extends State<CreateTickets> {
           title: 'Customer Information',
           icon: Icons.person_rounded,
           children: [
-            _buildReviewRow('Customer ID', custId, isHighlight: true),
+            _buildReviewRow(
+              'Customer ID',
+              custId.isNotEmpty
+                  ? custId
+                  : (_customerType == 'new'
+                        ? 'Auto-generated on creation'
+                        : 'N/A'),
+              isHighlight: true,
+            ),
             const Divider(color: Color(0xFFF1F5F9), height: 16),
             _buildReviewRow('Customer Name', custName),
             const Divider(color: Color(0xFFF1F5F9), height: 16),
@@ -1492,7 +2044,9 @@ class _CreateTicketsState extends State<CreateTickets> {
         // Summary Card 2: Ticket Type & Specifications
         _buildReviewCard(
           title: 'Ticket Specifications',
-          icon: jobType == 'Service' ? Icons.build_circle_rounded : Icons.local_shipping_rounded,
+          icon: jobType == 'Service'
+              ? Icons.build_circle_rounded
+              : Icons.local_shipping_rounded,
           children: [
             _buildReviewRow('Ticket Type', jobType, isHighlight: true),
             const Divider(color: Color(0xFFF1F5F9), height: 16),
@@ -1507,12 +2061,498 @@ class _CreateTicketsState extends State<CreateTickets> {
                 _buildReviewRow('Issue Details', _messageController.text),
               ],
             ],
-            if (jobType == 'Delivery' && _descriptionController.text.isNotEmpty) ...[
+            if (jobType == 'Delivery' &&
+                _descriptionController.text.isNotEmpty) ...[
               const Divider(color: Color(0xFFF1F5F9), height: 16),
-              _buildReviewRow('Delivery Instructions', _descriptionController.text),
+              _buildReviewRow(
+                'Delivery Instructions',
+                _descriptionController.text,
+              ),
             ],
             const Divider(color: Color(0xFFF1F5F9), height: 16),
             _buildReviewRow('Service Address', _addressController.text),
+          ],
+        ),
+
+        const SizedBox(height: 14),
+
+        // Summary Card 3: Engineer and Helper Assignment
+        _buildReviewCard(
+          title: 'Assign Technician & Helper',
+          icon: Icons.engineering_rounded,
+          children: [
+            // Primary Engineer Assignment Section
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.badge_rounded, size: 16, color: primaryColor),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Primary Engineer Assignment',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                _isLoadingStaff
+                    ? const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8),
+                        child: Center(
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        ),
+                      )
+                    : Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: DropdownButtonFormField<String>(
+                          initialValue: _selectedEngineer,
+                          isExpanded: true,
+                          decoration: InputDecoration(
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 12,
+                            ),
+                            prefixIcon: Icon(
+                              Icons.person_outline_rounded,
+                              color: primaryColor,
+                              size: 20,
+                            ),
+                          ),
+                          hint: const Text(
+                            'Select Primary Engineer (Optional)',
+                            style: TextStyle(
+                              color: Color(0xFF94A3B8),
+                              fontSize: 13,
+                            ),
+                          ),
+                          dropdownColor: Colors.white,
+                          icon: Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            color: primaryColor,
+                          ),
+                          items: [
+                            const DropdownMenuItem<String>(
+                              value: null,
+                              child: Text(
+                                'None / Unassigned',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Color(0xFF64748B),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                            ..._registeredStaff.map((staff) {
+                              final name = staff['username'] as String;
+                              final spec = staff['specialization'] as String;
+                              return DropdownMenuItem<String>(
+                                value: name,
+                                child: Text(
+                                  spec.isNotEmpty ? '$name ($spec)' : name,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF0F172A),
+                                  ),
+                                ),
+                              );
+                            }),
+                          ],
+                          onChanged: (val) {
+                            setState(() {
+                              _selectedEngineer = val;
+                              if (val != null) {
+                                final matched = _registeredStaff.firstWhere(
+                                  (s) => s['username'] == val,
+                                  orElse: () => {},
+                                );
+                                _selectedEngineerId = matched['id'] as String?;
+                              } else {
+                                _selectedEngineerId = null;
+                              }
+                            });
+                          },
+                        ),
+                      ),
+              ],
+            ),
+
+            const Divider(color: Color(0xFFF1F5F9), height: 24),
+
+            // Helper Assignment Section
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.group_rounded, size: 16, color: primaryColor),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Helper Assignment',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                _isLoadingStaff
+                    ? const SizedBox.shrink()
+                    : Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: DropdownButtonFormField<String>(
+                          initialValue: _selectedHelper,
+                          isExpanded: true,
+                          decoration: InputDecoration(
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 12,
+                            ),
+                            prefixIcon: Icon(
+                              Icons.handshake_rounded,
+                              color: primaryColor,
+                              size: 20,
+                            ),
+                          ),
+                          hint: const Text(
+                            'Select Helper (Optional)',
+                            style: TextStyle(
+                              color: Color(0xFF94A3B8),
+                              fontSize: 13,
+                            ),
+                          ),
+                          dropdownColor: Colors.white,
+                          icon: Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            color: primaryColor,
+                          ),
+                          items: [
+                            const DropdownMenuItem<String>(
+                              value: null,
+                              child: Text(
+                                'None / No Helper',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Color(0xFF64748B),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                            ..._registeredStaff.map((staff) {
+                              final name = staff['username'] as String;
+                              final spec = staff['specialization'] as String;
+                              return DropdownMenuItem<String>(
+                                value: name,
+                                child: Text(
+                                  spec.isNotEmpty ? '$name ($spec)' : name,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF0F172A),
+                                  ),
+                                ),
+                              );
+                            }),
+                          ],
+                          onChanged: (val) {
+                            setState(() {
+                              _selectedHelper = val;
+                              if (val != null) {
+                                final matched = _registeredStaff.firstWhere(
+                                  (s) => s['username'] == val,
+                                  orElse: () => {},
+                                );
+                                _selectedHelperId = matched['id'] as String?;
+                              } else {
+                                _selectedHelperId = null;
+                              }
+                            });
+                          },
+                        ),
+                      ),
+              ],
+            ),
+
+            if (_selectedHelper != null && _selectedHelper!.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: _helperReasonController,
+                decoration: InputDecoration(
+                  labelText: 'Helper Instructions / Reason (Optional)',
+                  hintText: 'e.g. Assistance required with heavy equipment',
+                  labelStyle: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF64748B),
+                  ),
+                  hintStyle: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF94A3B8),
+                  ),
+                  filled: true,
+                  fillColor: const Color(0xFFF8FAFC),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(color: primaryColor, width: 2),
+                  ),
+                ),
+              ),
+            ],
+
+            if (_selectedEngineer != null &&
+                _selectedHelper != null &&
+                _selectedEngineer!.isNotEmpty &&
+                _selectedEngineer == _selectedHelper) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFFBEB),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFFDE68A)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.info_outline_rounded,
+                      size: 16,
+                      color: Color(0xFFD97706),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '$_selectedEngineer is selected as both Primary Engineer and Helper. A single unified assignment notification will be sent.',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF92400E),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
+            const Divider(color: Color(0xFFF1F5F9), height: 24),
+
+            // Visit Scheduling Section
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.calendar_month_rounded,
+                      size: 16,
+                      color: primaryColor,
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Expected Service Visit Schedule',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: InkWell(
+                        onTap: () async {
+                          final now = DateTime.now();
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: _expectedVisitDate ?? now,
+                            firstDate: DateTime(now.year, now.month, now.day),
+                            lastDate: now.add(const Duration(days: 365)),
+                          );
+                          if (picked != null) {
+                            setState(() => _expectedVisitDate = picked);
+                          }
+                        },
+                        borderRadius: BorderRadius.circular(14),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: _expectedVisitDate != null
+                                  ? primaryColor
+                                  : const Color(0xFFE2E8F0),
+                              width: _expectedVisitDate != null ? 1.5 : 1,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.calendar_today_rounded,
+                                size: 16,
+                                color: primaryColor,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _expectedVisitDate != null
+                                      ? DateFormat(
+                                          'dd MMM yyyy',
+                                        ).format(_expectedVisitDate!)
+                                      : 'Visit Date',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: _expectedVisitDate != null
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
+                                    color: _expectedVisitDate != null
+                                        ? const Color(0xFF0F172A)
+                                        : const Color(0xFF94A3B8),
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: InkWell(
+                        onTap: () async {
+                          final picked = await showTimePicker(
+                            context: context,
+                            initialTime:
+                                _expectedVisitTime ??
+                                const TimeOfDay(hour: 10, minute: 30),
+                          );
+                          if (picked != null) {
+                            setState(() => _expectedVisitTime = picked);
+                          }
+                        },
+                        borderRadius: BorderRadius.circular(14),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: _expectedVisitTime != null
+                                  ? primaryColor
+                                  : const Color(0xFFE2E8F0),
+                              width: _expectedVisitTime != null ? 1.5 : 1,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.schedule_rounded,
+                                size: 16,
+                                color: primaryColor,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _expectedVisitTime != null
+                                      ? _expectedVisitTime!.format(context)
+                                      : 'Visit Time',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: _expectedVisitTime != null
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
+                                    color: _expectedVisitTime != null
+                                        ? const Color(0xFF0F172A)
+                                        : const Color(0xFF94A3B8),
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _visitNotesController,
+                  decoration: InputDecoration(
+                    labelText: 'Visit Notes / Instructions (Optional)',
+                    hintText: 'e.g. Customer requested morning service.',
+                    labelStyle: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF64748B),
+                    ),
+                    hintStyle: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF94A3B8),
+                    ),
+                    filled: true,
+                    fillColor: const Color(0xFFF8FAFC),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(color: primaryColor, width: 2),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
 
@@ -1523,7 +2563,9 @@ class _CreateTicketsState extends State<CreateTickets> {
           child: ElevatedButton.icon(
             onPressed: _isSubmitting ? null : _handleFinalTicketCreation,
             style: ElevatedButton.styleFrom(
-              backgroundColor: jobType == 'Service' ? primaryColor : const Color(0xFF10B981),
+              backgroundColor: jobType == 'Service'
+                  ? primaryColor
+                  : const Color(0xFF10B981),
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
@@ -1534,18 +2576,25 @@ class _CreateTicketsState extends State<CreateTickets> {
                 ? const SizedBox(
                     width: 18,
                     height: 18,
-                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2,
+                    ),
                   )
                 : Icon(
-                    jobType == 'Service' ? Icons.check_circle_rounded : Icons.local_shipping_rounded,
+                    jobType == 'Service'
+                        ? Icons.check_circle_rounded
+                        : Icons.local_shipping_rounded,
                     color: Colors.white,
                     size: 20,
                   ),
             label: Text(
-              _isSubmitting
-                  ? 'Generating Ticket...'
-                  : 'Create $jobType Ticket',
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white),
+              _isSubmitting ? 'Generating Ticket...' : 'Create $jobType Ticket',
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+              ),
             ),
           ),
         ),
@@ -1600,7 +2649,11 @@ class _CreateTicketsState extends State<CreateTickets> {
     );
   }
 
-  Widget _buildReviewRow(String label, String value, {bool isHighlight = false}) {
+  Widget _buildReviewRow(
+    String label,
+    String value, {
+    bool isHighlight = false,
+  }) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1623,7 +2676,9 @@ class _CreateTicketsState extends State<CreateTickets> {
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w700,
-              color: isHighlight ? Theme.of(context).primaryColor : const Color(0xFF0F172A),
+              color: isHighlight
+                  ? Theme.of(context).primaryColor
+                  : const Color(0xFF0F172A),
             ),
           ),
         ),
@@ -1675,7 +2730,11 @@ class _CreateTicketsState extends State<CreateTickets> {
                   ),
                 ],
               ),
-              child: const Icon(Icons.check_rounded, color: Colors.white, size: 48),
+              child: const Icon(
+                Icons.check_rounded,
+                color: Colors.white,
+                size: 48,
+              ),
             ),
             const SizedBox(height: 20),
 
@@ -1692,7 +2751,11 @@ class _CreateTicketsState extends State<CreateTickets> {
             const Text(
               'The ticket has been logged into the workspace database.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, color: Color(0xFF64748B), height: 1.4),
+              style: TextStyle(
+                fontSize: 13,
+                color: Color(0xFF64748B),
+                height: 1.4,
+              ),
             ),
 
             const SizedBox(height: 24),
@@ -1712,14 +2775,20 @@ class _CreateTicketsState extends State<CreateTickets> {
                     children: [
                       const Text(
                         'Ticket Number',
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF64748B),
+                        ),
                       ),
                       Text(
                         _createdTicketId,
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w900,
-                          color: jobType == 'Service' ? primaryColor : const Color(0xFF10B981),
+                          color: jobType == 'Service'
+                              ? primaryColor
+                              : const Color(0xFF10B981),
                           letterSpacing: 0.5,
                         ),
                       ),
@@ -1731,7 +2800,11 @@ class _CreateTicketsState extends State<CreateTickets> {
                     children: [
                       const Text(
                         'Customer ID',
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF64748B),
+                        ),
                       ),
                       Text(
                         _createdCustomerId,
@@ -1743,6 +2816,81 @@ class _CreateTicketsState extends State<CreateTickets> {
                       ),
                     ],
                   ),
+                  if (_selectedEngineer != null &&
+                      _selectedEngineer!.isNotEmpty) ...[
+                    const Divider(color: Color(0xFFE2E8F0), height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Primary Engineer',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF64748B),
+                          ),
+                        ),
+                        Text(
+                          _selectedEngineer!,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF0F172A),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                  if (_selectedHelper != null &&
+                      _selectedHelper!.isNotEmpty) ...[
+                    const Divider(color: Color(0xFFE2E8F0), height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Assigned Helper',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF64748B),
+                          ),
+                        ),
+                        Text(
+                          _selectedHelper!,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF0F172A),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                  if (_expectedVisitDate != null &&
+                      _expectedVisitTime != null) ...[
+                    const Divider(color: Color(0xFFE2E8F0), height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Expected Visit',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF64748B),
+                          ),
+                        ),
+                        Text(
+                          '${DateFormat('dd MMM yyyy').format(_expectedVisitDate!)} at ${_expectedVisitTime!.format(context)}',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF0F172A),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -1759,14 +2907,16 @@ class _CreateTicketsState extends State<CreateTickets> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => AdminPage_CusDetails(statusFilter: ""),
+                            builder: (_) =>
+                                AdminPage_CusDetails(statusFilter: ""),
                           ),
                         );
                       } else {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => AdminDeliveryTickets(statusFilter: ""),
+                            builder: (_) =>
+                                AdminDeliveryTickets(statusFilter: ""),
                           ),
                         );
                       }
@@ -1774,12 +2924,18 @@ class _CreateTicketsState extends State<CreateTickets> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF0F172A),
                       padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                       elevation: 0,
                     ),
                     child: const Text(
                       'View Ticket',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white),
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ),
@@ -1792,12 +2948,18 @@ class _CreateTicketsState extends State<CreateTickets> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: primaryColor,
                       padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                       elevation: 0,
                     ),
                     child: const Text(
                       'Done',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white),
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ),
@@ -1827,7 +2989,9 @@ class _CreateTicketsState extends State<CreateTickets> {
           duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: isSelected ? primaryColor.withValues(alpha: 0.08) : Colors.white,
+            color: isSelected
+                ? primaryColor.withValues(alpha: 0.08)
+                : Colors.white,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
               color: isSelected ? primaryColor : const Color(0xFFE2E8F0),
@@ -1837,7 +3001,11 @@ class _CreateTicketsState extends State<CreateTickets> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(icon, color: isSelected ? primaryColor : const Color(0xFF64748B), size: 24),
+              Icon(
+                icon,
+                color: isSelected ? primaryColor : const Color(0xFF64748B),
+                size: 24,
+              ),
               const SizedBox(height: 10),
               Text(
                 title,
@@ -1886,7 +3054,11 @@ class _CreateTicketsState extends State<CreateTickets> {
               if (required)
                 const TextSpan(
                   text: ' *',
-                  style: TextStyle(color: Colors.red, fontSize: 14, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
             ],
           ),
@@ -1895,7 +3067,11 @@ class _CreateTicketsState extends State<CreateTickets> {
         TextFormField(
           controller: controller,
           maxLines: maxLines,
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF0F172A),
+          ),
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
@@ -1913,11 +3089,15 @@ class _CreateTicketsState extends State<CreateTickets> {
               borderRadius: BorderRadius.circular(16),
               borderSide: BorderSide(color: primaryColor, width: 2),
             ),
-            contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+            contentPadding: const EdgeInsets.symmetric(
+              vertical: 14,
+              horizontal: 16,
+            ),
             prefixIcon: Icon(icon, color: primaryColor, size: 20),
           ),
           validator: required
-              ? (v) => v == null || v.trim().isEmpty ? '$label is required' : null
+              ? (v) =>
+                    v == null || v.trim().isEmpty ? '$label is required' : null
               : null,
         ),
       ],
@@ -1935,9 +3115,20 @@ class _CreateTicketsState extends State<CreateTickets> {
             children: [
               const TextSpan(
                 text: 'Mobile Number',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF0F172A),
+                ),
               ),
-              const TextSpan(text: ' *', style: TextStyle(color: Colors.red, fontSize: 14, fontWeight: FontWeight.bold)),
+              const TextSpan(
+                text: ' *',
+                style: TextStyle(
+                  color: Colors.red,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ],
           ),
         ),
@@ -1946,7 +3137,11 @@ class _CreateTicketsState extends State<CreateTickets> {
           controller: _mobileNumberController,
           focusNode: _mobileNumberFocusNode,
           keyboardType: TextInputType.phone,
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF0F172A),
+          ),
           inputFormatters: [
             FilteringTextInputFormatter.digitsOnly,
             LengthLimitingTextInputFormatter(10),
@@ -1963,15 +3158,24 @@ class _CreateTicketsState extends State<CreateTickets> {
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
               borderSide: BorderSide(
-                color: _mobileNumberError.isNotEmpty ? Colors.red.shade400 : const Color(0xFFE2E8F0),
+                color: _mobileNumberError.isNotEmpty
+                    ? Colors.red.shade400
+                    : const Color(0xFFE2E8F0),
               ),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
               borderSide: BorderSide(color: primaryColor, width: 2),
             ),
-            contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-            prefixIcon: Icon(Icons.phone_android_rounded, color: primaryColor, size: 20),
+            contentPadding: const EdgeInsets.symmetric(
+              vertical: 14,
+              horizontal: 16,
+            ),
+            prefixIcon: Icon(
+              Icons.phone_android_rounded,
+              color: primaryColor,
+              size: 20,
+            ),
             suffixIcon: _isCheckingMobileNumber
                 ? const Padding(
                     padding: EdgeInsets.all(12),
@@ -1984,8 +3188,10 @@ class _CreateTicketsState extends State<CreateTickets> {
                 : null,
           ),
           validator: (v) {
-            if (v == null || v.trim().isEmpty) return 'Mobile number is required';
-            if (v.trim().length != 10) return 'Enter a valid 10-digit mobile number';
+            if (v == null || v.trim().isEmpty)
+              return 'Mobile number is required';
+            if (v.trim().length != 10)
+              return 'Enter a valid 10-digit mobile number';
             return null;
           },
         ),
@@ -1994,12 +3200,20 @@ class _CreateTicketsState extends State<CreateTickets> {
             padding: const EdgeInsets.only(top: 6),
             child: Row(
               children: [
-                Icon(Icons.warning_amber_rounded, color: Colors.red.shade400, size: 14),
+                Icon(
+                  Icons.warning_amber_rounded,
+                  color: Colors.red.shade400,
+                  size: 14,
+                ),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     _mobileNumberError,
-                    style: TextStyle(fontSize: 12, color: Colors.red.shade600, fontWeight: FontWeight.w500),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.red.shade600,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
               ],
@@ -2027,10 +3241,21 @@ class _CreateTicketsState extends State<CreateTickets> {
             children: [
               TextSpan(
                 text: label,
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF0F172A),
+                ),
               ),
               if (required)
-                const TextSpan(text: ' *', style: TextStyle(color: Colors.red, fontSize: 14, fontWeight: FontWeight.bold)),
+                const TextSpan(
+                  text: ' *',
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
             ],
           ),
         ),
@@ -2042,20 +3267,36 @@ class _CreateTicketsState extends State<CreateTickets> {
             border: Border.all(color: const Color(0xFFE2E8F0)),
           ),
           child: DropdownButtonFormField<String>(
-            initialValue: value,
+            initialValue: (value != null && options.contains(value))
+                ? value
+                : null,
             isExpanded: true,
             decoration: InputDecoration(
               border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+              contentPadding: const EdgeInsets.symmetric(
+                vertical: 12,
+                horizontal: 16,
+              ),
               prefixIcon: Icon(icon, color: primaryColor, size: 20),
             ),
             dropdownColor: Colors.white,
             icon: Icon(Icons.keyboard_arrow_down_rounded, color: primaryColor),
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF0F172A),
+            ),
             items: options.map((String val) {
               return DropdownMenuItem<String>(
                 value: val,
-                child: Text(val, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF0F172A))),
+                child: Text(
+                  val,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
               );
             }).toList(),
             onChanged: onChanged,

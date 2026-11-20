@@ -64,6 +64,7 @@ dependencies:
   geocoding: ^4.0.0
   package_info_plus: ^9.0.1
   crop_image: ^1.0.17
+  lucide_icons: ^0.257.0
   
 dev_dependencies:
   flutter_test:

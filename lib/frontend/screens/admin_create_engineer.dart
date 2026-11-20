@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 import 'admin_dashboard.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
@@ -119,28 +121,31 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
-          leading: Container(
-            margin: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
+          automaticallyImplyLeading: !kIsWeb,
+          leading: kIsWeb
+              ? null
+              : Container(
+                  margin: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: IconButton(
+                    icon: Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      color: textColor,
+                      size: 18,
+                    ),
+                    onPressed: () => _onWillPop(),
+                  ),
                 ),
-              ],
-            ),
-            child: IconButton(
-              icon: Icon(
-                Icons.arrow_back_ios_new_rounded,
-                color: textColor,
-                size: 18,
-              ),
-              onPressed: () => _onWillPop(),
-            ),
-          ),
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -165,9 +170,12 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
           ),
           centerTitle: false,
         ),
-        body: TabBarView(
-          controller: _tabController,
-          children: [_buildEngineerForm(), _buildEngineersList()],
+        body: ResponsiveWrapper(
+          maxWidth: 960,
+          child: TabBarView(
+            controller: _tabController,
+            children: [_buildEngineerForm(), _buildEngineersList()],
+          ),
         ),
         bottomNavigationBar: Container(
           decoration: const BoxDecoration(
