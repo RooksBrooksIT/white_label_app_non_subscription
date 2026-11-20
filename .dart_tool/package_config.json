@@ -116,6 +116,18 @@
       "languageVersion": "3.4"
     },
     {
+      "name": "connectivity_plus",
+      "rootUri": "file:///C:/Users/Sajin/AppData/Local/Pub/Cache/hosted/pub.dev/connectivity_plus-7.3.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.2"
+    },
+    {
+      "name": "connectivity_plus_platform_interface",
+      "rootUri": "file:///C:/Users/Sajin/AppData/Local/Pub/Cache/hosted/pub.dev/connectivity_plus_platform_interface-2.1.0",
+      "packageUri": "lib/",
+      "languageVersion": "2.18"
+    },
+    {
       "name": "crop_image",
       "rootUri": "file:///C:/Users/Sajin/AppData/Local/Pub/Cache/hosted/pub.dev/crop_image-1.0.17",
       "packageUri": "lib/",
@@ -561,7 +573,7 @@
     },
     {
       "name": "image",
-      "rootUri": "file:///C:/Users/Sajin/AppData/Local/Pub/Cache/hosted/pub.dev/image-4.10.1",
+      "rootUri": "file:///C:/Users/Sajin/AppData/Local/Pub/Cache/hosted/pub.dev/image-4.5.2",
       "packageUri": "lib/",
       "languageVersion": "3.0"
     },
@@ -754,6 +766,12 @@
     {
       "name": "nested",
       "rootUri": "file:///C:/Users/Sajin/AppData/Local/Pub/Cache/hosted/pub.dev/nested-1.0.0",
+      "packageUri": "lib/",
+      "languageVersion": "2.12"
+    },
+    {
+      "name": "nm",
+      "rootUri": "file:///C:/Users/Sajin/AppData/Local/Pub/Cache/hosted/pub.dev/nm-0.5.0",
       "packageUri": "lib/",
       "languageVersion": "2.12"
     },

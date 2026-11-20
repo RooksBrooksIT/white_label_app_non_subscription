@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:lottie/lottie.dart';
@@ -167,10 +166,7 @@ class _AMCTrackMyServiceState extends State<AMCTrackMyService> {
             letterSpacing: 1.2,
           ),
         ),
-        automaticallyImplyLeading: !kIsWeb,
-        leading: kIsWeb
-            ? null
-            : IconButton(
+        leading: IconButton(
                 icon: const Icon(
                   Icons.arrow_back_ios_new_rounded,
                   size: 20,

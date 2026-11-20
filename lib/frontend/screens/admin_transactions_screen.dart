@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
@@ -84,10 +83,7 @@ class _AdminTransactionsScreenState extends State<AdminTransactionsScreen> {
         backgroundColor: Colors.white,
         elevation: 0.5,
         centerTitle: true,
-        automaticallyImplyLeading: !kIsWeb,
-        leading: kIsWeb
-            ? null
-            : Padding(
+        leading: Padding(
                 padding: const EdgeInsets.all(8),
                 child: CircleAvatar(
                   backgroundColor: const Color(0xFFF1F5F9),

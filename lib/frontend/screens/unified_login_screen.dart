@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:subscription_rooks_app/services/auth_state_service.dart';
@@ -223,10 +222,7 @@ class _UnifiedLoginScreenState extends State<UnifiedLoginScreen>
         backgroundColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
-        automaticallyImplyLeading: !kIsWeb,
-        leading: kIsWeb
-            ? null
-            : Padding(
+        leading: Padding(
                 padding: const EdgeInsets.only(left: 16),
                 child: Center(
                   child: InkWell(

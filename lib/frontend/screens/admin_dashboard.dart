@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
@@ -179,7 +178,10 @@ class _admindashboardState extends State<admindashboard> {
               if (data != null) {
                 final type = data['type']?.toString().toLowerCase();
                 final title = data['title'] ?? 'New Notification';
-                if (type == 'test' || title.toString().toLowerCase().contains('test notification')) {
+                if (type == 'test' ||
+                    title.toString().toLowerCase().contains(
+                      'test notification',
+                    )) {
                   continue;
                 }
 
@@ -932,7 +934,7 @@ class _admindashboardState extends State<admindashboard> {
           ),
           DomainSubItem(
             title: 'Email Support',
-            subtitle: 'rookstechnologies@gmail.com',
+            subtitle: 'support@rookstechnologies.com',
             icon: Icons.email_rounded,
             iconColor: const Color(0xFF0284C7),
             onTap: () {
@@ -3171,22 +3173,19 @@ class _DomainDetailPageState extends State<DomainDetailPage> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        automaticallyImplyLeading: !kIsWeb,
-        leading: kIsWeb
-            ? null
-            : Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: CircleAvatar(
-                  backgroundColor: Colors.white,
-                  child: IconButton(
-                    icon: const Icon(
-                      Icons.arrow_back_rounded,
-                      color: Color(0xFF0F172A),
-                    ),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ),
+        leading: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: CircleAvatar(
+            backgroundColor: Colors.white,
+            child: IconButton(
+              icon: const Icon(
+                Icons.arrow_back_rounded,
+                color: Color(0xFF0F172A),
               ),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ),
+        ),
         title: Text(
           domain.title,
           style: const TextStyle(

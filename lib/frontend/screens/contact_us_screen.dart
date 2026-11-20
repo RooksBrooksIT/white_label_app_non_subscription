@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
@@ -16,7 +15,7 @@ class ContactUsScreen extends StatefulWidget {
 class _ContactUsScreenState extends State<ContactUsScreen> {
   // Support Contact Details
   static const String _companyName = 'Rooks & Brooks Technologies Pvt. Ltd.';
-  static const String _primaryEmail = 'rookstechnologies@gmail.com';
+  static const String _primaryEmail = 'support@rookstechnologies.com';
   static const String _secondaryEmail = 'support@rookstechnologies.com';
   static const String _supportPhone = '+91 73586 77670';
   static const String _supportPhoneRaw = '+917358677670';
@@ -219,24 +218,21 @@ class _ContactUsScreenState extends State<ContactUsScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0.5,
-        automaticallyImplyLeading: !kIsWeb,
-        leading: kIsWeb
-            ? null
-            : IconButton(
-                icon: Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(
-                    Icons.arrow_back_ios_new_rounded,
-                    size: 16,
-                    color: Color(0xFF0F172A),
-                  ),
-                ),
-                onPressed: () => Navigator.pop(context),
-              ),
+        leading: IconButton(
+          icon: Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(
+              Icons.arrow_back_ios_new_rounded,
+              size: 16,
+              color: Color(0xFF0F172A),
+            ),
+          ),
+          onPressed: () => Navigator.pop(context),
+        ),
         title: Text(
           'Contact & Support',
           style: GoogleFonts.plusJakartaSans(
@@ -594,19 +590,15 @@ class _ContactUsScreenState extends State<ContactUsScreen> {
                       const SizedBox(height: 10),
                       _buildInfoRow('Support Email', _primaryEmail),
                       const SizedBox(height: 10),
-                      _buildInfoRow('Secondary Email', _secondaryEmail),
-                      const SizedBox(height: 10),
+
                       _buildInfoRow('Hotline', _supportPhone),
                       const SizedBox(height: 10),
                       _buildInfoRow(
                         'Operating Schedule',
-                        'Monday – Saturday: 9:00 AM – 6:00 PM IST',
+                        'Monday – Saturday: 9:00 AM – 5.30 PM IST',
                       ),
                       const SizedBox(height: 10),
-                      _buildInfoRow(
-                        'Offline / Holiday',
-                        'Email Assistance Monitored 24/7',
-                      ),
+                      _buildInfoRow('Offline / Holiday', 'Sunday'),
                     ],
                   ),
                 ),

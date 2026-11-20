@@ -13,6 +13,9 @@ import 'package:subscription_rooks_app/services/subscription_expiry_service.dart
 import 'package:subscription_rooks_app/services/invoice_email_service.dart';
 import 'package:subscription_rooks_app/services/storage_service.dart';
 import 'package:subscription_rooks_app/services/app_update_service.dart';
+import 'package:subscription_rooks_app/services/connectivity_service.dart';
+import 'package:subscription_rooks_app/widgets/connectivity_overlay.dart';
+import 'package:subscription_rooks_app/services/navigation/web_navigation_observer.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -59,6 +62,9 @@ Future<void> main() async {
   // Initialize Subscription Expiry Service
   SubscriptionExpiryService.instance.initialize();
 
+  // Initialize Global Internet Connectivity Monitoring
+  ConnectivityService.instance.initialize();
+
   // Retry any pending invoice emails in the background (fire-and-forget)
   InvoiceEmailService.instance.retryPendingInvoices().catchError((e) {
     debugPrint('Background invoice retry failed: $e');
@@ -79,11 +85,13 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    getWebNavigationObserver().init(SubscriptionExpiryService.instance.navigatorKey);
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    getWebNavigationObserver().dispose();
     super.dispose();
   }
 
@@ -91,6 +99,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       AppUpdateService.instance.onAppResumed();
+      ConnectivityService.instance.onAppResumed();
     }
   }
 
@@ -101,9 +110,15 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       builder: (context, _) {
         return MaterialApp(
           navigatorKey: SubscriptionExpiryService.instance.navigatorKey,
+          navigatorObservers: [
+            getWebNavigationObserver(),
+          ],
           debugShowCheckedModeBanner: false,
           title: 'Servnex',
           theme: ThemeService.instance.themeData,
+          builder: (context, child) {
+            return ConnectivityOverlay(child: child ?? const SizedBox.shrink());
+          },
           home: const SplashScreen(),
         );
       },

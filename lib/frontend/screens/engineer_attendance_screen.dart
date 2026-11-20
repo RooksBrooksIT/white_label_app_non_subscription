@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
@@ -497,7 +496,7 @@ class _EngineerAttendanceScreenState extends State<EngineerAttendanceScreen> {
     if (!_attendanceFeatureEnabled) {
       return Scaffold(
         appBar: AppBar(
-          automaticallyImplyLeading: !kIsWeb,
+          automaticallyImplyLeading: true,
           title: const Text('My Attendance'),
           backgroundColor: Theme.of(context).primaryColor,
           foregroundColor: Colors.white,
@@ -549,7 +548,7 @@ class _EngineerAttendanceScreenState extends State<EngineerAttendanceScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        automaticallyImplyLeading: !kIsWeb,
+        automaticallyImplyLeading: true,
         title: const Text('My Attendance'),
         backgroundColor: Theme.of(context).primaryColor,
         foregroundColor: Colors.white,

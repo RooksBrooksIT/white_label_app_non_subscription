@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_tickets_overview.dart';
 import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
@@ -17,7 +16,7 @@ class ConfirmationPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        automaticallyImplyLeading: !kIsWeb,
+        automaticallyImplyLeading: true,
         title: Text(
           'Confirmation',
           style: TextStyle(

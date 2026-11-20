@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -138,7 +137,7 @@ class _EngineerEditProfileScreenState
     return Scaffold(
       backgroundColor: ProfessionalTheme.background(context),
       appBar: AppBar(
-        automaticallyImplyLeading: !kIsWeb,
+        automaticallyImplyLeading: true,
         title: const Text(
           'Edit Profile',
           style: TextStyle(fontWeight: FontWeight.w700),

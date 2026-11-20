@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
@@ -265,7 +264,7 @@ class _AssignEngineerPageState extends State<AssignEngineerPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        automaticallyImplyLeading: !kIsWeb,
+        automaticallyImplyLeading: true,
         title: const Text(
           'Assign Engineer & Schedule Visit',
           style: TextStyle(

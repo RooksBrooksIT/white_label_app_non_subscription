@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:subscription_rooks_app/frontend/screens/customer_home_page.dart';
 import 'package:subscription_rooks_app/utils/responsive_helper.dart';
@@ -262,37 +261,35 @@ class _CustomerDeviceTypeState extends State<CustomerDeviceType> {
             ),
             child: Row(
               children: [
-                if (!kIsWeb) ...[
-                  IconButton(
-                    onPressed: () {
-                      if (showDeviceSelection) {
-                        setState(() {
-                          showDeviceSelection = false;
-                          selectedDeviceId = null;
-                        });
-                      } else {
-                        Navigator.pop(context);
-                      }
-                    },
-                    icon: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.18),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.25),
-                        ),
-                      ),
-                      child: const Icon(
-                        Icons.arrow_back_ios_new_rounded,
-                        size: 18,
-                        color: Colors.white,
+                IconButton(
+                  onPressed: () {
+                    if (showDeviceSelection) {
+                      setState(() {
+                        showDeviceSelection = false;
+                        selectedDeviceId = null;
+                      });
+                    } else {
+                      Navigator.pop(context);
+                    }
+                  },
+                  icon: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.25),
                       ),
                     ),
+                    child: const Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      size: 18,
+                      color: Colors.white,
+                    ),
                   ),
-                  const SizedBox(width: 8),
-                ],
+                ),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,

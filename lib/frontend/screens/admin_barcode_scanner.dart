@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -185,10 +184,7 @@ class _AdminBarcodeScannerState extends State<AdminBarcodeScanner> {
         backgroundColor: Colors.white,
         elevation: 0.5,
         centerTitle: true,
-        automaticallyImplyLeading: !kIsWeb,
-        leading: kIsWeb
-            ? null
-            : Padding(
+        leading: Padding(
                 padding: const EdgeInsets.all(8),
                 child: CircleAvatar(
                   backgroundColor: const Color(0xFFF1F5F9),
