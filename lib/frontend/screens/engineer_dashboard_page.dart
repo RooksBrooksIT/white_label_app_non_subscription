@@ -10,7 +10,7 @@ import 'package:intl/intl.dart';
 import 'package:subscription_rooks_app/frontend/screens/engineer_barcode_identifier.dart';
 import 'package:subscription_rooks_app/frontend/screens/engineer_barcode_scanner_page.dart';
 import 'package:subscription_rooks_app/frontend/screens/engineer_notifications_page.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:subscription_rooks_app/frontend/screens/engineer_office_pay_qr_screen.dart';
 import 'package:subscription_rooks_app/frontend/screens/role_selection_screen.dart';
 import 'package:subscription_rooks_app/services/auth_state_service.dart';

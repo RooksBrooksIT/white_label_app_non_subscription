@@ -86,12 +86,12 @@ class ThemeService extends ChangeNotifier {
                 TargetPlatform.linux: SnappyWebPageTransitionsBuilder(),
                 TargetPlatform.fuchsia: SnappyWebPageTransitionsBuilder(),
               }
-            : const {
-                TargetPlatform.android: ZoomPageTransitionsBuilder(),
+            : {
+                TargetPlatform.android: const ZoomPageTransitionsBuilder(),
                 TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
-                TargetPlatform.windows: ZoomPageTransitionsBuilder(),
+                TargetPlatform.windows: const ZoomPageTransitionsBuilder(),
                 TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
-                TargetPlatform.linux: ZoomPageTransitionsBuilder(),
+                TargetPlatform.linux: const ZoomPageTransitionsBuilder(),
               },
       ),
     );
@@ -132,12 +132,12 @@ class ThemeService extends ChangeNotifier {
                 TargetPlatform.linux: SnappyWebPageTransitionsBuilder(),
                 TargetPlatform.fuchsia: SnappyWebPageTransitionsBuilder(),
               }
-            : const {
-                TargetPlatform.android: ZoomPageTransitionsBuilder(),
+            : {
+                TargetPlatform.android: const ZoomPageTransitionsBuilder(),
                 TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
-                TargetPlatform.windows: ZoomPageTransitionsBuilder(),
+                TargetPlatform.windows: const ZoomPageTransitionsBuilder(),
                 TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
-                TargetPlatform.linux: ZoomPageTransitionsBuilder(),
+                TargetPlatform.linux: const ZoomPageTransitionsBuilder(),
               },
       ),
     );

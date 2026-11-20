@@ -716,10 +716,10 @@
       "languageVersion": "3.11"
     },
     {
-      "name": "lucide_icons",
-      "rootUri": "file:///C:/Users/Sajin/AppData/Local/Pub/Cache/hosted/pub.dev/lucide_icons-0.257.0",
+      "name": "lucide_icons_flutter",
+      "rootUri": "file:///C:/Users/Sajin/AppData/Local/Pub/Cache/hosted/pub.dev/lucide_icons_flutter-4.0.3",
       "packageUri": "lib/",
-      "languageVersion": "2.12"
+      "languageVersion": "3.0"
     },
     {
       "name": "matcher",

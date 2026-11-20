@@ -41,7 +41,7 @@ jobs:
         run: flutter pub get
 
       - name: Build Web Application
-        run: flutter build web --release --base-href "/white_label_app_non_subscription/" --no-tree-shake-icons
+        run: flutter build web --release --base-href "/white_label_app_non_subscription/" --no-tree-shake-icons --no-wasm-dry-run
 
       - name: Configure Single Page Application 404 Routing
         run: cp build/web/index.html build/web/404.html
