@@ -64,7 +64,10 @@ dependencies:
   package_info_plus: ^9.0.1
   crop_image: ^1.0.17
   lucide_icons: ^0.257.0
-  
+
+dependency_overrides:
+  image: 4.5.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
