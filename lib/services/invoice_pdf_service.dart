@@ -108,7 +108,7 @@ class InvoicePdfService {
                         style: const pw.TextStyle(fontSize: 10),
                       ),
                       pw.Text(
-                        'support@rookstechnologies@gmail.com',
+                        'support@rookstechnologies.com',
                         style: const pw.TextStyle(fontSize: 10),
                       ),
                       pw.Text(
