@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:subscription_rooks_app/services/icici_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:subscription_rooks_app/services/auth_state_service.dart';
@@ -807,10 +806,7 @@ class _PaymentScreenState extends State<PaymentScreen>
             backgroundColor: Colors.white,
             foregroundColor: Colors.black,
             elevation: 0,
-            automaticallyImplyLeading: !kIsWeb,
-            leading: kIsWeb
-                ? null
-                : IconButton(
+            leading: IconButton(
                     icon: const Icon(Icons.arrow_back_ios_new, size: 20),
                     onPressed: () {
                       if (_isVerifying) {

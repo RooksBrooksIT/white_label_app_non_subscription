@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:subscription_rooks_app/services/auth_state_service.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
@@ -126,10 +125,7 @@ class _GlobalRegistrationScreenState extends State<GlobalRegistrationScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        automaticallyImplyLeading: !kIsWeb,
-        leading: kIsWeb
-            ? null
-            : IconButton(
+        leading: IconButton(
                 icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black),
                 onPressed: () => Navigator.pop(context),
               ),

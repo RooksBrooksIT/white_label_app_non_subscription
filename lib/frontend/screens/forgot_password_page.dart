@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'otp_verification_page.dart';
 import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
@@ -94,10 +93,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
         title: const Text('Forgot Password'),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        automaticallyImplyLeading: !kIsWeb,
-        leading: kIsWeb
-            ? null
-            : IconButton(
+        leading: IconButton(
                 icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black),
                 onPressed: () => Navigator.pop(context),
               ),

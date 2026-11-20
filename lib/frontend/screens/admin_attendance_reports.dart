@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:subscription_rooks_app/backend/attendance_backend.dart';
 import 'package:pdf/pdf.dart';
@@ -118,10 +117,7 @@ class _AdminAttendanceReportsPageState
           preferredSize: const Size.fromHeight(1),
           child: Container(color: const Color(0xFFE2E8F0), height: 1),
         ),
-        automaticallyImplyLeading: !kIsWeb,
-        leading: kIsWeb
-            ? null
-            : IconButton(
+        leading: IconButton(
                 icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF0F172A), size: 20),
                 onPressed: () => Navigator.pop(context),
               ),

@@ -463,7 +463,7 @@ class _EngineerBarcodeIdentifierScreenState
       child: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        automaticallyImplyLeading: !kIsWeb,
+        automaticallyImplyLeading: true,
         title: Text(
           'Product Details',
           style: TextStyle(

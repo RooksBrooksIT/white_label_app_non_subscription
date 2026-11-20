@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -139,7 +138,7 @@ class _EngineerLocationScreenState extends State<EngineerLocationScreen> {
     if (!_geoLocationFeatureEnabled) {
       return Scaffold(
         appBar: AppBar(
-          automaticallyImplyLeading: !kIsWeb,
+          automaticallyImplyLeading: true,
           title: const Text('Live Map'),
           centerTitle: true,
         ),

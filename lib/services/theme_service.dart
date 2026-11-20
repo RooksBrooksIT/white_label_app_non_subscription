@@ -3,6 +3,32 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// Snappy page transitions builder: instant zero-animation routing on Flutter Web,
+/// standard zoom/cupertino transitions on native platforms.
+class SnappyWebPageTransitionsBuilder extends PageTransitionsBuilder {
+  const SnappyWebPageTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    if (kIsWeb) {
+      return child;
+    }
+    return const ZoomPageTransitionsBuilder().buildTransitions(
+      route,
+      context,
+      animation,
+      secondaryAnimation,
+      child,
+    );
+  }
+}
+
 class ThemeService extends ChangeNotifier {
   ThemeService._();
   static final ThemeService instance = ThemeService._();
@@ -50,12 +76,24 @@ class ThemeService extends ChangeNotifier {
             : Colors.black,
         elevation: 0,
       ),
-      actionIconTheme: kIsWeb
-          ? ActionIconThemeData(
-              backButtonIconBuilder: (BuildContext context) =>
-                  const SizedBox.shrink(),
-            )
-          : null,
+      pageTransitionsTheme: PageTransitionsTheme(
+        builders: kIsWeb
+            ? const {
+                TargetPlatform.android: SnappyWebPageTransitionsBuilder(),
+                TargetPlatform.iOS: SnappyWebPageTransitionsBuilder(),
+                TargetPlatform.windows: SnappyWebPageTransitionsBuilder(),
+                TargetPlatform.macOS: SnappyWebPageTransitionsBuilder(),
+                TargetPlatform.linux: SnappyWebPageTransitionsBuilder(),
+                TargetPlatform.fuchsia: SnappyWebPageTransitionsBuilder(),
+              }
+            : const {
+                TargetPlatform.android: ZoomPageTransitionsBuilder(),
+                TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+                TargetPlatform.windows: ZoomPageTransitionsBuilder(),
+                TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+                TargetPlatform.linux: ZoomPageTransitionsBuilder(),
+              },
+      ),
     );
   }
 
@@ -84,12 +122,24 @@ class ThemeService extends ChangeNotifier {
         foregroundColor: Colors.black,
         elevation: 0,
       ),
-      actionIconTheme: kIsWeb
-          ? ActionIconThemeData(
-              backButtonIconBuilder: (BuildContext context) =>
-                  const SizedBox.shrink(),
-            )
-          : null,
+      pageTransitionsTheme: PageTransitionsTheme(
+        builders: kIsWeb
+            ? const {
+                TargetPlatform.android: SnappyWebPageTransitionsBuilder(),
+                TargetPlatform.iOS: SnappyWebPageTransitionsBuilder(),
+                TargetPlatform.windows: SnappyWebPageTransitionsBuilder(),
+                TargetPlatform.macOS: SnappyWebPageTransitionsBuilder(),
+                TargetPlatform.linux: SnappyWebPageTransitionsBuilder(),
+                TargetPlatform.fuchsia: SnappyWebPageTransitionsBuilder(),
+              }
+            : const {
+                TargetPlatform.android: ZoomPageTransitionsBuilder(),
+                TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+                TargetPlatform.windows: ZoomPageTransitionsBuilder(),
+                TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+                TargetPlatform.linux: ZoomPageTransitionsBuilder(),
+              },
+      ),
     );
   }
 

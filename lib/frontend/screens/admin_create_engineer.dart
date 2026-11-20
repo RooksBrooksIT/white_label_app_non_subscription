@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
@@ -121,10 +120,7 @@ class _EngineerManagementPageState extends State<EngineerManagementPage>
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
-          automaticallyImplyLeading: !kIsWeb,
-          leading: kIsWeb
-              ? null
-              : Container(
+          leading: Container(
                   margin: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     color: Colors.white,

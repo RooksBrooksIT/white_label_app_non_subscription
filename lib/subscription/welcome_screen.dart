@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:subscription_rooks_app/services/auth_state_service.dart';
@@ -356,34 +355,31 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                   ),
                   child: Row(
                     children: [
-                      // Back button (mobile only)
-                      if (!kIsWeb) ...[
-                        InkWell(
-                          onTap: _handleBackNavigation,
-                          borderRadius: BorderRadius.circular(12),
-                          child: Container(
-                            width: 38,
-                            height: 38,
-                            decoration: BoxDecoration(
+                      InkWell(
+                        onTap: _handleBackNavigation,
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? Colors.white.withValues(alpha: 0.06)
+                                : const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
                               color: isDark
-                                  ? Colors.white.withValues(alpha: 0.06)
-                                  : const Color(0xFFF8FAFC),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: isDark
-                                    ? Colors.white.withValues(alpha: 0.1)
-                                    : const Color(0xFFE2E8F0),
-                              ),
-                            ),
-                            child: Icon(
-                              Icons.arrow_back_ios_new_rounded,
-                              size: 15,
-                              color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                  ? Colors.white.withValues(alpha: 0.1)
+                                  : const Color(0xFFE2E8F0),
                             ),
                           ),
+                          child: Icon(
+                            Icons.arrow_back_ios_new_rounded,
+                            size: 15,
+                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          ),
                         ),
-                        const SizedBox(width: 14),
-                      ],
+                      ),
+                      const SizedBox(width: 14),
 
                     // Modern Stepper Tabs
                     Expanded(

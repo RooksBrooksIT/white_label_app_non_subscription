@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:open_file/open_file.dart';
@@ -389,10 +388,7 @@ class _AdminEngineerReportsState extends State<AdminEngineerReports>
                 elevation: 0.5,
                 pinned: true,
                 centerTitle: true,
-                automaticallyImplyLeading: !kIsWeb,
-                leading: kIsWeb
-                    ? null
-                    : Padding(
+                leading: Padding(
                         padding: const EdgeInsets.all(8),
                         child: CircleAvatar(
                           backgroundColor: const Color(0xFFF1F5F9),

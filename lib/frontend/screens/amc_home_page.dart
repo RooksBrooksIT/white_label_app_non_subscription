@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:lottie/lottie.dart';
@@ -729,10 +728,7 @@ class _AmcCustomerHomePageState extends State<AmcCustomerHomePage> {
                   ),
                 ),
               ],
-              automaticallyImplyLeading: !kIsWeb,
-              leading: kIsWeb
-                  ? null
-                  : IconButton(
+              leading: IconButton(
                       icon: const Icon(Icons.arrow_back, color: Colors.white),
                       onPressed: () => Navigator.pop(context),
                     ),

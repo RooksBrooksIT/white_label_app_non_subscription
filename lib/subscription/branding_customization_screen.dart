@@ -2,7 +2,6 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
 import 'package:crop_image/crop_image.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
@@ -664,10 +663,7 @@ class _BrandingCustomizationScreenState
     return AppBar(
       backgroundColor: Colors.white,
       elevation: 0.5,
-      automaticallyImplyLeading: !kIsWeb,
-      leading: kIsWeb
-          ? null
-          : IconButton(
+      leading: IconButton(
               icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF0F172A)),
               onPressed: () => Navigator.pop(context),
             ),
@@ -1729,7 +1725,7 @@ class _CustomLogoCropperScreenState extends State<CustomLogoCropperScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        automaticallyImplyLeading: !kIsWeb,
+        automaticallyImplyLeading: true,
         title: const Text('Crop Logo', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.white,
         elevation: 0,

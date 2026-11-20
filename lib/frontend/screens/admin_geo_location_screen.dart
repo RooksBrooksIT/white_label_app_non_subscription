@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -765,7 +764,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
       return Scaffold(
         backgroundColor: const Color(0xFFF8FAFC),
         appBar: AppBar(
-          automaticallyImplyLeading: !kIsWeb,
+          automaticallyImplyLeading: true,
           title: const Text(
             'Customer Location Workspace',
             style: TextStyle(
@@ -794,10 +793,7 @@ class _AdminGeoLocationScreenState extends State<AdminGeoLocationScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0.5,
-        automaticallyImplyLeading: !kIsWeb,
-        leading: kIsWeb
-            ? null
-            : Padding(
+        leading: Padding(
                 padding: const EdgeInsets.all(8.0),
                 child: CircleAvatar(
                   backgroundColor: const Color(0xFFF1F5F9),

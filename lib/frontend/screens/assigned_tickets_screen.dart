@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
@@ -28,7 +27,7 @@ class AssignedTicketsScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: ProfessionalTheme.background(context),
       appBar: AppBar(
-        automaticallyImplyLeading: !kIsWeb,
+        automaticallyImplyLeading: true,
         title: const Text(
           'Assigned Tickets',
           style: TextStyle(fontWeight: FontWeight.w700),

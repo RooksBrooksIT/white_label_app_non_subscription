@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -1084,28 +1083,25 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              if (!kIsWeb)
-                IconButton(
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(
-                    Icons.arrow_back_rounded,
-                    color: Color(0xFF0F172A),
-                    size: 20,
+              IconButton(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(
+                  Icons.arrow_back_rounded,
+                  color: Color(0xFF0F172A),
+                  size: 20,
+                ),
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  shadowColor: Colors.black.withValues(alpha: 0.05),
+                  elevation: 2,
+                  padding: const EdgeInsets.all(8),
+                  minimumSize: const Size(38, 38),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: const BorderSide(color: Color(0xFFE2E8F0)),
                   ),
-                  style: IconButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    shadowColor: Colors.black.withValues(alpha: 0.05),
-                    elevation: 2,
-                    padding: const EdgeInsets.all(8),
-                    minimumSize: const Size(38, 38),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      side: const BorderSide(color: Color(0xFFE2E8F0)),
-                    ),
-                  ),
-                )
-              else
-                const SizedBox(width: 38, height: 38),
+                ),
+              ),
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
