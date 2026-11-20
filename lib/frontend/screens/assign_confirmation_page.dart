@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:subscription_rooks_app/frontend/screens/admin_tickets_overview.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class ConfirmationPage extends StatelessWidget {
   final String customerName;
@@ -15,6 +17,7 @@ class ConfirmationPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: !kIsWeb,
         title: Text(
           'Confirmation',
           style: TextStyle(
@@ -27,9 +30,11 @@ class ConfirmationPage extends StatelessWidget {
         backgroundColor: Theme.of(context).primaryColor,
         centerTitle: true,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Center(
+      body: ResponsiveWrapper(
+        maxWidth: 960,
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Center(
           child: Card(
             elevation: 8,
             shape: RoundedRectangleBorder(
@@ -87,6 +92,7 @@ class ConfirmationPage extends StatelessWidget {
             ),
           ),
         ),
+      ),
       ),
     );
   }

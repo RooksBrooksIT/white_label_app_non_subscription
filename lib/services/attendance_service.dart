@@ -8,8 +8,6 @@ class AttendanceService {
   static final AttendanceService instance = AttendanceService._internal();
   AttendanceService._internal();
 
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-
   Future<bool> checkIn(String engineerName) async {
     try {
       // 1. Verify GPS
@@ -33,7 +31,7 @@ class AttendanceService {
 
       // 3. Get Current Position
       Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
       );
 
       // 4. Update EngineerLogin collection in Firebase

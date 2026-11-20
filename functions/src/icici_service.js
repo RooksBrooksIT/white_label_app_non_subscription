@@ -73,7 +73,11 @@ class ICICIService {
     _getEndpoint(paymentMode) {
         const cleanBase = this.baseUrl.replace(/\/$/, "");
         if (paymentMode === "UPI") {
-            return (process.env.ICICI_GENERATE_QR_URL || `${cleanBase}/tsp/pg/api/generateQR`).trim();
+            if (cleanBase.includes("uat")) {
+                return `${cleanBase}/tsp/pg/api/generateQR`;
+            } else {
+                return (process.env.ICICI_GENERATE_QR_URL || `${cleanBase}/pg/api/generateQR`).trim();
+            }
         } else if (paymentMode === "STATUS" || paymentMode === "COMMAND") {
             if (cleanBase.includes("uat")) {
                 return `${cleanBase}/tsp/pg/api/command`;

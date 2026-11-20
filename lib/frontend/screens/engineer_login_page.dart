@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:subscription_rooks_app/backend/screens/engineer_login_page.dart';
@@ -11,7 +13,7 @@ class Engineerlogin extends StatefulWidget {
   const Engineerlogin({super.key});
 
   @override
-  _EngineerloginState createState() => _EngineerloginState();
+  State<Engineerlogin> createState() => _EngineerloginState();
 }
 
 class _EngineerloginState extends State<Engineerlogin> {
@@ -44,10 +46,14 @@ class _EngineerloginState extends State<Engineerlogin> {
   Future<void> _login() async {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
+      final cleanUsername =
+          _nameController.text.replaceAll(RegExp(r'\s+'), '').trim();
+      final cleanReferral =
+          _referralCodeController.text.replaceAll(RegExp(r'\s+'), '').trim();
       final result = await EngineerLoginBackend.login(
-        _nameController.text.trim(),
-        _passwordController.text.trim(),
-        _referralCodeController.text.trim(),
+        cleanUsername,
+        _passwordController.text,
+        cleanReferral,
       );
       if (!mounted) return;
       setState(() => _isLoading = false);
@@ -64,12 +70,17 @@ class _EngineerloginState extends State<Engineerlogin> {
           );
           return;
         }
-        Navigator.pushReplacement(
+        Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(
             builder: (context) =>
-                EngineerPage(userEmail: '', userName: result['username']),
+                EngineerPage(
+                  userEmail: '',
+                  userName: result['username'],
+                  userId: result['userId'] as String?,
+                ),
           ),
+          (route) => false,
         );
       } else {
         _showErrorDialog(result['message']);
@@ -132,10 +143,13 @@ class _EngineerloginState extends State<Engineerlogin> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: !kIsWeb,
+        leading: kIsWeb
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black),
+                onPressed: () => Navigator.pop(context),
+              ),
       ),
       body: SafeArea(
         child: Center(
@@ -188,14 +202,28 @@ class _EngineerloginState extends State<Engineerlogin> {
                   label: 'Referral Code',
                   controller: _referralCodeController,
                   icon: Icons.vpn_key_outlined,
-                  validator: (v) => v!.isEmpty ? 'Enter referral code' : null,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                  ],
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) return 'Enter referral code';
+                    if (v.contains(' ')) return 'Referral code cannot contain spaces';
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 24),
                 _buildTextField(
                   label: 'Username',
                   controller: _nameController,
                   icon: Icons.person_outline,
-                  validator: (v) => v!.isEmpty ? 'Enter your username' : null,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                  ],
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) return 'Enter your username';
+                    if (v.contains(' ')) return 'Username cannot contain spaces';
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 24),
                 _buildTextField(
@@ -238,7 +266,7 @@ class _EngineerloginState extends State<Engineerlogin> {
                   width: double.infinity,
                   height: 60,
                   child: ElevatedButton(
-                    onPressed: _login,
+                    onPressed: _isLoading ? null : _login,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.black,
                       foregroundColor: Colors.white,
@@ -247,13 +275,22 @@ class _EngineerloginState extends State<Engineerlogin> {
                       ),
                       elevation: 0,
                     ),
-                    child: Text(
-                      'Log In',
-                      style: GoogleFonts.inter(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2.5,
+                            ),
+                          )
+                        : Text(
+                            'Log In',
+                            style: GoogleFonts.inter(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -311,6 +348,7 @@ class _EngineerloginState extends State<Engineerlogin> {
     bool obscureText = false,
     Widget? suffixIcon,
     TextInputType? keyboardType,
+    List<TextInputFormatter>? inputFormatters,
     String? Function(String?)? validator,
   }) {
     return Column(
@@ -329,6 +367,7 @@ class _EngineerloginState extends State<Engineerlogin> {
           controller: controller,
           obscureText: obscureText,
           keyboardType: keyboardType,
+          inputFormatters: inputFormatters,
           validator: validator,
           style: GoogleFonts.inter(),
           decoration: InputDecoration(

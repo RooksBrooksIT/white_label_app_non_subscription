@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/services.dart';
 import 'package:subscription_rooks_app/services/auth_state_service.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
@@ -49,14 +51,37 @@ class _GlobalRegistrationScreenState extends State<GlobalRegistrationScreen> {
     setState(() => _isLoading = true);
 
     final name = _nameController.text.trim();
-    final tenantId = FirestoreService.generateTenantId(name);
+    final cleanEmail = _emailController.text.replaceAll(RegExp(r'\s+'), '').trim().toLowerCase();
+    final password = _passwordController.text.trim();
+    final tenantId = await FirestoreService.getUniqueTenantId(name);
     final pendingUserData = {
       'name': name,
-      'email': _emailController.text.trim(),
-      'password': _passwordController.text.trim(),
+      'email': cleanEmail,
+      'password': password,
       'role': _selectedRole,
       'tenantId': tenantId,
     };
+
+    final result = await AuthStateService.instance.registerUser(
+      name: name,
+      email: cleanEmail,
+      password: password,
+      role: _selectedRole,
+      additionalData: {'tenantId': tenantId},
+      deferAuth: _selectedRole == 'admin',
+    );
+
+    if (!result['success']) {
+      setState(() => _isLoading = false);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result['message'] ?? 'Registration failed'),
+          behavior: SnackBarBehavior.fixed,
+        ),
+      );
+      return;
+    }
 
     if (_selectedRole == 'admin') {
       setState(() => _isLoading = false);
@@ -71,13 +96,6 @@ class _GlobalRegistrationScreenState extends State<GlobalRegistrationScreen> {
       return;
     }
 
-    final result = await AuthStateService.instance.registerUser(
-      name: pendingUserData['name']!,
-      email: pendingUserData['email']!,
-      password: pendingUserData['password']!,
-      role: pendingUserData['role']!,
-    );
-
     if (!mounted) return;
     setState(() => _isLoading = false);
 
@@ -85,6 +103,7 @@ class _GlobalRegistrationScreenState extends State<GlobalRegistrationScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Registration successful! You can now log in.'),
+          behavior: SnackBarBehavior.fixed,
         ),
       );
       Navigator.pop(
@@ -92,7 +111,10 @@ class _GlobalRegistrationScreenState extends State<GlobalRegistrationScreen> {
       ); // Go back to selection screen which will now show Login
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result['message'] ?? 'Registration failed')),
+        SnackBar(
+          content: Text(result['message'] ?? 'Registration failed'),
+          behavior: SnackBarBehavior.fixed,
+        ),
       );
     }
   }
@@ -104,10 +126,13 @@ class _GlobalRegistrationScreenState extends State<GlobalRegistrationScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: !kIsWeb,
+        leading: kIsWeb
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black),
+                onPressed: () => Navigator.pop(context),
+              ),
       ),
       body: SafeArea(
         child: ResponsiveWrapper(
@@ -181,9 +206,15 @@ class _GlobalRegistrationScreenState extends State<GlobalRegistrationScreen> {
                   controller: _emailController,
                   icon: Icons.email_outlined,
                   keyboardType: TextInputType.emailAddress,
-                  validator: (v) => v!.isEmpty || !v.contains('@')
-                      ? 'Enter a valid email'
-                      : null,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                  ],
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) return 'Enter your email';
+                    if (v.contains(' ')) return 'Email cannot contain spaces';
+                    if (!v.contains('@')) return 'Enter a valid email';
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 20),
                 _buildTextField(
@@ -258,6 +289,7 @@ class _GlobalRegistrationScreenState extends State<GlobalRegistrationScreen> {
     bool obscureText = false,
     Widget? suffixIcon,
     TextInputType? keyboardType,
+    List<TextInputFormatter>? inputFormatters,
     String? Function(String?)? validator,
   }) {
     return Column(
@@ -276,6 +308,7 @@ class _GlobalRegistrationScreenState extends State<GlobalRegistrationScreen> {
           controller: controller,
           obscureText: obscureText,
           keyboardType: keyboardType,
+          inputFormatters: inputFormatters,
           validator: validator,
           decoration: InputDecoration(
             prefixIcon: Icon(icon, color: Colors.black87),

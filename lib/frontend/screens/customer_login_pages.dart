@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class CustomerTypePage extends StatefulWidget {
@@ -29,55 +30,52 @@ class _CustomerTypePageState extends State<CustomerTypePage> {
           child: ResponsiveFormWrapper(
             maxWidth: kMaxFormWidth,
             horizontalPadding: 24.0,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header Section
-                _buildHeader(),
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header Section
+                  _buildHeader(),
 
-                SizedBox(height: 40),
+                  const SizedBox(height: 30),
 
-                // Customer Type Selection Cards
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      // Normal Customer Card
-                      _buildCustomerTypeCard(
-                        title: "Normal Customer",
-                        description: "One-time service users",
-                        icon: Icons.person_outline,
-                        isSelected: _selectedCustomerType == "normal",
-                        onTap: () {
-                          setState(() {
-                            _selectedCustomerType = "normal";
-                          });
-                        },
-                      ),
-
-                      SizedBox(height: 20),
-
-                      // AMC Customer Card
-                      _buildCustomerTypeCard(
-                        title: "AMC Customer",
-                        description: "Annual Maintenance Contract holders",
-                        icon: Icons.assignment_outlined,
-                        isSelected: _selectedCustomerType == "amc",
-                        onTap: () {
-                          setState(() {
-                            _selectedCustomerType = "amc";
-                          });
-                        },
-                      ),
-
-                      SizedBox(height: 40),
-
-                      // Continue Button
-                      _buildContinueButton(),
-                    ],
+                  // Customer Type Selection Cards
+                  // Normal Customer Card
+                  _buildCustomerTypeCard(
+                    title: "Normal Customer",
+                    description: "One-time service users",
+                    icon: Icons.person_outline,
+                    isSelected: _selectedCustomerType == "normal",
+                    onTap: () {
+                      setState(() {
+                        _selectedCustomerType = "normal";
+                      });
+                    },
                   ),
-                ),
-              ],
+
+                  const SizedBox(height: 20),
+
+                  // AMC Customer Card
+                  _buildCustomerTypeCard(
+                    title: "AMC Customer",
+                    description: "Annual Maintenance Contract holders",
+                    icon: Icons.assignment_outlined,
+                    isSelected: _selectedCustomerType == "amc",
+                    onTap: () {
+                      setState(() {
+                        _selectedCustomerType = "amc";
+                      });
+                    },
+                  ),
+
+                  const SizedBox(height: 36),
+
+                  // Continue Button
+                  _buildContinueButton(),
+                  const SizedBox(height: 24),
+                ],
+              ),
             ),
           ),
         ),
@@ -89,18 +87,19 @@ class _CustomerTypePageState extends State<CustomerTypePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        IconButton(
-          onPressed: () {
-            Navigator.pop(context);
-          },
-          icon: Icon(
-            Icons.arrow_back_rounded,
-            color: Theme.of(context).colorScheme.onPrimary,
-            size: 28,
+        if (!kIsWeb)
+          IconButton(
+            onPressed: () {
+              Navigator.pop(context);
+            },
+            icon: Icon(
+              Icons.arrow_back_rounded,
+              color: Theme.of(context).colorScheme.onPrimary,
+              size: 28,
+            ),
           ),
-        ),
 
-        SizedBox(height: 20),
+        const SizedBox(height: 20),
 
         Text(
           "Select Customer Type",

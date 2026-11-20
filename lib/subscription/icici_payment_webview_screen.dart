@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'webview_wrapper.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -14,11 +15,13 @@ class IciciPaymentResult {
   final bool success;
   final String? message;
   final Map<String, String>? queryParams;
+  final String? paymentMethod;
 
   const IciciPaymentResult({
     required this.success,
     this.message,
     this.queryParams,
+    this.paymentMethod,
   });
 }
 
@@ -37,6 +40,7 @@ class IciciPaymentWebViewScreen extends StatefulWidget {
   final String paymentUrl;
   final String merchantTxnNo;
   final String returnUrl;
+  final String paymentMethod;
 
   /// Optional: override session timeout (default 15 min).
   final Duration sessionTimeout;
@@ -46,6 +50,7 @@ class IciciPaymentWebViewScreen extends StatefulWidget {
     required this.paymentUrl,
     required this.merchantTxnNo,
     required this.returnUrl,
+    this.paymentMethod = 'Card',
     this.sessionTimeout = const Duration(minutes: 15),
   });
 
@@ -99,9 +104,10 @@ class _IciciPaymentWebViewScreenState
   void _startSessionTimer() {
     _sessionTimer = Timer(widget.sessionTimeout, () {
       if (!mounted || _resultDispatched) return;
-      _dispatchResult(const IciciPaymentResult(
+      _dispatchResult(IciciPaymentResult(
         success: false,
         message: 'Payment session expired. Please try again.',
+        paymentMethod: widget.paymentMethod,
       ));
     });
   }
@@ -117,14 +123,16 @@ class _IciciPaymentWebViewScreenState
 
       final status = data['status'];
       if (status == 'SUCCESS') {
-        _dispatchResult(const IciciPaymentResult(
+        _dispatchResult(IciciPaymentResult(
           success: true,
           message: 'Payment completed successfully',
+          paymentMethod: widget.paymentMethod,
         ));
       } else if (status == 'FAILED') {
         _dispatchResult(IciciPaymentResult(
           success: false,
           message: data['errorMsg'] ?? data['error'] ?? 'Payment failed',
+          paymentMethod: widget.paymentMethod,
         ));
       }
     });
@@ -159,16 +167,11 @@ class _IciciPaymentWebViewScreenState
   }
 
   // ── UPI Intent Launcher ─────────────────────────────────────────────────────
+  // ── UPI Intent Launcher ─────────────────────────────────────────────────────
   Future<void> _launchUpiIntent() async {
-    final uri = Uri.parse(widget.paymentUrl);
-    try {
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else {
-        debugPrint('[IciciWebView] Cannot launch UPI URL');
-      }
-    } catch (e) {
-      debugPrint('[IciciWebView] UPI launch error: $e');
+    final handled = await _launchExternalUrl(widget.paymentUrl);
+    if (!handled) {
+      debugPrint('[IciciWebView] Failed to launch direct UPI URL: ${widget.paymentUrl}');
     }
     if (mounted) {
       setState(() => _isLoading = false);
@@ -194,15 +197,8 @@ class _IciciPaymentWebViewScreenState
             // 2. Handle UPI / external app deep-link schemes
             final lower = request.url.toLowerCase();
             if (_isExternalScheme(lower)) {
-              debugPrint('[IciciWebView] External scheme: $lower');
-              try {
-                final uri = Uri.parse(request.url);
-                if (await canLaunchUrl(uri)) {
-                  await launchUrl(uri, mode: LaunchMode.externalApplication);
-                }
-              } catch (e) {
-                debugPrint('[IciciWebView] External launch error: $e');
-              }
+              debugPrint('[IciciWebView] External scheme intercepted: ${request.url}');
+              _launchExternalUrl(request.url);
               return NavigationDecision.prevent;
             }
 
@@ -222,9 +218,21 @@ class _IciciPaymentWebViewScreenState
               setState(() => _loadingProgress = progress / 100);
             }
           },
+          onUrlChange: (UrlChange change) {
+            final url = change.url;
+            if (url != null && _isExternalScheme(url.toLowerCase())) {
+              debugPrint('[IciciWebView] External scheme in onUrlChange: $url');
+              _launchExternalUrl(url);
+            }
+          },
           onWebResourceError: (WebResourceError error) {
             debugPrint(
                 '[IciciWebView] WebResource error ${error.errorCode}: ${error.description}');
+            final url = error.url;
+            if (url != null && _isExternalScheme(url.toLowerCase())) {
+              debugPrint('[IciciWebView] External scheme in WebResourceError: $url');
+              _launchExternalUrl(url);
+            }
           },
         ),
       )
@@ -232,24 +240,151 @@ class _IciciPaymentWebViewScreenState
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
-  bool _isExternalScheme(String lower) =>
-      lower.startsWith('upi://') ||
-      lower.startsWith('phonepe://') ||
-      lower.startsWith('paytmmp://') ||
-      lower.startsWith('gpay://') ||
-      lower.startsWith('tez://') ||
-      lower.startsWith('intent://') ||
-      lower.startsWith('whatsapp://');
+  bool _isExternalScheme(String lower) {
+    if (lower.startsWith('http://') ||
+        lower.startsWith('https://') ||
+        lower.startsWith('about:blank') ||
+        lower.startsWith('data:') ||
+        lower.startsWith('blob:') ||
+        lower.startsWith('javascript:')) {
+      return false;
+    }
+    return true;
+  }
+
+  Future<bool> _launchExternalUrl(String rawUrl) async {
+    debugPrint('[IciciWebView] Launching external payment URL: $rawUrl');
+
+    // 1. On Android, prioritize the native MethodChannel.
+    // Native Android utilizes Intent.parseUri(url, Intent.URI_INTENT_SCHEME)
+    // and Intent.createChooser so all installed UPI apps (Google Pay, PhonePe, Paytm, BHIM, etc.)
+    // are presented consistently across all Android versions.
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      try {
+        const channel = MethodChannel('com.rooks.subscription/upi_intent');
+        final bool? handled = await channel.invokeMethod<bool>(
+          'launchUpiIntent',
+          {'url': rawUrl},
+        );
+        if (handled == true) {
+          debugPrint('[IciciWebView] Successfully launched via native MethodChannel');
+          return true;
+        }
+      } catch (e) {
+        debugPrint('[IciciWebView] Native MethodChannel launch error: $e');
+      }
+    }
+
+    // 2. Dart-side fallback: Convert intent:// or intent:#Intent to standard upi:// scheme
+    String cleanUrl = rawUrl;
+    if (rawUrl.toLowerCase().startsWith('intent:')) {
+      final converted = _convertIntentToDeepLink(rawUrl);
+      if (converted != null && converted.isNotEmpty) {
+        cleanUrl = converted;
+        debugPrint('[IciciWebView] Converted intent URL to: $cleanUrl');
+      }
+    }
+
+    // 3. Fallback: try url_launcher directly
+    try {
+      final uri = Uri.parse(cleanUrl);
+      try {
+        final success = await launchUrl(
+          uri,
+          mode: LaunchMode.externalNonBrowserApplication,
+        );
+        if (success) return true;
+      } catch (e) {
+        debugPrint('[IciciWebView] externalNonBrowserApplication error: $e');
+      }
+
+      final success = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (success) return true;
+    } catch (e) {
+      debugPrint('[IciciWebView] url_launcher error: $e');
+    }
+
+    // 4. Browser fallback URL if embedded in intent
+    if (rawUrl.contains('browser_fallback_url=')) {
+      try {
+        final match =
+            RegExp(r'browser_fallback_url=([^;&]+)').firstMatch(rawUrl);
+        if (match != null) {
+          final fallbackUrl = Uri.decodeComponent(match.group(1)!);
+          debugPrint('[IciciWebView] Launching fallback browser URL: $fallbackUrl');
+          return await launchUrl(
+            Uri.parse(fallbackUrl),
+            mode: LaunchMode.externalApplication,
+          );
+        }
+      } catch (_) {}
+    }
+
+    return false;
+  }
+
+  String? _convertIntentToDeepLink(String intentUrl) {
+    try {
+      // 1. Check for data= inside #Intent;...;end
+      final dataMatch = RegExp(r'[;#]data=([^;]+)').firstMatch(intentUrl);
+      if (dataMatch != null) {
+        final rawData = dataMatch.group(1)!;
+        final decoded = Uri.decodeComponent(rawData);
+        if (decoded.startsWith('upi://') ||
+            decoded.startsWith('phonepe://') ||
+            decoded.startsWith('paytmmp://') ||
+            decoded.startsWith('gpay://') ||
+            decoded.startsWith('tez://')) {
+          return decoded;
+        }
+      }
+
+      // 2. Check for scheme= inside #Intent;...;end
+      final schemeMatch = RegExp(r'[;#]scheme=([^;]+)').firstMatch(intentUrl);
+      final scheme = schemeMatch?.group(1);
+
+      // Extract URI part before #Intent
+      final hashIndex = intentUrl.indexOf('#Intent');
+      final uriPart =
+          hashIndex != -1 ? intentUrl.substring(0, hashIndex) : intentUrl;
+
+      if (scheme != null && scheme.isNotEmpty) {
+        if (uriPart.startsWith('intent://')) {
+          final rest = uriPart.substring('intent://'.length);
+          return '$scheme://$rest';
+        } else if (uriPart.startsWith('intent:')) {
+          final rest = uriPart.substring('intent:'.length);
+          return '$scheme:$rest';
+        }
+      }
+
+      // 3. Fallback: if it contains 'pay?'
+      if (intentUrl.contains('pay?')) {
+        final payIndex = intentUrl.indexOf('pay?');
+        final endOfParams =
+            hashIndex != -1 ? hashIndex : intentUrl.length;
+        final params = intentUrl.substring(payIndex, endOfParams);
+        return 'upi://$params';
+      }
+    } catch (e) {
+      debugPrint('[IciciWebView] Error converting intent URL: $e');
+    }
+    return null;
+  }
 
   bool _isReturnUrl(String url) {
     try {
-      if (url.contains('paymentReturn')) {
+      final lower = url.toLowerCase();
+      if (lower.contains('paymentreturn') || lower.contains('paymentcallback')) {
         return true;
       }
       final returnUri = Uri.parse(widget.returnUrl);
       final currentUri = Uri.parse(url);
-      return currentUri.host == returnUri.host &&
-          currentUri.path == returnUri.path;
+      return currentUri.host.toLowerCase() == returnUri.host.toLowerCase() &&
+          currentUri.path.toLowerCase() == returnUri.path.toLowerCase();
     } catch (_) {
       return false;
     }
@@ -260,33 +395,80 @@ class _IciciPaymentWebViewScreenState
     if (_resultDispatched) return;
     try {
       final uri = Uri.parse(url);
-      final q = uri.queryParameters;
+      final q = Map<String, String>.from(uri.queryParameters);
+      debugPrint('[IciciWebView] Return URL intercepted: $url');
       debugPrint('[IciciWebView] Return URL params: $q');
 
-      final rawStatus = q['status'] ??
-          q['txnStatus'] ??
-          q['Status'] ??
-          q['RESPONSE_CODE'] ??
-          '';
+      String? getVal(List<String> keys) {
+        for (final k in keys) {
+          for (final entry in q.entries) {
+            if (entry.key.toLowerCase() == k.toLowerCase() &&
+                entry.value.trim().isNotEmpty) {
+              return entry.value.trim();
+            }
+          }
+        }
+        return null;
+      }
 
-      final isSuccess = rawStatus.toUpperCase() == 'SUCCESS' ||
-          rawStatus.toUpperCase() == 'APPROVED' ||
-          rawStatus.toUpperCase() == 'TXN_SUCCESS' ||
-          rawStatus == '0' ||
-          rawStatus == '00' ||
-          rawStatus == 'P1000';
+      final rawStatus = getVal([
+        'status', 'txnStatus', 'TXN_STATUS', 'txn_status', 'Status',
+        'RESPONSE_CODE', 'responseCode', 'response_code', 'respCode',
+        'txnResponseCode', 'TXN_RESPONSE_CODE', 'returnCode'
+      ]) ?? '';
 
+      final upper = rawStatus.toUpperCase();
+
+      final isExplicitFailure = upper == 'FAILED' ||
+          upper == 'FAIL' ||
+          upper == 'CANCELLED' ||
+          upper == 'CANCELED' ||
+          upper == '1' ||
+          upper == '99' ||
+          upper == '111' ||
+          upper == '1111';
+
+      final isExplicitSuccess = upper == 'SUCCESS' ||
+          upper == 'APPROVED' ||
+          upper == 'TXN_SUCCESS' ||
+          upper == 'SUC' ||
+          upper == '0' ||
+          upper == '00' ||
+          upper == '000' ||
+          upper == '0000' ||
+          upper == 'R1000' ||
+          upper == 'P1000' ||
+          upper == '200';
+
+      if (isExplicitFailure) {
+        _dispatchResult(IciciPaymentResult(
+          success: false,
+          message: getVal(['message', 'statusMessage', 'error', 'errorMsg']) ??
+              'Payment was not completed',
+          queryParams: q.isNotEmpty ? q : null,
+          paymentMethod: widget.paymentMethod,
+        ));
+        return;
+      }
+
+      // If explicit success or return URL reached with pending/empty query:
+      // Dispatch success: true so that _verifyPaymentOnReturn can conclusively verify
+      // via Firestore webhook and backend statusCheck API.
       _dispatchResult(IciciPaymentResult(
-        success: isSuccess,
-        message: q['message'] ??
-            q['statusMessage'] ??
-            (isSuccess
-                ? 'Payment completed'
-                : 'Payment was not completed'),
-        queryParams: q.isNotEmpty ? Map<String, String>.from(q) : null,
+        success: true,
+        message: isExplicitSuccess
+            ? 'Payment completed'
+            : 'Payment returned from gateway, verifying...',
+        queryParams: q.isNotEmpty ? q : null,
+        paymentMethod: widget.paymentMethod,
       ));
     } catch (e) {
       debugPrint('[IciciWebView] Return URL parse error: $e');
+      _dispatchResult(IciciPaymentResult(
+        success: true,
+        message: 'Payment completed at gateway, verifying...',
+        paymentMethod: widget.paymentMethod,
+      ));
     }
   }
 
@@ -329,9 +511,10 @@ class _IciciPaymentWebViewScreenState
     );
 
     if (shouldCancel == true) {
-      _dispatchResult(const IciciPaymentResult(
+      _dispatchResult(IciciPaymentResult(
         success: false,
         message: 'Payment cancelled by user',
+        paymentMethod: widget.paymentMethod,
       ));
     }
   }

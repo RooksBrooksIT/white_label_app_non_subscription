@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:subscription_rooks_app/services/icici_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:subscription_rooks_app/services/auth_state_service.dart';
@@ -6,6 +7,7 @@ import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/services/payment_recovery_service.dart';
 import 'package:subscription_rooks_app/services/invoice_email_service.dart';
 import 'package:subscription_rooks_app/services/subscription_queue_service.dart';
+import 'package:subscription_rooks_app/services/app_update_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'icici_payment_webview_screen.dart';
 import 'queued_upgrade_confirmation_screen.dart';
@@ -19,6 +21,7 @@ class PaymentScreen extends StatefulWidget {
   final String planName;
   final bool isYearly;
   final bool isSixMonths;
+  final int subscriptionYears;
   final int price;
   final int? originalPrice;
   final Map<String, dynamic>? brandingData;
@@ -51,6 +54,7 @@ class PaymentScreen extends StatefulWidget {
     required this.planName,
     required this.isYearly,
     this.isSixMonths = false,
+    this.subscriptionYears = 1,
     required this.price,
     this.originalPrice,
     this.brandingData,
@@ -74,7 +78,7 @@ class _PaymentScreenState extends State<PaymentScreen>
     with WidgetsBindingObserver {
   bool _isVerifying = false;
   static const Color brandBlue = Color(0xFF1A237E);
-  final String selectedPaymentMethod = 'Card'; // Hardcoded for hosted flow
+  String selectedPaymentMethod = 'Card';
 
   String? _activeTxnId;
 
@@ -85,11 +89,13 @@ class _PaymentScreenState extends State<PaymentScreen>
   @override
   void initState() {
     super.initState();
+    AppUpdateService.isPaymentInProgress = true;
     WidgetsBinding.instance.addObserver(this);
   }
 
   @override
   void dispose() {
+    AppUpdateService.isPaymentInProgress = false;
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -131,18 +137,31 @@ class _PaymentScreenState extends State<PaymentScreen>
     return status == 'FAILED' || status == 'CANCELLED';
   }
 
+  String _formatPaymentMethod(String method) {
+    final upper = method.toUpperCase();
+    if (upper.contains('UPI')) return 'UPI';
+    if (upper.contains('CARD')) return 'Card';
+    if (upper.contains('NETBANKING') ||
+        upper.contains('NET_BANKING') ||
+        upper.contains('NET BANKING')) {
+      return 'Net Banking';
+    }
+    return method;
+  }
+
   String _resolvePaymentMethodFromResult(
     Map<String, dynamic>? result, {
-    String fallback = 'CARD',
+    String? fallback,
   }) {
-    if (result == null) return fallback;
+    final effectiveFallback = fallback ?? selectedPaymentMethod;
+    if (result == null) return _formatPaymentMethod(effectiveFallback);
     
     // 1. Check inside iciciResponse object if available
     final iciciResponse = result['iciciResponse'];
     if (iciciResponse is Map<String, dynamic>) {
       final iciciMode = iciciResponse['paymentMode'] ?? iciciResponse['paymentMethod'];
       if (iciciMode != null && iciciMode.toString().trim().isNotEmpty) {
-        return iciciMode.toString().trim().toUpperCase();
+        return _formatPaymentMethod(iciciMode.toString().trim());
       }
     }
 
@@ -154,8 +173,8 @@ class _PaymentScreenState extends State<PaymentScreen>
         result['txnPaymentMode'] ??
         result['mode'];
     final method = rawValue?.toString().trim();
-    if (method == null || method.isEmpty) return fallback;
-    return method.toUpperCase();
+    if (method == null || method.isEmpty) return _formatPaymentMethod(effectiveFallback);
+    return _formatPaymentMethod(method);
   }
 
   Future<void> _verifyPaymentOnReturn(String txnId) async {
@@ -183,8 +202,8 @@ class _PaymentScreenState extends State<PaymentScreen>
     Map<String, dynamic>? finalVerifyResult;
     String errorMessage = 'Payment failed or was cancelled.';
 
-    const verificationWindow = Duration(seconds: 5);
-    const pollInterval = Duration(seconds: 1);
+    const verificationWindow = Duration(seconds: 25);
+    const pollInterval = Duration(milliseconds: 1500);
     final deadline = DateTime.now().add(verificationWindow);
 
     try {
@@ -303,7 +322,7 @@ class _PaymentScreenState extends State<PaymentScreen>
     setState(() { _isVerifying = false; });
     final resolvedPaymentMethod = _resolvePaymentMethodFromResult(
       finalVerifyResult,
-      fallback: selectedPaymentMethod.toUpperCase(),
+      fallback: selectedPaymentMethod,
     );
 
     if (isSuccess) {
@@ -345,7 +364,7 @@ class _PaymentScreenState extends State<PaymentScreen>
         // If we have pending user data, register/create the user now
         if (widget.pendingUserData != null && uid == null) {
           final result = await AuthStateService.instance
-              .createAndFinalizeAccount();
+              .createAndFinalizeAccount(fallbackData: widget.pendingUserData);
           if (result['success']) {
             uid = result['uid'];
           } else {
@@ -372,6 +391,7 @@ class _PaymentScreenState extends State<PaymentScreen>
                     status: 'SUCCESS_ORPHANED',
                     isYearly: widget.isYearly,
                     isSixMonths: widget.isSixMonths,
+                    subscriptionYears: widget.subscriptionYears,
                     registrationCompleted: false,
                     firestoreSynced: false,
                     failureReason: 'Wrong password for existing account',
@@ -404,8 +424,10 @@ class _PaymentScreenState extends State<PaymentScreen>
             );
           }
         } else if (uid != null) {
-          // Existing user upgrading - just finalize any pending Firestore logic if needed
-          await AuthStateService.instance.finalizeRegistration();
+          // Existing user or deferred auth user - finalize Firestore records with fallback
+          await AuthStateService.instance.finalizeRegistration(
+            fallbackData: widget.pendingUserData,
+          );
         }
 
         if (uid != null) {
@@ -429,6 +451,7 @@ class _PaymentScreenState extends State<PaymentScreen>
               planName: widget.planName,
               isYearly: widget.isYearly,
               isSixMonths: widget.isSixMonths,
+              subscriptionYears: widget.subscriptionYears,
               price: actualAmount,
               originalPrice: widget.originalPrice,
               paymentMethod: resolvedPaymentMethod,
@@ -448,6 +471,7 @@ class _PaymentScreenState extends State<PaymentScreen>
               planName: widget.planName,
               isYearly: widget.isYearly,
               isSixMonths: widget.isSixMonths,
+              subscriptionYears: widget.subscriptionYears,
               price: actualAmount,
               originalPrice: widget.originalPrice,
               paymentMethod: resolvedPaymentMethod,
@@ -486,6 +510,7 @@ class _PaymentScreenState extends State<PaymentScreen>
             status: 'SUCCESS',
             isYearly: widget.isYearly,
             isSixMonths: widget.isSixMonths,
+            subscriptionYears: widget.subscriptionYears,
             queueStatus: _queueUpgrade ? 'Queued' : 'Immediate',
             registrationCompleted: true,
             firestoreSynced: true,
@@ -515,6 +540,7 @@ class _PaymentScreenState extends State<PaymentScreen>
             planName: widget.planName,
             isYearly: widget.isYearly,
             isSixMonths: widget.isSixMonths,
+            subscriptionYears: widget.subscriptionYears,
             amountPaid: actualAmount,
             gstNumber: widget.pendingUserData?['gstNumber'],
           );
@@ -582,7 +608,9 @@ class _PaymentScreenState extends State<PaymentScreen>
     else {
       // isPending or FAILED/CANCELLED
       final uid = AuthStateService.instance.currentUser?.uid;
-      final tenantId = ThemeService.instance.databaseName;
+      final tenantId =
+          widget.pendingUserData?['tenantId'] ??
+          ThemeService.instance.databaseName;
       
       final String displayError = isPending 
           ? 'Your payment is currently pending or being processed by the bank. Once confirmed, your subscription will activate automatically. You can check your status in a few minutes.' 
@@ -591,14 +619,26 @@ class _PaymentScreenState extends State<PaymentScreen>
       await FirestoreService.instance.logPaymentTransaction(
         txnId: txnId,
         uidOrMobile: uid ?? widget.pendingUserData?['email'] ?? 'unknown',
+        userId: uid,
+        tenantId: tenantId,
         planName: widget.planName,
+        newPlan: widget.planName,
+        previousPlan: widget.currentActivePlanName,
         amount: widget.price,
         status: isPending ? 'PENDING' : 'FAILED',
         isYearly: widget.isYearly,
         isSixMonths: widget.isSixMonths,
+        subscriptionYears: widget.subscriptionYears,
         failureReason: displayError,
         registrationCompleted: false,
         firestoreSynced: true,
+        gatewayResponse: finalVerifyResult ?? {
+          'paymentMode': resolvedPaymentMethod,
+          'paymentMethod': resolvedPaymentMethod,
+          'amount': widget.price,
+          'status': isPending ? 'PENDING' : 'FAILED',
+          'transactionId': txnId,
+        },
       );
 
       // Retain pending payment state locally if it is PENDING so it can be recovered later.
@@ -607,31 +647,9 @@ class _PaymentScreenState extends State<PaymentScreen>
         await PaymentRecoveryService.instance.clearPendingPayment();
       }
 
-      if (uid != null) {
-        try {
-          // Record failed/pending attempt but do not finalize registration
-          await FirestoreService.instance.upsertSubscription(
-            uid: uid,
-            tenantId: tenantId,
-            appId: tenantId, // Standardized to tenantId to avoid duplication
-            planName: widget.planName,
-            isYearly: widget.isYearly,
-            isSixMonths: widget.isSixMonths,
-            price: widget.price,
-            originalPrice: widget.originalPrice,
-            paymentMethod: resolvedPaymentMethod,
-            status: isPending ? 'pending' : 'failed',
-            gstNumber: widget.pendingUserData?['gstNumber'],
-            limits: widget.limits,
-            geoLocation: widget.geoLocation,
-            attendance: widget.attendance,
-            barcode: widget.barcode,
-            reportExport: widget.reportExport,
-          );
-        } catch (e) {
-          debugPrint('Error recording failed/pending payment: $e');
-        }
-      }
+      // Note: Failed or cancelled payments must NEVER overwrite or mutate the user's active
+      // subscription in Firestore. The existing active plan remains unchanged.
+
 
       if (!mounted) return;
       Navigator.push(
@@ -719,14 +737,16 @@ class _PaymentScreenState extends State<PaymentScreen>
 
   // Get next billing date
   DateTime getNextBillingDate() {
+    final now = DateTime.now();
     if (widget.isYearly) {
-      return DateTime.now().add(const Duration(days: 365));
+      final yearsToAdd =
+          widget.subscriptionYears > 0 ? widget.subscriptionYears : 1;
+      return DateTime(now.year + yearsToAdd, now.month, now.day);
     } else if (widget.isSixMonths) {
       // Best way to add 6 months:
-      final now = DateTime.now();
       return DateTime(now.year, now.month + 6, now.day);
     } else {
-      return DateTime.now().add(const Duration(days: 30));
+      return now.add(const Duration(days: 30));
     }
   }
 
@@ -787,22 +807,25 @@ class _PaymentScreenState extends State<PaymentScreen>
             backgroundColor: Colors.white,
             foregroundColor: Colors.black,
             elevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new, size: 20),
-              onPressed: () {
-                if (_isVerifying) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Please wait. Payment verification is in progress. You can go back once the verification process is complete.',
-                      ),
-                    ),
-                  );
-                } else {
-                  Navigator.pop(context);
-                }
-              },
-            ),
+            automaticallyImplyLeading: !kIsWeb,
+            leading: kIsWeb
+                ? null
+                : IconButton(
+                    icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+                    onPressed: () {
+                      if (_isVerifying) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Please wait. Payment verification is in progress. You can go back once the verification process is complete.',
+                            ),
+                          ),
+                        );
+                      } else {
+                        Navigator.pop(context);
+                      }
+                    },
+                  ),
           ),
           body: SafeArea(
             child: SingleChildScrollView(
@@ -816,9 +839,9 @@ class _PaymentScreenState extends State<PaymentScreen>
                       // Summary Section
                       _buildSubscriptionSummary(formattedDate),
 
-                      const SizedBox(height: 40),
+                      const SizedBox(height: 32),
                       _buildSecurityBadges(),
-                      const SizedBox(height: 40),
+                      const SizedBox(height: 32),
                       _buildActionButtons(),
                       const SizedBox(height: 24),
                       _buildTermsText(),
@@ -861,20 +884,30 @@ class _PaymentScreenState extends State<PaymentScreen>
               Container(
                 padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: Color(0xFFF1F5F9),
+                  color: widget.hasActiveSubscription
+                      ? const Color(0xFFEEF2FF)
+                      : const Color(0xFFF1F5F9),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.circle, size: 8, color: Color(0xFF10B981)),
-                    SizedBox(width: 6),
+                    Icon(
+                      Icons.circle,
+                      size: 8,
+                      color: widget.hasActiveSubscription
+                          ? const Color(0xFF6366F1)
+                          : const Color(0xFF10B981),
+                    ),
+                    const SizedBox(width: 6),
                     Text(
-                      'ACTIVE',
+                      widget.hasActiveSubscription ? 'UPGRADE' : 'SELECTED PLAN',
                       style: TextStyle(
                         fontSize: isDesktop ? 11 : 10,
                         fontWeight: FontWeight.w700,
-                        color: Color(0xFF10B981),
+                        color: widget.hasActiveSubscription
+                            ? const Color(0xFF6366F1)
+                            : const Color(0xFF10B981),
                         letterSpacing: 0.8,
                       ),
                     ),
@@ -927,7 +960,9 @@ class _PaymentScreenState extends State<PaymentScreen>
                   padding: EdgeInsets.only(left: 4, bottom: 6),
                   child: Text(
                     widget.isYearly
-                        ? '/year'
+                        ? (widget.subscriptionYears > 1
+                            ? '/${widget.subscriptionYears} yrs'
+                            : '/year')
                         : (widget.isSixMonths ? '/6mo' : '/mo'),
                     style: TextStyle(
                       fontSize: isDesktop ? 14 : 12,
@@ -982,7 +1017,9 @@ class _PaymentScreenState extends State<PaymentScreen>
                   value: widget.price == 0
                       ? '7 Days Free Trial'
                       : widget.isYearly
-                      ? 'Billed Annually (12 months)'
+                      ? (widget.subscriptionYears > 1
+                          ? 'Billed for ${widget.subscriptionYears} Years (${widget.subscriptionYears * 12} months)'
+                          : 'Billed Annually (12 months)')
                       : widget.isSixMonths
                       ? 'Billed Every 6 Months'
                       : 'Billed Monthly',
@@ -1107,50 +1144,53 @@ class _PaymentScreenState extends State<PaymentScreen>
       children: [
         // ── Queue Upgrade Checkbox (shown only when user has an active plan) ──
         if (widget.hasActiveSubscription && !widget.isFirstTimeRegistration)
-          Container(
-            margin: const EdgeInsets.only(bottom: 16),
-            decoration: BoxDecoration(
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: Material(
               color: _queueUpgrade
                   ? const Color(0xFFF0F0FF)
                   : Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: _queueUpgrade
-                    ? const Color(0xFF6C5CE7)
-                    : Colors.grey.shade300,
-                width: _queueUpgrade ? 1.5 : 1,
-              ),
-            ),
-            child: CheckboxListTile(
-              value: _queueUpgrade,
-              onChanged: (val) => setState(() => _queueUpgrade = val ?? false),
-              title: const Text(
-                'Queue Upgrade Until Current Plan Expires',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                ),
-              ),
-              subtitle: Text(
-                _queueUpgrade
-                    ? 'Your ${widget.currentActivePlanName ?? 'current'} plan stays active. '
-                      '${widget.planName} will activate automatically on expiry.'
-                    : '${widget.planName} plan will activate immediately after payment.',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: _queueUpgrade
-                      ? const Color(0xFF4A3F99)
-                      : Colors.grey.shade600,
-                  height: 1.3,
-                ),
-              ),
-              activeColor: const Color(0xFF6C5CE7),
-              controlAffinity: ListTileControlAffinity.leading,
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              clipBehavior: Clip.antiAlias,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
+                side: BorderSide(
+                  color: _queueUpgrade
+                      ? const Color(0xFF6C5CE7)
+                      : Colors.grey.shade300,
+                  width: _queueUpgrade ? 1.5 : 1,
+                ),
+              ),
+              child: CheckboxListTile(
+                value: _queueUpgrade,
+                onChanged: (val) => setState(() => _queueUpgrade = val ?? false),
+                title: const Text(
+                  'Queue Upgrade Until Current Plan Expires',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+                subtitle: Text(
+                  _queueUpgrade
+                      ? 'Your ${widget.currentActivePlanName ?? 'current'} plan stays active. '
+                        '${widget.planName} will activate automatically on expiry.'
+                      : '${widget.planName} plan will activate immediately after payment.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: _queueUpgrade
+                        ? const Color(0xFF4A3F99)
+                        : Colors.grey.shade600,
+                    height: 1.3,
+                  ),
+                ),
+                activeColor: const Color(0xFF6C5CE7),
+                controlAffinity: ListTileControlAffinity.leading,
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
           ),
@@ -1255,7 +1295,9 @@ class _PaymentScreenState extends State<PaymentScreen>
     );
 
     try {
-      final tenantId = ThemeService.instance.databaseName;
+      final tenantId =
+          widget.pendingUserData?['tenantId'] ??
+          ThemeService.instance.databaseName;
       final appId = ThemeService.instance.appName;
 
       // Use pending email if user is not logged in yet
@@ -1313,6 +1355,7 @@ class _PaymentScreenState extends State<PaymentScreen>
         customerMobile: customerData['phone'],
         isYearly: widget.isYearly,
         isSixMonths: widget.isSixMonths,
+        subscriptionYears: widget.subscriptionYears,
         limits: widget.limits,
         geoLocation: widget.geoLocation,
         attendance: widget.attendance,
@@ -1340,14 +1383,22 @@ class _PaymentScreenState extends State<PaymentScreen>
           'price': widget.price,
           'isYearly': widget.isYearly,
           'isSixMonths': widget.isSixMonths,
+          'subscriptionYears': widget.subscriptionYears,
+          'billingYears': widget.subscriptionYears,
           'originalPrice': widget.originalPrice,
-          'paymentMethod': selectedPaymentMethod,
+          'paymentMethod': _formatPaymentMethod(selectedPaymentMethod),
           'pendingUserData': widget.pendingUserData,
           'limits': widget.limits,
           'geoLocation': widget.geoLocation,
           'attendance': widget.attendance,
           'barcode': widget.barcode,
           'reportExport': widget.reportExport,
+          'tenantId': tenantId,
+          'userId': effectiveUid,
+          'currentActivePlanName': widget.currentActivePlanName,
+          'hasActiveSubscription': widget.hasActiveSubscription,
+          'activePlanExpiryDate': widget.activePlanExpiryDate?.toIso8601String(),
+          'queueUpgrade': _queueUpgrade,
         });
       }
 
@@ -1381,7 +1432,7 @@ class _PaymentScreenState extends State<PaymentScreen>
                 MaterialPageRoute(
                   builder: (context) => PaymentFailedScreen(
                     errorMessage: errorMessage,
-                    paymentMethod: selectedPaymentMethod,
+                    paymentMethod: _formatPaymentMethod(selectedPaymentMethod),
                     amount: widget.price,
                     transactionId: 'INIT_ERROR',
                   ),
@@ -1405,6 +1456,7 @@ class _PaymentScreenState extends State<PaymentScreen>
           planName: widget.planName,
           amountPaid: actualAmount,
           isYearly: widget.isYearly,
+          subscriptionYears: widget.subscriptionYears,
           paymentMethod: resolvedPaymentMethod,
           timestamp: DateTime.now(),
           isFirstTimeRegistration: widget.isFirstTimeRegistration,
@@ -1415,6 +1467,7 @@ class _PaymentScreenState extends State<PaymentScreen>
           attendance: widget.attendance,
           barcode: widget.barcode,
           reportExport: widget.reportExport,
+          pendingUserData: widget.pendingUserData,
         ),
       ),
       (route) => route.isFirst,
@@ -1435,6 +1488,7 @@ class _PaymentScreenState extends State<PaymentScreen>
           scheduledActivationDate: widget.activePlanExpiryDate,
           isYearly: widget.isYearly,
           isSixMonths: widget.isSixMonths,
+          subscriptionYears: widget.subscriptionYears,
         ),
       ),
       (route) => route.isFirst,
@@ -1460,6 +1514,7 @@ class _PaymentScreenState extends State<PaymentScreen>
             paymentUrl: url,
             merchantTxnNo: txnId,
             returnUrl: IciciService.returnUrl,
+            paymentMethod: selectedPaymentMethod,
           ),
         ),
       );
@@ -1467,13 +1522,10 @@ class _PaymentScreenState extends State<PaymentScreen>
       if (!mounted) return;
 
       if (result != null && result is IciciPaymentResult) {
-        if (result.success) {
-          _verifyPaymentOnReturn(txnId);
-        } else {
-          // Verify on return anyway in case it was a delayed success,
-          // or just handle failure directly.
-          _verifyPaymentOnReturn(txnId);
+        if (result.paymentMethod != null && result.paymentMethod!.isNotEmpty) {
+          selectedPaymentMethod = _formatPaymentMethod(result.paymentMethod!);
         }
+        _verifyPaymentOnReturn(txnId);
       } else {
         // User closed the webview without a conclusive result.
         // We should verify just in case.

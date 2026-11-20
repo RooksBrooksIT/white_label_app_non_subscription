@@ -58,6 +58,7 @@ class IciciService {
     String? customerMobile,
     bool isYearly = false,
     bool isSixMonths = false,
+    int subscriptionYears = 1,
     Map<String, dynamic>? limits,
     bool? geoLocation,
     bool? attendance,
@@ -66,7 +67,7 @@ class IciciService {
     String? returnUrl,
     String? userId, // Optional userId for registration flow
   }) async {
-    const TAG = '[ICICI-SERVICE]';
+    const tag = '[ICICI-SERVICE]';
     try {
       final user = FirebaseAuth.instance.currentUser;
       final effectiveUserId = userId ?? user?.uid;
@@ -99,6 +100,8 @@ class IciciService {
           'customerMobile': customerMobile,
           'isYearly': isYearly,
           'isSixMonths': isSixMonths,
+          'subscriptionYears': subscriptionYears,
+          'billingYears': subscriptionYears,
           'limits': limits,
           'geoLocation': geoLocation,
           'attendance': attendance,
@@ -110,14 +113,14 @@ class IciciService {
 
       return IciciPaymentResponse.fromJson(response.data);
     } on DioException catch (e) {
-      debugPrint('$TAG Dio Error Data: ${e.response?.data}');
+      debugPrint('$tag Dio Error Data: ${e.response?.data}');
       return IciciPaymentResponse(
         success: false,
         error: e.response?.data?['error'] ?? 'Network error (${e.message})',
         txnId: e.response?.data?['txnId'],
       );
     } catch (e) {
-      debugPrint('$TAG Fatal Error: $e');
+      debugPrint('$tag Fatal Error: $e');
       return IciciPaymentResponse(success: false, error: e.toString());
     }
   }
@@ -167,7 +170,7 @@ class IciciService {
     required String merchantTxnNo,
     required String amount,
   }) async {
-    const TAG = '[ICICI-REFUND]';
+    const tag = '[ICICI-REFUND]';
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return null;
@@ -191,7 +194,7 @@ class IciciService {
 
       return response.data as Map<String, dynamic>;
     } catch (e) {
-      debugPrint('$TAG Error: $e');
+      debugPrint('$tag Error: $e');
       return null;
     }
   }
@@ -200,7 +203,7 @@ class IciciService {
   Future<Map<String, dynamic>> verifyPaymentStatus({
     required String txnId,
   }) async {
-    const TAG = '[ICICI-VERIFY]';
+    const tag = '[ICICI-VERIFY]';
     try {
       final user = FirebaseAuth.instance.currentUser;
       String? idToken;
@@ -221,7 +224,7 @@ class IciciService {
 
       return response.data as Map<String, dynamic>;
     } catch (e) {
-      debugPrint('$TAG Error: $e');
+      debugPrint('$tag Error: $e');
       return {'success': false, 'error': e.toString()};
     }
   }

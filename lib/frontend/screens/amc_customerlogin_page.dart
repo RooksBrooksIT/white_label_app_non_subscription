@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:subscription_rooks_app/frontend/screens/amc_main_page.dart';
@@ -39,9 +41,13 @@ class _AMCLoginPageState extends State<AMCLoginPage>
   }
 
   Future<void> login() async {
-    if (referralCodeController.text.trim().isEmpty ||
-        emailController.text.trim().isEmpty ||
-        passwordController.text.trim().isEmpty) {
+    final cleanReferralCode = referralCodeController.text.replaceAll(RegExp(r'\s+'), '').trim();
+    final cleanEmail = emailController.text.replaceAll(RegExp(r'\s+'), '').trim().toLowerCase();
+    final cleanPassword = passwordController.text.trim();
+
+    if (cleanReferralCode.isEmpty ||
+        cleanEmail.isEmpty ||
+        cleanPassword.isEmpty) {
       _showSnackBar('Please fill all fields.');
       return;
     }
@@ -49,15 +55,16 @@ class _AMCLoginPageState extends State<AMCLoginPage>
     setState(() => _isLoading = true);
 
     final result = await AMCLoginBackend.login(
-      emailController.text.trim(),
-      passwordController.text.trim(),
-      referralCodeController.text.trim(),
+      cleanEmail,
+      cleanPassword,
+      cleanReferralCode,
     );
 
     if (result['success']) {
       if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => AMCCustomerMainPage()),
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const AMCCustomerMainPage()),
+        (route) => false,
       );
     } else {
       _showSnackBar(result['message']);
@@ -79,10 +86,13 @@ class _AMCLoginPageState extends State<AMCLoginPage>
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: !kIsWeb,
+        leading: kIsWeb
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black),
+                onPressed: () => Navigator.pop(context),
+              ),
       ),
       body: SafeArea(
         child: Center(
@@ -129,6 +139,9 @@ class _AMCLoginPageState extends State<AMCLoginPage>
                     label: 'Referral Code',
                     controller: referralCodeController,
                     icon: Icons.vpn_key_outlined,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                    ],
                   ),
                   const SizedBox(height: 24),
                   _buildTextField(
@@ -136,6 +149,9 @@ class _AMCLoginPageState extends State<AMCLoginPage>
                     controller: emailController,
                     icon: Icons.email_outlined,
                     keyboardType: TextInputType.emailAddress,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                    ],
                   ),
                   const SizedBox(height: 24),
                   _buildTextField(
@@ -293,6 +309,7 @@ class _AMCLoginPageState extends State<AMCLoginPage>
     bool obscureText = false,
     Widget? suffixIcon,
     TextInputType? keyboardType,
+    List<TextInputFormatter>? inputFormatters,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -310,6 +327,7 @@ class _AMCLoginPageState extends State<AMCLoginPage>
           controller: controller,
           obscureText: obscureText,
           keyboardType: keyboardType,
+          inputFormatters: inputFormatters,
           style: GoogleFonts.inter(),
           decoration: InputDecoration(
             prefixIcon: Icon(icon, color: Colors.black87),

@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:subscription_rooks_app/services/theme_service.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class RefundPage extends StatefulWidget {
   const RefundPage({super.key});
@@ -26,9 +30,10 @@ class _RefundPageState extends State<RefundPage>
     super.dispose();
   }
 
-  // ─── Submit Refund Request ──────────────────────────────────────────────────
-  Future<void> _showRefundRequestDialog(Map<String, dynamic> paymentData,
-      String orderId) async {
+  Future<void> _showRefundRequestDialog(
+    Map<String, dynamic> paymentData,
+    String orderId,
+  ) async {
     final reasonController = TextEditingController();
     final formKey = GlobalKey<FormState>();
     final user = FirebaseAuth.instance.currentUser;
@@ -36,18 +41,24 @@ class _RefundPageState extends State<RefundPage>
     final customerName =
         paymentData['customerName'] ?? paymentData['name'] ?? 'Unknown';
     final customerEmail =
-        paymentData['customerEmail'] ?? paymentData['email'] ?? user?.email ?? 'N/A';
+        paymentData['customerEmail'] ??
+        paymentData['email'] ??
+        user?.email ??
+        'N/A';
     final mobileNumber =
         paymentData['customerMobile'] ?? paymentData['mobileNumber'] ?? 'N/A';
     final transactionId =
-        paymentData['merchantTxnNo'] ?? paymentData['transactionId'] ?? paymentData['paymentId'] ?? 'N/A';
+        paymentData['merchantTxnNo'] ??
+        paymentData['transactionId'] ??
+        paymentData['paymentId'] ??
+        'N/A';
     final amount =
         double.tryParse(paymentData['amount']?.toString() ?? '0') ?? 0;
 
     bool? submitted = await showDialog<bool>(
       context: context,
       builder: (ctx) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Form(
@@ -56,37 +67,40 @@ class _RefundPageState extends State<RefundPage>
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Header
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(8),
+                      padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: Colors.red[50],
-                        borderRadius: BorderRadius.circular(10),
+                        color: const Color(0xFFEF4444).withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Icon(Icons.undo_rounded,
-                          color: Colors.red[700], size: 22),
+                      child: const Icon(
+                        Icons.undo_rounded,
+                        color: Color(0xFFEF4444),
+                        size: 22,
+                      ),
                     ),
                     const SizedBox(width: 12),
-                    const Expanded(
+                    Expanded(
                       child: Text(
                         'Initiate Refund Request',
-                        style: TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.bold),
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF0F172A),
+                        ),
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 20),
-
-                // Order Details Card
                 Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: Colors.grey[50],
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey[200]!),
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
                   ),
                   child: Column(
                     children: [
@@ -96,31 +110,45 @@ class _RefundPageState extends State<RefundPage>
                       _detailRow('Email', customerEmail),
                       _detailRow('Mobile', mobileNumber),
                       _detailRow(
-                          'Amount Paid', '₹${amount.toStringAsFixed(2)}',
-                          isBold: true),
+                        'Amount Paid',
+                        '₹${amount.toStringAsFixed(2)}',
+                        isBold: true,
+                      ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 20),
-
-                // Reason
-                const Text(
+                const SizedBox(height: 18),
+                Text(
                   'Reason for Refund *',
-                  style: TextStyle(
-                      fontWeight: FontWeight.w600, fontSize: 14),
+                  style: GoogleFonts.plusJakartaSans(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13.5,
+                    color: const Color(0xFF0F172A),
+                  ),
                 ),
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: reasonController,
-                  maxLines: 4,
+                  maxLines: 3,
                   decoration: InputDecoration(
                     hintText:
                         'Please describe why you are requesting a refund...',
+                    hintStyle: GoogleFonts.inter(
+                      color: const Color(0xFF94A3B8),
+                      fontSize: 13,
+                    ),
                     border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12)),
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                    ),
                     filled: true,
-                    fillColor: Colors.white,
+                    fillColor: const Color(0xFFF8FAFC),
                   ),
+                  style: GoogleFonts.inter(fontSize: 13.5),
                   validator: (val) {
                     if (val == null || val.trim().length < 10) {
                       return 'Please enter at least 10 characters';
@@ -131,14 +159,12 @@ class _RefundPageState extends State<RefundPage>
                 const SizedBox(height: 8),
                 Text(
                   'Our support team will review your request and respond within 3–5 business days.',
-                  style: TextStyle(
-                      color: Colors.grey[500],
-                      fontSize: 12,
-                      fontStyle: FontStyle.italic),
+                  style: GoogleFonts.inter(
+                    color: const Color(0xFF64748B),
+                    fontSize: 11.5,
+                  ),
                 ),
-                const SizedBox(height: 20),
-
-                // Actions
+                const SizedBox(height: 24),
                 Row(
                   children: [
                     Expanded(
@@ -146,10 +172,18 @@ class _RefundPageState extends State<RefundPage>
                         onPressed: () => Navigator.pop(ctx, false),
                         style: OutlinedButton.styleFrom(
                           shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          side: const BorderSide(color: Color(0xFFE2E8F0)),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                         ),
-                        child: const Text('Cancel'),
+                        child: Text(
+                          'Cancel',
+                          style: GoogleFonts.inter(
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF64748B),
+                          ),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -161,13 +195,18 @@ class _RefundPageState extends State<RefundPage>
                           }
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red[700],
+                          backgroundColor: const Color(0xFFEF4444),
                           foregroundColor: Colors.white,
+                          elevation: 0,
                           shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                         ),
-                        child: const Text('Submit Request'),
+                        child: Text(
+                          'Submit Request',
+                          style: GoogleFonts.inter(fontWeight: FontWeight.w700),
+                        ),
                       ),
                     ),
                   ],
@@ -193,7 +232,6 @@ class _RefundPageState extends State<RefundPage>
     }
   }
 
-  // ─── Submit to Firestore + trigger support email ─────────────────────────
   Future<void> _submitRefundRequest({
     required String orderId,
     required String transactionId,
@@ -206,7 +244,6 @@ class _RefundPageState extends State<RefundPage>
   }) async {
     if (!mounted) return;
 
-    // Show loading
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -215,11 +252,6 @@ class _RefundPageState extends State<RefundPage>
 
     try {
       final db = FirebaseFirestore.instance;
-      final now = DateTime.now();
-      final formattedNow =
-          DateFormat('dd MMM yyyy, hh:mm a').format(now);
-
-      // 1. Create refund_requests record
       await db.collection('refund_requests').add({
         'uid': uid,
         'orderId': orderId,
@@ -233,13 +265,17 @@ class _RefundPageState extends State<RefundPage>
         'requestedAt': FieldValue.serverTimestamp(),
       });
 
-      // 2. Write to mail collection — picked up by processMailDocument CF
+      final appName = ThemeService.instance.appName.isNotEmpty
+          ? ThemeService.instance.appName
+          : 'ServNex';
+
       await db.collection('mail').add({
         'to': 'support@rookstechnologies.com',
+        'appName': appName,
         'createdAt': FieldValue.serverTimestamp(),
         'status': {'state': 'PENDING'},
         'message': {
-          'subject': 'New Refund Request - Order ID $orderId',
+          'subject': 'New Refund Request - Order ID $orderId | $appName',
           'html': _buildEmailHtml(
             customerName: customerName,
             customerEmail: customerEmail,
@@ -248,38 +284,42 @@ class _RefundPageState extends State<RefundPage>
             transactionId: transactionId,
             amount: amount,
             reason: reason,
-            requestedAt: formattedNow,
           ),
         },
       });
 
       if (!mounted) return;
-      Navigator.pop(context); // close loading
+      Navigator.pop(context);
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(
-              '✅ Refund request submitted! Our team will review it within 3–5 business days.'),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 4),
+            'Refund request submitted successfully.',
+            style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+          ),
+          backgroundColor: const Color(0xFF10B981),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
       );
 
-      // Switch to "My Requests" tab
       _tabController.animateTo(1);
     } catch (e) {
       if (!mounted) return;
       Navigator.pop(context);
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to submit request: $e'),
-          backgroundColor: Colors.red,
+          content: Text('Failed to submit refund request: $e'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
         ),
       );
     }
   }
 
-  // ─── Email HTML Builder ──────────────────────────────────────────────────
   String _buildEmailHtml({
     required String customerName,
     required String customerEmail,
@@ -288,86 +328,168 @@ class _RefundPageState extends State<RefundPage>
     required String transactionId,
     required double amount,
     required String reason,
-    required String requestedAt,
   }) {
+    final appName = ThemeService.instance.appName.isNotEmpty
+        ? ThemeService.instance.appName
+        : 'ServNex';
+    final logoUrl = ThemeService.instance.logoUrl;
+    final primaryColor = ThemeService.instance.primaryColor;
+    final primaryHex =
+        '#${(primaryColor.toARGB32() & 0x00FFFFFF).toRadixString(16).padLeft(6, '0')}';
+
+    String logoHtml = '';
+    if (logoUrl != null &&
+        logoUrl.isNotEmpty &&
+        (logoUrl.startsWith('http://') || logoUrl.startsWith('https://'))) {
+      logoHtml =
+          '<img src="$logoUrl" alt="$appName" height="48" style="max-height:48px; max-width:200px; height:auto; object-fit:contain; display:inline-block; margin-bottom:12px; border:0;" />';
+    } else {
+      final initial = (appName.isNotEmpty ? appName : 'S')
+          .trim()[0]
+          .toUpperCase();
+      logoHtml =
+          '''
+        <table cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 12px auto;">
+          <tr>
+            <td align="center" style="width:48px; height:48px; background-color:$primaryHex; border-radius:10px; color:#ffffff; font-size:24px; font-weight:800; line-height:48px; text-align:center;">
+              $initial
+            </td>
+          </tr>
+        </table>
+      ''';
+    }
+
     return '''
 <!DOCTYPE html>
 <html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Refund Request</title></head>
-<body style="margin:0;padding:0;background-color:#F4F6F9;font-family:Arial,Helvetica,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F4F6F9;padding:30px 0;">
-    <tr><td align="center">
-      <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);">
-        <tr>
-          <td style="background:#C62828;padding:28px 40px;">
-            <p style="margin:0;font-size:22px;font-weight:700;color:#fff;">Rooks & Brooks Technologies</p>
-            <p style="margin:4px 0 0;font-size:13px;color:#FFCDD2;">New Refund Request Received</p>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:32px 40px;">
-            <p style="font-size:15px;color:#212121;margin:0 0 20px;">A customer has submitted a refund request. Please review the details below:</p>
-            <table width="100%" cellpadding="10" cellspacing="0" style="background:#F5F5F5;border-radius:8px;font-size:13px;color:#424242;">
-              <tr style="border-bottom:1px solid #E0E0E0;">
-                <td style="font-weight:600;width:40%;">Customer Name</td><td>$customerName</td>
-              </tr>
-              <tr style="border-bottom:1px solid #E0E0E0;">
-                <td style="font-weight:600;">Email</td><td>$customerEmail</td>
-              </tr>
-              <tr style="border-bottom:1px solid #E0E0E0;">
-                <td style="font-weight:600;">Mobile Number</td><td>$mobileNumber</td>
-              </tr>
-              <tr style="border-bottom:1px solid #E0E0E0;">
-                <td style="font-weight:600;">Order ID</td><td>$orderId</td>
-              </tr>
-              <tr style="border-bottom:1px solid #E0E0E0;">
-                <td style="font-weight:600;">Transaction ID</td><td>$transactionId</td>
-              </tr>
-              <tr style="border-bottom:1px solid #E0E0E0;">
-                <td style="font-weight:600;">Payment Amount</td><td style="font-weight:700;color:#C62828;">₹${amount.toStringAsFixed(2)}</td>
-              </tr>
-              <tr style="border-bottom:1px solid #E0E0E0;">
-                <td style="font-weight:600;">Request Date</td><td>$requestedAt</td>
-              </tr>
-              <tr>
-                <td style="font-weight:600;vertical-align:top;">Reason</td>
-                <td style="white-space:pre-wrap;">$reason</td>
-              </tr>
-            </table>
-            <p style="margin:24px 0 0;font-size:12px;color:#9E9E9E;text-align:center;">
-              Rooks & Brooks Technologies | support@rookstechnologies.com<br>
-              This is an automatically generated email.
-            </p>
-          </td>
-        </tr>
-      </table>
-    </td></tr>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>New Refund Request - $orderId</title>
+</head>
+<body style="margin:0; padding:0; background-color:#F4F6F9; font-family:'Segoe UI', Arial, Helvetica, sans-serif; color:#334155;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F4F6F9; padding:32px 16px;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px; background-color:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 4px 20px rgba(0,0,0,0.06); border:1px solid #E2E8F0;">
+          
+          <!-- Top Accent Bar -->
+          <tr>
+            <td style="height:4px; background-color:$primaryHex;"></td>
+          </tr>
+
+          <!-- Header -->
+          <tr>
+            <td style="padding:32px 36px 24px; text-align:center; background-color:#FAFCFE; border-bottom:1px solid #EEF2F6;">
+              $logoHtml
+              <div style="font-size:22px; font-weight:800; color:#0F172A; letter-spacing:0.8px; text-transform:uppercase; margin:0; line-height:1.2;">
+                $appName
+              </div>
+              <div style="font-size:11px; font-weight:600; color:#64748B; letter-spacing:1.2px; text-transform:uppercase; margin-top:4px;">
+                Service Management Platform
+              </div>
+              <div style="margin-top:18px; padding-top:14px; border-top:1px dashed #E2E8F0;">
+                <h1 style="font-size:20px; font-weight:700; color:#DC2626; margin:0; line-height:1.3;">
+                  New Refund Request Received
+                </h1>
+                <p style="font-size:13px; color:#64748B; margin:4px 0 0 0;">Order #$orderId</p>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding:28px 36px;">
+              <p style="font-size:14px; color:#475569; margin:0 0 20px 0; line-height:1.6;">
+                A customer has submitted a refund request for their subscription payment on <strong>$appName</strong>. Details are provided below:
+              </p>
+
+              <!-- Table -->
+              <table width="100%" cellpadding="10" cellspacing="0" border="0" style="background-color:#F8FAFC; border-radius:8px; border:1px solid #E2E8F0; font-size:13px; color:#334155; margin:20px 0;">
+                <tr style="border-bottom:1px solid #E2E8F0;">
+                  <td style="padding:10px 14px; color:#64748B;"><strong>Order ID</strong></td>
+                  <td align="right" style="padding:10px 14px; font-weight:700; color:#0F172A;">$orderId</td>
+                </tr>
+                <tr style="border-bottom:1px solid #E2E8F0;">
+                  <td style="padding:10px 14px; color:#64748B;"><strong>Transaction ID</strong></td>
+                  <td align="right" style="padding:10px 14px; font-size:11px; font-family:monospace; color:#64748B;">$transactionId</td>
+                </tr>
+                <tr style="border-bottom:1px solid #E2E8F0;">
+                  <td style="padding:10px 14px; color:#64748B;"><strong>Customer Name</strong></td>
+                  <td align="right" style="padding:10px 14px; font-weight:600;">$customerName</td>
+                </tr>
+                <tr style="border-bottom:1px solid #E2E8F0;">
+                  <td style="padding:10px 14px; color:#64748B;"><strong>Customer Email</strong></td>
+                  <td align="right" style="padding:10px 14px;">$customerEmail</td>
+                </tr>
+                <tr style="border-bottom:1px solid #E2E8F0;">
+                  <td style="padding:10px 14px; color:#64748B;"><strong>Mobile</strong></td>
+                  <td align="right" style="padding:10px 14px;">$mobileNumber</td>
+                </tr>
+                <tr style="border-bottom:1px solid #E2E8F0;">
+                  <td style="padding:10px 14px; color:#64748B;"><strong>Amount Requested</strong></td>
+                  <td align="right" style="padding:10px 14px; font-weight:800; color:#DC2626;">₹\${amount.toStringAsFixed(2)}</td>
+                </tr>
+                <tr>
+                  <td style="padding:10px 14px; color:#64748B; vertical-align:top;"><strong>Reason</strong></td>
+                  <td align="right" style="padding:10px 14px; color:#1E293B; line-height:1.4;">$reason</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding:24px 36px; background-color:#F8FAFC; border-top:1px solid #EEF2F6; text-align:center;">
+              <p style="font-size:13px; font-weight:700; color:#334155; margin:0 0 6px 0;">
+                Powered by $appName
+              </p>
+              <p style="font-size:12px; color:#64748B; margin:0 0 6px 0;">
+                Rooks &amp; Brooks Technologies Pvt. Ltd.
+              </p>
+              <p style="font-size:11px; color:#94A3B8; margin:0 0 12px 0;">
+                Support: <a href="mailto:support@rookstechnologies.com" style="color:$primaryHex; text-decoration:none;">support@rookstechnologies.com</a> &nbsp;|&nbsp; +91 7598707071
+              </p>
+              <p style="font-size:11px; color:#94A3B8; margin:0; line-height:1.4;">
+                This is an automated notification. Please review this request in the admin panel.<br>
+                &copy; \${DateTime.now().year} $appName &nbsp;|&nbsp; Rooks &amp; Brooks Technologies Pvt. Ltd. All rights reserved.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
   </table>
 </body>
 </html>
 ''';
   }
 
-  // ─── Helper: detail row inside dialog ──────────────────────────────────────
   Widget _detailRow(String label, String value, {bool isBold = false}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
             width: 110,
-            child: Text(label,
-                style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+            child: Text(
+              label,
+              style: GoogleFonts.inter(
+                color: const Color(0xFF64748B),
+                fontSize: 12,
+              ),
+            ),
           ),
           Expanded(
             child: Text(
               value,
-              style: TextStyle(
-                  fontSize: 12,
-                  fontWeight:
-                      isBold ? FontWeight.bold : FontWeight.w500),
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: isBold ? FontWeight.w700 : FontWeight.w500,
+                color: const Color(0xFF0F172A),
+              ),
               overflow: TextOverflow.ellipsis,
               maxLines: 2,
             ),
@@ -377,47 +499,79 @@ class _RefundPageState extends State<RefundPage>
     );
   }
 
-  // ─── Build ─────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser?.uid;
+    final primaryColor = ThemeService.instance.primaryColor;
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('My Payments & Refunds',
-            style: TextStyle(fontWeight: FontWeight.w600)),
+        title: Text(
+          'Payments & Refunds',
+          style: GoogleFonts.plusJakartaSans(
+            fontWeight: FontWeight.w700,
+            fontSize: 18,
+            color: const Color(0xFF0F172A),
+          ),
+        ),
         backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
-        elevation: 1,
+        elevation: 0,
+        centerTitle: true,
+        automaticallyImplyLeading: !kIsWeb,
+        leading: kIsWeb
+            ? null
+            : InkWell(
+                onTap: () => Navigator.pop(context),
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  margin: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: const Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    size: 15,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+              ),
         bottom: TabBar(
           controller: _tabController,
-          labelColor: Colors.red[700],
-          unselectedLabelColor: Colors.grey[600],
-          indicatorColor: Colors.red[700],
+          labelColor: primaryColor,
+          unselectedLabelColor: const Color(0xFF64748B),
+          indicatorColor: primaryColor,
+          indicatorWeight: 2.5,
+          labelStyle: GoogleFonts.plusJakartaSans(
+            fontWeight: FontWeight.w700,
+            fontSize: 14,
+          ),
+          unselectedLabelStyle: GoogleFonts.plusJakartaSans(
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
           tabs: const [
             Tab(text: 'My Payments'),
-            Tab(text: 'My Requests'),
+            Tab(text: 'Refund Requests'),
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          // ── Tab 1: Payments ────────────────────────────────────────────
-          _PaymentsTab(
-            uid: uid,
-            onRequestRefund: _showRefundRequestDialog,
-          ),
-
-          // ── Tab 2: Refund Requests ─────────────────────────────────────
-          _RefundRequestsTab(uid: uid),
-        ],
+      body: ResponsiveWrapper(
+        maxWidth: 960,
+        child: TabBarView(
+          controller: _tabController,
+          children: [
+            _PaymentsTab(uid: uid, onRequestRefund: _showRefundRequestDialog),
+            _RefundRequestsTab(uid: uid),
+          ],
+        ),
       ),
     );
   }
 }
 
-// ─── Tab 1: Payments ──────────────────────────────────────────────────────────
 class _PaymentsTab extends StatelessWidget {
   final String? uid;
   final Future<void> Function(Map<String, dynamic>, String) onRequestRefund;
@@ -441,13 +595,16 @@ class _PaymentsTab extends StatelessWidget {
 
         final docs = snapshot.data?.docs.toList() ?? [];
 
-        // Sort newest first
         docs.sort((a, b) {
           DateTime? aDate, bDate;
           final aData = a.data() as Map<String, dynamic>;
           final bData = b.data() as Map<String, dynamic>;
-          if (aData['createdAt'] is Timestamp) aDate = (aData['createdAt'] as Timestamp).toDate();
-          if (bData['createdAt'] is Timestamp) bDate = (bData['createdAt'] as Timestamp).toDate();
+          if (aData['createdAt'] is Timestamp) {
+            aDate = (aData['createdAt'] as Timestamp).toDate();
+          }
+          if (bData['createdAt'] is Timestamp) {
+            bDate = (bData['createdAt'] as Timestamp).toDate();
+          }
           if (aDate == null && bDate == null) return 0;
           if (aDate == null) return 1;
           if (bDate == null) return -1;
@@ -455,8 +612,11 @@ class _PaymentsTab extends StatelessWidget {
         });
 
         final eligibleDocs = docs.where((doc) {
-          final status = (doc.data() as Map<String, dynamic>)['status']?.toString() ?? '';
-          return status == 'SUCCESS' || status == 'PARTIAL_REFUND' || status == 'REFUNDED';
+          final status =
+              (doc.data() as Map<String, dynamic>)['status']?.toString() ?? '';
+          return status == 'SUCCESS' ||
+              status == 'PARTIAL_REFUND' ||
+              status == 'REFUNDED';
         }).toList();
 
         if (eligibleDocs.isEmpty) {
@@ -464,10 +624,27 @@ class _PaymentsTab extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.receipt_long_outlined, size: 64, color: Colors.grey[400]),
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.receipt_long_rounded,
+                    size: 48,
+                    color: Color(0xFF94A3B8),
+                  ),
+                ),
                 const SizedBox(height: 16),
-                Text('No payments found',
-                    style: TextStyle(fontSize: 16, color: Colors.grey[600])),
+                Text(
+                  'No payments found',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 16,
+                    color: const Color(0xFF0F172A),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ],
             ),
           );
@@ -496,157 +673,140 @@ class _PaymentCard extends StatelessWidget {
   final String docId;
   final Future<void> Function(Map<String, dynamic>, String) onRequestRefund;
 
-  const _PaymentCard(
-      {required this.data,
-      required this.docId,
-      required this.onRequestRefund});
+  const _PaymentCard({
+    required this.data,
+    required this.docId,
+    required this.onRequestRefund,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final status = data['status'] ?? 'UNKNOWN';
     final amount = double.tryParse(data['amount']?.toString() ?? '0') ?? 0;
-    final refundedAmount =
-        double.tryParse(data['refundedAmount']?.toString() ?? '0') ?? 0;
-    final customerName = data['customerName'] ?? data['name'] ?? 'Unknown Customer';
-    final customerEmail = data['customerEmail'] ?? data['email'] ?? 'N/A';
-    final planName = data['planName'] ?? 'Unknown Plan';
-
-    DateTime? paymentDate;
-    if (data['createdAt'] is Timestamp) {
-      paymentDate = (data['createdAt'] as Timestamp).toDate();
-    } else if (data['updatedAt'] is Timestamp) {
-      paymentDate = (data['updatedAt'] as Timestamp).toDate();
-    }
-
-    final formattedDate = paymentDate != null
-        ? DateFormat('dd MMM yyyy, hh:mm a').format(paymentDate)
+    final planName = data['planName'] ?? data['plan'] ?? 'Subscription';
+    final status = data['status']?.toString() ?? 'SUCCESS';
+    final timestamp = data['createdAt'] is Timestamp
+        ? (data['createdAt'] as Timestamp).toDate()
+        : null;
+    final dateStr = timestamp != null
+        ? DateFormat('dd MMM yyyy, hh:mm a').format(timestamp)
         : 'N/A';
 
-    final canRequest = (status == 'SUCCESS' || status == 'PARTIAL_REFUND') &&
-        (amount - refundedAmount) > 0;
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      elevation: 2,
-      shadowColor: Colors.black12,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Order ID + Status Badge
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text('Order ID: $docId',
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 13),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.025),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                planName,
+                style: GoogleFonts.plusJakartaSans(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                  color: const Color(0xFF0F172A),
                 ),
-                _statusBadge(status),
-              ],
-            ),
-            const Divider(height: 20),
-            // Details
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(customerName,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w600, fontSize: 14)),
-                      const SizedBox(height: 3),
-                      Text(customerEmail,
-                          style: TextStyle(
-                              color: Colors.grey[600], fontSize: 12)),
-                      const SizedBox(height: 3),
-                      Text('Plan: $planName',
-                          style: const TextStyle(fontSize: 12)),
-                      const SizedBox(height: 3),
-                      Text(formattedDate,
-                          style: TextStyle(
-                              color: Colors.grey[500], fontSize: 11)),
-                    ],
-                  ),
+              ),
+              Text(
+                '₹${amount.toStringAsFixed(2)}',
+                style: GoogleFonts.plusJakartaSans(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                  color: const Color(0xFF10B981),
                 ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text('₹${amount.toStringAsFixed(2)}',
-                        style: const TextStyle(
-                            fontSize: 20, fontWeight: FontWeight.bold)),
-                    if (refundedAmount > 0)
-                      Text(
-                          'Refunded: ₹${refundedAmount.toStringAsFixed(2)}',
-                          style: const TextStyle(
-                              color: Colors.red,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500)),
-                  ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              const Icon(
+                Icons.access_time_rounded,
+                size: 14,
+                color: Color(0xFF64748B),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                dateStr,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: const Color(0xFF64748B),
                 ),
-              ],
-            ),
-            // Refund Request Button
-            if (canRequest) ...[
-              const SizedBox(height: 14),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () => onRequestRefund(data, docId),
-                  icon: const Icon(Icons.undo_rounded, size: 18),
-                  label: const Text('Initiate Refund Request'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red[50],
-                    foregroundColor: Colors.red[700],
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
+              ),
+            ],
+          ),
+          const Divider(height: 20, color: Color(0xFFF1F5F9)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF10B981).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  status,
+                  style: GoogleFonts.inter(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 11,
+                    color: const Color(0xFF10B981),
                   ),
                 ),
               ),
-            ]
-          ],
-        ),
+              OutlinedButton.icon(
+                icon: const Icon(
+                  Icons.undo_rounded,
+                  size: 14,
+                  color: Color(0xFFEF4444),
+                ),
+                label: Text(
+                  'Request Refund',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFFEF4444),
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  side: const BorderSide(color: Color(0xFFEF4444)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                onPressed: () => onRequestRefund(data, docId),
+              ),
+            ],
+          ),
+        ],
       ),
     );
-  }
-
-  Widget _statusBadge(String status) {
-    final color = _statusColor(status);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
-      child: Text(status,
-          style: TextStyle(
-              color: color, fontWeight: FontWeight.w600, fontSize: 11)),
-    );
-  }
-
-  Color _statusColor(String status) {
-    switch (status) {
-      case 'SUCCESS': return Colors.green;
-      case 'PARTIAL_REFUND': return Colors.orange;
-      case 'REFUNDED': return Colors.red;
-      default: return Colors.blueGrey;
-    }
   }
 }
 
-// ─── Tab 2: Refund Requests ───────────────────────────────────────────────────
 class _RefundRequestsTab extends StatelessWidget {
   final String? uid;
+
   const _RefundRequestsTab({required this.uid});
 
   @override
@@ -664,30 +824,33 @@ class _RefundRequestsTab extends StatelessWidget {
           return const Center(child: CircularProgressIndicator());
         }
 
-        final docs = snapshot.data?.docs.toList() ?? [];
-
-        // Sort newest first
-        docs.sort((a, b) {
-          final aTs = (a.data() as Map<String, dynamic>)['requestedAt'];
-          final bTs = (b.data() as Map<String, dynamic>)['requestedAt'];
-          if (aTs == null && bTs == null) return 0;
-          if (aTs == null) return 1;
-          if (bTs == null) return -1;
-          return (bTs as Timestamp).compareTo(aTs as Timestamp);
-        });
-
+        final docs = snapshot.data?.docs ?? [];
         if (docs.isEmpty) {
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.inbox_outlined, size: 64, color: Colors.grey[400]),
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.history_rounded,
+                    size: 48,
+                    color: Color(0xFF94A3B8),
+                  ),
+                ),
                 const SizedBox(height: 16),
-                Text('No refund requests yet',
-                    style: TextStyle(fontSize: 16, color: Colors.grey[600])),
-                const SizedBox(height: 8),
-                Text('Submit a request from the My Payments tab.',
-                    style: TextStyle(color: Colors.grey[400], fontSize: 13)),
+                Text(
+                  'No refund requests yet',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 16,
+                    color: const Color(0xFF0F172A),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ],
             ),
           );
@@ -698,133 +861,87 @@ class _RefundRequestsTab extends StatelessWidget {
           itemCount: docs.length,
           itemBuilder: (context, index) {
             final data = docs[index].data() as Map<String, dynamic>;
-            return _RefundRequestCard(data: data);
-          },
-        );
-      },
-    );
-  }
-}
+            final amount =
+                double.tryParse(data['amount']?.toString() ?? '0') ?? 0;
+            final reason = data['reason'] ?? '';
+            final status = data['status'] ?? 'Pending Review';
 
-class _RefundRequestCard extends StatelessWidget {
-  final Map<String, dynamic> data;
-  const _RefundRequestCard({required this.data});
-
-  @override
-  Widget build(BuildContext context) {
-    final requestStatus = data['status'] ?? 'Pending Review';
-    final orderId = data['orderId'] ?? 'N/A';
-    final transactionId = data['transactionId'] ?? 'N/A';
-    final amount = double.tryParse(data['amount']?.toString() ?? '0') ?? 0;
-    final reason = data['reason'] ?? 'N/A';
-
-    DateTime? requestedAt;
-    if (data['requestedAt'] is Timestamp) {
-      requestedAt = (data['requestedAt'] as Timestamp).toDate();
-    }
-    final formattedDate = requestedAt != null
-        ? DateFormat('dd MMM yyyy, hh:mm a').format(requestedAt)
-        : 'N/A';
-
-    final statusColor = _requestStatusColor(requestStatus);
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      elevation: 2,
-      shadowColor: Colors.black12,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Top row
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text('Order: $orderId',
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 13),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(20),
-                    border:
-                        Border.all(color: statusColor.withValues(alpha: 0.4)),
-                  ),
-                  child: Text(requestStatus,
-                      style: TextStyle(
-                          color: statusColor,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 11)),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            _row('Amount', '₹${amount.toStringAsFixed(2)}'),
-            _row('Txn ID', transactionId),
-            _row('Requested', formattedDate),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(10),
+            return Container(
+              margin: const EdgeInsets.only(bottom: 14),
+              padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
-                color: Colors.grey[50],
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.grey[200]!),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.025),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Reason:',
-                      style: TextStyle(
-                          color: Colors.grey[600],
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 4),
-                  Text(reason,
-                      style: const TextStyle(fontSize: 12)),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Refund Request',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15.5,
+                          color: const Color(0xFF0F172A),
+                        ),
+                      ),
+                      Text(
+                        '₹${amount.toStringAsFixed(2)}',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15.5,
+                          color: const Color(0xFF0F172A),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Reason: $reason',
+                    style: GoogleFonts.inter(
+                      color: const Color(0xFF64748B),
+                      fontSize: 13,
+                    ),
+                  ),
+                  const Divider(height: 20, color: Color(0xFFF1F5F9)),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF59E0B).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          status,
+                          style: GoogleFonts.inter(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 11,
+                            color: const Color(0xFFF59E0B),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
-            ),
-          ],
-        ),
-      ),
+            );
+          },
+        );
+      },
     );
-  }
-
-  Widget _row(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
-        children: [
-          SizedBox(
-              width: 80,
-              child: Text(label,
-                  style: TextStyle(
-                      color: Colors.grey[600], fontSize: 12))),
-          Expanded(
-            child: Text(value,
-                style: const TextStyle(
-                    fontSize: 12, fontWeight: FontWeight.w500)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Color _requestStatusColor(String status) {
-    switch (status) {
-      case 'Pending Review': return Colors.orange;
-      case 'Approved': return Colors.blue;
-      case 'Rejected': return Colors.red;
-      case 'Refunded': return Colors.green;
-      default: return Colors.grey;
-    }
   }
 }

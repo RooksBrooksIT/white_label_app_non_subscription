@@ -4,7 +4,7 @@ description: "ServNex Project"
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 
 
-version: 1.0.0+7
+version: 2.0.0+14
 
 environment:
   sdk: ^3.10.4
@@ -63,6 +63,7 @@ dependencies:
   geocoding: ^4.0.0
   package_info_plus: ^9.0.1
   crop_image: ^1.0.17
+  lucide_icons: ^0.257.0
   
 dev_dependencies:
   flutter_test:
@@ -90,6 +91,7 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   assets:
     - assets/images/
+    - assets/fonts/
     - assets/phone_login.json
     - assets/empty_box.json
     - assets/loading_animation.json

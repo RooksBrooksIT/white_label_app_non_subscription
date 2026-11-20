@@ -11,7 +11,9 @@ class PaymentRecoveryService {
   Future<void> savePendingPayment(Map<String, dynamic> data) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_kPendingPaymentKey, jsonEncode(data));
+      final mapWithTimestamp = Map<String, dynamic>.from(data);
+      mapWithTimestamp['savedAt'] = DateTime.now().millisecondsSinceEpoch;
+      await prefs.setString(_kPendingPaymentKey, jsonEncode(mapWithTimestamp));
       debugPrint('Pending payment saved locally for recovery: ${data['txnId']}');
     } catch (e) {
       debugPrint('Failed to save pending payment: $e');
@@ -23,7 +25,19 @@ class PaymentRecoveryService {
       final prefs = await SharedPreferences.getInstance();
       final data = prefs.getString(_kPendingPaymentKey);
       if (data != null) {
-        return jsonDecode(data) as Map<String, dynamic>;
+        final map = jsonDecode(data) as Map<String, dynamic>;
+        final savedAt = map['savedAt'] as int?;
+        if (savedAt != null) {
+          final age = DateTime.now().millisecondsSinceEpoch - savedAt;
+          // Gateway sessions expire within 15-20 minutes.
+          // If transaction was initiated more than 20 minutes ago, auto-discard it.
+          if (age > const Duration(minutes: 20).inMilliseconds) {
+            debugPrint('Pending payment is older than 20 minutes (expired session). Auto-clearing.');
+            await clearPendingPayment();
+            return null;
+          }
+        }
+        return map;
       }
     } catch (e) {
       debugPrint('Failed to read pending payment: $e');

@@ -10,6 +10,7 @@ import 'package:subscription_rooks_app/frontend/screens/admin_dashboard.dart';
 class TransactionCompletedScreen extends StatefulWidget {
   final String planName;
   final bool isYearly;
+  final int subscriptionYears;
   final int amountPaid;
   final String paymentMethod;
   final String transactionId;
@@ -24,11 +25,13 @@ class TransactionCompletedScreen extends StatefulWidget {
   final bool? attendance;
   final bool? barcode;
   final bool? reportExport;
+  final Map<String, dynamic>? pendingUserData;
 
   const TransactionCompletedScreen({
     super.key,
     required this.planName,
     required this.isYearly,
+    this.subscriptionYears = 1,
     required this.amountPaid,
     required this.paymentMethod,
     required this.transactionId,
@@ -41,6 +44,7 @@ class TransactionCompletedScreen extends StatefulWidget {
     this.attendance,
     this.barcode,
     this.reportExport,
+    this.pendingUserData,
   });
 
   @override
@@ -108,34 +112,27 @@ class _TransactionCompletedScreenState
         .trim()
         .toUpperCase();
 
+    if (raw.contains('UPI')) return 'UPI';
+    if (raw.contains('CREDIT')) return 'Credit Card';
+    if (raw.contains('DEBIT')) return 'Debit Card';
+    if (raw.contains('CARD')) return 'Card';
+    if (raw.contains('NETBANKING') || raw.contains('NET_BANKING') || raw.contains('NET BANKING')) {
+      return 'Net Banking';
+    }
+
     switch (raw) {
       case 'CC':
-      case 'CREDIT':
-      case 'CREDITCARD':
-      case 'CREDIT_CARD':
         return 'Credit Card';
       case 'DC':
-      case 'DEBIT':
-      case 'DEBITCARD':
-      case 'DEBIT_CARD':
         return 'Debit Card';
       case 'NB':
-      case 'NETBANKING':
-      case 'NET_BANKING':
-      case 'NET BANKING':
         return 'Net Banking';
-      case 'UPI':
-        return 'UPI';
       case 'WALLET':
         return 'Wallet';
       case 'EMI':
         return 'EMI';
-      case 'CARD':
-        return 'Card';
       default:
-        // If the raw value is already human-readable, return it as-is
         if (raw.isEmpty) return 'Card';
-        // Title-case the raw value for unknown modes
         return raw[0] + raw.substring(1).toLowerCase();
     }
   }
@@ -290,10 +287,12 @@ class _TransactionCompletedScreenState
                             _buildDetailRow(
                               'BILLING CYCLE',
                               widget.isYearly
-                                  ? 'Yearly'
+                                  ? (widget.subscriptionYears > 1
+                                      ? '${widget.subscriptionYears} Years'
+                                      : 'Yearly')
                                   : (widget.isSixMonths
-                                        ? '6 Months'
-                                        : 'Monthly'),
+                                      ? '6 Months'
+                                      : 'Monthly'),
                             ),
                             const Divider(height: 32),
                             _buildDetailRow('CUSTOMER', customerName),
@@ -350,6 +349,7 @@ class _TransactionCompletedScreenState
                                         planName: widget.planName,
                                         isYearly: widget.isYearly,
                                         isSixMonths: widget.isSixMonths,
+                                        subscriptionYears: widget.subscriptionYears,
                                         price: widget.amountPaid,
                                         originalPrice: widget.originalPrice,
                                         paymentMethod: widget.paymentMethod,
@@ -359,6 +359,7 @@ class _TransactionCompletedScreenState
                                         attendance: widget.attendance,
                                         barcode: widget.barcode,
                                         reportExport: widget.reportExport,
+                                        pendingUserData: widget.pendingUserData,
                                       ),
                                 ),
                                 (route) => false,
@@ -499,6 +500,7 @@ class _TransactionCompletedScreenState
         planName: widget.planName,
         isYearly: widget.isYearly,
         isSixMonths: widget.isSixMonths,
+        subscriptionYears: widget.subscriptionYears,
         amount: widget.amountPaid,
         transactionId: widget.transactionId,
         paymentMethod: _resolvePaymentMethod(),

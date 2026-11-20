@@ -5,7 +5,7 @@
 
 "use strict";
 
-const { onRequest } = require("firebase-functions/v2/https");
+const functions = require("firebase-functions/v1");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
 const iciciService = require("./icici_service");
@@ -17,17 +17,23 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 
-exports.createPaymentSession = onRequest(
-    {
-        region: "us-central1",
+exports.createPaymentSession = functions
+    .region("us-central1")
+    .runWith({
         vpcConnector: "icici-connector",
         vpcConnectorEgressSettings: "ALL_TRAFFIC",
-        cors: true,
         timeoutSeconds: 60,
-        memory: "256MiB",
-        invoker: "public",
-    },
-    async (req, res) => {
+        memory: "256MB",
+    })
+    .https.onRequest(async (req, res) => {
+        // Enable CORS
+        res.set("Access-Control-Allow-Origin", "*");
+        res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+        res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+        if (req.method === "OPTIONS") {
+            return res.status(204).send("");
+        }
+
         const TAG = "[CREATE-SESSION]";
         
         try {
@@ -56,6 +62,8 @@ exports.createPaymentSession = onRequest(
                 customerMobile,
                 isYearly,
                 isSixMonths,
+                subscriptionYears,
+                billingYears,
                 limits,
                 geoLocation,
                 attendance,
@@ -80,6 +88,7 @@ exports.createPaymentSession = onRequest(
             // 3. Prepare Firestore Document — include all subscription fields
             //    so that processPaymentSuccess has everything it needs.
             const resolvedMobile = customerMobile || mobile || null;
+            const parsedYears = parseInt(subscriptionYears || billingYears || 1, 10) || 1;
             const paymentData = {
                 txnId,
                 uid: userId,             // Required by processPaymentSuccess
@@ -98,6 +107,12 @@ exports.createPaymentSession = onRequest(
                 customerMobile: resolvedMobile,
                 isYearly: isYearly === true || isYearly === "true",
                 isSixMonths: isSixMonths === true || isSixMonths === "true",
+                subscriptionYears: parsedYears,
+                billingYears: parsedYears,
+                durationYears: parsedYears,
+                totalAmount: parseFloat(amount),
+                annualPrice: (isYearly === true || isYearly === "true") ? Math.round(parseFloat(amount) / parsedYears) : null,
+                billingType: (isYearly === true || isYearly === "true") ? "Yearly" : ((isSixMonths === true || isSixMonths === "true") ? "6 Months" : "Monthly"),
                 limits: limits || null,
                 geoLocation: geoLocation === true || geoLocation === "true" || false,
                 attendance: attendance === true || attendance === "true" || false,
@@ -113,6 +128,17 @@ exports.createPaymentSession = onRequest(
             let result;
             if (normMode === "UPI") {
                 result = await iciciService.generateUpiQr({ txnId, amount, email });
+                if (!result.success) {
+                    console.warn(`${TAG} generateUpiQr failed (${result.error}), falling back to initiateSale for UPI`);
+                    result = await iciciService.initiateSale({
+                        txnId,
+                        amount,
+                        email,
+                        paymentMode: normMode,
+                        customerName: customerName || "Customer",
+                        customerMobile: resolvedMobile || "919999999999",
+                    });
+                }
             } else {
                 // CARD or NETBANKING — pass real customer details for prefill
                 result = await iciciService.initiateSale({

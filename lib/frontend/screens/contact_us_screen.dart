@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ContactUsScreen extends StatefulWidget {
   const ContactUsScreen({super.key});
@@ -11,14 +14,22 @@ class ContactUsScreen extends StatefulWidget {
 }
 
 class _ContactUsScreenState extends State<ContactUsScreen> {
-  // Email launching function with error handling
-  Future<void> _launchEmail() async {
+  // Support Contact Details
+  static const String _companyName = 'Rooks & Brooks Technologies Pvt. Ltd.';
+  static const String _primaryEmail = 'rookstechnologies@gmail.com';
+  static const String _secondaryEmail = 'support@rookstechnologies.com';
+  static const String _supportPhone = '+91 73586 77670';
+  static const String _supportPhoneRaw = '+917358677670';
+  static const String _whatsappRaw = '917358677670';
+
+  // Email launching function with fallback
+  Future<void> _launchEmail({String email = _primaryEmail}) async {
     final Uri emailUri = Uri(
       scheme: 'mailto',
-      path: 'support@rookstechnologies.com',
+      path: email,
       queryParameters: {
         'subject': 'Support Request - ServNex App',
-        'body': 'Hello ServNex Support,\n\nI would like to inquire about:\n\n',
+        'body': 'Hello ServNex Support Team,\n\nI need assistance with:\n\n',
       },
     );
 
@@ -28,22 +39,52 @@ class _ContactUsScreenState extends State<ContactUsScreen> {
         mode: LaunchMode.externalApplication,
       );
       if (!launched) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Could not open email client'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
+        // Fallback without query parameters
+        await launchUrl(
+          Uri(scheme: 'mailto', path: email),
+          mode: LaunchMode.externalApplication,
+        );
       }
     } catch (e) {
-      debugPrint('Error launching email: $e');
+      debugPrint('Error launching email client: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: Colors.red,
+            content: Text(
+              'Could not open email client. Please email us at $email',
+            ),
+            backgroundColor: const Color(0xFFDC2626),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  // Phone Call launching function
+  Future<void> _launchPhoneCall(String phone) async {
+    final cleanPhone = phone.replaceAll(RegExp(r'[^0-9+]'), '');
+    final Uri phoneUri = Uri(scheme: 'tel', path: cleanPhone);
+
+    try {
+      final bool launched = await launchUrl(phoneUri);
+      if (!launched && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not open phone dialer. Contact: $phone'),
+            backgroundColor: const Color(0xFFDC2626),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error launching phone dialer: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Unable to make call: $e'),
+            backgroundColor: const Color(0xFFDC2626),
+            behavior: SnackBarBehavior.floating,
           ),
         );
       }
@@ -51,17 +92,19 @@ class _ContactUsScreenState extends State<ContactUsScreen> {
   }
 
   // WhatsApp launching function
-  Future<void> _launchWhatsApp() async {
-    String phoneNumber = '+917358677670';
+  Future<void> _launchWhatsApp(String phoneRaw) async {
+    final cleanPhone = phoneRaw.replaceAll(RegExp(r'[^0-9]'), '');
     final Uri whatsappUri = Uri.parse(
-      'https://wa.me/$phoneNumber?text=${Uri.encodeComponent('Hello ServNex Support!\n\nI have a query regarding:')}',
+      'https://wa.me/$cleanPhone?text=${Uri.encodeComponent('Hello ServNex Support Team!\n\nI need assistance with:')}',
     );
 
     try {
-      if (await canLaunchUrl(whatsappUri)) {
-        await launchUrl(whatsappUri, mode: LaunchMode.externalApplication);
-      } else {
-        if (mounted) _showWhatsAppNotInstalled();
+      final bool launched = await launchUrl(
+        whatsappUri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (!launched && mounted) {
+        _showWhatsAppNotInstalled();
       }
     } catch (e) {
       debugPrint('Error launching WhatsApp: $e');
@@ -80,27 +123,56 @@ class _ContactUsScreenState extends State<ContactUsScreen> {
           ),
           title: Row(
             children: [
-              Icon(Icons.warning_amber_rounded, color: Colors.orange),
-              const SizedBox(width: 10),
-              const Text('WhatsApp Not Found'),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF3C7),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.warning_amber_rounded,
+                  color: Color(0xFFD97706),
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'WhatsApp Not Found',
+                style: GoogleFonts.plusJakartaSans(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                ),
+              ),
             ],
           ),
-          content: const Text(
-            'WhatsApp is not installed on your device.\n\n'
-            'You can still reach us via email.',
-            style: TextStyle(height: 1.5),
+          content: Text(
+            'WhatsApp does not appear to be installed on your device.\n\nYou can still reach our support team directly via Email or Phone Call.',
+            style: GoogleFonts.inter(fontSize: 13.5, height: 1.5),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('OK'),
+              child: Text(
+                'Dismiss',
+                style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+              ),
             ),
-            TextButton(
+            ElevatedButton(
               onPressed: () {
                 Navigator.pop(context);
                 _launchEmail();
               },
-              child: const Text('Send Email Instead'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: ThemeService.instance.primaryColor,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: Text(
+                'Send Email',
+                style: GoogleFonts.inter(fontWeight: FontWeight.w700),
+              ),
             ),
           ],
         );
@@ -108,337 +180,208 @@ class _ContactUsScreenState extends State<ContactUsScreen> {
     );
   }
 
+  void _copyToClipboard(String text, String label) {
+    Clipboard.setData(ClipboardData(text: text));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(
+              Icons.check_circle_rounded,
+              color: Colors.white,
+              size: 18,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '$label copied to clipboard',
+              style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        backgroundColor: const Color(0xFF0F172A),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final primaryColor = ThemeService.instance.primaryColor;
-    final textColor =
-        Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black87;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final secondaryColor = ThemeService.instance.secondaryColor;
+    final logoUrl = ThemeService.instance.logoUrl;
+    final appName = ThemeService.instance.appName.isNotEmpty
+        ? ThemeService.instance.appName
+        : 'ServNex';
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('Contact Us'),
-        backgroundColor: primaryColor,
-        foregroundColor: Colors.white, // Ensure white text/icons
-        elevation: 0,
-      ),
-      body: Container(
-        width: double.infinity,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: isDark
-                ? [const Color(0xFF1A1A2E), const Color(0xFF16213E)]
-                : [const Color(0xFFF8F9FA), const Color(0xFFF0F2F5)],
+        backgroundColor: Colors.white,
+        elevation: 0.5,
+        automaticallyImplyLeading: !kIsWeb,
+        leading: kIsWeb
+            ? null
+            : IconButton(
+                icon: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    size: 16,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+                onPressed: () => Navigator.pop(context),
+              ),
+        title: Text(
+          'Contact & Support',
+          style: GoogleFonts.plusJakartaSans(
+            color: const Color(0xFF0F172A),
+            fontWeight: FontWeight.w800,
+            fontSize: 18,
+            letterSpacing: -0.3,
           ),
         ),
+        centerTitle: false,
+      ),
+      body: SafeArea(
         child: ResponsiveWrapper(
-          maxWidth: kMaxContentWidth,
+          maxWidth: 960,
           child: SingleChildScrollView(
-          child: Column(
-            children: [
-              // Logo Section
-              Container(
-                padding: const EdgeInsets.only(top: 32, bottom: 16),
-                child: Column(
-                  children: [
-                    Container(
-                      height: 80,
-                      width: 80,
-                      decoration: BoxDecoration(
-                        color: primaryColor.withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: primaryColor.withValues(alpha: 0.2),
-                            blurRadius: 20,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
-                      ),
-                      child: ClipOval(
-                        child: Image.asset(
-                          'assets/images/logo.png',
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Icon(
-                              Icons.app_registration_rounded,
-                              size: 42,
-                              color: primaryColor,
-                            );
-                          },
-                        ),
-                      ),
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Hero Support Banner
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [primaryColor, secondaryColor],
                     ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'ServNex',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.5,
-                        color: textColor,
+                    borderRadius: BorderRadius.circular(28),
+                    boxShadow: [
+                      BoxShadow(
+                        color: primaryColor.withValues(alpha: 0.25),
+                        blurRadius: 20,
+                        offset: const Offset(0, 8),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      height: 3,
-                      width: 50,
-                      decoration: BoxDecoration(
-                        color: primaryColor,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 16,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Headline Section
-                    Text(
-                      'Get in Touch',
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w800,
-                        color: textColor,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'We\'re here to help and answer any questions you might have. We look forward to hearing from you.',
-                      style: TextStyle(
-                        fontSize: 15,
-                        color: textColor.withValues(alpha: 0.7),
-                        height: 1.5,
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-
-                    // Contact Info Card
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: isDark
-                              ? [
-                                  const Color(0xFF2D2D44),
-                                  const Color(0xFF1E1E2E),
-                                ]
-                              : [Colors.white, const Color(0xFFFEFEFE)],
-                        ),
-                        borderRadius: BorderRadius.circular(28),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.05),
-                            blurRadius: 20,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Badge
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.3),
+                              ),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: primaryColor.withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  child: Icon(
-                                    Icons.contact_support_rounded,
-                                    color: primaryColor,
-                                    size: 24,
-                                  ),
+                                Icon(
+                                  Icons.headset_mic_rounded,
+                                  color: Colors.white,
+                                  size: 14,
                                 ),
-                                const SizedBox(width: 12),
+                                SizedBox(width: 6),
                                 Text(
-                                  'Contact Information',
+                                  'PRIORITY HELP DESK',
                                   style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w700,
-                                    color: textColor,
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.8,
                                   ),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 24),
-
-                            // Email Row (Tap to send email)
-                            InkWell(
-                              onTap: () {
-                                _launchEmail();
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Opening email client...'),
-                                    duration: Duration(seconds: 1),
-                                  ),
-                                );
-                              },
-                              borderRadius: BorderRadius.circular(12),
-                              child: _buildContactRow(
-                                icon: Icons.email_rounded,
-                                label: 'Email Address',
-                                value: 'support@rookstechnologies.com',
-                                iconColor: primaryColor,
-                                actionText: 'Send Email →',
-                              ),
-                            ),
-                            const SizedBox(height: 24),
-
-                            // WhatsApp Row (Tap to open WhatsApp)
-                            InkWell(
-                              onTap: () async {
-                                await _launchWhatsApp();
-                              },
-                              borderRadius: BorderRadius.circular(12),
-                              child: _buildContactRow(
-                                icon: Icons.phone_rounded,
-                                label: 'WhatsApp Number',
-                                value: '+91 73586 77670',
-                                iconColor: primaryColor,
-                                actionText: 'Chat on WhatsApp →',
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 28),
-
-                    // Quick Actions Section
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            primaryColor.withValues(alpha: 0.1),
-                            primaryColor.withValues(alpha: 0.05),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: primaryColor.withValues(alpha: 0.2),
-                          width: 1,
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Quick Actions',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              color: textColor,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-
-                          // Send Email Button
-                          ElevatedButton.icon(
-                            onPressed: () {
-                              _launchEmail();
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Opening email client...'),
-                                  duration: Duration(seconds: 1),
-                                ),
-                              );
-                            },
-                            icon: const Icon(Icons.email_rounded),
-                            label: const Text('Send us an Email'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: primaryColor,
-                              foregroundColor: Colors.white,
-                              minimumSize: const Size(double.infinity, 48),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-
-                          // WhatsApp Button
-                          OutlinedButton.icon(
-                            onPressed: () async {
-                              await _launchWhatsApp();
-                            },
-                            icon: Icon(Icons.chat_rounded, color: primaryColor),
-                            label: const Text('Chat on WhatsApp'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: primaryColor,
-                              side: BorderSide(color: primaryColor),
-                              minimumSize: const Size(double.infinity, 48),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
                           ),
                         ],
                       ),
-                    ),
+                      const SizedBox(height: 18),
 
-                    const SizedBox(height: 28),
-
-                    // Support Hours Section
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? const Color(0xFF2D2D44).withValues(alpha: 0.5)
-                            : primaryColor.withValues(alpha: 0.05),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Row(
+                      // App Logo & Company Header
+                      Row(
                         children: [
-                          Icon(
-                            Icons.access_time_rounded,
-                            color: primaryColor,
-                            size: 32,
+                          Container(
+                            width: 56,
+                            height: 56,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white,
+                                width: 2.5,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.1),
+                                  blurRadius: 8,
+                                ),
+                              ],
+                            ),
+                            child: ClipOval(
+                              child: logoUrl != null && logoUrl.isNotEmpty
+                                  ? Image.network(
+                                      logoUrl,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, _, _) => Icon(
+                                        Icons.business_rounded,
+                                        color: primaryColor,
+                                        size: 28,
+                                      ),
+                                    )
+                                  : Image.asset(
+                                      'assets/images/logo.png',
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, _, _) => Icon(
+                                        Icons.business_rounded,
+                                        color: primaryColor,
+                                        size: 28,
+                                      ),
+                                    ),
+                            ),
                           ),
-                          const SizedBox(width: 16),
+                          const SizedBox(width: 14),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Support Hours',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                    color: textColor,
+                                  appName,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w900,
+                                    color: Colors.white,
+                                    letterSpacing: -0.4,
                                   ),
                                 ),
-                                const SizedBox(height: 6),
+                                const SizedBox(height: 2),
                                 Text(
-                                  'Monday to Saturday • 9:00 AM – 6:00 PM',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: textColor.withValues(alpha: 0.7),
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Sunday & Public Holidays: Closed',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: textColor.withValues(alpha: 0.5),
+                                  _companyName,
+                                  style: GoogleFonts.inter(
+                                    color: Colors.white.withValues(alpha: 0.9),
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
                               ],
@@ -446,84 +389,444 @@ class _ContactUsScreenState extends State<ContactUsScreen> {
                           ),
                         ],
                       ),
-                    ),
 
-                    const SizedBox(height: 32),
-                  ],
+                      const SizedBox(height: 18),
+
+                      // Required Support Message
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.25),
+                          ),
+                        ),
+                        child: Text(
+                          'Need assistance with ServNex? Our support team is here to help you with application usage, technical issues and account-related queries.',
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            color: Colors.white,
+                            height: 1.45,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          ),
+
+                const SizedBox(height: 24),
+
+                // Direct Support Options Title
+                Text(
+                  'Support Options',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFF0F172A),
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Choose your preferred method to connect directly with our technical team.',
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    color: const Color(0xFF64748B),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // 1. Email Support Card
+                _buildSupportOptionCard(
+                  icon: Icons.mail_outline_rounded,
+                  iconColor: primaryColor,
+                  badgeText: 'Official Support Email',
+                  badgeColor: const Color(0xFF2563EB),
+                  title: 'Email Support',
+                  subtitle: 'Inquiries, technical issues & account queries',
+                  value: _primaryEmail,
+                  buttonText: 'Send Email',
+                  buttonIcon: Icons.send_rounded,
+                  onButtonTap: () => _launchEmail(email: _primaryEmail),
+                  onCopyTap: () =>
+                      _copyToClipboard(_primaryEmail, 'Support email'),
+                ),
+
+                const SizedBox(height: 14),
+
+                // 2. Call Support Card
+                _buildSupportOptionCard(
+                  icon: Icons.phone_in_talk_rounded,
+                  iconColor: const Color(0xFF0D9488), // Teal
+                  badgeText: 'Direct Hotline',
+                  badgeColor: const Color(0xFF0D9488),
+                  title: 'Call Support',
+                  subtitle: 'Speak directly with our support engineers',
+                  value: _supportPhone,
+                  buttonText: 'Call Support',
+                  buttonIcon: Icons.phone_rounded,
+                  onButtonTap: () => _launchPhoneCall(_supportPhoneRaw),
+                  onCopyTap: () =>
+                      _copyToClipboard(_supportPhone, 'Support phone number'),
+                ),
+
+                const SizedBox(height: 14),
+
+                // 3. WhatsApp Support Card
+                _buildSupportOptionCard(
+                  icon: Icons.chat_bubble_outline_rounded,
+                  iconColor: const Color(0xFF16A34A), // Green
+                  badgeText: 'Instant Messaging',
+                  badgeColor: const Color(0xFF16A34A),
+                  title: 'WhatsApp Support',
+                  subtitle: 'Quick chat for screenshots & real-time guidance',
+                  value: _supportPhone,
+                  buttonText: 'Chat on WhatsApp',
+                  buttonIcon: Icons.chat_rounded,
+                  onButtonTap: () => _launchWhatsApp(_whatsappRaw),
+                  onCopyTap: () =>
+                      _copyToClipboard(_supportPhone, 'WhatsApp number'),
+                ),
+
+                const SizedBox(height: 24),
+
+                // Company & Schedule Information Card
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.03),
+                        blurRadius: 16,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: const Color(
+                                0xFF0EA5E9,
+                              ).withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: const Icon(
+                              Icons.business_rounded,
+                              color: Color(0xFF0EA5E9),
+                              size: 22,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Company Information',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800,
+                                    color: const Color(0xFF0F172A),
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Support Provider & Operating Hours',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    color: const Color(0xFF64748B),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(
+                                0xFF22C55E,
+                              ).withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.circle,
+                                  color: Color(0xFF22C55E),
+                                  size: 8,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'ACTIVE',
+                                  style: GoogleFonts.inter(
+                                    color: const Color(0xFF15803D),
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      const Divider(color: Color(0xFFF1F5F9), height: 1),
+                      const SizedBox(height: 14),
+
+                      _buildInfoRow('Company', _companyName, isHighlight: true),
+                      const SizedBox(height: 10),
+                      _buildInfoRow('Support Email', _primaryEmail),
+                      const SizedBox(height: 10),
+                      _buildInfoRow('Secondary Email', _secondaryEmail),
+                      const SizedBox(height: 10),
+                      _buildInfoRow('Hotline', _supportPhone),
+                      const SizedBox(height: 10),
+                      _buildInfoRow(
+                        'Operating Schedule',
+                        'Monday – Saturday: 9:00 AM – 6:00 PM IST',
+                      ),
+                      const SizedBox(height: 10),
+                      _buildInfoRow(
+                        'Offline / Holiday',
+                        'Email Assistance Monitored 24/7',
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 32),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildContactRow({
+  Widget _buildSupportOptionCard({
     required IconData icon,
-    required String label,
-    required String value,
     required Color iconColor,
-    String? actionText,
+    required String badgeText,
+    required Color badgeColor,
+    required String title,
+    required String subtitle,
+    required String value,
+    required String buttonText,
+    required IconData buttonIcon,
+    required VoidCallback onButtonTap,
+    required VoidCallback onCopyTap,
   }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            height: 48,
-            width: 48,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  iconColor.withValues(alpha: 0.15),
-                  iconColor.withValues(alpha: 0.05),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Icon(icon, color: iconColor, size: 24),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: iconColor.withValues(alpha: 0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
-                    height: 1.5,
-                  ),
-                ),
-              ],
-            ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
           ),
-          if (actionText != null)
-            Padding(
-              padding: const EdgeInsets.only(left: 8),
-              child: Icon(
-                Icons.chevron_right_rounded,
-                color: iconColor,
-                size: 20,
-              ),
-            ),
         ],
       ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      iconColor.withValues(alpha: 0.18),
+                      iconColor.withValues(alpha: 0.05),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: iconColor.withValues(alpha: 0.25)),
+                ),
+                child: Icon(icon, color: iconColor, size: 24),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          title,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFF0F172A),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: badgeColor.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            badgeText,
+                            style: GoogleFonts.inter(
+                              color: badgeColor,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: const Color(0xFF64748B),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              value,
+                              style: GoogleFonts.inter(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF0F172A),
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          InkWell(
+                            onTap: onCopyTap,
+                            borderRadius: BorderRadius.circular(6),
+                            child: const Padding(
+                              padding: EdgeInsets.all(2),
+                              child: Icon(
+                                Icons.copy_rounded,
+                                size: 16,
+                                color: Color(0xFF94A3B8),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            height: 44,
+            child: ElevatedButton.icon(
+              onPressed: onButtonTap,
+              icon: Icon(buttonIcon, size: 16, color: Colors.white),
+              label: Text(
+                buttonText,
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13.5,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: iconColor,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value, {bool isHighlight = false}) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 130,
+          child: Text(
+            label,
+            style: GoogleFonts.inter(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w500,
+              color: const Color(0xFF64748B),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            style: GoogleFonts.inter(
+              fontSize: 12.5,
+              fontWeight: isHighlight ? FontWeight.w800 : FontWeight.w600,
+              color: isHighlight
+                  ? const Color(0xFF0F172A)
+                  : const Color(0xFF334155),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

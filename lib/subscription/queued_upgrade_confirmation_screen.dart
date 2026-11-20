@@ -28,6 +28,7 @@ class QueuedUpgradeConfirmationScreen extends StatelessWidget {
   /// Billing cycle flag.
   final bool isYearly;
   final bool isSixMonths;
+  final int subscriptionYears;
 
   const QueuedUpgradeConfirmationScreen({
     super.key,
@@ -38,6 +39,7 @@ class QueuedUpgradeConfirmationScreen extends StatelessWidget {
     this.scheduledActivationDate,
     this.isYearly = false,
     this.isSixMonths = false,
+    this.subscriptionYears = 1,
   });
 
   @override
@@ -46,8 +48,9 @@ class QueuedUpgradeConfirmationScreen extends StatelessWidget {
         ? DateFormat('d MMM yyyy').format(scheduledActivationDate!)
         : 'After current plan expires';
 
-    final billingCycle =
-        isYearly ? 'Yearly' : (isSixMonths ? '6 Months' : 'Monthly');
+    final billingCycle = isYearly
+        ? (subscriptionYears > 1 ? '$subscriptionYears Years' : 'Yearly')
+        : (isSixMonths ? '6 Months' : 'Monthly');
 
     return Theme(
       data: ThemeData.light().copyWith(

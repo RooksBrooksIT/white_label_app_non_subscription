@@ -8,7 +8,7 @@ class LoggerUtil {
       lineLength: 80,
       colors: true,
       printEmojis: true,
-      printTime: false,
+      dateTimeFormat: DateTimeFormat.none,
     ),
   );
 
@@ -31,6 +31,6 @@ class LoggerUtil {
   }
 
   static void v(String message, [dynamic error, StackTrace? stackTrace]) {
-    _logger.v(message, error: error, stackTrace: stackTrace);
+    _logger.t(message, error: error, stackTrace: stackTrace);
   }
 }

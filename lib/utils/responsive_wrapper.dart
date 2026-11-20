@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 // ─── Breakpoints ─────────────────────────────────────────────────────────────
 const double kMobileBreakpoint = 600.0;
@@ -6,6 +7,7 @@ const double kTabletBreakpoint = 1024.0;
 const double kMaxContentWidth = 960.0;
 const double kMaxFormWidth = 480.0;
 const double kMaxCardWidth = 560.0;
+const double kMaxWebContainerWidth = 1100.0;
 
 // ─── BuildContext Extension ───────────────────────────────────────────────────
 extension ResponsiveContext on BuildContext {
@@ -53,7 +55,10 @@ class ResponsiveWrapper extends StatelessWidget {
   Widget build(BuildContext context) {
     Widget content = ConstrainedBox(
       constraints: BoxConstraints(maxWidth: maxWidth),
-      child: child,
+      child: SizedBox(
+        width: double.infinity,
+        child: child,
+      ),
     );
 
     if (padding != null) {
@@ -113,4 +118,73 @@ double responsiveFontSize(
   if (context.isDesktop) return desktop ?? (mobile * 1.1);
   if (context.isTablet) return tablet ?? (mobile * 1.05);
   return mobile;
+}
+
+// ─── WebResponsiveLayoutWrapper ───────────────────────────────────────────────
+/// Centers the application screen content horizontally with equal margins on web.
+/// Prevents the layout from stretching across ultra-wide desktop monitors while
+/// preserving 100% responsive fluid behavior on smaller windows and mobile devices.
+class WebResponsiveLayoutWrapper extends StatelessWidget {
+  const WebResponsiveLayoutWrapper({
+    super.key,
+    required this.child,
+    this.maxWidth = kMaxWebContainerWidth,
+  });
+
+  final Widget child;
+  final double maxWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!kIsWeb) return child;
+
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    // Clean neutral canvas background for web browser side gutters
+    final canvasBg = isDark ? const Color(0xFF090D16) : const Color(0xFFF1F5F9);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final screenWidth = constraints.maxWidth;
+
+        // If the browser window is narrower than maxWidth, display full width seamlessly
+        if (screenWidth <= maxWidth) {
+          return child;
+        }
+
+        final containerWidth = maxWidth;
+        final mediaQuery = MediaQuery.of(context);
+
+        return Container(
+          width: double.infinity,
+          height: double.infinity,
+          color: canvasBg,
+          child: Center(
+            child: Container(
+              width: containerWidth,
+              height: double.infinity,
+              decoration: BoxDecoration(
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: isDark ? 0.40 : 0.08),
+                    blurRadius: 28,
+                    spreadRadius: 2,
+                    offset: const Offset(0, 0),
+                  ),
+                ],
+              ),
+              child: ClipRect(
+                child: MediaQuery(
+                  data: mediaQuery.copyWith(
+                    size: Size(containerWidth, mediaQuery.size.height),
+                  ),
+                  child: child,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
 }

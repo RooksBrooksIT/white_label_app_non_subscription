@@ -12,12 +12,18 @@ class Customer {
   final String jobType; // Add jobType field
   final String amount; // Add amount field
   final String customerid; // Add customerid field
+  final String customerType; // "amc", "normal", "nonamc", etc.
   String deviceName;
   String problem;
   String assignedEngineer;
   final Timestamp timestamp; // Add timestamp field
   final String? customerFileUrl; // New field
   final String? fileName; // New field
+  final double? customerRating;
+  final String customerFeedback;
+  final String feedbackStatus;
+  final Timestamp? feedbackSubmittedAt;
+  final bool completionFeedbackNotificationSent;
 
   static const String unassigned = 'Unassigned';
   static const String assigned = 'Assigned';
@@ -27,15 +33,18 @@ class Customer {
   // Constructor
   Customer({
     required this.customerName,
-    required this.ticketId,
+    String? ticketId,
+    String? bookingId,
     required this.deviceType,
     required this.deviceBrand,
     required this.deviceCondition,
-    required this.issueDescription,
+    String? issueDescription,
+    String? message,
     required this.address,
     required this.mobileNumber,
     required this.jobType,
     required this.customerid,
+    this.customerType = '',
     required this.amount, // Add amount parameter
     this.deviceName = '',
     this.problem = '',
@@ -43,7 +52,13 @@ class Customer {
     required this.timestamp,
     this.customerFileUrl,
     this.fileName,
-  });
+    this.customerRating,
+    this.customerFeedback = '',
+    this.feedbackStatus = '',
+    this.feedbackSubmittedAt,
+    this.completionFeedbackNotificationSent = false,
+  }) : ticketId = ticketId ?? bookingId ?? '',
+       issueDescription = issueDescription ?? message ?? '';
 
   // CopyWith method
   Customer copyWith({
@@ -61,6 +76,8 @@ class Customer {
     String? problem,
     String? assignedEngineer,
     Timestamp? timestamp,
+    String? customerid,
+    String? customerType,
     String? customerFileUrl,
     String? fileName,
   }) {
@@ -79,7 +96,8 @@ class Customer {
       problem: problem ?? this.problem,
       assignedEngineer: assignedEngineer ?? this.assignedEngineer,
       timestamp: timestamp ?? this.timestamp,
-      customerid: customerid ?? customerid,
+      customerid: customerid ?? this.customerid,
+      customerType: customerType ?? this.customerType,
       customerFileUrl: customerFileUrl ?? this.customerFileUrl,
       fileName: fileName ?? this.fileName,
     );
@@ -102,6 +120,7 @@ class Customer {
       "Problem": problem,
       "assignedEngineer": assignedEngineer,
       "createdAt": timestamp,
+      "customerType": customerType,
       "customerFileUrl": customerFileUrl,
       "fileName": fileName,
     };
@@ -133,9 +152,33 @@ class Customer {
       assignedEngineer:
           data?['assignedEngineer'] ?? data?['AssignedEngineer'] ?? '',
       timestamp: _parseTimestamp(data?['createdAt'] ?? data?['timestamp']),
-      customerid: data?['id'] ?? '',
+      customerid:
+          data?['id'] ?? data?['customerId'] ?? data?['customerid'] ?? '',
+      customerType:
+          data?['customerType']?.toString() ??
+          data?['customer_type']?.toString() ??
+          '',
       customerFileUrl: data?['customerFileUrl'],
       fileName: data?['fileName'],
+      customerRating:
+          (data?['customerRating'] as num?)?.toDouble() ??
+          (data?['rating'] as num?)?.toDouble(),
+      customerFeedback:
+          (data?['customerFeedback'] ??
+                  data?['ratingComment'] ??
+                  data?['comment'] ??
+                  '')
+              .toString()
+              .trim(),
+      feedbackStatus: (data?['feedbackStatus'] ?? '').toString().trim(),
+      feedbackSubmittedAt:
+          (data != null && data['feedbackSubmittedAt'] is Timestamp)
+          ? data['feedbackSubmittedAt'] as Timestamp
+          : ((data != null && data['ratedAt'] is Timestamp)
+                ? data['ratedAt'] as Timestamp
+                : null),
+      completionFeedbackNotificationSent:
+          data?['completionFeedbackNotificationSent'] == true,
     );
   }
 
@@ -149,6 +192,8 @@ class Customer {
   }
 
   String? get id => customerid;
+  String get bookingId => ticketId;
+  String get message => issueDescription;
 
   Null get status => null;
 

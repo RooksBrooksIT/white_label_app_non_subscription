@@ -18,3 +18,10 @@ functions/.env
 
 .dart_tool/
 .flutter-plugins-dependencies
+
+# Node / Firebase Functions
+node_modules/
+**/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

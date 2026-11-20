@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/backend/brand_model_backend.dart';
@@ -6,6 +7,7 @@ import 'package:lottie/lottie.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:flutter/services.dart';
 import 'package:subscription_rooks_app/services/notification_service.dart';
+import 'package:subscription_rooks_app/frontend/screens/customer_notifications_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:subscription_rooks_app/services/location_service.dart';
 import 'package:subscription_rooks_app/services/storage_service.dart';
@@ -54,12 +56,13 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
       TextEditingController();
   final TextEditingController _customDeviceConditionController =
       TextEditingController();
+  final TextEditingController _productNameController = TextEditingController();
 
   late String deviceType;
   String deviceBrand = '';
   String deviceCondition = '';
 
-  final List<String> jobTypes = ['Service', 'Delivery'];
+  final List<String> jobTypes = ['Service', 'Delivery', 'Product'];
   String jobType = '';
 
   List<String> deviceTypes = [];
@@ -99,16 +102,22 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
     // Fetch customer details by name to automatically fill ID and mobile
     _fetchCustomerDetailsByName();
 
-    // Register FCM token for redundancy
-    if (widget.customerId.isNotEmpty) {
-      final user = FirebaseAuth.instance.currentUser;
-      final email = user?.email ?? '';
-      NotificationService.instance.registerToken(
-        role: 'customer',
-        userId: widget.customerId,
-        email: email,
-      );
-    }
+    // Register FCM token for customer and maintain global notification handling
+    final user = FirebaseAuth.instance.currentUser;
+    final email = user?.email ?? '';
+    NotificationService.instance.registerToken(
+      role: 'customer',
+      userId: user?.uid ?? widget.customerId,
+      email: email,
+      tenantId: ThemeService.instance.databaseName,
+      customerId: widget.customerId,
+      phoneNumber: widget.mobileNumber,
+      displayName: widget.customerName,
+    );
+    NotificationService.instance.startCustomerNotificationListener(
+      customerId: widget.customerId,
+      tenantId: ThemeService.instance.databaseName,
+    );
   }
 
   Future<void> _fetchCustomerDetailsByName() async {
@@ -150,62 +159,42 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
   }
 
   Future<void> _fetchDeviceTypes() async {
-    setState(() {
-      _isDeviceTypesLoading = true;
-    });
+    if (mounted) setState(() => _isDeviceTypesLoading = true);
     try {
-      final snapshot = await FirestoreService.instance
-          .collection('deviceDetails')
-          .get();
-      final types = snapshot.docs
-          .map((doc) => doc['deviceType']?.toString())
-          .where((type) => type != null && type.isNotEmpty)
-          .cast<String>()
-          .toSet()
-          .toList();
-      if (!types.contains('Others')) {
-        types.add('Others');
+      final types = await BrandModelBackend().fetchAllDeviceTypes();
+      if (mounted) {
+        setState(() {
+          deviceTypes = types.isNotEmpty ? types : ['Others'];
+        });
       }
-      setState(() {
-        deviceTypes = types;
-      });
     } catch (e) {
-      setState(() {
-        deviceTypes = ['Others'];
-      });
+      if (mounted) {
+        setState(() => deviceTypes = ['Others']);
+      }
     } finally {
-      setState(() {
-        _isDeviceTypesLoading = false;
-      });
+      if (mounted) {
+        setState(() => _isDeviceTypesLoading = false);
+      }
     }
   }
 
   Future<void> _fetchDeviceBrands(String deviceType) async {
-    setState(() {
-      _isDeviceBrandsLoading = true;
-      deviceBrands = [];
-    });
-
+    if (mounted) setState(() => _isDeviceBrandsLoading = true);
     try {
-      // Strictly fetch from the master 'devicesbrands' collection as requested
-      final brands = await BrandModelBackend().fetchAllDeviceBrands();
-
-      if (!brands.contains('Others')) {
-        brands.add('Others');
+      final brands = await BrandModelBackend().fetchAllDeviceBrands(deviceType);
+      if (mounted) {
+        setState(() {
+          deviceBrands = brands.isNotEmpty ? brands : ['Others'];
+        });
       }
-
-      setState(() {
-        deviceBrands = brands;
-      });
     } catch (e) {
-      print('Error fetching device brands: $e');
-      setState(() {
-        deviceBrands = ['Others'];
-      });
+      if (mounted) {
+        setState(() => deviceBrands = ['Others']);
+      }
     } finally {
-      setState(() {
-        _isDeviceBrandsLoading = false;
-      });
+      if (mounted) {
+        setState(() => _isDeviceBrandsLoading = false);
+      }
     }
   }
 
@@ -234,10 +223,88 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: !kIsWeb,
+        leading: kIsWeb
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                onPressed: () => Navigator.pop(context),
+              ),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 12.0),
+            child: StreamBuilder<int>(
+              stream: NotificationService.instance
+                  .getCustomerUnreadNotificationsCountStream(
+                    ThemeService.instance.databaseName,
+                    customerId: widget.customerId,
+                  ),
+              builder: (context, snapshot) {
+                final unreadCount = snapshot.data ?? 0;
+                return Stack(
+                  alignment: Alignment.center,
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.25),
+                        ),
+                      ),
+                      child: IconButton(
+                        icon: const Icon(
+                          Icons.notifications_none_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => CustomerNotificationsPage(
+                                customerId: widget.customerId,
+                                customerName: widget.customerName,
+                              ),
+                            ),
+                          );
+                        },
+                        tooltip: 'Notifications',
+                      ),
+                    ),
+                    if (unreadCount > 0)
+                      Positioned(
+                        top: 2,
+                        right: 2,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFEF4444),
+                            shape: BoxShape.circle,
+                          ),
+                          constraints: const BoxConstraints(
+                            minWidth: 16,
+                            minHeight: 16,
+                          ),
+                          child: Text(
+                            unreadCount > 9 ? '9+' : '$unreadCount',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w900,
+                              height: 1.0,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
         backgroundColor: Theme.of(context).primaryColor,
         foregroundColor: Colors.white,
         iconTheme: const IconThemeData(color: Colors.white),
@@ -289,15 +356,19 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                   (value) {
                     setState(() {
                       jobType = value ?? '';
-                      if (jobType == 'Delivery') {
+                      if (jobType == 'Delivery' || jobType == 'Product') {
                         deviceType = '';
                         deviceBrand = '';
                         deviceCondition = '';
                         _messageController.clear();
                         _customDeviceTypeController.clear();
                         _customDeviceBrandController.clear();
+                        if (jobType == 'Delivery') {
+                          _productNameController.clear();
+                        }
                       } else {
                         _descriptionController.clear();
+                        _productNameController.clear();
                       }
                     });
                   },
@@ -404,6 +475,23 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                     'Enter additional details',
                     Icons.message,
                     _messageController,
+                    maxLines: 3,
+                  ),
+                ],
+                if (jobType == 'Product') ...[
+                  const SizedBox(height: 20),
+                  _buildTextField(
+                    'Product Name',
+                    'Enter product / spare part name (e.g. CCTV, Battery, Adapter)',
+                    Icons.inventory_2_rounded,
+                    _productNameController,
+                  ),
+                  const SizedBox(height: 20),
+                  _buildTextField(
+                    'Description',
+                    'Enter quantity, model or specifications',
+                    Icons.description,
+                    _descriptionController,
                     maxLines: 3,
                   ),
                 ],
@@ -848,6 +936,14 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
           );
         }
 
+        final productOrIssueDescription = jobType == 'Product'
+            ? (_productNameController.text.isNotEmpty
+                  ? '${_productNameController.text.trim()} - ${_descriptionController.text.trim()}'
+                  : _descriptionController.text.trim())
+            : (_messageController.text.isNotEmpty
+                  ? _messageController.text
+                  : _descriptionController.text);
+
         Map<String, dynamic> ticketData = {
           'ticketId': ticketId,
           'customerId': _customerIdController.text,
@@ -855,14 +951,19 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
           'customerType': widget.customerType,
           'mobileNumber': _mobileNumberController.text,
           'address': _addressController.text,
-          'deviceType': jobType == 'Service' ? actualDeviceType : null,
+          'productName': jobType == 'Product'
+              ? _productNameController.text.trim()
+              : null,
+          'deviceType': jobType == 'Service'
+              ? actualDeviceType
+              : (jobType == 'Product'
+                    ? _productNameController.text.trim()
+                    : null),
           'deviceBrand': jobType == 'Service' ? actualDeviceBrand : null,
           'deviceCondition': jobType == 'Service'
               ? actualDeviceCondition
               : null,
-          'issueDescription': _messageController.text.isNotEmpty
-              ? _messageController.text
-              : _descriptionController.text,
+          'issueDescription': productOrIssueDescription,
           'customerStatus': 'Ticket Created',
           'adminStatus': 'Open',
           'engineerStatus': 'Not Assigned',
@@ -885,11 +986,28 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
           ticketData['longitude'] = _currentLocationData!['longitude'];
         }
 
-        // Write only to Raised_tickets collection!
+        // Write to Raised_tickets and Admin_ticket_entry collections
         await FirestoreService.instance
             .collection('Raised_tickets')
             .doc(ticketId)
             .set(ticketData);
+
+        await FirestoreService.instance
+            .collection('Admin_ticket_entry')
+            .doc(ticketId)
+            .set(ticketData);
+
+        // If custom Device Type or Brand was entered via "Others", persist to backend device configuration
+        if (deviceType == 'Others' || deviceBrand == 'Others') {
+          try {
+            await BrandModelBackend().saveCustomDeviceConfiguration(
+              deviceType: actualDeviceType,
+              deviceBrand: actualDeviceBrand,
+            );
+          } catch (e) {
+            debugPrint('Error auto-configuring custom device/brand: $e');
+          }
+        }
 
         // Add real-time notification for Admin
         await NotificationService.sendNotificationToFirestore(

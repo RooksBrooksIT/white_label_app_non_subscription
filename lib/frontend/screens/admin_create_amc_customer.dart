@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
@@ -18,6 +19,8 @@ class _AMCCreatePageState extends State<AMCCreatePage>
   final TextEditingController _searchController = TextEditingController();
   List<Map<String, dynamic>> _customers = [];
   List<Map<String, dynamic>> _filteredCustomers = [];
+  int _currentPage = 1;
+  static const int _pageSize = 10;
 
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _usernameController = TextEditingController();
@@ -28,6 +31,7 @@ class _AMCCreatePageState extends State<AMCCreatePage>
       TextEditingController();
 
   bool _obscurePassword = true;
+  final Map<String, bool> _directoryPasswordVisible = {};
   bool _isLoading = false;
   bool _isCheckingEmail = false;
   bool _isCheckingPhone = false;
@@ -81,7 +85,31 @@ class _AMCCreatePageState extends State<AMCCreatePage>
             final data = doc.data();
             return {...data, 'id': doc.id};
           }).toList();
-          _filteredCustomers = _customers;
+
+          final query = _searchController.text.trim();
+          if (query.isEmpty) {
+            _filteredCustomers = _customers;
+          } else {
+            final q = query.toLowerCase();
+            _filteredCustomers = _customers
+                .where(
+                  (customer) =>
+                      (customer['name'] ?? '').toString().toLowerCase().contains(q) ||
+                      (customer['email'] ?? '').toString().toLowerCase().contains(q) ||
+                      (customer['Id'] ?? '').toString().toLowerCase().contains(q),
+                )
+                .toList();
+          }
+
+          final totalPages = _filteredCustomers.isEmpty
+              ? 1
+              : (_filteredCustomers.length / _pageSize).ceil();
+          if (_currentPage > totalPages) {
+            _currentPage = totalPages;
+          }
+          if (_currentPage < 1) {
+            _currentPage = 1;
+          }
         });
       }
     });
@@ -89,21 +117,17 @@ class _AMCCreatePageState extends State<AMCCreatePage>
 
   void _filterCustomers(String query) {
     setState(() {
-      if (query.isEmpty) {
+      _currentPage = 1;
+      final q = query.trim().toLowerCase();
+      if (q.isEmpty) {
         _filteredCustomers = _customers;
       } else {
         _filteredCustomers = _customers
             .where(
               (customer) =>
-                  (customer['name'] ?? '').toLowerCase().contains(
-                    query.toLowerCase(),
-                  ) ||
-                  (customer['email'] ?? '').toLowerCase().contains(
-                    query.toLowerCase(),
-                  ) ||
-                  (customer['Id'] ?? '').toLowerCase().contains(
-                    query.toLowerCase(),
-                  ),
+                  (customer['name'] ?? '').toString().toLowerCase().contains(q) ||
+                  (customer['email'] ?? '').toString().toLowerCase().contains(q) ||
+                  (customer['Id'] ?? '').toString().toLowerCase().contains(q),
             )
             .toList();
       }
@@ -206,11 +230,14 @@ class _AMCCreatePageState extends State<AMCCreatePage>
   }
 
   String? _validateEmail(String? value) {
-    if (value == null || value.isEmpty) {
+    if (value == null || value.trim().isEmpty) {
       return 'Please enter your email';
     }
-    final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+');
-    if (!emailRegex.hasMatch(value)) {
+    if (value.contains(' ')) {
+      return 'Email cannot contain spaces';
+    }
+    final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+    if (!emailRegex.hasMatch(value.trim())) {
       return 'Please enter a valid email address';
     }
     return null;
@@ -375,9 +402,7 @@ class _AMCCreatePageState extends State<AMCCreatePage>
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
       elevation: 0,
       backgroundColor: Colors.transparent,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 400),
-        child: Container(
+      child: Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
           color: Colors.white,
@@ -465,7 +490,6 @@ class _AMCCreatePageState extends State<AMCCreatePage>
           ],
         ),
       ),
-      ),
     );
   }
 
@@ -510,30 +534,30 @@ class _AMCCreatePageState extends State<AMCCreatePage>
             _clearForm();
           } else {
             // Create new account (existing logic)
-            
+
             // Check subscription limits for maxCustomers
             final tenantId = ThemeService.instance.databaseName;
             final appId = ThemeService.instance.appName;
-            final actualAppId = await FirestoreService.instance.getActiveSubscriptionAppId(
-              tenantId: tenantId,
-              appId: appId,
-            );
-            
+            final actualAppId = await FirestoreService.instance
+                .getActiveSubscriptionAppId(tenantId: tenantId, appId: appId);
+
             final subSnapshot = await FirestoreService.instance
                 .subscriptionsRef(tenantId: tenantId, appId: actualAppId)
                 .limit(1)
                 .get();
-                
+
             if (subSnapshot.docs.isNotEmpty) {
               final subData = subSnapshot.docs.first.data();
               final limits = subData['limits'] as Map<String, dynamic>?;
               final maxCustomers = limits?['maxCustomers'] as int?;
-              
+
               if (maxCustomers != null && _customers.length >= maxCustomers) {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('Subscription limit reached. You can only create up to $maxCustomers customers.'),
+                      content: Text(
+                        'Subscription limit reached. You can only create up to $maxCustomers customers.',
+                      ),
                       backgroundColor: errorColor,
                     ),
                   );
@@ -545,7 +569,13 @@ class _AMCCreatePageState extends State<AMCCreatePage>
               }
             }
 
-            final emailExists = await _checkEmailExists(_emailController.text);
+            final cleanEmail = _emailController.text
+                .replaceAll(RegExp(r'\s+'), '')
+                .trim()
+                .toLowerCase();
+
+            // Check if email already exists
+            final emailExists = await _checkEmailExists(cleanEmail);
             if (emailExists) {
               if (!mounted) return;
               setState(() {
@@ -554,9 +584,7 @@ class _AMCCreatePageState extends State<AMCCreatePage>
               });
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text(
-                    'Email ${_emailController.text} is already registered!',
-                  ),
+                  content: Text('Email $cleanEmail is already registered!'),
                   backgroundColor: errorColor,
                 ),
               );
@@ -628,10 +656,10 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                 .collection('AMC_user')
                 .doc(newAmcId)
                 .set({
-                  'email': _emailController.text.toLowerCase().trim(),
-                  'name': _usernameController.text,
+                  'email': cleanEmail,
+                  'name': _usernameController.text.trim(),
                   'password': _passwordController.text,
-                  'Phone Number': _phoneController.text,
+                  'Phone Number': _phoneController.text.trim(),
                   'Id': newAmcId,
                   'createdAt': FieldValue.serverTimestamp(),
                 });
@@ -693,9 +721,7 @@ class _AMCCreatePageState extends State<AMCCreatePage>
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
       elevation: 0,
       backgroundColor: Colors.transparent,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 400),
-        child: Container(
+      child: Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
           color: Colors.white,
@@ -786,7 +812,6 @@ class _AMCCreatePageState extends State<AMCCreatePage>
           ],
         ),
       ),
-      ),
     );
   }
 
@@ -795,9 +820,7 @@ class _AMCCreatePageState extends State<AMCCreatePage>
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
       elevation: 0,
       backgroundColor: Colors.transparent,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 400),
-        child: Container(
+      child: Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
           color: Theme.of(context).cardColor,
@@ -876,7 +899,6 @@ class _AMCCreatePageState extends State<AMCCreatePage>
           ],
         ),
       ),
-      ),
     );
   }
 
@@ -888,46 +910,45 @@ class _AMCCreatePageState extends State<AMCCreatePage>
     backgroundColor = ThemeService.instance.backgroundColor;
 
     return Scaffold(
-      backgroundColor: backgroundColor,
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: Container(
-          margin: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
+        backgroundColor: Colors.white,
+        elevation: 0.5,
+        automaticallyImplyLeading: !kIsWeb,
+        leading: kIsWeb
+            ? null
+            : Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: CircleAvatar(
+                  backgroundColor: const Color(0xFFF1F5F9),
+                  child: IconButton(
+                    icon: const Icon(
+                      Icons.arrow_back_rounded,
+                      color: Color(0xFF0F172A),
+                      size: 18,
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ),
               ),
-            ],
-          ),
-          child: IconButton(
-            icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 18),
-            onPressed: () => Navigator.of(context).pop(),
-          ),
-        ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+            const Text(
               'AMC Management',
               style: TextStyle(
-                fontSize: 22,
+                fontSize: 18,
                 fontWeight: FontWeight.w800,
-                color: textColor,
-                letterSpacing: -0.5,
+                color: Color(0xFF0F172A),
+                letterSpacing: -0.4,
               ),
             ),
             Text(
-              'Manage your AMC customers',
+              'Manage your AMC customer accounts',
               style: TextStyle(
-                fontSize: 12,
-                color: textLightColor,
-                fontWeight: FontWeight.w500,
+                fontSize: 11,
+                color: primaryColor,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ],
@@ -935,7 +956,7 @@ class _AMCCreatePageState extends State<AMCCreatePage>
         centerTitle: false,
       ),
       body: ResponsiveWrapper(
-        maxWidth: 1200.0,
+        maxWidth: 960,
         child: TabBarView(
           controller: _tabController,
           children: [_buildCustomerForm(), _buildCustomerDirectory()],
@@ -946,36 +967,94 @@ class _AMCCreatePageState extends State<AMCCreatePage>
           color: Colors.white,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 20,
-              offset: const Offset(0, -5),
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, -3),
             ),
           ],
+          border: const Border(
+            top: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+          ),
         ),
         child: SafeArea(
-          child: TabBar(
-            controller: _tabController,
-            indicator: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              color: primaryColor.withValues(alpha: 0.1),
-            ),
-            indicatorSize: TabBarIndicatorSize.tab,
-            dividerColor: Colors.transparent,
-            labelColor: primaryColor,
-            unselectedLabelColor: textLightColor,
-            labelStyle: const TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 14,
-              letterSpacing: 0.5,
-            ),
-            unselectedLabelStyle: const TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 13,
-            ),
-            tabs: const [
-              Tab(icon: Icon(Icons.person_add_rounded), text: 'ADD'),
-              Tab(icon: Icon(Icons.people_alt_rounded), text: 'DIRECTORY'),
-            ],
+          child: AnimatedBuilder(
+            animation: _tabController,
+            builder: (context, _) {
+              final selectedIndex = _tabController.index;
+
+              return SizedBox(
+                height: 62,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: InkWell(
+                        onTap: () => _tabController.animateTo(0),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.person_add_rounded,
+                              size: 22,
+                              color: selectedIndex == 0
+                                  ? primaryColor
+                                  : const Color(0xFF94A3B8),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              'Add Customer',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: selectedIndex == 0
+                                    ? FontWeight.w800
+                                    : FontWeight.w600,
+                                color: selectedIndex == 0
+                                    ? primaryColor
+                                    : const Color(0xFF64748B),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Container(
+                      width: 1,
+                      height: 28,
+                      color: const Color(0xFFE2E8F0),
+                    ),
+                    Expanded(
+                      child: InkWell(
+                        onTap: () => _tabController.animateTo(1),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.people_alt_rounded,
+                              size: 22,
+                              color: selectedIndex == 1
+                                  ? primaryColor
+                                  : const Color(0xFF94A3B8),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              'Directory',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: selectedIndex == 1
+                                    ? FontWeight.w800
+                                    : FontWeight.w600,
+                                color: selectedIndex == 1
+                                    ? primaryColor
+                                    : const Color(0xFF64748B),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
         ),
       ),
@@ -985,29 +1064,25 @@ class _AMCCreatePageState extends State<AMCCreatePage>
   Widget _buildCustomerForm() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 500),
-          child: Form(
-            key: _formKey,
-            child: Column(
+      child: Form(
+        key: _formKey,
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [
-                    primaryColor,
-                    primaryColor.withValues(alpha: 0.7),
-                  ],
+                  colors: [primaryColor, primaryColor.withValues(alpha: 0.7)],
                 ),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Row(
                 children: [
                   Icon(
-                    _isEditMode ? Icons.edit_note_rounded : Icons.person_add_alt_rounded,
+                    _isEditMode
+                        ? Icons.edit_note_rounded
+                        : Icons.person_add_alt_rounded,
                     color: Colors.white,
                     size: 28,
                   ),
@@ -1042,7 +1117,7 @@ class _AMCCreatePageState extends State<AMCCreatePage>
               ),
             ),
             const SizedBox(height: 24),
-            
+
             // Form Fields Container
             Container(
               decoration: BoxDecoration(
@@ -1066,7 +1141,8 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                       icon: Icons.person_outline_rounded,
                       hint: 'Enter customer full name',
                       validator: (value) {
-                        if (value == null || value.isEmpty) return 'Please enter name';
+                        if (value == null || value.isEmpty)
+                          return 'Please enter name';
                         if (value.length < 3) return 'Name too short';
                         return null;
                       },
@@ -1079,9 +1155,13 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                     const SizedBox(height: 20),
                     _buildFormField(
                       controller: _passwordController,
-                      label: _isEditMode ? 'New Password (Optional)' : 'Password',
+                      label: _isEditMode
+                          ? 'New Password (Optional)'
+                          : 'Password',
                       icon: Icons.lock_outline_rounded,
-                      hint: _isEditMode ? 'Leave blank to keep current password' : 'Create a strong password',
+                      hint: _isEditMode
+                          ? 'Leave blank to keep current password'
+                          : 'Create a strong password',
                       isPasswordField: true,
                       validator: _validatePassword,
                     ),
@@ -1098,9 +1178,9 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                 ),
               ),
             ),
-            
+
             const SizedBox(height: 24),
-            
+
             // Action Buttons
             Row(
               children: [
@@ -1142,7 +1222,10 @@ class _AMCCreatePageState extends State<AMCCreatePage>
               child: TextButton(
                 onPressed: _isEditMode ? _cancelEdit : _clearForm,
                 style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
                 ),
                 child: Text(
                   _isEditMode ? 'Cancel Edit' : 'Clear Form',
@@ -1156,8 +1239,6 @@ class _AMCCreatePageState extends State<AMCCreatePage>
             ),
             const SizedBox(height: 20),
           ],
-        ),
-      ),
         ),
       ),
     );
@@ -1194,12 +1275,11 @@ class _AMCCreatePageState extends State<AMCCreatePage>
         const SizedBox(height: 8),
         Container(
           decoration: BoxDecoration(
-            color: enabled ? Colors.white : backgroundColor.withValues(alpha: 0.3),
+            color: enabled
+                ? Colors.white
+                : backgroundColor.withValues(alpha: 0.3),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: Colors.grey.shade200,
-              width: 1.5,
-            ),
+            border: Border.all(color: Colors.grey.shade200, width: 1.5),
           ),
           child: TextFormField(
             controller: controller,
@@ -1215,7 +1295,9 @@ class _AMCCreatePageState extends State<AMCCreatePage>
               suffixIcon: isPasswordField
                   ? IconButton(
                       icon: Icon(
-                        _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                        _obscurePassword
+                            ? Icons.visibility_off
+                            : Icons.visibility,
                         color: textLightColor,
                         size: 20,
                       ),
@@ -1259,7 +1341,9 @@ class _AMCCreatePageState extends State<AMCCreatePage>
         const SizedBox(height: 8),
         Container(
           decoration: BoxDecoration(
-            color: !_isEditMode ? Colors.white : backgroundColor.withValues(alpha: 0.3),
+            color: !_isEditMode
+                ? Colors.white
+                : backgroundColor.withValues(alpha: 0.3),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: _emailError != null ? errorColor : Colors.grey.shade200,
@@ -1270,13 +1354,18 @@ class _AMCCreatePageState extends State<AMCCreatePage>
             controller: _emailController,
             keyboardType: TextInputType.emailAddress,
             enabled: !_isEditMode,
+            inputFormatters: [FilteringTextInputFormatter.deny(RegExp(r'\s'))],
             decoration: InputDecoration(
               hintText: 'customer@example.com',
               hintStyle: TextStyle(
                 color: textLightColor.withValues(alpha: 0.6),
                 fontSize: 13,
               ),
-              prefixIcon: Icon(Icons.email_outlined, color: primaryColor, size: 20),
+              prefixIcon: Icon(
+                Icons.email_outlined,
+                color: primaryColor,
+                size: 20,
+              ),
               suffixIcon: _isCheckingEmail
                   ? Padding(
                       padding: const EdgeInsets.all(12),
@@ -1344,7 +1433,9 @@ class _AMCCreatePageState extends State<AMCCreatePage>
         const SizedBox(height: 8),
         Container(
           decoration: BoxDecoration(
-            color: !_isEditMode ? Colors.white : backgroundColor.withValues(alpha: 0.3),
+            color: !_isEditMode
+                ? Colors.white
+                : backgroundColor.withValues(alpha: 0.3),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: _phoneError != null ? errorColor : Colors.grey.shade200,
@@ -1365,7 +1456,11 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                 color: textLightColor.withValues(alpha: 0.6),
                 fontSize: 13,
               ),
-              prefixIcon: Icon(Icons.phone_android_rounded, color: primaryColor, size: 20),
+              prefixIcon: Icon(
+                Icons.phone_android_rounded,
+                color: primaryColor,
+                size: 20,
+              ),
               suffixIcon: _isCheckingPhone
                   ? Padding(
                       padding: const EdgeInsets.all(12),
@@ -1421,80 +1516,173 @@ class _AMCCreatePageState extends State<AMCCreatePage>
   }
 
   Widget _buildCustomerDirectory() {
+    final totalCount = _filteredCustomers.length;
+    final totalPages = totalCount == 0 ? 1 : (totalCount / _pageSize).ceil();
+    if (_currentPage > totalPages) {
+      _currentPage = totalPages;
+    }
+    if (_currentPage < 1) {
+      _currentPage = 1;
+    }
+
+    final int startIndex = (_currentPage - 1) * _pageSize;
+    final int endIndex = (startIndex + _pageSize > totalCount)
+        ? totalCount
+        : (startIndex + _pageSize);
+
+    final List<Map<String, dynamic>> pagedCustomers = _filteredCustomers.isEmpty
+        ? []
+        : _filteredCustomers.sublist(
+            startIndex,
+            endIndex.clamp(startIndex, totalCount),
+          );
+
     return Column(
       children: [
-        Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 500),
-            child: Container(
-              padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: const BorderRadius.only(
-              bottomLeft: Radius.circular(24),
-              bottomRight: Radius.circular(24),
+        // Top Domain Hero Banner Card
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+            decoration: BoxDecoration(
+              color: primaryColor.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: primaryColor.withValues(alpha: 0.18),
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: primaryColor.withValues(alpha: 0.04),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 10,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Customer Directory',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  color: textColor,
-                  letterSpacing: -0.5,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '${_filteredCustomers.length} customers found',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: primaryColor,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.grey.shade200, width: 1.5),
-                ),
-                child: TextField(
-                  controller: _searchController,
-                  onChanged: _filterCustomers,
-                  decoration: InputDecoration(
-                    hintText: 'Search by name, email or AMC ID...',
-                    hintStyle: TextStyle(color: textLightColor.withValues(alpha: 0.6)),
-                    prefixIcon: Icon(Icons.search_rounded, color: primaryColor),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20),
-                      borderSide: BorderSide.none,
-                    ),
-                    filled: true,
-                    fillColor: Colors.white,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 16,
-                    ),
+            child: Row(
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: primaryColor.withValues(alpha: 0.12),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    Icons.people_alt_rounded,
+                    color: primaryColor,
+                    size: 24,
                   ),
                 ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Customer Directory',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF0F172A),
+                              letterSpacing: -0.4,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: primaryColor.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              '${_filteredCustomers.length} Total',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: primaryColor,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'View, search, and manage registered customers',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: primaryColor.withValues(alpha: 0.85),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // Search Bar Container
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.02),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: TextField(
+              controller: _searchController,
+              onChanged: _filterCustomers,
+              style: const TextStyle(fontSize: 14, color: Color(0xFF0F172A)),
+              decoration: InputDecoration(
+                hintText: 'Search by name, email or AMC ID...',
+                hintStyle: TextStyle(
+                  color: const Color(0xFF94A3B8),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+                prefixIcon: Icon(
+                  Icons.search_rounded,
+                  color: primaryColor,
+                  size: 22,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(20),
+                  borderSide: BorderSide.none,
+                ),
+                filled: true,
+                fillColor: Colors.white,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
               ),
-            ],
+            ),
           ),
         ),
-          ),
-        ),
+
+        const SizedBox(height: 4),
         Expanded(
           child: _filteredCustomers.isEmpty
               ? Center(
@@ -1540,28 +1728,29 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                   ),
                 )
               : ListView.builder(
-                  padding: const EdgeInsets.all(20),
-                  itemCount: _filteredCustomers.length,
+                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
+                  itemCount: pagedCustomers.length,
                   itemBuilder: (context, index) {
-                    final customer = _filteredCustomers[index];
+                    final customer = pagedCustomers[index];
                     final String name = customer['name'] ?? 'No Name';
                     final String id = customer['Id'] ?? 'No ID';
                     final String email = customer['email'] ?? 'No Email';
                     final String phone = customer['Phone Number'] ?? 'No Phone';
 
-                    return Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 500),
-                        child: Container(
-                          margin: const EdgeInsets.only(bottom: 16),
-                          decoration: BoxDecoration(
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: const Color(0xFFE2E8F0),
+                          width: 1,
+                        ),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.04),
+                            color: Colors.black.withValues(alpha: 0.03),
                             blurRadius: 10,
-                            offset: const Offset(0, 2),
+                            offset: const Offset(0, 3),
                           ),
                         ],
                       ),
@@ -1569,84 +1758,110 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                         color: Colors.transparent,
                         borderRadius: BorderRadius.circular(20),
                         child: InkWell(
-                          onTap: () => _loadAccountForEdit(customer, customer['id']),
+                          onTap: () =>
+                              _loadAccountForEdit(customer, customer['id']),
                           borderRadius: BorderRadius.circular(20),
                           child: Padding(
-                            padding: const EdgeInsets.all(16),
+                            padding: const EdgeInsets.all(14),
                             child: Row(
                               children: [
                                 Container(
+                                  width: 46,
+                                  height: 46,
                                   decoration: BoxDecoration(
                                     gradient: LinearGradient(
                                       colors: [
                                         primaryColor,
-                                        primaryColor.withValues(alpha: 0.7),
+                                        primaryColor.withValues(alpha: 0.75),
                                       ],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
                                     ),
                                     shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: primaryColor.withValues(
+                                          alpha: 0.2,
+                                        ),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
                                   ),
-                                  child: CircleAvatar(
-                                    radius: 28,
-                                    backgroundColor: Colors.transparent,
+                                  child: Center(
                                     child: Text(
-                                      name.isNotEmpty ? name[0].toUpperCase() : '?',
+                                      name.isNotEmpty
+                                          ? name[0].toUpperCase()
+                                          : '?',
                                       style: const TextStyle(
-                                        fontSize: 22,
-                                        fontWeight: FontWeight.bold,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w800,
                                         color: Colors.white,
                                       ),
                                     ),
                                   ),
                                 ),
-                                const SizedBox(width: 16),
+                                const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      Text(
-                                        name,
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                          color: textColor,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 2,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: primaryColor.withValues(alpha: 0.1),
-                                          borderRadius: BorderRadius.circular(6),
-                                        ),
-                                        child: Text(
-                                          id,
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w600,
-                                            color: primaryColor,
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              name,
+                                              style: const TextStyle(
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w800,
+                                                color: Color(0xFF0F172A),
+                                                letterSpacing: -0.3,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
                                           ),
-                                        ),
+                                          const SizedBox(width: 6),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 7,
+                                              vertical: 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: primaryColor.withValues(
+                                                alpha: 0.1,
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(6),
+                                            ),
+                                            child: Text(
+                                              id,
+                                              style: TextStyle(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w700,
+                                                color: primaryColor,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                       const SizedBox(height: 4),
                                       Row(
                                         children: [
-                                          Icon(
+                                          const Icon(
                                             Icons.email_outlined,
-                                            size: 12,
-                                            color: textLightColor,
+                                            size: 13,
+                                            color: Color(0xFF64748B),
                                           ),
-                                          const SizedBox(width: 4),
+                                          const SizedBox(width: 5),
                                           Expanded(
                                             child: Text(
                                               email,
-                                              style: TextStyle(
+                                              style: const TextStyle(
                                                 fontSize: 12,
-                                                color: textLightColor,
+                                                color: Color(0xFF64748B),
+                                                fontWeight: FontWeight.w500,
                                               ),
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
@@ -1657,17 +1872,78 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                                       const SizedBox(height: 2),
                                       Row(
                                         children: [
-                                          Icon(
-                                            Icons.phone_android,
-                                            size: 12,
-                                            color: textLightColor,
+                                          const Icon(
+                                            Icons.phone_android_rounded,
+                                            size: 13,
+                                            color: Color(0xFF64748B),
                                           ),
-                                          const SizedBox(width: 4),
+                                          const SizedBox(width: 5),
                                           Text(
                                             phone,
-                                            style: TextStyle(
+                                            style: const TextStyle(
                                               fontSize: 12,
-                                              color: textLightColor,
+                                              color: Color(0xFF64748B),
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Row(
+                                        children: [
+                                          const Icon(
+                                            Icons.lock_outline_rounded,
+                                            size: 13,
+                                            color: Color(0xFF64748B),
+                                          ),
+                                          const SizedBox(width: 5),
+                                          Expanded(
+                                            child: Text(
+                                              (customer['password']
+                                                          ?.toString()
+                                                          .isNotEmpty ??
+                                                      false)
+                                                  ? ((_directoryPasswordVisible[customer['id']] ??
+                                                            false)
+                                                        ? customer['password']
+                                                              .toString()
+                                                        : '••••••••')
+                                                  : 'No password set',
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                color: Color(0xFF64748B),
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 4),
+                                          InkWell(
+                                            onTap: () {
+                                              setState(() {
+                                                _directoryPasswordVisible[customer['id']] =
+                                                    !(_directoryPasswordVisible[customer['id']] ??
+                                                        false);
+                                              });
+                                            },
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                            child: Padding(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 6,
+                                                    vertical: 4,
+                                                  ),
+                                              child: Icon(
+                                                (_directoryPasswordVisible[customer['id']] ??
+                                                        false)
+                                                    ? Icons.visibility
+                                                    : Icons.visibility_off,
+                                                size: 15,
+                                                color: primaryColor,
+                                              ),
                                             ),
                                           ),
                                         ],
@@ -1675,18 +1951,22 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                                     ],
                                   ),
                                 ),
+                                const SizedBox(width: 6),
                                 Row(
                                   children: [
                                     Container(
+                                      width: 36,
+                                      height: 36,
                                       decoration: BoxDecoration(
-                                        color: editModeColor.withValues(alpha: 0.1),
-                                        borderRadius: BorderRadius.circular(12),
+                                        color: const Color(0xFFFEF3C7),
+                                        borderRadius: BorderRadius.circular(10),
                                       ),
                                       child: IconButton(
-                                        icon: Icon(
-                                          Icons.edit_outlined,
-                                          color: editModeColor,
-                                          size: 20,
+                                        padding: EdgeInsets.zero,
+                                        icon: const Icon(
+                                          Icons.edit_rounded,
+                                          color: Color(0xFFD97706),
+                                          size: 18,
                                         ),
                                         onPressed: () => _loadAccountForEdit(
                                           customer,
@@ -1694,20 +1974,25 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                                         ),
                                       ),
                                     ),
-                                    const SizedBox(width: 8),
+                                    const SizedBox(width: 6),
                                     Container(
+                                      width: 36,
+                                      height: 36,
                                       decoration: BoxDecoration(
-                                        color: errorColor.withValues(alpha: 0.1),
-                                        borderRadius: BorderRadius.circular(12),
+                                        color: const Color(0xFFFEE2E2),
+                                        borderRadius: BorderRadius.circular(10),
                                       ),
                                       child: IconButton(
-                                        icon: Icon(
+                                        padding: EdgeInsets.zero,
+                                        icon: const Icon(
                                           Icons.delete_outline_rounded,
-                                          color: errorColor,
-                                          size: 20,
+                                          color: Color(0xFFDC2626),
+                                          size: 18,
                                         ),
-                                        onPressed: () =>
-                                            _deleteAccount(customer['id'], name),
+                                        onPressed: () => _deleteAccount(
+                                          customer['id'],
+                                          name,
+                                        ),
                                       ),
                                     ),
                                   ],
@@ -1717,13 +2002,191 @@ class _AMCCreatePageState extends State<AMCCreatePage>
                           ),
                         ),
                       ),
-                        ),
-                      ),
                     );
                   },
                 ),
         ),
+
+        // ── Fixed bottom pagination footer ──────
+        if (_filteredCustomers.isNotEmpty)
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
+              child: _buildPaginationFooter(
+                totalCount: totalCount,
+                totalPages: totalPages,
+                startIndex: startIndex,
+                endIndex: endIndex,
+              ),
+            ),
+          ),
       ],
     );
+  }
+
+  Widget _buildPaginationFooter({
+    required int totalCount,
+    required int totalPages,
+    required int startIndex,
+    required int endIndex,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Text(
+            'Showing ${startIndex + 1}–$endIndex of $totalCount customers',
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF64748B),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Previous button
+                OutlinedButton.icon(
+                  onPressed: _currentPage > 1
+                      ? () => setState(() => _currentPage--)
+                      : null,
+                  icon: const Icon(Icons.chevron_left_rounded, size: 18),
+                  label: const Text('Previous'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: primaryColor,
+                    disabledForegroundColor: const Color(0xFF94A3B8),
+                    side: BorderSide(
+                      color: _currentPage > 1
+                          ? const Color(0xFFCBD5E1)
+                          : const Color(0xFFE2E8F0),
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+
+                // Page numbers
+                ..._buildPageNumbers(totalPages),
+
+                const SizedBox(width: 8),
+                // Next button
+                OutlinedButton.icon(
+                  onPressed: _currentPage < totalPages
+                      ? () => setState(() => _currentPage++)
+                      : null,
+                  icon: const Icon(Icons.chevron_right_rounded, size: 18),
+                  label: const Text('Next'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: primaryColor,
+                    disabledForegroundColor: const Color(0xFF94A3B8),
+                    side: BorderSide(
+                      color: _currentPage < totalPages
+                          ? const Color(0xFFCBD5E1)
+                          : const Color(0xFFE2E8F0),
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildPageNumbers(int totalPages) {
+    final List<Widget> buttons = [];
+    final List<int> pages = [];
+
+    if (totalPages <= 7) {
+      for (int i = 1; i <= totalPages; i++) {
+        pages.add(i);
+      }
+    } else {
+      pages.add(1);
+      int start = (_currentPage - 1).clamp(2, totalPages - 3);
+      int end = (_currentPage + 1).clamp(4, totalPages - 1);
+      for (int i = start; i <= end; i++) {
+        if (!pages.contains(i)) pages.add(i);
+      }
+      if (!pages.contains(totalPages)) pages.add(totalPages);
+    }
+
+    int lastPage = 0;
+    for (int p in pages) {
+      if (lastPage != 0 && p - lastPage > 1) {
+        buttons.add(
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              '...',
+              style: TextStyle(
+                color: Color(0xFF94A3B8),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        );
+      }
+      final isSelected = p == _currentPage;
+      buttons.add(
+        InkWell(
+          onTap: () => setState(() => _currentPage = p),
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            width: 36,
+            height: 36,
+            margin: const EdgeInsets.symmetric(horizontal: 3),
+            decoration: BoxDecoration(
+              color: isSelected ? primaryColor : const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isSelected ? primaryColor : const Color(0xFFE2E8F0),
+              ),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              '$p',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                color: isSelected ? Colors.white : const Color(0xFF334155),
+              ),
+            ),
+          ),
+        ),
+      );
+      lastPage = p;
+    }
+    return buttons;
   }
 }

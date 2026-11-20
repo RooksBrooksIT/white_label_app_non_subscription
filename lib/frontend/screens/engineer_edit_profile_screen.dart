@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -5,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 import 'package:subscription_rooks_app/frontend/screens/engineer_dashboard_page.dart';
+import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
 
 class EngineerEditProfileScreen extends StatefulWidget {
   final String engineerName;
@@ -30,7 +32,6 @@ class _EngineerEditProfileScreenState
   bool _isSaving = false;
   String? _docId;
   String? _tenantId;
-  Map<String, dynamic> _originalData = {};
 
   @override
   void initState() {
@@ -70,7 +71,6 @@ class _EngineerEditProfileScreenState
       final doc = query.docs.first;
       final data = doc.data();
       _docId = doc.id;
-      _originalData = data;
 
       _nameController.text = data['Username'] ?? '';
       _emailController.text = data['Email'] ?? '';
@@ -138,6 +138,7 @@ class _EngineerEditProfileScreenState
     return Scaffold(
       backgroundColor: ProfessionalTheme.background(context),
       appBar: AppBar(
+        automaticallyImplyLeading: !kIsWeb,
         title: const Text(
           'Edit Profile',
           style: TextStyle(fontWeight: FontWeight.w700),
@@ -173,11 +174,13 @@ class _EngineerEditProfileScreenState
             ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Form(
+      body: ResponsiveWrapper(
+        maxWidth: 960,
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Form(
                 key: _formKey,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -334,6 +337,7 @@ class _EngineerEditProfileScreenState
                 ),
               ),
             ),
+      ),
     );
   }
 

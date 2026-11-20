@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:subscription_rooks_app/services/auth_state_service.dart';
 import 'package:subscription_rooks_app/services/firestore_service.dart';
 import 'package:subscription_rooks_app/subscription/subscription_plans_screen.dart';
 import 'package:subscription_rooks_app/utils/responsive_wrapper.dart';
@@ -7,7 +9,7 @@ class AdminSignup extends StatefulWidget {
   const AdminSignup({super.key});
 
   @override
-  _AdminSignupState createState() => _AdminSignupState();
+  State<AdminSignup> createState() => _AdminSignupState();
 }
 
 class _AdminSignupState extends State<AdminSignup> {
@@ -21,12 +23,17 @@ class _AdminSignupState extends State<AdminSignup> {
 
   void _signup() async {
     String name = _nameController.text.trim();
-    String email = _emailController.text.trim();
+    String email = _emailController.text.replaceAll(RegExp(r'\s+'), '').trim().toLowerCase();
     String password = _passwordController.text.trim();
     String confirmPassword = _confirmPasswordController.text.trim();
 
     if (name.isEmpty || email.isEmpty || password.isEmpty) {
       _showSnackBar('Please fill all fields');
+      return;
+    }
+
+    if (_emailController.text.contains(' ')) {
+      _showSnackBar('Email cannot contain spaces');
       return;
     }
 
@@ -37,8 +44,8 @@ class _AdminSignupState extends State<AdminSignup> {
 
     setState(() => _isLoading = true);
 
-    // Instead of immediate registration, pass data to subscription flow
-    final tenantId = FirestoreService.generateTenantId(name);
+    // Authenticate and validate credentials with Firebase Auth
+    final tenantId = await FirestoreService.getUniqueTenantId(name);
     final pendingUserData = {
       'name': name,
       'email': email,
@@ -47,7 +54,22 @@ class _AdminSignupState extends State<AdminSignup> {
       'tenantId': tenantId,
     };
 
+    final result = await AuthStateService.instance.registerUser(
+      name: name,
+      email: email,
+      password: password,
+      role: 'admin',
+      additionalData: {'tenantId': tenantId},
+      deferAuth: true,
+    );
+
     setState(() => _isLoading = false);
+
+    if (!result['success']) {
+      if (!mounted) return;
+      _showSnackBar(result['message'] ?? 'Registration failed');
+      return;
+    }
 
     if (!mounted) return;
 
@@ -130,6 +152,9 @@ class _AdminSignupState extends State<AdminSignup> {
                             prefixIcon: Icon(Icons.email, color: primaryColor),
                           ),
                           keyboardType: TextInputType.emailAddress,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                          ],
                         ),
                         const SizedBox(height: 20),
                         TextField(

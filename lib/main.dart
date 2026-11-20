@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:subscription_rooks_app/firebase_options.dart';
 import 'package:subscription_rooks_app/frontend/screens/splash_screen.dart';
@@ -9,6 +10,8 @@ import 'package:subscription_rooks_app/services/notification_service.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:subscription_rooks_app/services/subscription_expiry_service.dart';
 import 'package:subscription_rooks_app/services/invoice_email_service.dart';
+import 'package:subscription_rooks_app/services/storage_service.dart';
+import 'package:subscription_rooks_app/services/app_update_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,8 +28,10 @@ Future<void> main() async {
     debugPrint('Firebase App Check initialization failed: $e');
   }
 
-  // Set up background message handler
-  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  // Set up background message handler (mobile only)
+  if (!kIsWeb) {
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  }
 
   // Initialize Notification Service
   await NotificationService.instance.initialize();
@@ -36,6 +41,14 @@ Future<void> main() async {
 
   // Initialize Theme
   await ThemeService.instance.init();
+
+  // Pre-initialize and warm up branding logo cache for instant Admin Dashboard display (mobile only)
+  if (!kIsWeb) {
+    StorageService.instance.initLogoCache().catchError((e) {
+      debugPrint('Logo cache init error: $e');
+      return null;
+    });
+  }
 
   // Initialize Subscription Expiry Service
   SubscriptionExpiryService.instance.initialize();
@@ -48,8 +61,32 @@ Future<void> main() async {
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      AppUpdateService.instance.onAppResumed();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

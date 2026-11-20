@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:subscription_rooks_app/services/theme_service.dart';
 
@@ -8,27 +9,107 @@ class FirestoreService {
 
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  /// Generates a consistent tenant ID based on organization name and current date.
-  /// Format: {CleanName}_YYYYMMDD
-  static String generateTenantId(String name) {
-    final now = DateTime.now();
-    final dateStr =
-        "${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}";
-    // Clean name: alphanumeric only, remove spaces
-    final cleanName = name.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '');
+  /// Generates an organization document ID based on organization name and date (YYYYMMDD).
+  /// Format: {CleanName}_{YYYYMMDD} (e.g. Duaiagency_20260919)
+  /// If [counter] is provided and > 0, formats as {CleanName}_{YYYYMMDD}_{counter} to prevent overwriting.
+  static String generateTenantId(
+    String name, [
+    DateTime? registrationDate,
+    int? counter,
+  ]) {
+    final date = registrationDate ?? DateTime.now();
+    final yearStr = date.year.toString();
+    final monthStr = date.month.toString().padLeft(2, '0');
+    final dayStr = date.day.toString().padLeft(2, '0');
+    final dateStr = "$yearStr$monthStr$dayStr";
+    // Clean name: alphanumeric only, remove spaces/special chars (preserve case)
+    String cleanName = name.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '');
+    if (cleanName.isEmpty) cleanName = 'Org';
+    if (counter != null && counter > 0) {
+      return "${cleanName}_${dateStr}_$counter";
+    }
     return "${cleanName}_$dateStr";
   }
 
+  /// Checks whether a tenant / organization document ID already exists in Firestore.
+  Future<bool> tenantIdExists(String tenantId) async {
+    try {
+      // 1. Check if root collection has any docs
+      final rootSnap = await _db.collection(tenantId).limit(1).get();
+      if (rootSnap.docs.isNotEmpty) return true;
+
+      // 2. Check global user directory
+      final globalSnap = await _db
+          .collection('global_user_directory')
+          .where('tenantId', isEqualTo: tenantId)
+          .limit(1)
+          .get();
+      if (globalSnap.docs.isNotEmpty) return true;
+
+      // 3. Check admin collectionGroup
+      final adminSnap = await _db
+          .collectionGroup('admin')
+          .where('tenantId', isEqualTo: tenantId)
+          .limit(1)
+          .get();
+      if (adminSnap.docs.isNotEmpty) return true;
+
+      return false;
+    } catch (e) {
+      debugPrint('FirestoreService.tenantIdExists error: $e');
+      return false;
+    }
+  }
+
+  /// Generates a unique organization / tenant document ID asynchronously.
+  /// Primary format: {CleanName}_{YYYYMMDD} (e.g. Duaiagency_20260919).
+  /// If an existing document with the same ID is found in Firestore, appends
+  /// an incremental suffix ({CleanName}_{YYYYMMDD}_1, {CleanName}_{YYYYMMDD}_2, etc.)
+  /// to prevent data overwriting.
+  Future<String> generateUniqueTenantId(
+    String name, [
+    DateTime? registrationDate,
+  ]) async {
+    final baseId = generateTenantId(name, registrationDate);
+    final exists = await tenantIdExists(baseId);
+    if (!exists) {
+      return baseId;
+    }
+
+    // Handle duplicates by appending incremental index to prevent data overwriting
+    int counter = 1;
+    while (counter <= 100) {
+      final candidateId = generateTenantId(name, registrationDate, counter);
+      final candidateExists = await tenantIdExists(candidateId);
+      if (!candidateExists) {
+        return candidateId;
+      }
+      counter++;
+    }
+
+    return "${baseId}_${DateTime.now().millisecondsSinceEpoch}";
+  }
+
+  /// Static convenience helper for generating a unique organization / tenant document ID.
+  static Future<String> getUniqueTenantId(
+    String name, [
+    DateTime? registrationDate,
+  ]) => instance.generateUniqueTenantId(name, registrationDate);
+
   /// Returns a collection reference rooted under:
-  /// {organizationName}_{createdDate} (coll) -> {documentId} (doc) -> {subCollectionName} (coll)
-  /// This follows the format: OrganizationName_createdDate
+  /// {tenantId} (coll) -> {appId} (doc) -> {collectionName} (coll)
   /// Standardized tenant collection path: {tenantId} (coll) -> data (doc) -> {subCollection} (coll)
   CollectionReference<Map<String, dynamic>> collection(
     String collectionName, {
     String? tenantId,
     String? appId,
   }) {
-    final effectiveTenant = tenantId ?? ThemeService.instance.databaseName;
+    String effectiveTenant = (tenantId != null && tenantId.isNotEmpty)
+        ? tenantId
+        : ThemeService.instance.databaseName;
+    if (effectiveTenant.isEmpty) {
+      effectiveTenant = 'global_user_directory';
+    }
     final effectiveApp = appId ?? 'data';
     return _db
         .collection(effectiveTenant)
@@ -36,9 +117,21 @@ class FirestoreService {
         .collection(collectionName);
   }
 
-  /// Exposes collectionGroup query
+  /// Exposes collectionGroup query that is scoped to the current tenant
   Query<Map<String, dynamic>> collectionGroup(String collectionPath) {
-    return _db.collectionGroup(collectionPath);
+    final effectiveTenant = ThemeService.instance.databaseName;
+    final effectiveApp = 'data';
+    // Create document references for path filtering using __name__ field which stores full path as DocumentReference
+    final startRef = _db.doc('$effectiveTenant/$effectiveApp');
+    final endRef = _db.doc('$effectiveTenant/$effectiveApp\uf8ff');
+
+    return _db
+        .collectionGroup(collectionPath)
+        .where(
+          FieldPath.fromString('__name__'),
+          isGreaterThanOrEqualTo: startRef,
+        )
+        .where(FieldPath.fromString('__name__'), isLessThanOrEqualTo: endRef);
   }
 
   /// Tenant-specific reference for subscriptions
@@ -64,6 +157,154 @@ class FirestoreService {
     String? appId,
   }) => collection('branding', tenantId: tenantId, appId: appId).doc('config');
 
+  /// Stream of all tickets combined from both Admin_ticket_entry and Raised_tickets
+  Stream<List<DocumentSnapshot>> getAllTicketsCombinedStream({
+    String? tenantId,
+    String? appId,
+  }) {
+    final adminStream = collection(
+      'Admin_ticket_entry',
+      tenantId: tenantId,
+      appId: appId,
+    ).snapshots();
+
+    final raisedStream = collection(
+      'Raised_tickets',
+      tenantId: tenantId,
+      appId: appId,
+    ).snapshots();
+
+    return Stream<List<DocumentSnapshot>>.multi((controller) {
+      List<DocumentSnapshot> adminDocs = [];
+      List<DocumentSnapshot> raisedDocs = [];
+
+      bool isDocCancelled(Map<String, dynamic> data) {
+        final s = (data['status'] ?? '').toString().toLowerCase().trim();
+        final a = (data['adminStatus'] ?? '').toString().toLowerCase().trim();
+        final e = (data['engineerStatus'] ?? data['statusDescription'] ?? '')
+            .toString()
+            .toLowerCase()
+            .trim();
+        final c = (data['customerStatus'] ?? '')
+            .toString()
+            .toLowerCase()
+            .trim();
+        final d = (data['Customer_decision'] ?? '')
+            .toString()
+            .toLowerCase()
+            .trim();
+        final rc = (data['Reason_cancel'] ?? '')
+            .toString()
+            .toLowerCase()
+            .trim();
+        final cr = (data['cancellationReason'] ?? '')
+            .toString()
+            .toLowerCase()
+            .trim();
+        return s == 'cancelled' ||
+            s == 'canceled' ||
+            s.contains('cancel') ||
+            a == 'cancelled' ||
+            a == 'canceled' ||
+            a.contains('cancel') ||
+            e == 'cancelled' ||
+            e == 'canceled' ||
+            e.contains('cancel') ||
+            c == 'cancelled' ||
+            c == 'canceled' ||
+            c.contains('cancel') ||
+            d.contains('cancel') ||
+            rc.isNotEmpty ||
+            cr.isNotEmpty ||
+            data['cancelledAt'] != null ||
+            data['isCancelled'] == true ||
+            data['isCanceled'] == true;
+      }
+
+      String getTicketKey(DocumentSnapshot doc) {
+        final data = doc.data() as Map<String, dynamic>?;
+        if (data != null) {
+          final bId = data['bookingId']?.toString().trim();
+          if (bId != null && bId.isNotEmpty) return bId.toUpperCase();
+          final tId = data['ticketId']?.toString().trim();
+          if (tId != null && tId.isNotEmpty) return tId.toUpperCase();
+        }
+        return doc.id.trim().toUpperCase();
+      }
+
+      void emitCombined() {
+        final Map<String, DocumentSnapshot> combinedMap = {};
+
+        // 1. Add Raised_tickets docs (Customer raised tickets)
+        for (var doc in raisedDocs) {
+          final key = getTicketKey(doc);
+          if (key.isNotEmpty) {
+            combinedMap[key] = doc;
+          }
+        }
+
+        // 2. Add/Merge Admin_ticket_entry docs
+        for (var doc in adminDocs) {
+          final key = getTicketKey(doc);
+          if (key.isNotEmpty) {
+            final existing = combinedMap[key];
+            if (existing != null) {
+              final existingData =
+                  existing.data() as Map<String, dynamic>? ?? {};
+              final newData = (doc.data() as Map<String, dynamic>?) ?? {};
+              final existingIsCancelled = isDocCancelled(existingData);
+              final newIsCancelled = isDocCancelled(newData);
+
+              // If existing Raised_tickets is cancelled but Admin_ticket_entry is not yet,
+              // prioritize the cancelled state so Admin sees cancellation in real-time.
+              if (existingIsCancelled && !newIsCancelled) {
+                continue;
+              }
+            }
+            combinedMap[key] = doc;
+          }
+        }
+
+        final result = combinedMap.values.toList();
+        result.sort((a, b) {
+          final dataA = a.data() as Map<String, dynamic>? ?? {};
+          final dataB = b.data() as Map<String, dynamic>? ?? {};
+          final keyA =
+              dataA['bookingId']?.toString() ??
+              dataA['ticketId']?.toString() ??
+              a.id;
+          final keyB =
+              dataB['bookingId']?.toString() ??
+              dataB['ticketId']?.toString() ??
+              b.id;
+          return keyB.compareTo(keyA); // Descending (e.g. T002, T001)
+        });
+
+        controller.add(result);
+      }
+
+      final subAdmin = adminStream.listen((snap) {
+        adminDocs = snap.docs;
+        emitCombined();
+      }, onError: controller.addError);
+
+      final subRaised = raisedStream.listen(
+        (snap) {
+          raisedDocs = snap.docs;
+          emitCombined();
+        },
+        onError: (_) {
+          emitCombined();
+        },
+      );
+
+      controller.onCancel = () {
+        subAdmin.cancel();
+        subRaised.cancel();
+      };
+    });
+  }
+
   // --- Global User Directory ---
   // Maps UID -> AppName/TenantID
   Future<void> saveUserDirectory({
@@ -71,20 +312,32 @@ class FirestoreService {
     required String tenantId,
     required String role,
     String? appName,
+    String? email,
+    String? name,
+    String? phone,
   }) async {
-    // 1. Local tenant mapping (for tenant-specific user management)
-    await collection('users', tenantId: tenantId).doc(uid).set({
+    final Map<String, dynamic> data = {
       'tenantId': tenantId,
       'role': role,
       'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+      if (email != null && email.isNotEmpty) 'email': email,
+      if (name != null && name.isNotEmpty) 'name': name,
+      if (phone != null && phone.isNotEmpty) ...{
+        'phone': phone,
+        'customerMobile': phone,
+      },
+    };
+
+    // 1. Local tenant mapping (for tenant-specific user management)
+    await collection(
+      'users',
+      tenantId: tenantId,
+    ).doc(uid).set(data, SetOptions(merge: true));
 
     // 2. Global lookup (for routing during login)
     await _db.collection('global_user_directory').doc(uid).set({
-      'tenantId': tenantId,
-      'appName': appName,
-      'role': role,
-      'updatedAt': FieldValue.serverTimestamp(),
+      ...data,
+      'appName': appName ?? 'data',
     }, SetOptions(merge: true));
   }
 
@@ -98,28 +351,18 @@ class FirestoreService {
     return null;
   }
 
-  /// Generates a new ticket ID in the format: <CustomerNamePrefix>_<CustomerType>_<RunningNumber>
+  /// Generates a new ticket ID in the sequential format: T001, T002, T003...
   Future<String> generateTicketId({
-    required String customerName,
-    required String customerType, // "amc" or "nonamc"
+    String? customerName,
+    String? customerType,
   }) async {
-    // Get first 3 characters of customer name, lowercase
-    final namePrefix = customerName
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^a-z]'), '')
-        .padLeft(3, 'x')
-        .substring(0, 3);
-
-    // Ensure customer type is "amc" or "nonamc"
-    final type = customerType.toLowerCase().trim() == 'amc' ? 'amc' : 'nonamc';
-
     // Reference to counter document
     final counterRef = collection('counters').doc('ticket_counter');
 
     return runTransaction((transaction) async {
       final snapshot = await transaction.get(counterRef);
 
-      // Get current counter value (or start at 0
+      // Get current counter value (or start at 0)
       int currentCount = 0;
       if (snapshot.exists && snapshot.data() != null) {
         final data = snapshot.data()!['lastTicketCount'] as int? ?? 0;
@@ -134,11 +377,10 @@ class FirestoreService {
         'lastTicketCount': newCount,
       }, SetOptions(merge: true));
 
-      // Generate padded to 3 digits
+      // Generate padded to 3 digits (e.g. T001, T002...)
       final paddedNumber = newCount.toString().padLeft(3, '0');
 
-      // Return final ticket ID
-      return '${namePrefix}_${type}_${paddedNumber}';
+      return 'T$paddedNumber';
     });
   }
 
@@ -193,6 +435,7 @@ class FirestoreService {
     required String planName,
     required bool isYearly,
     bool isSixMonths = false,
+    int subscriptionYears = 1,
     required int price,
     int? originalPrice,
     String paymentMethod = 'unknown',
@@ -206,6 +449,7 @@ class FirestoreService {
     bool? attendance,
     bool? barcode,
     bool? reportExport,
+    bool? welcomeModalViewed,
   }) async {
     final normalizedPlanName = planName.trim();
     if (normalizedPlanName.isEmpty) {
@@ -225,7 +469,8 @@ class FirestoreService {
       // Free Trial is exactly 7 days
       nextBilling = now.add(const Duration(days: 7));
     } else if (isYearly) {
-      nextBilling = DateTime(now.year + 1, now.month, now.day);
+      final yearsToAdd = subscriptionYears > 0 ? subscriptionYears : 1;
+      nextBilling = DateTime(now.year + yearsToAdd, now.month, now.day);
     } else if (isSixMonths) {
       nextBilling = DateTime(now.year, now.month + 6, now.day);
     } else {
@@ -236,23 +481,39 @@ class FirestoreService {
       'planName': normalizedPlanName,
       'isYearly': isYearly,
       'isSixMonths': isSixMonths,
+      'subscriptionYears': subscriptionYears > 0 ? subscriptionYears : 1,
+      'billingYears': subscriptionYears > 0 ? subscriptionYears : 1,
+      'durationYears': subscriptionYears > 0 ? subscriptionYears : 1,
+      'annualPrice': isYearly
+          ? (price / (subscriptionYears > 0 ? subscriptionYears : 1)).round()
+          : null,
+      'totalAmount': price,
+      'billingType': isYearly
+          ? 'Yearly'
+          : (isSixMonths ? '6 Months' : 'Monthly'),
+      'billingCycle': isYearly
+          ? (subscriptionYears > 1 ? '$subscriptionYears Years' : 'Yearly')
+          : (isSixMonths ? '6 Months' : 'Monthly'),
       'price': price,
       'paymentMethod': normalizedPaymentMethod,
       'status': status,
       'startedAt': now.toIso8601String(),
+      'startDate': now.toIso8601String(),
       'nextBillingAt': nextBilling.toIso8601String(),
       'expiresAt':
           nextBilling, // DateTime is converted to Timestamp by Firestore
+      'expiryDate': nextBilling,
       'updatedAt': FieldValue.serverTimestamp(),
-      if (originalPrice != null) 'originalPrice': originalPrice,
+      'originalPrice': ?originalPrice,
+      'welcomeModalViewed': welcomeModalViewed ?? false,
       if (customerMobile != null && customerMobile.isNotEmpty)
         'customerMobile': customerMobile,
       if (gstNumber != null && gstNumber.isNotEmpty) 'gstNumber': gstNumber,
-      if (limits != null) 'limits': limits,
-      if (geoLocation != null) 'geoLocation': geoLocation,
-      if (attendance != null) 'attendance': attendance,
-      if (barcode != null) 'barcode': barcode,
-      if (reportExport != null) 'reportExport': reportExport,
+      'limits': ?limits,
+      'geoLocation': ?geoLocation,
+      'attendance': ?attendance,
+      'barcode': ?barcode,
+      'reportExport': ?reportExport,
     };
 
     if (brandingData != null) {
@@ -311,23 +572,45 @@ class FirestoreService {
         appId: appId,
       ).where('status', isEqualTo: 'active').limit(1).get();
 
-      if (querySnapshot.docs.isEmpty) return false;
-
-      final doc = querySnapshot.docs.first;
-      final data = doc.data();
-      final expiryDate = _getExpiryDate(data);
-      if (expiryDate == null || DateTime.now().toUtc().isAfter(expiryDate)) {
-        // Found an active doc but it's expired -> Update status to expired
-        await doc.reference.update({'status': 'expired'});
-        // Deactivate the admin user associated with this doc
-        await setUserActiveStatus(
-          uid: doc.id,
-          tenantId: tenantId,
-          active: false,
-        );
-        return false;
+      if (querySnapshot.docs.isNotEmpty) {
+        final doc = querySnapshot.docs.first;
+        final data = doc.data();
+        final expiryDate = _getExpiryDate(data);
+        if (expiryDate == null || DateTime.now().toUtc().isAfter(expiryDate)) {
+          // Found an active doc but it's expired -> Update status to expired
+          await doc.reference.update({'status': 'expired'});
+          await setUserActiveStatus(
+            uid: doc.id,
+            tenantId: tenantId,
+            active: false,
+          );
+          return false;
+        }
+        return true;
       }
-      return true;
+
+      // If no doc had status == 'active', check if any doc has a valid future expiry date
+      final allDocs = await subscriptionsRef(
+        tenantId: tenantId,
+        appId: appId,
+      ).limit(5).get();
+
+      for (final doc in allDocs.docs) {
+        final data = doc.data();
+        final expiryDate = _getExpiryDate(data);
+        if (expiryDate != null && DateTime.now().toUtc().isBefore(expiryDate)) {
+          // Auto-heal status to active
+          await doc.reference.update({'status': 'active'});
+          await setUserActiveStatus(
+            uid: doc.id,
+            tenantId: tenantId,
+            active: true,
+          );
+          return true;
+        }
+      }
+
+      return false;
     } catch (e) {
       debugPrint('Error checking tenant active status: $e');
       return false;
@@ -378,10 +661,10 @@ class FirestoreService {
     required String tenantId,
     required bool active,
   }) async {
-    await collection(
-      'users',
-      tenantId: tenantId,
-    ).doc(uid).update({'active': active});
+    await collection('users', tenantId: tenantId).doc(uid).set({
+      'active': active,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
   }
 
   // Stream subscription for a specific user within a tenant
@@ -410,18 +693,45 @@ class FirestoreService {
       snapshot,
     ) {
       if (snapshot.docs.isNotEmpty) {
-        // Try to find one that is active or just return the first one
-        try {
-          return snapshot.docs.firstWhere((doc) {
-            final data = doc.data();
-            return data['status'] == 'active';
-          }).data();
-        } catch (_) {
-          return snapshot.docs.first.data();
+        // 1. Try to find one that is marked 'active'
+        for (final doc in snapshot.docs) {
+          final data = Map<String, dynamic>.from(doc.data());
+          data['docId'] = doc.id;
+          if (data['status'] == 'active') {
+            return data;
+          }
         }
+        // 2. If none explicitly marked active, return the first doc so expiry logic can evaluate
+        final firstData = Map<String, dynamic>.from(snapshot.docs.first.data());
+        firstData['docId'] = snapshot.docs.first.id;
+        return firstData;
       }
       return null;
     });
+  }
+
+  /// Marks the subscription welcome modal as viewed in Firestore.
+  Future<void> markSubscriptionWelcomeModalViewed({
+    required String tenantId,
+    String? docId,
+    String? uid,
+    String? appId,
+  }) async {
+    try {
+      final targetDocId =
+          docId ?? uid ?? FirebaseAuth.instance.currentUser?.uid;
+      if (targetDocId != null && targetDocId.isNotEmpty) {
+        await subscriptionsRef(
+          tenantId: tenantId,
+          appId: appId,
+        ).doc(targetDocId).set({
+          'welcomeModalViewed': true,
+          'welcomeModalViewedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+    } catch (e) {
+      debugPrint('Error marking subscription welcome modal viewed: $e');
+    }
   }
 
   Future<String?> getActiveSubscriptionAppId({
@@ -464,7 +774,10 @@ class FirestoreService {
   // Fetch and apply branding configuration for a tenant
   Future<void> syncBranding(String tenantId, {String? appId}) async {
     try {
-      final doc = await brandingDoc(tenantId: tenantId, appId: appId).get();
+      var doc = await brandingDoc(tenantId: tenantId, appId: appId).get();
+      if (!doc.exists && appId != null && appId != 'data') {
+        doc = await brandingDoc(tenantId: tenantId, appId: 'data').get();
+      }
       if (doc.exists && doc.data() != null) {
         ThemeService.instance.loadFromMap({
           ...doc.data()!,
@@ -649,6 +962,7 @@ class FirestoreService {
     required String status,
     bool isYearly = false,
     bool isSixMonths = false,
+    int subscriptionYears = 1,
     String? failureReason,
     bool registrationCompleted = false,
     bool firestoreSynced = false,
@@ -678,13 +992,23 @@ class FirestoreService {
         'userIdOrMobile': uidOrMobile,
         'planName': planName,
         'newPlan': newPlan ?? planName,
-        if (previousPlan != null) 'previousPlan': previousPlan,
+        'previousPlan': ?previousPlan,
         'amount': amount,
         'status': status,
         'isYearly': isYearly,
         'isSixMonths': isSixMonths,
+        'subscriptionYears': subscriptionYears,
+        'billingYears': subscriptionYears,
+        'durationYears': subscriptionYears,
+        'annualPrice': isYearly
+            ? (amount / (subscriptionYears > 0 ? subscriptionYears : 1)).round()
+            : null,
+        'totalAmount': amount,
+        'billingType': isYearly
+            ? 'Yearly'
+            : (isSixMonths ? '6 Months' : 'Monthly'),
         'queueStatus': queueStatus,
-        if (failureReason != null) 'failureReason': failureReason,
+        'failureReason': ?failureReason,
         'timestamp': FieldValue.serverTimestamp(),
         'registrationCompleted': registrationCompleted,
         'firestoreSynced': firestoreSynced,
@@ -695,10 +1019,10 @@ class FirestoreService {
           'planName': planName,
           'amount': amount,
           'billingCycle': isYearly
-              ? 'Yearly'
+              ? (subscriptionYears > 1 ? '$subscriptionYears Years' : 'Yearly')
               : (isSixMonths ? '6 Months' : 'Monthly'),
-          if (customerName != null) 'customerName': customerName,
-          if (customerEmail != null) 'customerEmail': customerEmail,
+          'customerName': ?customerName,
+          'customerEmail': ?customerEmail,
         },
       };
 
@@ -725,7 +1049,7 @@ class FirestoreService {
           'customerMobile': customerMobile ?? '',
           'planName': planName,
           'queueStatus': queueStatus,
-          if (previousPlan != null) 'previousPlan': previousPlan,
+          'previousPlan': ?previousPlan,
           'newPlan': newPlan ?? planName,
           'gatewayResponse': gatewayResponse ?? {},
           'createdAt': FieldValue.serverTimestamp(),

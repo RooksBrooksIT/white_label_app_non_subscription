@@ -1,6 +1,6 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:subscription_rooks_app/services/notification_service.dart';
+import 'package:subscription_rooks_app/services/auth_state_service.dart';
 
 class CustomerDashboardBackend {
   static Future<Map<String, String?>> getStoredUserInfo(
@@ -27,14 +27,6 @@ class CustomerDashboardBackend {
   }
 
   static Future<void> logout() async {
-    try {
-      await FirebaseAuth.instance.signOut();
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      await prefs.clear();
-    } catch (e) {
-      print('Logout error: $e');
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      await prefs.clear();
-    }
+    await AuthStateService.instance.logout();
   }
 }
