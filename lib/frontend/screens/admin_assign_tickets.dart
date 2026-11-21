@@ -859,52 +859,63 @@ class _CreateTicketsState extends State<CreateTickets> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0.5,
-        leading: IconButton(
-                icon: const Icon(
-                  Icons.arrow_back_rounded,
-                  color: Color(0xFF0F172A),
-                ),
-                onPressed: () {
-                  if (_currentStep > 0 && _currentStep < 4) {
-                    setState(() {
-                      _currentStep--;
-                    });
-                  } else {
-                    Navigator.pop(context);
-                  }
-                },
-              ),
-        title: const Text(
-          'Create Ticket',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-            color: Color(0xFF0F172A),
-            letterSpacing: -0.3,
+    return PopScope(
+      canPop: _currentStep == 0 || _currentStep >= 4,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (_currentStep > 0 && _currentStep < 4) {
+          setState(() {
+            _currentStep--;
+          });
+        }
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF8FAFC),
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0.5,
+          leading: IconButton(
+            icon: const Icon(
+              Icons.arrow_back_rounded,
+              color: Color(0xFF0F172A),
+            ),
+            onPressed: () {
+              if (_currentStep > 0 && _currentStep < 4) {
+                setState(() {
+                  _currentStep--;
+                });
+              } else {
+                Navigator.pop(context);
+              }
+            },
+          ),
+          title: const Text(
+            'Create Ticket',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF0F172A),
+              letterSpacing: -0.3,
+            ),
           ),
         ),
-      ),
-      body: SafeArea(
-        child: ResponsiveWrapper(
-          maxWidth: 960,
-          child: Column(
-            children: [
-              const SizedBox(height: 12),
-              _buildStepProgressBar(),
-              const SizedBox(height: 12),
-              Expanded(
-                child: SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.all(20),
-                  child: _buildCurrentStepContent(),
+        body: SafeArea(
+          child: ResponsiveWrapper(
+            maxWidth: 960,
+            child: Column(
+              children: [
+                const SizedBox(height: 12),
+                _buildStepProgressBar(),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.all(20),
+                    child: _buildCurrentStepContent(),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -3263,6 +3274,7 @@ class _CreateTicketsState extends State<CreateTickets> {
             border: Border.all(color: const Color(0xFFE2E8F0)),
           ),
           child: DropdownButtonFormField<String>(
+            key: ValueKey('${label}_${value ?? ""}'),
             initialValue: (value != null && options.contains(value))
                 ? value
                 : null,

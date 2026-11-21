@@ -50,6 +50,11 @@ class BrowserNavigationObserver extends WebNavigationObserver {
     }
   }
 
+  /// Only genuine full-screen PageRoutes participate in browser history synchronization.
+  /// Transient popup routes (such as DropdownRoute, DialogRoute, ModalBottomSheetRoute,
+  /// PopupMenuRoute) are UI overlays and must never push to or pop from browser history.
+  bool _isPageRoute(Route<dynamic> route) => route is PageRoute;
+
   void _handleBrowserPop() {
     if (_isPoppingFromApp) {
       // Pop was initiated by in-app Navigator.pop() which called history.back().
@@ -60,7 +65,6 @@ class BrowserNavigationObserver extends WebNavigationObserver {
     final nav = _navigatorKey?.currentState ?? navigator;
     if (nav != null && nav.canPop()) {
       _isHandlingPopState = true;
-      if (_historyDepth > 0) _historyDepth--;
       try {
         nav.pop();
       } finally {
@@ -78,7 +82,8 @@ class BrowserNavigationObserver extends WebNavigationObserver {
   @override
   void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
     super.didPush(route, previousRoute);
-    if (previousRoute != null) {
+    if (!_isPageRoute(route)) return;
+    if (previousRoute != null && _isPageRoute(previousRoute)) {
       _historyDepth++;
       if (!_isHandlingPopState) {
         try {
@@ -91,6 +96,7 @@ class BrowserNavigationObserver extends WebNavigationObserver {
   @override
   void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
     super.didPop(route, previousRoute);
+    if (!_isPageRoute(route)) return;
     if (_historyDepth > 0) {
       _historyDepth--;
     }
@@ -108,6 +114,7 @@ class BrowserNavigationObserver extends WebNavigationObserver {
   @override
   void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) {
     super.didRemove(route, previousRoute);
+    if (!_isPageRoute(route)) return;
     if (_historyDepth > 0) _historyDepth--;
   }
 
